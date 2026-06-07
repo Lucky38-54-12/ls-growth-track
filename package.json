@@ -1,0 +1,9 @@
+{
+  "name": "ls-growth-track",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Open/click tracking endpoints for LS Growth email outreach",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}
