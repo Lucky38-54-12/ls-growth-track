@@ -6,187 +6,331 @@ import SendButton from "@/components/SendButton";
 import FlashMessage from "./FlashMessage";
 import Link from "next/link";
 
-const L = { bg: "#f1f5f9", surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
-
-const COLUMNS = [
-  { key: "not_contacted", label: "Not Contacted", color: "#94a3b8" },
-  { key: "contacted", label: "Contacted", color: "#2563eb" },
-  { key: "followup_1_sent", label: "Follow-up 1", color: "#2563eb" },
-  { key: "followup_2_sent", label: "Follow-up 2", color: "#2563eb" },
-  { key: "warm", label: "Replied / Booked", color: "#16a34a" },
-] as const;
+export const revalidate = 0;
 
 const WARM_STATUSES = new Set(["replied", "booked"]);
+const SEQUENCE_STATUSES = ["contacted", "followup_1_sent", "followup_2_sent"];
 
-export const revalidate = 0;
+const STATUS_LABEL: Record<string, string> = {
+  not_contacted: "Not contacted",
+  contacted: "Contacted",
+  followup_1_sent: "Follow-up 1",
+  followup_2_sent: "Follow-up 2",
+  replied: "Replied",
+  booked: "Booked",
+  not_interested: "Not interested",
+  bounced: "Bounced",
+  sequence_complete: "Complete",
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  not_contacted: "#94a3b8",
+  contacted: "#2563eb",
+  followup_1_sent: "#7c3aed",
+  followup_2_sent: "#7c3aed",
+  replied: "#16a34a",
+  booked: "#16a34a",
+  not_interested: "#94a3b8",
+  bounced: "#dc2626",
+  sequence_complete: "#94a3b8",
+};
+
+function timeAgo(dateStr: string | null) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function initials(name: string) {
+  return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+}
 
 export default async function DashboardPage() {
   const sb = createSupabaseClient();
 
   const [{ data: leads }, { data: events }] = await Promise.all([
     sb.from("leads").select("*").order("date_added", { ascending: false }),
-    sb.from("email_events").select("*"),
+    sb.from("email_events").select("*").order("created_at", { ascending: false }),
   ]);
 
   const allLeads = (leads || []) as Lead[];
 
+  // Build engagement map
   const engagement: Record<string, EngagementSummary> = {};
   for (const ev of (events || []) as EmailEvent[]) {
     if (!engagement[ev.lead_id]) engagement[ev.lead_id] = { opens: 0, clicks: 0, last_event_at: null };
     if (ev.event_type === "open") engagement[ev.lead_id].opens++;
     if (ev.event_type === "click") engagement[ev.lead_id].clicks++;
-    if (!engagement[ev.lead_id].last_event_at || ev.created_at > engagement[ev.lead_id].last_event_at!) {
-      engagement[ev.lead_id].last_event_at = ev.created_at;
-    }
+    if (!engagement[ev.lead_id].last_event_at) engagement[ev.lead_id].last_event_at = ev.created_at;
   }
 
+  // Stats
   const total = allLeads.length;
-  const notContacted = allLeads.filter((l) => l.status === "not_contacted").length;
-  const inSequence = allLeads.filter((l) => ["contacted", "followup_1_sent", "followup_2_sent"].includes(l.status)).length;
-  const warmCount = allLeads.filter((l) => WARM_STATUSES.has(l.status)).length;
-  const due = allLeads.filter((l) => nextStepFor(l) !== null).length;
+  const contacted = allLeads.filter(l => l.status !== "not_contacted").length;
+  const inSequence = allLeads.filter(l => SEQUENCE_STATUSES.includes(l.status)).length;
+  const warmCount = allLeads.filter(l => WARM_STATUSES.has(l.status)).length;
+  const due = allLeads.filter(l => nextStepFor(l) !== null).length;
   const emailsSent = allLeads.reduce((acc, l) => acc + (l.status === "not_contacted" ? 0 : 1) + (l.followup_count || 0), 0);
+  const responseRate = contacted > 0 ? Math.round((warmCount / contacted) * 100) : 0;
 
-  const tradeCounts: Record<string, number> = {};
-  for (const l of allLeads) {
-    const t = l.trade?.trim() || "Unspecified";
-    tradeCounts[t] = (tradeCounts[t] || 0) + 1;
-  }
-  const maxTrade = Math.max(1, ...Object.values(tradeCounts));
+  // Warm leads for right panel (engaged or replied)
+  const warmLeads = allLeads
+    .filter(l => {
+      const ev = engagement[l.lead_id];
+      return WARM_STATUSES.has(l.status) || (ev && (ev.opens > 0 || ev.clicks > 0));
+    })
+    .sort((a, b) => {
+      const aWarm = WARM_STATUSES.has(a.status) ? 2 : 0;
+      const bWarm = WARM_STATUSES.has(b.status) ? 2 : 0;
+      const aClicks = (engagement[a.lead_id]?.clicks || 0);
+      const bClicks = (engagement[b.lead_id]?.clicks || 0);
+      return (bWarm + bClicks) - (aWarm + aClicks);
+    })
+    .slice(0, 8);
+
+  // Recent active leads for main list
+  const activeLeads = allLeads
+    .filter(l => !WARM_STATUSES.has(l.status) && l.status !== "bounced" && l.status !== "not_interested")
+    .slice(0, 10);
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{
-        background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "0 28px",
-        height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--red)", flexShrink: 0 }} />
-          <div>
-            <h1 style={{ fontSize: 17, fontWeight: 900, letterSpacing: "0.04em", lineHeight: 1.15 }}>PIPELINE</h1>
-            <p style={{ color: L.muted, fontSize: 12, marginTop: 1 }}>Outreach pipeline — leads you&apos;ve contacted</p>
-          </div>
+    <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
+      <Suspense fallback={null}><FlashMessage /></Suspense>
+
+      <div style={{ padding: "28px 28px 60px" }}>
+
+        {/* Section label */}
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: "#dc2626", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 13 }}>📈</span> Outreach Pipeline This Week
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--green)" }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--green)", display: "inline-block" }} />
-            LIVE
-          </span>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--red)", color: "#fff", fontWeight: 800, fontSize: 12.5, display: "flex", alignItems: "center", justifyContent: "center" }}>LS</div>
-        </div>
-      </div>
 
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "26px 28px 60px" }}>
-
-        <Suspense fallback={null}><FlashMessage /></Suspense>
-
-        {/* Stats */}
-        <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--red)", fontWeight: 800, marginBottom: 12 }}>Overview</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14, marginBottom: 28 }}>
+        {/* Stat cards */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
+          background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12,
+          overflow: "hidden", marginBottom: 16,
+        }}>
           {[
-            { label: "Total Leads", value: total, sub: "in pipeline", pct: 100 },
-            { label: "Contacted", value: total - notContacted, sub: `${total ? Math.round(100*(total-notContacted)/total) : 0}% of pipeline`, pct: total ? (total-notContacted)/total*100 : 0 },
-            { label: "In Sequence", value: inSequence, sub: "follow-ups running", pct: total ? inSequence/total*100 : 0 },
-            { label: "Warm Leads", value: warmCount, sub: "replied / booked", pct: total ? warmCount/total*100 : 0, green: true },
-            { label: "Due Now", value: due, sub: `${emailsSent} emails sent total`, pct: total ? due/total*100 : 0, accent: true },
-          ].map(({ label, value, sub, pct, green, accent }) => (
+            { icon: "↗", value: total, label: "Total Leads", sub: "In pipeline", accent: false },
+            { icon: "💬", value: `${responseRate}%`, label: "Response Rate", sub: "Replies & bookings", accent: false },
+            { icon: "⚡", value: emailsSent, label: "Emails Sent", sub: "Across all sequences", accent: false },
+            { icon: "$", value: warmCount, label: "Warm Leads", sub: "Worth a call now", accent: true },
+          ].map(({ icon, value, label, sub, accent }, i, arr) => (
             <div key={label} style={{
-              background: L.surface, border: `1px solid ${L.border}`,
-              borderTop: `3px solid ${green ? "var(--green)" : accent ? "var(--red)" : L.border}`,
-              borderRadius: 10, padding: "16px 18px",
+              padding: "22px 22px 20px",
+              borderRight: i < arr.length - 1 ? "1px solid #e2e8f0" : undefined,
+              borderLeft: accent ? "3px solid #16a34a" : undefined,
             }}>
-              <div style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 700 }}>{label}</div>
-              <div style={{ fontSize: 32, fontWeight: 900, marginTop: 6, lineHeight: 1, color: green ? "var(--green)" : accent ? "var(--red)" : L.text }}>{value}</div>
-              <div style={{ fontSize: 12, color: L.dimmed, marginTop: 4 }}>{sub}</div>
-              <div style={{ marginTop: 10, background: "#f1f5f9", borderRadius: 6, height: 5, overflow: "hidden" }}>
-                <div style={{ height: "100%", background: green ? "var(--green)" : "var(--red)", borderRadius: 6, width: `${Math.min(100, pct)}%` }} />
-              </div>
+              <div style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: accent ? "#dcfce7" : "#f1f5f9",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 14, fontWeight: 900, color: accent ? "#16a34a" : "#64748b",
+                marginBottom: 12,
+              }}>{icon}</div>
+              <div style={{ fontSize: 38, fontWeight: 900, lineHeight: 1, color: accent ? "#16a34a" : "#0f172a", marginBottom: 6 }}>{value}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 3 }}>{label}</div>
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>{sub}</div>
             </div>
           ))}
         </div>
 
-        {/* Trade breakdown + send */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, marginBottom: 28 }}>
-          <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 14 }}>Leads by Trade</div>
-            {Object.keys(tradeCounts).length === 0 ? (
-              <p style={{ color: L.muted, fontSize: 13 }}>No leads yet.</p>
-            ) : (
-              Object.entries(tradeCounts).sort((a, b) => b[1] - a[1]).map(([trade, count]) => (
-                <div key={trade} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10, fontSize: 13 }}>
-                  <div style={{ width: 130, flexShrink: 0, fontWeight: 600 }}>{trade}</div>
-                  <div style={{ flex: 1, background: "#f1f5f9", borderRadius: 6, height: 9, overflow: "hidden" }}>
-                    <div style={{ background: "var(--red)", height: "100%", borderRadius: 6, width: `${Math.round(count/maxTrade*100)}%` }} />
-                  </div>
-                  <div style={{ width: 64, textAlign: "right", color: L.muted, flexShrink: 0 }}>
-                    {count} ({total ? Math.round(count/total*100) : 0}%)
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800 }}>Send Outreach</div>
-            <p style={{ fontSize: 13, color: L.muted }}>
-              {due > 0 ? `${due} lead${due !== 1 ? "s" : ""} are due for their next email.` : "No emails due right now."}
-            </p>
-            <SendButton due={due} />
-            <Link href="/dashboard/new" style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              padding: "11px 20px", background: L.surface, color: L.text,
-              border: `1px solid ${L.border}`, borderRadius: 8, fontSize: 14, fontWeight: 700,
-            }}>
-              + Add Lead
-            </Link>
-          </div>
+        {/* Impact bar */}
+        <div style={{
+          background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10,
+          padding: "12px 22px", display: "flex", alignItems: "center", gap: 32,
+          marginBottom: 24, flexWrap: "wrap",
+        }}>
+          <span style={{ fontSize: 10.5, color: "#94a3b8", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", flexShrink: 0 }}>Outreach Impact</span>
+          {[
+            { value: contacted, label: "Leads Contacted" },
+            { value: inSequence, label: "In Sequence" },
+            { value: due, label: "Due Today" },
+            { value: `${responseRate}%`, label: "Response Rate" },
+            { value: emailsSent, label: "Total Emails" },
+          ].map(({ value, label }) => (
+            <div key={label} style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+              <span style={{ fontSize: 15, fontWeight: 900, color: "#0f172a" }}>{value}</span>
+              <span style={{ fontSize: 12, color: "#64748b" }}>{label}</span>
+            </div>
+          ))}
         </div>
 
-        {/* Kanban */}
-        <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--red)", fontWeight: 800, marginBottom: 12 }}>Pipeline</div>
-        <div style={{ display: "flex", gap: 18, overflowX: "auto", paddingBottom: 8, alignItems: "flex-start" }}>
-          {COLUMNS.map(({ key, label, color }) => {
-            const colLeads = key === "warm"
-              ? allLeads.filter((l) => WARM_STATUSES.has(l.status))
-              : allLeads.filter((l) => l.status === key);
-            return (
-              <div key={key} style={{ minWidth: 270, flex: 1, borderTop: `2px solid ${color}`, paddingTop: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 2px", marginBottom: 14 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, display: "inline-block" }} />
-                  <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{label}</span>
-                  <span style={{ color: L.dimmed, fontWeight: 700, fontSize: 12, marginLeft: "auto" }}>{colLeads.length}</span>
+        {/* Main grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 288px", gap: 20, alignItems: "flex-start" }}>
+
+          {/* Leads list */}
+          <div>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginBottom: 14,
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b" }}>Active Leads</span>
+              <Link href="/dashboard/new" style={{
+                padding: "8px 16px", background: "#dc2626", color: "#fff",
+                borderRadius: 7, fontSize: 13, fontWeight: 700, textDecoration: "none",
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}>+ Add Lead</Link>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {activeLeads.length === 0 && (
+                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                  No active leads yet — <Link href="/dashboard/new" style={{ color: "#dc2626", fontWeight: 700 }}>add your first lead</Link> or <Link href="/dashboard/import" style={{ color: "#dc2626", fontWeight: 700 }}>import a batch</Link>.
                 </div>
-                {colLeads.length === 0 ? (
-                  <div style={{ color: L.dimmed, fontSize: 12.5, padding: "14px 0", textAlign: "center" }}>Nothing here</div>
-                ) : colLeads.map((lead) => {
+              )}
+              {activeLeads.map(lead => {
+                const ev = engagement[lead.lead_id];
+                const color = STATUS_COLOR[lead.status] || "#94a3b8";
+                const isDue = nextStepFor(lead) !== null;
+                return (
+                  <div key={lead.lead_id} style={{
+                    background: "#fff", border: "1px solid #e2e8f0",
+                    borderLeft: `3px solid ${color}`,
+                    borderRadius: 10, padding: "14px 18px",
+                    display: "flex", alignItems: "center", gap: 14,
+                  }}>
+                    {/* Initials badge */}
+                    <div style={{
+                      width: 40, height: 40, borderRadius: 9, background: "#f1f5f9",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0, fontWeight: 900, fontSize: 12, color: "#64748b",
+                      border: "1px solid #e2e8f0",
+                    }}>
+                      {initials(lead.company)}
+                    </div>
+
+                    {/* Main info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: "#0f172a", marginBottom: 2 }}>{lead.company}</div>
+                      <div style={{ fontSize: 12, color: "#64748b" }}>
+                        {lead.trade}{lead.location ? ` · ${lead.location}` : ""}
+                        {lead.date_contacted ? ` · contacted ${lead.date_contacted}` : ""}
+                      </div>
+                    </div>
+
+                    {/* Engagement pills */}
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+                      {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+                    </div>
+
+                    {/* Status + due */}
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 800, color, marginBottom: 3 }}>{STATUS_LABEL[lead.status] || lead.status}</div>
+                      {isDue && <div style={{ fontSize: 10.5, fontWeight: 700, color: "#dc2626" }}>Due now</div>}
+                    </div>
+
+                    <span style={{ color: "#94a3b8", fontSize: 16, flexShrink: 0 }}>→</span>
+                  </div>
+                );
+              })}
+
+              {allLeads.length > 10 && (
+                <div style={{ textAlign: "center", padding: "12px 0" }}>
+                  <Link href="/dashboard/warm" style={{ fontSize: 13, color: "#dc2626", fontWeight: 700 }}>View all {allLeads.length} leads →</Link>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right panel: warm leads + send */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+            {/* Send card */}
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "18px 18px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b" }}>Send Outreach</span>
+                {due > 0 && (
+                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#fee2e2", color: "#dc2626" }}>{due} due</span>
+                )}
+              </div>
+              <p style={{ fontSize: 12.5, color: "#64748b", marginBottom: 14, lineHeight: 1.5 }}>
+                {due > 0 ? `${due} lead${due !== 1 ? "s" : ""} ready for their next email.` : "All caught up — no emails due right now."}
+              </p>
+              <SendButton due={due} />
+            </div>
+
+            {/* Warm leads panel */}
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "14px 18px 12px", borderBottom: "1px solid #e2e8f0",
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b" }}>Warm Leads</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#16a34a" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a", display: "inline-block" }} />
+                  LIVE
+                </span>
+              </div>
+
+              {warmLeads.length === 0 ? (
+                <div style={{ padding: "24px 18px", textAlign: "center", color: "#94a3b8", fontSize: 12.5 }}>Nobody warm yet — keep sending!</div>
+              ) : (
+                warmLeads.map(lead => {
                   const ev = engagement[lead.lead_id];
-                  const isWarm = WARM_STATUSES.has(lead.status);
-                  const leftColor = isWarm ? "var(--green)" : key === "not_contacted" ? "#94a3b8" : "var(--blue)";
+                  const isReplied = WARM_STATUSES.has(lead.status);
+                  const statusText = isReplied ? lead.status.toUpperCase() : ev?.clicks > 0 ? "CLICKED" : "OPENED";
+                  const statusColor = isReplied ? "#16a34a" : ev?.clicks > 0 ? "#9d174d" : "#1e40af";
+                  const lastDate = lead.last_followup || lead.date_contacted;
                   return (
                     <div key={lead.lead_id} style={{
-                      background: "#fff", border: `1px solid ${L.border}`,
-                      borderLeft: `3px solid ${leftColor}`, borderRadius: 8,
-                      padding: "12px 14px", marginBottom: 10,
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "11px 18px", borderBottom: "1px solid #f1f5f9",
                     }}>
-                      <div style={{ fontWeight: 800, fontSize: 13.5 }}>{lead.company}</div>
-                      <div style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>{lead.contact_name} · {lead.email}</div>
-                      <div style={{ fontSize: 11.5, color: L.dimmed, marginTop: 6 }}>
-                        {[lead.trade, lead.location, lead.date_contacted && `contacted ${lead.date_contacted}`].filter(Boolean).join(" · ")}
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 7, background: "#f1f5f9",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        flexShrink: 0, fontWeight: 900, fontSize: 10.5, color: "#64748b",
+                        border: "1px solid #e2e8f0",
+                      }}>
+                        {initials(lead.company)}
                       </div>
-                      {(isWarm || ev) && (
-                        <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {isWarm && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#dcfce7", color: "#166534" }}>{lead.status}</span>}
-                          {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
-                          {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
-                        </div>
-                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 12.5, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.company}</div>
+                        <div style={{ fontSize: 11, color: "#94a3b8" }}>{lead.trade || "—"}</div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 800, color: statusColor }}>{statusText}</div>
+                        <div style={{ fontSize: 10.5, color: "#94a3b8" }}>{timeAgo(lastDate)}</div>
+                      </div>
                     </div>
                   );
-                })}
+                })
+              )}
+
+              {warmLeads.length > 0 && (
+                <div style={{ padding: "10px 18px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>{warmCount} warm total</span>
+                  <Link href="/dashboard/warm" style={{ fontSize: 12, fontWeight: 700, color: "#dc2626" }}>View all →</Link>
+                </div>
+              )}
+            </div>
+
+            {/* Quick links */}
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "14px 18px" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b", marginBottom: 12 }}>Quick Actions</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[
+                  { href: "/dashboard/import", label: "Import leads from CSV" },
+                  { href: "/dashboard/warm", label: "View all warm leads" },
+                  { href: "/dashboard/new", label: "Add a single lead" },
+                ].map(({ href, label }) => (
+                  <Link key={href} href={href} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "9px 12px", background: "#f8fafc", borderRadius: 7,
+                    fontSize: 12.5, fontWeight: 600, color: "#0f172a", textDecoration: "none",
+                    border: "1px solid #e2e8f0",
+                  }}>
+                    {label} <span style={{ color: "#94a3b8" }}>→</span>
+                  </Link>
+                ))}
               </div>
-            );
-          })}
+            </div>
+          </div>
         </div>
       </div>
     </div>
