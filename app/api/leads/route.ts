@@ -1,0 +1,54 @@
+import { NextRequest, NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+import { createSupabaseClient } from "@/lib/supabase";
+import { generateLeadId } from "@/lib/leads";
+import { sendOutreachEmail } from "@/lib/email";
+import { Lead } from "@/lib/types";
+
+export async function GET() {
+  const sb = createSupabaseClient();
+  const { data, error } = await sb.from("leads").select("*").order("date_added", { ascending: false });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}
+
+export async function POST(req: NextRequest) {
+  const sb = createSupabaseClient();
+  const body = await req.json();
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data: existing } = await sb.from("leads").select("lead_id");
+  const existingIds = new Set<string>((existing || []).map((r: { lead_id: string }) => r.lead_id));
+  const leadId = generateLeadId(body.company, existingIds);
+
+  const lead = {
+    lead_id: leadId,
+    company: body.company,
+    contact_name: body.contact_name || "there",
+    email: (body.email as string).toLowerCase(),
+    trade: body.trade || "",
+    location: body.location || "",
+    status: "not_contacted",
+    date_added: today,
+    date_contacted: null,
+    last_followup: null,
+    followup_count: 0,
+    notes: body.notes || "",
+  };
+
+  const { data, error } = await sb.from("leads").insert(lead).select().single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  let emailError: string | null = null;
+  try {
+    await sendOutreachEmail(data as Lead, "initial");
+    await sb.from("leads").update({ status: "contacted", date_contacted: today }).eq("lead_id", leadId);
+    data.status = "contacted";
+    data.date_contacted = today;
+  } catch (err: unknown) {
+    emailError = err instanceof Error ? err.message : String(err);
+  }
+
+  return NextResponse.json({ lead: data, emailError });
+}
