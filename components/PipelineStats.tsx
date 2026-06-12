@@ -1,74 +1,43 @@
 import { Lead } from "@/lib/types";
+import { nextStepFor } from "@/lib/leads";
 
+const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
+const CLOSED_STATUSES = new Set(["sequence_complete", "not_interested", "bounced"]);
 const WARM_STATUSES = new Set(["replied", "booked"]);
-const SEQUENCE_STATUSES = ["contacted", "followup_1_sent", "followup_2_sent"];
 
 export default function PipelineStats({ allLeads }: { allLeads: Lead[] }) {
-  const total = allLeads.length;
-  const notContacted = allLeads.filter(l => l.status === "not_contacted").length;
-  const inSequence = allLeads.filter(l => SEQUENCE_STATUSES.includes(l.status)).length;
-  const warmCount = allLeads.filter(l => WARM_STATUSES.has(l.status)).length;
-
+  const active = allLeads.filter(l => !CLOSED_STATUSES.has(l.status));
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  const newThisWeek = allLeads.filter(l => l.date_added >= sevenDaysAgo).length;
+  const thisWeek = allLeads.filter(l => l.date_added >= sevenDaysAgo).length;
+  const due = allLeads.filter(l => nextStepFor(l) !== null).length;
+
+  const contacted = allLeads.filter(l => l.status !== "not_contacted").length;
+  const warm = allLeads.filter(l => WARM_STATUSES.has(l.status)).length;
+  const replyRate = contacted > 0 ? Math.round((warm / contacted) * 100) : 0;
+
+  const cards = [
+    { label: "Total Pipeline", value: String(active.length), sub: "active leads", green: false },
+    { label: "Added This Week", value: String(thisWeek), sub: "new leads", green: false },
+    { label: "Due For Follow-up", value: String(due), sub: "ready to send", green: false },
+    { label: "Reply Rate", value: `${replyRate}%`, sub: `${warm} replied or booked`, green: true },
+  ];
 
   return (
-    <>
-      {/* Hero banner */}
-      <div style={{
-        background: "linear-gradient(135deg, #0b1220 0%, #1e293b 100%)",
-        padding: "30px 32px", marginBottom: 16,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        flexWrap: "wrap", gap: 24,
-      }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "#ef4444", marginBottom: 8 }}>
-            LS Growth Agency
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 900, color: "#fff", letterSpacing: "0.02em", lineHeight: 1.1 }}>
-            OUTREACH PIPELINE
-          </div>
-          <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 6 }}>
-            Tracking {total} lead{total !== 1 ? "s" : ""} across every trade and stage
-          </div>
+    <div style={{
+      display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16,
+    }}>
+      {cards.map(({ label, value, sub, green }) => (
+        <div key={label} style={{
+          background: green ? "var(--green)" : L.surface,
+          border: `1px solid ${green ? "var(--green)" : L.border}`,
+          padding: "16px 18px", position: "relative", overflow: "hidden",
+        }}>
+          {green && <div style={{ position: "absolute", bottom: -20, right: -20, width: 80, height: 80, borderRadius: "50%", background: "rgba(0,0,0,0.12)" }} />}
+          <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: green ? "rgba(255,255,255,0.75)" : L.muted, marginBottom: 8 }}>{label}</p>
+          <div style={{ fontSize: 38, fontWeight: 900, color: green ? "#fff" : L.text, lineHeight: 1, marginBottom: 5 }}>{value}</div>
+          <p style={{ fontSize: 11, color: green ? "rgba(255,255,255,0.75)" : L.muted }}>{sub}</p>
         </div>
-        <div style={{ display: "flex", gap: 36 }}>
-          {[
-            { value: total, label: "LEADS" },
-            { value: total - notContacted, label: "CONTACTED" },
-            { value: warmCount, label: "WARM" },
-          ].map(s => (
-            <div key={s.label} style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 34, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.1em", marginTop: 4 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Stat cards */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
-        gap: 0, marginBottom: 16, overflow: "hidden", border: "1px solid #e2e8f0",
-      }}>
-        {[
-          { value: total, label: "Total Leads", sub: "In pipeline", accent: false },
-          { value: notContacted, label: "Not Contacted", sub: "Awaiting first email", accent: false },
-          { value: inSequence, label: "In Sequence", sub: "Follow-ups running", accent: false },
-          { value: warmCount, label: "Warm / Replied", sub: "Worth a call now", accent: false },
-          { value: newThisWeek, label: "New This Week", sub: "Added in last 7 days", accent: true },
-        ].map(({ value, label, sub, accent }, i, arr) => (
-          <div key={label} style={{
-            padding: "20px 22px",
-            background: accent ? "var(--green)" : "#fff",
-            borderRight: i < arr.length - 1 ? "1px solid #e2e8f0" : undefined,
-          }}>
-            <div style={{ fontSize: 34, fontWeight: 900, lineHeight: 1, color: accent ? "#fff" : "#0f172a", marginBottom: 6 }}>{value}</div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: accent ? "#fff" : "#0f172a", marginBottom: 2 }}>{label}</div>
-            <div style={{ fontSize: 11.5, color: accent ? "#dcfce7" : "#94a3b8" }}>{sub}</div>
-          </div>
-        ))}
-      </div>
-    </>
+      ))}
+    </div>
   );
 }

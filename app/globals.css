@@ -72,17 +72,18 @@ label {
   background: #f8fafc !important;
 }
 
-.nav-link-dark:hover {
-  background: #1e293b !important;
-  color: #fff !important;
-}
-
-.nav-link-dark-active:hover {
-  background: var(--red) !important;
+.nav-link-light:hover {
+  background: #f8fafc !important;
 }
 
 .row-hover:hover {
   background: #f8fafc !important;
+}
+
+.pill-hover:hover {
+  background: var(--green) !important;
+  color: #fff !important;
+  border-color: var(--green) !important;
 }
 
 details > summary {
