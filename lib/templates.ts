@@ -32,10 +32,12 @@ export function htmlToText(html: string) {
 
 const TEMPLATES: Record<EmailStep, { subject: string; html: string }> = {
   initial: {
-    subject: `How Queenstown Cleaning landed 25+ new jobs in their first month`,
+    subject: `How Queenstown Cleaning turned 57 leads into 30 booked jobs last month`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
-  <p>Quick one. We recently helped Queenstown Cleaning land over 25 new window cleaning and house cleaning jobs in their first month after setting up their lead system. Another client is now booking 3x more jobs from the same number of enquiries, simply by responding to new leads within 60 seconds instead of hours.</p>
+  <p>Quick one. In the last 30 days we generated 57 new window cleaning and house cleaning enquiries for Queenstown Cleaning, working out at around $7 to $11 per lead, and 30 of those have already turned into booked, paying jobs. Check out some real stats below.</p>
+  <p><a href="https://app.lsgrowth.agency/results/queenstown-ads.png"><img src="https://app.lsgrowth.agency/results/queenstown-ads.png" alt="Queenstown Cleaning ad results, last 30 days" style="max-width:100%;border:1px solid #e2e8f0;border-radius:6px;" /></a></p>
+  <p style="font-size:12.5px;color:#64748b;margin-top:-8px;">Real numbers from Queenstown Cleaning's ad account, last 30 days (click to view full size)</p>
   <p>I came across {{company}} and wanted to see if something similar could work for a {{trade}} business in {{location}}.</p>
   <p>We run the whole lead gen process for {{trade}} businesses across NZ and Australia (ads, fast follow up, booking) so you get a steady stream of qualified jobs without chasing quotes or relying on word of mouth.</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
@@ -44,7 +46,7 @@ const TEMPLATES: Record<EmailStep, { subject: string; html: string }> = {
 {{pixel}}`,
   },
   followup1: {
-    subject: `Re: How Queenstown Cleaning landed 25+ new jobs in their first month`,
+    subject: `Re: How Queenstown Cleaning turned 57 leads into 30 booked jobs last month`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
   <p>Following up on my note from last week, totally get it if things are flat out at the moment (that's actually exactly the kind of "good problem" we help {{trade}} businesses create more of).</p>
@@ -59,7 +61,7 @@ const TEMPLATES: Record<EmailStep, { subject: string; html: string }> = {
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
   <p>I'll keep this one short, I know inboxes get slammed.</p>
-  <p>I've reached out a couple of times about helping {{company}} bring in more consistent jobs through a managed lead system (we do this for {{trade}} businesses across NZ and Australia, recent results include 25+ new window and house cleaning jobs for Queenstown Cleaning in their first month).</p>
+  <p>I've reached out a couple of times about helping {{company}} bring in more consistent jobs through a managed lead system (we do this for {{trade}} businesses across NZ and Australia, and last month alone Queenstown Cleaning got 57 new leads and 30 of them turned into booked jobs).</p>
   <p>If now's not the right time, no worries at all, I'll leave it here. But if you ever want to see what a steady pipeline of pre qualified jobs would look like for {{company}}, <a href="{{cta_link}}">just grab a time here</a> and I'll send through some examples from similar businesses.</p>
   <p>All the best,<br>Lucky<br>LS Growth</p>
 </div>
