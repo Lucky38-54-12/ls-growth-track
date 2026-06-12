@@ -32,6 +32,7 @@ export default function SendButton({ due }: { due: number }) {
         <button
           onClick={handleSend}
           disabled={loading || due === 0}
+          className="btn-lift"
           style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "11px 20px", background: loading || due === 0 ? "#fca5a5" : "var(--red)",

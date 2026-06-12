@@ -31,6 +31,7 @@ export default function SheetSyncButton() {
       <button
         onClick={handleSync}
         disabled={loading}
+        className="btn-lift"
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           width: "100%", padding: "9px 12px", background: "#f8fafc", borderRadius: 0,

@@ -20,12 +20,7 @@ export default function Sidebar() {
       {/* Brand */}
       <div style={{ padding: "18px 16px 16px", borderBottom: "1px solid #e2e8f0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 0, background: "#0a0f1a",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 11, letterSpacing: "0.05em" }}>LS</span>
-          </div>
+          <img src="/logo.png" alt="LS Growth" style={{ width: 34, height: 34, objectFit: "contain", flexShrink: 0 }} />
           <div>
             <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: "0.04em", lineHeight: 1.2 }}>
               L&amp;S <span style={{ color: "#dc2626" }}>GROWTH</span>
@@ -45,13 +40,14 @@ export default function Sidebar() {
         {NAV.map(({ href, label }) => {
           const active = path === href || (href !== "/dashboard" && path.startsWith(href));
           return (
-            <Link key={href} href={href} style={{
+            <Link key={href} href={href} className="nav-link" style={{
               display: "flex", alignItems: "center", padding: "9px 10px",
               borderRadius: 0, marginBottom: 2, fontSize: 13, fontWeight: 700,
               color: active ? "#dc2626" : "#64748b",
               background: active ? "#fef2f2" : "transparent",
               borderLeft: `2px solid ${active ? "#dc2626" : "transparent"}`,
               textDecoration: "none",
+              transition: "background 0.15s ease, color 0.15s ease",
             }}>
               {label}
             </Link>
@@ -62,12 +58,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div style={{ padding: "14px 16px", borderTop: "1px solid #e2e8f0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: 0, background: "#dc2626",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 10 }}>L</span>
-          </div>
+          <img src="/logo.png" alt="LS Growth" style={{ width: 26, height: 26, objectFit: "contain", flexShrink: 0 }} />
           <span style={{ fontSize: 11.5, fontWeight: 700, color: "#0f172a" }}>LS Growth Agency</span>
         </div>
       </div>

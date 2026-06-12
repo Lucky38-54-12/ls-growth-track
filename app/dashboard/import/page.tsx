@@ -132,7 +132,7 @@ export default function ImportPage() {
                 <input type="checkbox" checked={sendNow} onChange={(e) => setSendNow(e.target.checked)} style={{ width: "auto" }} />
                 <span style={{ fontWeight: 600, fontSize: 13 }}>Send first email immediately</span>
               </label>
-              <button type="submit" disabled={loading} style={{
+              <button type="submit" disabled={loading} className="btn-lift" style={{
                 marginLeft: "auto", padding: "11px 24px",
                 background: loading ? "#fca5a5" : "var(--red)", color: "#fff",
                 border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
@@ -186,7 +186,7 @@ export default function ImportPage() {
             </div>
 
             <div>
-              <button type="submit" disabled={sheetLoading} style={{
+              <button type="submit" disabled={sheetLoading} className="btn-lift" style={{
                 padding: "11px 24px",
                 background: sheetLoading ? "#fca5a5" : "var(--red)", color: "#fff",
                 border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: sheetLoading ? "default" : "pointer",

@@ -66,13 +66,13 @@ export default function NewLeadPage() {
               <input name="notes" />
             </div>
             <div style={{ marginTop: 6, display: "flex", gap: 12 }}>
-              <button type="submit" disabled={loading} style={{
+              <button type="submit" disabled={loading} className="btn-lift" style={{
                 padding: "11px 24px", background: loading ? "#fca5a5" : "var(--red)", color: "#fff",
                 border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
               }}>
                 {loading ? "Saving…" : "Save & send first email"}
               </button>
-              <a href="/dashboard" style={{
+              <a href="/dashboard" className="btn-lift" style={{
                 padding: "11px 20px", background: "#f8fafc", color: L.text,
                 border: `1px solid ${L.border}`, borderRadius: 0, fontSize: 14, fontWeight: 700,
                 display: "inline-flex", alignItems: "center",

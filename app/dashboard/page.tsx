@@ -170,7 +170,7 @@ export default async function DashboardPage() {
               marginBottom: 14,
             }}>
               <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b" }}>Active Leads</span>
-              <Link href="/dashboard/new" style={{
+              <Link href="/dashboard/new" className="btn-lift" style={{
                 padding: "8px 16px", background: "#dc2626", color: "#fff",
                 borderRadius: 0, fontSize: 13, fontWeight: 700, textDecoration: "none",
                 display: "inline-flex", alignItems: "center", gap: 6,
@@ -188,7 +188,7 @@ export default async function DashboardPage() {
                 const color = STATUS_COLOR[lead.status] || "#94a3b8";
                 const isDue = nextStepFor(lead) !== null;
                 return (
-                  <Link key={lead.lead_id} href={`/dashboard/leads/${lead.lead_id}`} style={{
+                  <Link key={lead.lead_id} href={`/dashboard/leads/${lead.lead_id}`} className="card-hover" style={{
                     background: "#fff", border: "1px solid #e2e8f0",
                     borderLeft: `3px solid ${color}`,
                     borderRadius: 0, padding: "14px 18px",
@@ -256,12 +256,13 @@ export default async function DashboardPage() {
             </div>
 
             {/* Warm leads panel */}
-            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 0, overflow: "hidden" }}>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderLeft: "3px solid #16a34a", borderRadius: 0, overflow: "hidden" }}>
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "14px 18px 12px", borderBottom: "1px solid #e2e8f0",
+                background: "#dcfce7",
               }}>
-                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b" }}>Warm Leads</span>
+                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#16a34a" }}>Warm Leads</span>
                 <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#16a34a" }}>
                   <span style={{ width: 6, height: 6, borderRadius: 0, background: "#16a34a", display: "inline-block" }} />
                   LIVE
@@ -271,36 +272,38 @@ export default async function DashboardPage() {
               {warmLeads.length === 0 ? (
                 <div style={{ padding: "24px 18px", textAlign: "center", color: "#94a3b8", fontSize: 12.5 }}>Nobody warm yet — keep sending!</div>
               ) : (
-                warmLeads.map(lead => {
-                  const ev = engagement[lead.lead_id];
-                  const isReplied = WARM_STATUSES.has(lead.status);
-                  const statusText = isReplied ? lead.status.toUpperCase() : ev?.clicks > 0 ? "CLICKED" : "OPENED";
-                  const statusColor = isReplied ? "#16a34a" : ev?.clicks > 0 ? "#9d174d" : "#1e40af";
-                  const lastDate = lead.last_followup || lead.date_contacted;
-                  return (
-                    <div key={lead.lead_id} style={{
-                      display: "flex", alignItems: "center", gap: 12,
-                      padding: "11px 18px", borderBottom: "1px solid #f1f5f9",
-                    }}>
-                      <div style={{
-                        width: 32, height: 32, borderRadius: 0, background: "#f1f5f9",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        flexShrink: 0, fontWeight: 900, fontSize: 10.5, color: "#64748b",
-                        border: "1px solid #e2e8f0",
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10 }}>
+                  {warmLeads.map(lead => {
+                    const ev = engagement[lead.lead_id];
+                    const isReplied = WARM_STATUSES.has(lead.status);
+                    const statusText = isReplied ? lead.status.toUpperCase() : ev?.clicks > 0 ? "CLICKED" : "OPENED";
+                    const statusColor = isReplied ? "#16a34a" : ev?.clicks > 0 ? "#9d174d" : "#1e40af";
+                    const lastDate = lead.last_followup || lead.date_contacted;
+                    return (
+                      <div key={lead.lead_id} className="card-hover" style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "10px 12px", border: "1px solid #f1f5f9", background: "#f8fafc",
                       }}>
-                        {initials(lead.company)}
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 0, background: "#dcfce7",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0, fontWeight: 900, fontSize: 10.5, color: "#16a34a",
+                          border: "1px solid #e2e8f0",
+                        }}>
+                          {initials(lead.company)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 12.5, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.company}</div>
+                          <div style={{ fontSize: 11, color: "#94a3b8" }}>{lead.trade || "—"}</div>
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          <div style={{ fontSize: 10.5, fontWeight: 800, color: statusColor }}>{statusText}</div>
+                          <div style={{ fontSize: 10.5, color: "#94a3b8" }}>{timeAgo(lastDate)}</div>
+                        </div>
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 12.5, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.company}</div>
-                        <div style={{ fontSize: 11, color: "#94a3b8" }}>{lead.trade || "—"}</div>
-                      </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: 10.5, fontWeight: 800, color: statusColor }}>{statusText}</div>
-                        <div style={{ fontSize: 10.5, color: "#94a3b8" }}>{timeAgo(lastDate)}</div>
-                      </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
 
               {warmLeads.length > 0 && (
@@ -321,7 +324,7 @@ export default async function DashboardPage() {
                   { href: "/dashboard/warm", label: "View all warm leads" },
                   { href: "/dashboard/new", label: "Add a single lead" },
                 ].map(({ href, label }) => (
-                  <Link key={href} href={href} style={{
+                  <Link key={href} href={href} className="btn-lift" style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                     padding: "9px 12px", background: "#f8fafc", borderRadius: 0,
                     fontSize: 12.5, fontWeight: 600, color: "#0f172a", textDecoration: "none",
