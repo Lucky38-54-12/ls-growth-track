@@ -9,7 +9,9 @@ const BOOKING_URL = process.env.BOOKING_URL || "https://lsgrowth.agency/book";
 
 function buildLinks(leadId: string) {
   const pixel = `<img src="${APP_URL}/api/open?id=${encodeURIComponent(leadId)}" width="1" height="1" alt="" style="display:block;border:0" />`;
-  const ctaLink = `${APP_URL}/api/click?id=${encodeURIComponent(leadId)}&url=${encodeURIComponent(BOOKING_URL)}`;
+  // Link straight to the booking page rather than through /api/click, which
+  // currently returns the tracking pixel response instead of redirecting.
+  const ctaLink = BOOKING_URL;
   return { pixel, ctaLink };
 }
 

@@ -36,8 +36,8 @@ const TEMPLATES: Record<EmailStep, { subject: string; html: string }> = {
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
   <p>Quick one. In the last 30 days we generated 57 new window cleaning and house cleaning enquiries for Queenstown Cleaning, working out at around $7 to $11 per lead, and 30 of those have already turned into booked, paying jobs. Check out some real stats below.</p>
-  <p><a href="https://app.lsgrowth.agency/results/queenstown-ads.png"><img src="https://app.lsgrowth.agency/results/queenstown-ads.png" alt="Queenstown Cleaning ad results, last 30 days" style="max-width:100%;border:1px solid #e2e8f0;border-radius:6px;" /></a></p>
-  <p style="font-size:12.5px;color:#64748b;margin-top:-8px;">Real numbers from Queenstown Cleaning's ad account, last 30 days (click to view full size)</p>
+  <p><a href="https://app.lsgrowth.agency/results/queenstown"><img src="https://app.lsgrowth.agency/results/queenstown-ads.png" alt="Queenstown Cleaning ad results, last 30 days" style="max-width:100%;border:1px solid #e2e8f0;border-radius:6px;" /></a></p>
+  <p style="font-size:12.5px;color:#64748b;margin-top:-8px;">Real numbers from Queenstown Cleaning's ad account, last 30 days. <a href="https://app.lsgrowth.agency/results/queenstown">View full size</a></p>
   <p>I came across {{company}} and wanted to see if something similar could work for a {{trade}} business in {{location}}.</p>
   <p>We run the whole lead gen process for {{trade}} businesses across NZ and Australia (ads, fast follow up, booking) so you get a steady stream of qualified jobs without chasing quotes or relying on word of mouth.</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>

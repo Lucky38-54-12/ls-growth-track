@@ -13,6 +13,7 @@ const NAV = [
 
 export default function Sidebar() {
   const path = usePathname();
+  if (path?.startsWith("/results")) return null;
   return (
     <div style={{
       width: 190, flexShrink: 0, background: "#fff",
