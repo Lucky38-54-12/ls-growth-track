@@ -31,6 +31,18 @@ export default function ColdCallPage() {
     if (parsed.email) setEmail(parsed.email);
     if (parsed.trade) setTrade(parsed.trade);
     if (parsed.location) setLocation(parsed.location);
+
+    // Auto-fill the email draft so the preview shows something straight away.
+    if (!subject.trim() && !bodyHtml.trim()) {
+      const draft = coldEmailDraft({
+        company: parsed.company || company || "[company]",
+        contact_name: parsed.contact_name || contactName || "there",
+        trade: parsed.trade || trade || "[trade]",
+        location: parsed.location || location || "[location]",
+      });
+      setSubject(draft.subject);
+      setBodyHtml(draft.bodyHtml);
+    }
   }
 
   function handleInsertTemplate() {
