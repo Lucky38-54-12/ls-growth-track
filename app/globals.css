@@ -81,6 +81,10 @@ label {
   background: var(--red) !important;
 }
 
+.row-hover:hover {
+  background: #f8fafc !important;
+}
+
 details > summary {
   list-style: none;
 }
