@@ -95,11 +95,18 @@ export function parseLeadText(raw: string): ParsedLead {
 
   let company = "";
   for (const line of lines) {
-    if (/^https?:\/\//i.test(line)) continue;
-    if (/@/.test(line)) continue;
-    if (/^[+\d\s()-]{6,}$/.test(line)) continue;
     if (/^(owner|contact|manager|director|founder|phone|email|website|address)\s*[:\-]/i.test(line)) continue;
-    company = line;
+
+    // Google Maps / directory pastes often put the company name, phone,
+    // email and website all on one tab (or multi-space) separated line —
+    // take the first field rather than discarding the whole line.
+    const firstField = line.split(/\t|\s{2,}/)[0].trim().replace(/^["']+|["']+$/g, "");
+    if (!firstField) continue;
+    if (/^https?:\/\//i.test(firstField)) continue;
+    if (/@/.test(firstField)) continue;
+    if (/^[+\d\s()-]{4,}$/.test(firstField)) continue;
+
+    company = firstField;
     break;
   }
 
