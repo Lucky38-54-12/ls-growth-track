@@ -30,6 +30,8 @@ export interface EmailEvent {
   lead_id: string;
   event_type: "open" | "click";
   url: string | null;
+  user_agent: string | null;
+  ip: string | null;
   created_at: string;
 }
 

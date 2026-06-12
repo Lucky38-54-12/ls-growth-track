@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lead } from "@/lib/types";
+import { EmailEvent, Lead } from "@/lib/types";
+import { deviceFromUserAgent, formatDateTime } from "@/lib/format";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -13,7 +14,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "sequence_complete", label: "Sequence complete" },
 ];
 
-export default function CallForm({ lead }: { lead: Lead }) {
+export default function CallForm({ lead, events }: { lead: Lead; events: EmailEvent[] }) {
   const router = useRouter();
   const [callNotes, setCallNotes] = useState("");
   const [subject, setSubject] = useState("");
@@ -121,6 +122,49 @@ export default function CallForm({ lead }: { lead: Lead }) {
             <p style={{ fontSize: 13.5, whiteSpace: "pre-wrap", color: L.text }}>{lead.notes}</p>
           </div>
         )}
+
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginTop: 20 }}>
+          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 10 }}>
+            Activity — {events.length} event{events.length !== 1 ? "s" : ""}
+          </div>
+          {events.length === 0 ? (
+            <p style={{ fontSize: 13, color: L.dimmed }}>No opens or clicks tracked yet.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {events.map((ev) => {
+                const isOpen = ev.event_type === "open";
+                return (
+                  <div key={ev.id} style={{
+                    display: "flex", alignItems: "flex-start", gap: 12,
+                    padding: "10px 12px", border: `1px solid ${L.border}`, background: "#f8fafc",
+                  }}>
+                    <div style={{
+                      width: 32, height: 32, flexShrink: 0, borderRadius: 0,
+                      background: isOpen ? "#dbeafe" : "#fce7f3",
+                      color: isOpen ? "#1e40af" : "#9d174d",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontWeight: 900, fontSize: 13,
+                    }}>
+                      {isOpen ? "👁" : "🔗"}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: L.text }}>
+                        {isOpen ? "Opened email" : "Clicked link"}
+                      </div>
+                      <div style={{ fontSize: 12, color: L.muted, marginTop: 1 }}>{formatDateTime(ev.created_at)}</div>
+                      {!isOpen && ev.url && (
+                        <div style={{ fontSize: 11.5, color: L.dimmed, marginTop: 2, wordBreak: "break-all" }}>{ev.url}</div>
+                      )}
+                      <div style={{ fontSize: 11.5, color: L.dimmed, marginTop: 2 }}>
+                        {deviceFromUserAgent(ev.user_agent)}{ev.ip ? ` · ${ev.ip}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

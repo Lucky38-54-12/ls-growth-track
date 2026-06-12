@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { createSupabaseClient } from "@/lib/supabase";
 import { nextStepFor } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
+import { formatDateTime } from "@/lib/format";
 import SendButton from "@/components/SendButton";
 import SheetSyncButton from "@/components/SheetSyncButton";
 import FlashMessage from "./FlashMessage";
@@ -278,7 +279,7 @@ export default async function DashboardPage() {
                     const isReplied = WARM_STATUSES.has(lead.status);
                     const statusText = isReplied ? lead.status.toUpperCase() : ev?.clicks > 0 ? "CLICKED" : "OPENED";
                     const statusColor = isReplied ? "#16a34a" : ev?.clicks > 0 ? "#9d174d" : "#1e40af";
-                    const lastDate = lead.last_followup || lead.date_contacted;
+                    const lastDate = ev?.last_event_at || lead.last_followup || lead.date_contacted;
                     return (
                       <div key={lead.lead_id} className="card-hover" style={{
                         display: "flex", alignItems: "center", gap: 12,
@@ -298,7 +299,7 @@ export default async function DashboardPage() {
                         </div>
                         <div style={{ textAlign: "right", flexShrink: 0 }}>
                           <div style={{ fontSize: 10.5, fontWeight: 800, color: statusColor }}>{statusText}</div>
-                          <div style={{ fontSize: 10.5, color: "#94a3b8" }}>{timeAgo(lastDate)}</div>
+                          <div style={{ fontSize: 10.5, color: "#94a3b8" }} title={lastDate ? formatDateTime(lastDate) : undefined}>{timeAgo(lastDate)}</div>
                         </div>
                       </div>
                     );

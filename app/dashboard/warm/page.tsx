@@ -1,5 +1,6 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
+import { formatDateTime } from "@/lib/format";
 import Link from "next/link";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
@@ -58,7 +59,7 @@ export default async function WarmLeadsPage() {
             <table style={{ borderCollapse: "collapse", width: "100%" }}>
               <thead>
                 <tr>
-                  {["Company", "Contact", "Email", "Trade", "Activity"].map((h) => (
+                  {["Company", "Contact", "Email", "Trade", "Activity", "Last Activity"].map((h) => (
                     <th key={h} style={{ textAlign: "left", padding: "10px 12px", borderBottom: `1px solid ${L.border}`, color: L.muted, fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</th>
                   ))}
                 </tr>
@@ -66,11 +67,6 @@ export default async function WarmLeadsPage() {
               <tbody>
                 {warm.map((lead) => {
                   const ev = engagement[lead.lead_id];
-                  const bits: string[] = [];
-                  if (WARM_STATUSES.has(lead.status)) bits.push(`status: ${lead.status}`);
-                  if (ev?.clicks) bits.push(`${ev.clicks} click${ev.clicks !== 1 ? "s" : ""}`);
-                  if (ev?.opens) bits.push(`${ev.opens} open${ev.opens !== 1 ? "s" : ""}`);
-                  if (ev?.last_event_at) bits.push(`last activity ${ev.last_event_at.split("T")[0]}`);
                   return (
                     <tr key={lead.lead_id} style={{ cursor: "pointer" }}>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>
@@ -85,6 +81,9 @@ export default async function WarmLeadsPage() {
                           {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
                           {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
                         </div>
+                      </td>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted }}>
+                        {ev?.last_event_at ? formatDateTime(ev.last_event_at) : "—"}
                       </td>
                     </tr>
                   );

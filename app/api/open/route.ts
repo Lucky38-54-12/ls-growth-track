@@ -11,7 +11,9 @@ export async function GET(req: NextRequest) {
   if (leadId) {
     try {
       const sb = createSupabaseClient();
-      await sb.from("email_events").insert({ lead_id: leadId, event_type: "open" });
+      const userAgent = req.headers.get("user-agent");
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+      await sb.from("email_events").insert({ lead_id: leadId, event_type: "open", user_agent: userAgent, ip });
     } catch {}
   }
   return new NextResponse(PIXEL, {

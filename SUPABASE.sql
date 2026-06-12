@@ -26,7 +26,13 @@ create table if not exists email_events (
   lead_id text not null,
   event_type text not null check (event_type in ('open', 'click')),
   url text,
+  user_agent text,
+  ip text,
   created_at timestamptz not null default now()
 );
 
 create index if not exists email_events_lead_id_idx on email_events (lead_id);
+
+-- If email_events already existed without these columns, run:
+-- alter table email_events add column if not exists user_agent text;
+-- alter table email_events add column if not exists ip text;

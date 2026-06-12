@@ -19,7 +19,9 @@ export async function GET(req: NextRequest) {
   if (leadId) {
     try {
       const sb = createSupabaseClient();
-      await sb.from("email_events").insert({ lead_id: leadId, event_type: "click", url: destination });
+      const userAgent = req.headers.get("user-agent");
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+      await sb.from("email_events").insert({ lead_id: leadId, event_type: "click", url: destination, user_agent: userAgent, ip });
     } catch {}
   }
   return NextResponse.redirect(destination, 302);
