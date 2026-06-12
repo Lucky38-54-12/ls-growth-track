@@ -26,7 +26,7 @@ export default function NewLeadPage() {
   return (
     <div>
       <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "0 28px", height: 68, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--red)", flexShrink: 0 }} />
+        <div style={{ width: 34, height: 34, borderRadius: 0, background: "var(--red)", flexShrink: 0 }} />
         <div>
           <h1 style={{ fontSize: 17, fontWeight: 900, letterSpacing: "0.04em" }}>ADD LEAD</h1>
           <p style={{ color: L.muted, fontSize: 12, marginTop: 1 }}>Add a business and start their sequence</p>
@@ -34,8 +34,8 @@ export default function NewLeadPage() {
       </div>
 
       <div style={{ maxWidth: 600, margin: "32px auto", padding: "0 28px" }}>
-        {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 8, marginBottom: 18, fontSize: 14 }}>{error}</div>}
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 24 }}>
+        {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, marginBottom: 18, fontSize: 14 }}>{error}</div>}
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>New Lead</div>
           <p style={{ fontSize: 13, color: L.muted, marginBottom: 20 }}>Saving will immediately send their initial outreach email.</p>
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -68,13 +68,13 @@ export default function NewLeadPage() {
             <div style={{ marginTop: 6, display: "flex", gap: 12 }}>
               <button type="submit" disabled={loading} style={{
                 padding: "11px 24px", background: loading ? "#fca5a5" : "var(--red)", color: "#fff",
-                border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
+                border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
               }}>
                 {loading ? "Saving…" : "Save & send first email"}
               </button>
               <a href="/dashboard" style={{
                 padding: "11px 20px", background: "#f8fafc", color: L.text,
-                border: `1px solid ${L.border}`, borderRadius: 8, fontSize: 14, fontWeight: 700,
+                border: `1px solid ${L.border}`, borderRadius: 0, fontSize: 14, fontWeight: 700,
                 display: "inline-flex", alignItems: "center",
               }}>Cancel</a>
             </div>

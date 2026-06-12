@@ -85,7 +85,7 @@ export default function ImportPage() {
   return (
     <div>
       <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "0 28px", height: 68, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--red)", flexShrink: 0 }} />
+        <div style={{ width: 34, height: 34, borderRadius: 0, background: "var(--red)", flexShrink: 0 }} />
         <div>
           <h1 style={{ fontSize: 17, fontWeight: 900, letterSpacing: "0.04em" }}>IMPORT LEADS</h1>
           <p style={{ color: L.muted, fontSize: 12, marginTop: 1 }}>Bulk import from CSV or scraper output</p>
@@ -93,9 +93,9 @@ export default function ImportPage() {
       </div>
 
       <div style={{ maxWidth: 760, margin: "32px auto", padding: "0 28px", display: "flex", flexDirection: "column", gap: 20 }}>
-        {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 8, fontSize: 14 }}>{error}</div>}
+        {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, fontSize: 14 }}>{error}</div>}
 
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 24 }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Bulk Import</div>
           <p style={{ fontSize: 13, color: L.muted, marginBottom: 20 }}>Paste leads or upload a CSV. Accepts scraper output or simple format.</p>
 
@@ -135,7 +135,7 @@ export default function ImportPage() {
               <button type="submit" disabled={loading} style={{
                 marginLeft: "auto", padding: "11px 24px",
                 background: loading ? "#fca5a5" : "var(--red)", color: "#fff",
-                border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
+                border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
               }}>
                 {loading ? "Importing…" : "Import leads"}
               </button>
@@ -143,14 +143,14 @@ export default function ImportPage() {
           </form>
         </div>
 
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 24 }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Sync from Google Sheet</div>
           <p style={{ fontSize: 13, color: L.muted, marginBottom: 20 }}>
             Paste the Sheet ID from your scraper sheet (the long ID in the sheet&apos;s URL). New rows are imported,
             and the Date Called / Outcome / Call Back / Notes columns are read so emails can be personalized.
           </p>
 
-          {sheetError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 8, fontSize: 14, marginBottom: 16 }}>{sheetError}</div>}
+          {sheetError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, fontSize: 14, marginBottom: 16 }}>{sheetError}</div>}
 
           <form onSubmit={handleSheetSync} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
@@ -189,7 +189,7 @@ export default function ImportPage() {
               <button type="submit" disabled={sheetLoading} style={{
                 padding: "11px 24px",
                 background: sheetLoading ? "#fca5a5" : "var(--red)", color: "#fff",
-                border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: sheetLoading ? "default" : "pointer",
+                border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: sheetLoading ? "default" : "pointer",
               }}>
                 {sheetLoading ? "Syncing…" : "Sync & send"}
               </button>
@@ -197,7 +197,7 @@ export default function ImportPage() {
           </form>
         </div>
 
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 24 }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 14 }}>Format Guide</div>
           <table style={{ fontSize: 13, borderCollapse: "collapse", width: "100%" }}>
             {[

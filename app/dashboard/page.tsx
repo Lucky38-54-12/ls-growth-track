@@ -3,6 +3,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 import { nextStepFor } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
 import SendButton from "@/components/SendButton";
+import SheetSyncButton from "@/components/SheetSyncButton";
 import FlashMessage from "./FlashMessage";
 import Link from "next/link";
 
@@ -110,7 +111,7 @@ export default async function DashboardPage() {
         {/* Stat cards */}
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
-          background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12,
+          background: "#fff", border: "1px solid #e2e8f0", borderRadius: 0,
           overflow: "hidden", marginBottom: 16,
         }}>
           {[
@@ -125,7 +126,7 @@ export default async function DashboardPage() {
               borderLeft: accent ? "3px solid #16a34a" : undefined,
             }}>
               <div style={{
-                width: 32, height: 32, borderRadius: 8,
+                width: 32, height: 32, borderRadius: 0,
                 background: accent ? "#dcfce7" : "#f1f5f9",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 14, fontWeight: 900, color: accent ? "#16a34a" : "#64748b",
@@ -140,7 +141,7 @@ export default async function DashboardPage() {
 
         {/* Impact bar */}
         <div style={{
-          background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10,
+          background: "#fff", border: "1px solid #e2e8f0", borderRadius: 0,
           padding: "12px 22px", display: "flex", alignItems: "center", gap: 32,
           marginBottom: 24, flexWrap: "wrap",
         }}>
@@ -171,14 +172,14 @@ export default async function DashboardPage() {
               <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b" }}>Active Leads</span>
               <Link href="/dashboard/new" style={{
                 padding: "8px 16px", background: "#dc2626", color: "#fff",
-                borderRadius: 7, fontSize: 13, fontWeight: 700, textDecoration: "none",
+                borderRadius: 0, fontSize: 13, fontWeight: 700, textDecoration: "none",
                 display: "inline-flex", alignItems: "center", gap: 6,
               }}>+ Add Lead</Link>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {activeLeads.length === 0 && (
-                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 0, padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
                   No active leads yet — <Link href="/dashboard/new" style={{ color: "#dc2626", fontWeight: 700 }}>add your first lead</Link> or <Link href="/dashboard/import" style={{ color: "#dc2626", fontWeight: 700 }}>import a batch</Link>.
                 </div>
               )}
@@ -190,12 +191,12 @@ export default async function DashboardPage() {
                   <Link key={lead.lead_id} href={`/dashboard/leads/${lead.lead_id}`} style={{
                     background: "#fff", border: "1px solid #e2e8f0",
                     borderLeft: `3px solid ${color}`,
-                    borderRadius: 10, padding: "14px 18px",
+                    borderRadius: 0, padding: "14px 18px",
                     display: "flex", alignItems: "center", gap: 14,
                   }}>
                     {/* Initials badge */}
                     <div style={{
-                      width: 40, height: 40, borderRadius: 9, background: "#f1f5f9",
+                      width: 40, height: 40, borderRadius: 0, background: "#f1f5f9",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       flexShrink: 0, fontWeight: 900, fontSize: 12, color: "#64748b",
                       border: "1px solid #e2e8f0",
@@ -214,8 +215,8 @@ export default async function DashboardPage() {
 
                     {/* Engagement pills */}
                     <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
-                      {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+                      {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+                      {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
                     </div>
 
                     {/* Status + due */}
@@ -241,11 +242,11 @@ export default async function DashboardPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
             {/* Send card */}
-            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "18px 18px 16px" }}>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 0, padding: "18px 18px 16px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b" }}>Send Outreach</span>
                 {due > 0 && (
-                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#fee2e2", color: "#dc2626" }}>{due} due</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#fee2e2", color: "#dc2626" }}>{due} due</span>
                 )}
               </div>
               <p style={{ fontSize: 12.5, color: "#64748b", marginBottom: 14, lineHeight: 1.5 }}>
@@ -255,14 +256,14 @@ export default async function DashboardPage() {
             </div>
 
             {/* Warm leads panel */}
-            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 0, overflow: "hidden" }}>
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "14px 18px 12px", borderBottom: "1px solid #e2e8f0",
               }}>
                 <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b" }}>Warm Leads</span>
                 <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#16a34a" }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a", display: "inline-block" }} />
+                  <span style={{ width: 6, height: 6, borderRadius: 0, background: "#16a34a", display: "inline-block" }} />
                   LIVE
                 </span>
               </div>
@@ -282,7 +283,7 @@ export default async function DashboardPage() {
                       padding: "11px 18px", borderBottom: "1px solid #f1f5f9",
                     }}>
                       <div style={{
-                        width: 32, height: 32, borderRadius: 7, background: "#f1f5f9",
+                        width: 32, height: 32, borderRadius: 0, background: "#f1f5f9",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         flexShrink: 0, fontWeight: 900, fontSize: 10.5, color: "#64748b",
                         border: "1px solid #e2e8f0",
@@ -311,9 +312,10 @@ export default async function DashboardPage() {
             </div>
 
             {/* Quick links */}
-            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: "14px 18px" }}>
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 0, padding: "14px 18px" }}>
               <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b", marginBottom: 12 }}>Quick Actions</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <SheetSyncButton />
                 {[
                   { href: "/dashboard/import", label: "Import leads from CSV" },
                   { href: "/dashboard/warm", label: "View all warm leads" },
@@ -321,7 +323,7 @@ export default async function DashboardPage() {
                 ].map(({ href, label }) => (
                   <Link key={href} href={href} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "9px 12px", background: "#f8fafc", borderRadius: 7,
+                    padding: "9px 12px", background: "#f8fafc", borderRadius: 0,
                     fontSize: 12.5, fontWeight: 600, color: "#0f172a", textDecoration: "none",
                     border: "1px solid #e2e8f0",
                   }}>

@@ -40,7 +40,7 @@ export default async function WarmLeadsPage() {
   return (
     <div>
       <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "0 28px", height: 68, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--green)", flexShrink: 0 }} />
+        <div style={{ width: 34, height: 34, borderRadius: 0, background: "var(--green)", flexShrink: 0 }} />
         <div>
           <h1 style={{ fontSize: 17, fontWeight: 900, letterSpacing: "0.04em" }}>WARM LEADS</h1>
           <p style={{ color: L.muted, fontSize: 12, marginTop: 1 }}>Anyone who&apos;s opened, clicked, or replied — worth a call</p>
@@ -48,7 +48,7 @@ export default async function WarmLeadsPage() {
       </div>
 
       <div style={{ maxWidth: 960, margin: "32px auto", padding: "0 28px" }}>
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 24 }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 18 }}>
             Worth a Call — {warm.length} lead{warm.length !== 1 ? "s" : ""}
           </div>
@@ -81,9 +81,9 @@ export default async function WarmLeadsPage() {
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5, color: L.muted }}>{lead.trade}</td>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13 }}>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {WARM_STATUSES.has(lead.status) && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#dcfce7", color: "#166534" }}>{lead.status}</span>}
-                          {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
-                          {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 100, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+                          {WARM_STATUSES.has(lead.status) && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dcfce7", color: "#166534" }}>{lead.status}</span>}
+                          {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+                          {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
                         </div>
                       </td>
                     </tr>

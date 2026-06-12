@@ -21,7 +21,7 @@ export default function Sidebar() {
       <div style={{ padding: "18px 16px 16px", borderBottom: "1px solid #e2e8f0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
-            width: 34, height: 34, borderRadius: 8, background: "#0a0f1a",
+            width: 34, height: 34, borderRadius: 0, background: "#0a0f1a",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
             <span style={{ color: "#fff", fontWeight: 900, fontSize: 11, letterSpacing: "0.05em" }}>LS</span>
@@ -47,7 +47,7 @@ export default function Sidebar() {
           return (
             <Link key={href} href={href} style={{
               display: "flex", alignItems: "center", padding: "9px 10px",
-              borderRadius: 6, marginBottom: 2, fontSize: 13, fontWeight: 700,
+              borderRadius: 0, marginBottom: 2, fontSize: 13, fontWeight: 700,
               color: active ? "#dc2626" : "#64748b",
               background: active ? "#fef2f2" : "transparent",
               borderLeft: `2px solid ${active ? "#dc2626" : "transparent"}`,
@@ -63,7 +63,7 @@ export default function Sidebar() {
       <div style={{ padding: "14px 16px", borderTop: "1px solid #e2e8f0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{
-            width: 26, height: 26, borderRadius: 6, background: "#dc2626",
+            width: 26, height: 26, borderRadius: 0, background: "#dc2626",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
             <span style={{ color: "#fff", fontWeight: 900, fontSize: 10 }}>L</span>

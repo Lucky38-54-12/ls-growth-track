@@ -35,7 +35,7 @@ export default function SendButton({ due }: { due: number }) {
           style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "11px 20px", background: loading || due === 0 ? "#fca5a5" : "var(--red)",
-            color: "#fff", border: "none", borderRadius: 8, cursor: loading || due === 0 ? "default" : "pointer",
+            color: "#fff", border: "none", borderRadius: 0, cursor: loading || due === 0 ? "default" : "pointer",
             fontSize: 14, fontWeight: 700,
           }}
         >
@@ -52,7 +52,7 @@ export default function SendButton({ due }: { due: number }) {
       {result?.errors && result.errors.length > 0 && (
         <div style={{
           marginTop: 10, background: "#0a0f1a", color: "#fca5a5",
-          padding: 12, borderRadius: 8, fontSize: 12, fontFamily: "monospace",
+          padding: 12, borderRadius: 0, fontSize: 12, fontFamily: "monospace",
         }}>
           {result.errors.map((e, i) => <div key={i}>{e}</div>)}
         </div>
