@@ -10,6 +10,7 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 export default function ColdCallPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [pasted, setPasted] = useState("");
 
@@ -42,6 +43,33 @@ export default function ColdCallPage() {
       });
       setSubject(draft.subject);
       setBodyHtml(draft.bodyHtml);
+    }
+  }
+
+  async function handleGenerate() {
+    if (!callNotes.trim()) {
+      setError("Add some call notes first, then generate the email.");
+      return;
+    }
+    setGenerating(true);
+    setError("");
+    try {
+      const res = await fetch("/api/generate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company, contact_name: contactName, trade, location, callNotes }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+      setSubject(data.subject);
+      setBodyHtml(data.bodyHtml);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -161,7 +189,16 @@ ${filledBody}
               <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
                 What did they say? Objections, interest level, next steps. Saved to the lead so you can pick it up later.
               </p>
-              <textarea value={callNotes} onChange={(e) => setCallNotes(e.target.value)} rows={4} placeholder="e.g. Spoke to Mike, busy until next month but interested in more jobs..." />
+              <textarea value={callNotes} onChange={(e) => setCallNotes(e.target.value)} rows={4} placeholder="e.g. Spoke to Mike, busy until next month but interested in more jobs..." style={{ marginBottom: 12 }} />
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={generating}
+                className="btn-lift"
+                style={{ padding: "10px 20px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
+              >
+                {generating ? "Generating…" : "Generate email from notes"}
+              </button>
             </div>
 
             <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
@@ -172,7 +209,7 @@ ${filledBody}
                 }}>Insert cold email template</button>
               </div>
               <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
-                Write this based on the call, or insert the template and edit it. Use <code>{"{{CTA_LINK}}"}</code> as the href for the booking link.
+                Use &quot;Generate email from notes&quot; above for a personalised draft, or write/edit it yourself. Use <code>{"{{CTA_LINK}}"}</code> as the href for the booking link.
               </p>
               <div style={{ marginBottom: 14 }}>
                 <label>Subject</label>
