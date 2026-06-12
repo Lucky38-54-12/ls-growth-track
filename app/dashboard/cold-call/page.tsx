@@ -24,7 +24,22 @@ export default function ColdCallPage() {
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
 
-  function handleParse() {
+  async function generateFromNotes(data: { company: string; contact_name: string; trade: string; location: string; callNotes: string }) {
+    try {
+      const res = await fetch("/api/generate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+      if (result.error) return null;
+      return { subject: result.subject as string, bodyHtml: result.bodyHtml as string };
+    } catch {
+      return null;
+    }
+  }
+
+  async function handleParse() {
     if (!pasted.trim()) return;
     const parsed = parseLeadText(pasted);
     if (parsed.company) setCompany(parsed.company);
@@ -33,16 +48,30 @@ export default function ColdCallPage() {
     if (parsed.trade) setTrade(parsed.trade);
     if (parsed.location) setLocation(parsed.location);
 
+    const notes = callNotes.trim() || pasted.trim();
+    if (!callNotes.trim()) setCallNotes(pasted.trim());
+
     // Auto-fill the email draft so the preview shows something straight away.
     if (!subject.trim() && !bodyHtml.trim()) {
-      const draft = coldEmailDraft({
+      const leadInfo = {
         company: parsed.company || company || "[company]",
         contact_name: parsed.contact_name || contactName || "there",
         trade: parsed.trade || trade || "[trade]",
         location: parsed.location || location || "[location]",
-      });
-      setSubject(draft.subject);
-      setBodyHtml(draft.bodyHtml);
+      };
+
+      setGenerating(true);
+      const generated = await generateFromNotes({ ...leadInfo, callNotes: notes });
+      setGenerating(false);
+
+      if (generated) {
+        setSubject(generated.subject);
+        setBodyHtml(generated.bodyHtml);
+      } else {
+        const draft = coldEmailDraft(leadInfo);
+        setSubject(draft.subject);
+        setBodyHtml(draft.bodyHtml);
+      }
     }
   }
 
@@ -53,24 +82,14 @@ export default function ColdCallPage() {
     }
     setGenerating(true);
     setError("");
-    try {
-      const res = await fetch("/api/generate-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company, contact_name: contactName, trade, location, callNotes }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        setError(data.error);
-        return;
-      }
-      setSubject(data.subject);
-      setBodyHtml(data.bodyHtml);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setGenerating(false);
+    const generated = await generateFromNotes({ company, contact_name: contactName, trade, location, callNotes });
+    setGenerating(false);
+    if (!generated) {
+      setError("Couldn't generate an email right now. Try again, or write/insert one manually.");
+      return;
     }
+    setSubject(generated.subject);
+    setBodyHtml(generated.bodyHtml);
   }
 
   function handleInsertTemplate() {
@@ -148,10 +167,11 @@ ${filledBody}
               <button
                 type="button"
                 onClick={handleParse}
+                disabled={generating}
                 className="btn-lift"
-                style={{ padding: "10px 20px", background: "#0f172a", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                style={{ padding: "10px 20px", background: generating ? "#64748b" : "#0f172a", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
               >
-                Fill in details
+                {generating ? "Filling in & generating email…" : "Fill in details"}
               </button>
             </div>
 

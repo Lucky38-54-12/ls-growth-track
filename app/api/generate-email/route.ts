@@ -39,36 +39,46 @@ Formatting rules:
 Respond with ONLY a JSON object in this exact shape, no markdown fences:
 {"subject": "...", "bodyHtml": "<p>...</p><p>...</p>"}`;
 
+  const models = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
+
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
-        }),
+    let lastError = "";
+
+    for (const model of models) {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        lastError = await res.text();
+        continue;
       }
-    );
 
-    if (!res.ok) {
-      const errText = await res.text();
-      return NextResponse.json({ error: `Gemini error: ${errText}` }, { status: 502 });
+      const data = await res.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!content) {
+        lastError = "No response content.";
+        continue;
+      }
+
+      const parsed = JSON.parse(content);
+      if (!parsed.subject || !parsed.bodyHtml) {
+        lastError = "Unexpected response shape.";
+        continue;
+      }
+
+      return NextResponse.json({ subject: parsed.subject, bodyHtml: parsed.bodyHtml });
     }
 
-    const data = await res.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!content) {
-      return NextResponse.json({ error: "No response from Gemini." }, { status: 502 });
-    }
-
-    const parsed = JSON.parse(content);
-    if (!parsed.subject || !parsed.bodyHtml) {
-      return NextResponse.json({ error: "Unexpected response shape from Gemini." }, { status: 502 });
-    }
-
-    return NextResponse.json({ subject: parsed.subject, bodyHtml: parsed.bodyHtml });
+    return NextResponse.json({ error: `Gemini error: ${lastError}` }, { status: 502 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
