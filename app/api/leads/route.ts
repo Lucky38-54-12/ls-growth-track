@@ -40,6 +40,10 @@ export async function POST(req: NextRequest) {
   const { data, error } = await sb.from("leads").insert(lead).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  if (body.sendInitialEmail === false) {
+    return NextResponse.json({ lead: data, emailError: null });
+  }
+
   let emailError: string | null = null;
   try {
     await sendOutreachEmail(data as Lead, "initial");

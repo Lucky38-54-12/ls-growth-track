@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Search, Plus, X, LayoutDashboard, Users, BarChart2, Send, FileText, UserPlus, Upload, Flame } from "lucide-react";
+import { Bell, Search, Plus, X, LayoutDashboard, Users, BarChart2, Send, FileText, UserPlus, Upload, Flame, Phone } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -9,6 +9,7 @@ const SEARCH_ITEMS = [
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart2 },
   { label: "Send Queue", href: "/dashboard/send", icon: Send },
   { label: "Templates", href: "/dashboard/templates", icon: FileText },
+  { label: "Cold Call", href: "/dashboard/cold-call", icon: Phone },
   { label: "Add Lead", href: "/dashboard/new", icon: UserPlus },
   { label: "Import Leads", href: "/dashboard/import", icon: Upload },
   { label: "Warm Leads", href: "/dashboard/warm", icon: Flame },

@@ -79,3 +79,30 @@ export function renderTemplate(
   const text = htmlToText(fill(tmpl.html, { ...data, pixel: "" }));
   return { subject, html, text };
 }
+
+// Returns an editable starting point for a personalised cold email: the
+// initial template's content with placeholders filled in, minus the
+// outer wrapper div and tracking pixel (sendPersonalizedEmail adds those
+// plus the signature).
+export function coldEmailDraft(data: {
+  company: string;
+  contact_name: string;
+  trade: string;
+  location: string;
+}): { subject: string; bodyHtml: string } {
+  const tmpl = TEMPLATES.initial;
+  const filled = tmpl.html
+    .replace(/\{\{company\}\}/g, data.company)
+    .replace(/\{\{contact_name\}\}/g, data.contact_name)
+    .replace(/\{\{trade\}\}/g, data.trade)
+    .replace(/\{\{location\}\}/g, data.location)
+    .replace(/\{\{cta_link\}\}/g, "{{CTA_LINK}}");
+
+  const bodyHtml = filled
+    .replace(/^<div[^>]*>\n?/, "")
+    .replace(/<\/div>\s*\{\{pixel\}\}\s*$/, "")
+    .trim();
+
+  const subject = tmpl.subject.replace(/\{\{company\}\}/g, data.company);
+  return { subject, bodyHtml };
+}
