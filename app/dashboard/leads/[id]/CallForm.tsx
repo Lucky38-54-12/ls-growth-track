@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { EmailEvent, Lead } from "@/lib/types";
 import { deviceFromUserAgent, formatDateTime } from "@/lib/format";
+import Topbar from "@/components/Topbar";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -51,12 +52,7 @@ export default function CallForm({ lead, events }: { lead: Lead; events: EmailEv
 
   return (
     <div>
-      <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "0 28px", height: 68, display: "flex", alignItems: "center", gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 17, fontWeight: 900, letterSpacing: "0.04em" }}>LOG CALL</h1>
-          <p style={{ color: L.muted, fontSize: 12, marginTop: 1 }}>{lead.company} &middot; {lead.contact_name} &middot; {lead.email}</p>
-        </div>
-      </div>
+      <Topbar title="LOG CALL" subtitle={`${lead.company} · ${lead.contact_name} · ${lead.email}`} />
 
       <div style={{ maxWidth: 720, margin: "32px auto", padding: "0 28px" }}>
         {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, marginBottom: 18, fontSize: 14 }}>{error}</div>}

@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { Lead } from "./types";
 import { EmailStep } from "./leads";
 import { renderTemplate, htmlToText } from "./templates";
+import { createSupabaseClient } from "./supabase";
 
 const FROM = "Lucky <lucky@lsgrowth.agency>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
@@ -11,6 +12,13 @@ function buildLinks(leadId: string) {
   const pixel = `<img src="${APP_URL}/api/open?id=${encodeURIComponent(leadId)}" width="1" height="1" alt="" style="display:block;border:0" />`;
   const ctaLink = `${APP_URL}/api/click?id=${encodeURIComponent(leadId)}&url=${encodeURIComponent(BOOKING_URL)}`;
   return { pixel, ctaLink };
+}
+
+async function logSend(leadId: string, step: string, subject: string) {
+  try {
+    const sb = createSupabaseClient();
+    await sb.from("email_sends").insert({ lead_id: leadId, step, subject });
+  } catch {}
 }
 
 export async function sendOutreachEmail(lead: Lead, step: EmailStep) {
@@ -26,6 +34,7 @@ export async function sendOutreachEmail(lead: Lead, step: EmailStep) {
   });
   const { error } = await resend.emails.send({ from: FROM, to: lead.email, subject, html, text });
   if (error) throw new Error(error.message);
+  await logSend(lead.lead_id, step, subject);
 }
 
 export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string) {
@@ -40,4 +49,5 @@ ${pixel}`;
   const text = htmlToText(filledBody);
   const { error } = await resend.emails.send({ from: FROM, to: lead.email, subject, html, text });
   if (error) throw new Error(error.message);
+  await logSend(lead.lead_id, "custom", subject);
 }

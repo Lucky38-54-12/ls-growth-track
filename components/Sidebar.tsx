@@ -3,12 +3,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV = [
-  { href: "/dashboard", label: "Pipeline" },
-  { href: "/dashboard/send", label: "Send Queue" },
-  { href: "/dashboard/templates", label: "Templates" },
-  { href: "/dashboard/new", label: "Add Lead" },
-  { href: "/dashboard/import", label: "Import Leads" },
-  { href: "/dashboard/warm", label: "Warm Leads" },
+  { href: "/dashboard", label: "Pipeline", icon: "▦" },
+  { href: "/dashboard/analytics", label: "Analytics", icon: "📈" },
+  { href: "/dashboard/send", label: "Send Queue", icon: "✉" },
+  { href: "/dashboard/templates", label: "Templates", icon: "📝" },
+  { href: "/dashboard/new", label: "Add Lead", icon: "＋" },
+  { href: "/dashboard/import", label: "Import Leads", icon: "⇧" },
+  { href: "/dashboard/warm", label: "Warm Leads", icon: "🔥" },
 ];
 
 export default function Sidebar() {
@@ -16,48 +17,46 @@ export default function Sidebar() {
   if (path?.startsWith("/results")) return null;
   return (
     <div style={{
-      width: 190, flexShrink: 0, background: "#fff",
-      borderRight: "1px solid #e2e8f0", display: "flex",
-      flexDirection: "column", minHeight: "100vh",
+      width: 210, flexShrink: 0, background: "#0b1220",
+      display: "flex", flexDirection: "column", minHeight: "100vh",
     }}>
       {/* Brand */}
-      <div style={{ padding: "18px 16px 16px", borderBottom: "1px solid #e2e8f0" }}>
+      <div style={{ padding: "20px 18px", borderBottom: "1px solid #1e293b" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img src="/logo.png" alt="LS Growth" style={{ width: 34, height: 34, objectFit: "contain", flexShrink: 0 }} />
           <div>
-            <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: "0.04em", lineHeight: 1.2 }}>
-              L&amp;S <span style={{ color: "#dc2626" }}>GROWTH</span>
+            <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: "0.04em", lineHeight: 1.2, color: "#fff" }}>
+              L&amp;S <span style={{ color: "#ef4444" }}>GROWTH</span>
             </div>
-            <div style={{ fontSize: 10.5, color: "#94a3b8", fontWeight: 600 }}>Outreach Agency</div>
+            <div style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600 }}>Outreach Agency</div>
           </div>
         </div>
       </div>
 
       {/* Nav */}
-      <div style={{ padding: "14px 10px", flex: 1 }}>
+      <div style={{ padding: "16px 12px", flex: 1 }}>
         <div style={{
-          fontSize: 10, color: "#94a3b8", fontWeight: 800,
+          fontSize: 10, color: "#475569", fontWeight: 800,
           letterSpacing: "0.12em", textTransform: "uppercase",
-          padding: "0 8px", marginBottom: 8,
+          padding: "0 10px", marginBottom: 10,
         }}>Menu</div>
-        {NAV.map(({ href, label }) => {
+        {NAV.map(({ href, label, icon }) => {
           const active = path === href || (href !== "/dashboard" && path.startsWith(href));
           return (
-            <Link key={href} href={href} className="nav-link" style={{
-              display: "flex", alignItems: "center", padding: "9px 10px",
+            <Link key={href} href={href} className={active ? "nav-link-dark-active" : "nav-link-dark"} style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
               borderRadius: 0, marginBottom: 2, fontSize: 13, fontWeight: 700,
-              color: active ? "#dc2626" : "#64748b",
-              background: active ? "#fef2f2" : "transparent",
-              borderLeft: `2px solid ${active ? "#dc2626" : "transparent"}`,
+              color: active ? "#fff" : "#94a3b8",
+              background: active ? "var(--red)" : "transparent",
               textDecoration: "none",
               transition: "background 0.15s ease, color 0.15s ease",
             }}>
+              <span style={{ fontSize: 14, width: 18, textAlign: "center", flexShrink: 0 }}>{icon}</span>
               {label}
             </Link>
           );
         })}
       </div>
-
     </div>
   );
 }

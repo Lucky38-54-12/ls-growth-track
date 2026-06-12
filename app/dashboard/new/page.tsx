@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { renderTemplate } from "@/lib/templates";
 import { parseLeadText } from "@/lib/parseLead";
+import Topbar from "@/components/Topbar";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -56,12 +57,7 @@ export default function NewLeadPage() {
 
   return (
     <div>
-      <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "0 28px", height: 68, display: "flex", alignItems: "center", gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 17, fontWeight: 900, letterSpacing: "0.04em" }}>ADD LEAD</h1>
-          <p style={{ color: L.muted, fontSize: 12, marginTop: 1 }}>Paste details from anywhere, check the draft, then send</p>
-        </div>
-      </div>
+      <Topbar title="ADD LEAD" subtitle="Paste details from anywhere, check the draft, then send" />
 
       <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
         <div>

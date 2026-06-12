@@ -40,3 +40,11 @@ export interface EngagementSummary {
   clicks: number;
   last_event_at: string | null;
 }
+
+export interface EmailSend {
+  id: number;
+  lead_id: string;
+  step: string;
+  subject: string;
+  sent_at: string;
+}

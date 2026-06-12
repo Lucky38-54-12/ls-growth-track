@@ -72,6 +72,15 @@ label {
   background: #f8fafc !important;
 }
 
+.nav-link-dark:hover {
+  background: #1e293b !important;
+  color: #fff !important;
+}
+
+.nav-link-dark-active:hover {
+  background: var(--red) !important;
+}
+
 details > summary {
   list-style: none;
 }

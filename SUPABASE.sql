@@ -36,3 +36,16 @@ create index if not exists email_events_lead_id_idx on email_events (lead_id);
 -- If email_events already existed without these columns, run:
 -- alter table email_events add column if not exists user_agent text;
 -- alter table email_events add column if not exists ip text;
+
+-- Email sends table: one row per email actually sent, used for analytics
+-- (open rate / click rate per step and per subject line)
+create table if not exists email_sends (
+  id bigint generated always as identity primary key,
+  lead_id text not null,
+  step text not null,
+  subject text not null,
+  sent_at timestamptz not null default now()
+);
+
+create index if not exists email_sends_lead_id_idx on email_sends (lead_id);
+create index if not exists email_sends_sent_at_idx on email_sends (sent_at);
