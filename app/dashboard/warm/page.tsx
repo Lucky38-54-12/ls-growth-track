@@ -1,5 +1,6 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
+import Link from "next/link";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 const WARM_STATUSES = new Set(["replied", "booked"]);
@@ -71,8 +72,10 @@ export default async function WarmLeadsPage() {
                   if (ev?.opens) bits.push(`${ev.opens} open${ev.opens !== 1 ? "s" : ""}`);
                   if (ev?.last_event_at) bits.push(`last activity ${ev.last_event_at.split("T")[0]}`);
                   return (
-                    <tr key={lead.lead_id}>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>{lead.company}</td>
+                    <tr key={lead.lead_id} style={{ cursor: "pointer" }}>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>
+                        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: "var(--red)" }}>{lead.company}</Link>
+                      </td>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5 }}>{lead.contact_name}</td>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5, color: L.muted }}>{lead.email}</td>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5, color: L.muted }}>{lead.trade}</td>

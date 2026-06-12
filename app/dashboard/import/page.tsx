@@ -13,6 +13,14 @@ export default function ImportPage() {
   const [text, setText] = useState("");
   const [sendNow, setSendNow] = useState(true);
 
+  const [sheetId, setSheetId] = useState("");
+  const [sheetTrade, setSheetTrade] = useState("");
+  const [sheetLocation, setSheetLocation] = useState("");
+  const [personalize, setPersonalize] = useState(true);
+  const [sendFresh, setSendFresh] = useState(true);
+  const [sheetLoading, setSheetLoading] = useState(false);
+  const [sheetError, setSheetError] = useState("");
+
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -40,6 +48,37 @@ export default function ImportPage() {
     const parts = [`Imported ${data.imported} lead(s).`];
     if (data.skipped) parts.push(`${data.skipped} skipped.`);
     if (data.sent) parts.push(`${data.sent} first email(s) sent.`);
+    router.push(`/dashboard?flash=${encodeURIComponent(parts.join(" "))}`);
+  }
+
+  async function handleSheetSync(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sheetId.trim()) { setSheetError("Paste a Google Sheet ID first."); return; }
+    setSheetLoading(true);
+    setSheetError("");
+
+    const res = await fetch("/api/leads/sheet-sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sheetId: sheetId.trim(),
+        tradeDefault: sheetTrade,
+        locationDefault: sheetLocation,
+        personalize,
+        sendFresh,
+      }),
+    });
+    const data = await res.json();
+    setSheetLoading(false);
+
+    if (data.error) { setSheetError(data.error); return; }
+
+    const parts = [`Imported ${data.imported} new lead(s).`];
+    if (data.updated) parts.push(`${data.updated} updated with new call notes.`);
+    if (data.personalizedSent) parts.push(`${data.personalizedSent} personalized follow-up(s) sent.`);
+    if (data.freshSent) parts.push(`${data.freshSent} fresh email(s) sent.`);
+    if (data.skipped) parts.push(`${data.skipped} skipped.`);
+    if (data.errors?.length) parts.push(`Errors: ${data.errors.join("; ")}`);
     router.push(`/dashboard?flash=${encodeURIComponent(parts.join(" "))}`);
   }
 
@@ -99,6 +138,60 @@ export default function ImportPage() {
                 border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
               }}>
                 {loading ? "Importing…" : "Import leads"}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 24 }}>
+          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Sync from Google Sheet</div>
+          <p style={{ fontSize: 13, color: L.muted, marginBottom: 20 }}>
+            Paste the Sheet ID from your scraper sheet (the long ID in the sheet&apos;s URL). New rows are imported,
+            and the Date Called / Outcome / Call Back / Notes columns are read so emails can be personalized.
+          </p>
+
+          {sheetError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 8, fontSize: 14, marginBottom: 16 }}>{sheetError}</div>}
+
+          <form onSubmit={handleSheetSync} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <label>Google Sheet ID</label>
+              <input
+                value={sheetId}
+                onChange={(e) => setSheetId(e.target.value)}
+                placeholder="1uro5nSHDGrrHUuyQ0HqvZAQ1jn6A-SBR2zOuFl7a02o"
+                style={{ fontFamily: "monospace", fontSize: 13, marginTop: 5 }}
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div>
+                <label>Default trade <span style={{ fontWeight: 400, color: L.dimmed }}>(new leads)</span></label>
+                <input value={sheetTrade} onChange={(e) => setSheetTrade(e.target.value)} placeholder="e.g. Fencing" />
+              </div>
+              <div>
+                <label>Default location <span style={{ fontWeight: 400, color: L.dimmed }}>(new leads)</span></label>
+                <input value={sheetLocation} onChange={(e) => setSheetLocation(e.target.value)} placeholder="e.g. Christchurch NZ" />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 0 }}>
+                <input type="checkbox" checked={personalize} onChange={(e) => setPersonalize(e.target.checked)} style={{ width: "auto" }} />
+                <span style={{ fontWeight: 600, fontSize: 13 }}>AI-personalize follow-ups for leads with call notes</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 0 }}>
+                <input type="checkbox" checked={sendFresh} onChange={(e) => setSendFresh(e.target.checked)} style={{ width: "auto" }} />
+                <span style={{ fontWeight: 600, fontSize: 13 }}>Send fresh (initial) emails to new leads with no call notes yet</span>
+              </label>
+            </div>
+
+            <div>
+              <button type="submit" disabled={sheetLoading} style={{
+                padding: "11px 24px",
+                background: sheetLoading ? "#fca5a5" : "var(--red)", color: "#fff",
+                border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: sheetLoading ? "default" : "pointer",
+              }}>
+                {sheetLoading ? "Syncing…" : "Sync & send"}
               </button>
             </div>
           </form>

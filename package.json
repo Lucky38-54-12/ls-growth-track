@@ -8,16 +8,18 @@
     "start": "next start -p 3005"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.1",
+    "@supabase/supabase-js": "^2.45.0",
+    "googleapis": "^173.0.0",
     "next": "14.2.5",
     "react": "^18",
     "react-dom": "^18",
-    "@supabase/supabase-js": "^2.45.0",
     "resend": "^3.4.0"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
-    "@types/react-dom": "^18"
+    "@types/react-dom": "^18",
+    "typescript": "^5"
   }
 }

@@ -187,7 +187,7 @@ export default async function DashboardPage() {
                 const color = STATUS_COLOR[lead.status] || "#94a3b8";
                 const isDue = nextStepFor(lead) !== null;
                 return (
-                  <div key={lead.lead_id} style={{
+                  <Link key={lead.lead_id} href={`/dashboard/leads/${lead.lead_id}`} style={{
                     background: "#fff", border: "1px solid #e2e8f0",
                     borderLeft: `3px solid ${color}`,
                     borderRadius: 10, padding: "14px 18px",
@@ -225,7 +225,7 @@ export default async function DashboardPage() {
                     </div>
 
                     <span style={{ color: "#94a3b8", fontSize: 16, flexShrink: 0 }}>→</span>
-                  </div>
+                  </Link>
                 );
               })}
 
