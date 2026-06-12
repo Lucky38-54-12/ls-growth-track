@@ -41,7 +41,6 @@ export default async function WarmLeadsPage() {
   return (
     <div>
       <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "0 28px", height: 68, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 0, background: "var(--green)", flexShrink: 0 }} />
         <div>
           <h1 style={{ fontSize: 17, fontWeight: 900, letterSpacing: "0.04em" }}>WARM LEADS</h1>
           <p style={{ color: L.muted, fontSize: 12, marginTop: 1 }}>Anyone who&apos;s opened, clicked, or replied — worth a call</p>

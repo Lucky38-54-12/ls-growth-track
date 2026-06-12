@@ -35,7 +35,6 @@ export default function TemplatesPage({
   return (
     <div>
       <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "0 28px", height: 68, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 0, background: "var(--red)", flexShrink: 0 }} />
         <div>
           <h1 style={{ fontSize: 17, fontWeight: 900, letterSpacing: "0.04em" }}>EMAIL TEMPLATES</h1>
           <p style={{ color: L.muted, fontSize: 12, marginTop: 1 }}>The 3-step sequence sent to every lead — preview how it reads for different trades</p>

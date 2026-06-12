@@ -38,7 +38,6 @@ export default async function SendQueuePage() {
   return (
     <div>
       <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "0 28px", height: 68, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 0, background: "var(--red)", flexShrink: 0 }} />
         <div>
           <h1 style={{ fontSize: 17, fontWeight: 900, letterSpacing: "0.04em" }}>SEND QUEUE</h1>
           <p style={{ color: L.muted, fontSize: 12, marginTop: 1 }}>Preview exactly what will be sent before it goes out</p>

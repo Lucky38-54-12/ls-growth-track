@@ -52,7 +52,6 @@ export default function CallForm({ lead, events }: { lead: Lead; events: EmailEv
   return (
     <div>
       <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "0 28px", height: 68, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 0, background: "var(--red)", flexShrink: 0 }} />
         <div>
           <h1 style={{ fontSize: 17, fontWeight: 900, letterSpacing: "0.04em" }}>LOG CALL</h1>
           <p style={{ color: L.muted, fontSize: 12, marginTop: 1 }}>{lead.company} &middot; {lead.contact_name} &middot; {lead.email}</p>

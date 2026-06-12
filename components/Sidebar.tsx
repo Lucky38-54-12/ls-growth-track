@@ -58,13 +58,6 @@ export default function Sidebar() {
         })}
       </div>
 
-      {/* Footer */}
-      <div style={{ padding: "14px 16px", borderTop: "1px solid #e2e8f0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <img src="/logo.png" alt="LS Growth" style={{ width: 26, height: 26, objectFit: "contain", flexShrink: 0 }} />
-          <span style={{ fontSize: 11.5, fontWeight: 700, color: "#0f172a" }}>LS Growth Agency</span>
-        </div>
-      </div>
     </div>
   );
 }
