@@ -12,6 +12,7 @@ export const revalidate = 0;
 
 const WARM_STATUSES = new Set(["replied", "booked"]);
 const SEQUENCE_STATUSES = ["contacted", "followup_1_sent", "followup_2_sent"];
+const DONE_STATUSES = new Set(["sequence_complete", "not_interested", "bounced"]);
 
 const STATUS_LABEL: Record<string, string> = {
   not_contacted: "Not contacted",
@@ -50,6 +51,100 @@ function initials(name: string) {
   return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
+function LeadRow({ lead, engagement }: { lead: Lead; engagement: Record<string, EngagementSummary> }) {
+  const ev = engagement[lead.lead_id];
+  const color = STATUS_COLOR[lead.status] || "#94a3b8";
+  const isDue = nextStepFor(lead) !== null;
+  return (
+    <Link href={`/dashboard/leads/${lead.lead_id}`} className="card-hover" style={{
+      background: "#fff", border: "1px solid #e2e8f0",
+      borderLeft: `3px solid ${color}`,
+      borderRadius: 0, padding: "12px 16px",
+      display: "flex", alignItems: "center", gap: 14,
+    }}>
+      {/* Initials badge */}
+      <div style={{
+        width: 36, height: 36, borderRadius: 0, background: "#f1f5f9",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0, fontWeight: 900, fontSize: 11, color: "#64748b",
+        border: "1px solid #e2e8f0",
+      }}>
+        {initials(lead.company)}
+      </div>
+
+      {/* Main info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 800, fontSize: 13.5, color: "#0f172a", marginBottom: 2 }}>{lead.company}</div>
+        <div style={{ fontSize: 11.5, color: "#64748b" }}>
+          {lead.trade}{lead.location ? ` · ${lead.location}` : ""}
+          {lead.date_contacted ? ` · contacted ${lead.date_contacted}` : ""}
+        </div>
+      </div>
+
+      {/* Engagement pills */}
+      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+        {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+        {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+      </div>
+
+      {/* Status + due */}
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color, marginBottom: 3 }}>{STATUS_LABEL[lead.status] || lead.status}</div>
+        {isDue && <div style={{ fontSize: 10.5, fontWeight: 700, color: "#dc2626" }}>Due now</div>}
+      </div>
+
+      <span style={{ color: "#94a3b8", fontSize: 16, flexShrink: 0 }}>→</span>
+    </Link>
+  );
+}
+
+function LeadGroup({
+  title, hint, accent, leads, engagement, defaultOpen, maxVisible, emptyText, moreHref,
+}: {
+  title: string;
+  hint: string;
+  accent: string;
+  leads: Lead[];
+  engagement: Record<string, EngagementSummary>;
+  defaultOpen: boolean;
+  maxVisible: number;
+  emptyText: string;
+  moreHref?: string;
+}) {
+  const visible = leads.slice(0, maxVisible);
+  const remaining = leads.length - visible.length;
+  return (
+    <details open={defaultOpen} style={{ background: "#fff", border: "1px solid #e2e8f0", borderLeft: `3px solid ${accent}`, borderRadius: 0, marginBottom: 10 }}>
+      <summary style={{
+        cursor: "pointer", padding: "12px 16px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+      }}>
+        <div>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>{title}</span>
+          <span style={{ fontSize: 11.5, color: "#94a3b8", marginLeft: 8 }}>{hint}</span>
+        </div>
+        <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#f1f5f9", color: "#64748b", flexShrink: 0 }}>
+          {leads.length}
+        </span>
+      </summary>
+      <div style={{ borderTop: "1px solid #e2e8f0", padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+        {leads.length === 0 ? (
+          <div style={{ textAlign: "center", color: "#94a3b8", fontSize: 12.5, padding: "12px 0" }}>{emptyText}</div>
+        ) : (
+          <>
+            {visible.map(lead => <LeadRow key={lead.lead_id} lead={lead} engagement={engagement} />)}
+            {remaining > 0 && (
+              <div style={{ textAlign: "center", padding: "6px 0", fontSize: 12, color: "#94a3b8" }}>
+                +{remaining} more {moreHref ? <Link href={moreHref} style={{ color: "#dc2626", fontWeight: 700 }}>— view all →</Link> : null}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export default async function DashboardPage() {
   const sb = createSupabaseClient();
 
@@ -78,6 +173,13 @@ export default async function DashboardPage() {
   const emailsSent = allLeads.reduce((acc, l) => acc + (l.status === "not_contacted" ? 0 : 1) + (l.followup_count || 0), 0);
   const responseRate = contacted > 0 ? Math.round((warmCount / contacted) * 100) : 0;
 
+  // Pipeline groups — where does each lead sit, and what needs to happen next?
+  const needsFirstEmail = allLeads.filter(l => l.status === "not_contacted");
+  const dueFollowup = allLeads.filter(l => l.status !== "not_contacted" && nextStepFor(l) !== null);
+  const waiting = allLeads.filter(l => SEQUENCE_STATUSES.includes(l.status) && nextStepFor(l) === null);
+  const warmLeadsAll = allLeads.filter(l => WARM_STATUSES.has(l.status));
+  const doneLeads = allLeads.filter(l => DONE_STATUSES.has(l.status));
+
   // Warm leads for right panel (engaged or replied)
   const warmLeads = allLeads
     .filter(l => {
@@ -92,11 +194,6 @@ export default async function DashboardPage() {
       return (bWarm + bClicks) - (aWarm + aClicks);
     })
     .slice(0, 8);
-
-  // Recent active leads for main list
-  const activeLeads = allLeads
-    .filter(l => !WARM_STATUSES.has(l.status) && l.status !== "bounced" && l.status !== "not_interested")
-    .slice(0, 10);
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
@@ -164,13 +261,13 @@ export default async function DashboardPage() {
         {/* Main grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 288px", gap: 20, alignItems: "flex-start" }}>
 
-          {/* Leads list */}
+          {/* Pipeline groups */}
           <div>
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
               marginBottom: 14,
             }}>
-              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b" }}>Active Leads</span>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#64748b" }}>Pipeline — where every lead sits</span>
               <Link href="/dashboard/new" className="btn-lift" style={{
                 padding: "8px 16px", background: "#dc2626", color: "#fff",
                 borderRadius: 0, fontSize: 13, fontWeight: 700, textDecoration: "none",
@@ -178,65 +275,67 @@ export default async function DashboardPage() {
               }}>+ Add Lead</Link>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {activeLeads.length === 0 && (
-                <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 0, padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
-                  No active leads yet — <Link href="/dashboard/new" style={{ color: "#dc2626", fontWeight: 700 }}>add your first lead</Link> or <Link href="/dashboard/import" style={{ color: "#dc2626", fontWeight: 700 }}>import a batch</Link>.
-                </div>
-              )}
-              {activeLeads.map(lead => {
-                const ev = engagement[lead.lead_id];
-                const color = STATUS_COLOR[lead.status] || "#94a3b8";
-                const isDue = nextStepFor(lead) !== null;
-                return (
-                  <Link key={lead.lead_id} href={`/dashboard/leads/${lead.lead_id}`} className="card-hover" style={{
-                    background: "#fff", border: "1px solid #e2e8f0",
-                    borderLeft: `3px solid ${color}`,
-                    borderRadius: 0, padding: "14px 18px",
-                    display: "flex", alignItems: "center", gap: 14,
-                  }}>
-                    {/* Initials badge */}
-                    <div style={{
-                      width: 40, height: 40, borderRadius: 0, background: "#f1f5f9",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      flexShrink: 0, fontWeight: 900, fontSize: 12, color: "#64748b",
-                      border: "1px solid #e2e8f0",
-                    }}>
-                      {initials(lead.company)}
-                    </div>
-
-                    {/* Main info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 800, fontSize: 14, color: "#0f172a", marginBottom: 2 }}>{lead.company}</div>
-                      <div style={{ fontSize: 12, color: "#64748b" }}>
-                        {lead.trade}{lead.location ? ` · ${lead.location}` : ""}
-                        {lead.date_contacted ? ` · contacted ${lead.date_contacted}` : ""}
-                      </div>
-                    </div>
-
-                    {/* Engagement pills */}
-                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
-                      {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
-                    </div>
-
-                    {/* Status + due */}
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontSize: 11.5, fontWeight: 800, color, marginBottom: 3 }}>{STATUS_LABEL[lead.status] || lead.status}</div>
-                      {isDue && <div style={{ fontSize: 10.5, fontWeight: 700, color: "#dc2626" }}>Due now</div>}
-                    </div>
-
-                    <span style={{ color: "#94a3b8", fontSize: 16, flexShrink: 0 }}>→</span>
-                  </Link>
-                );
-              })}
-
-              {allLeads.length > 10 && (
-                <div style={{ textAlign: "center", padding: "12px 0" }}>
-                  <Link href="/dashboard/warm" style={{ fontSize: 13, color: "#dc2626", fontWeight: 700 }}>View all {allLeads.length} leads →</Link>
-                </div>
-              )}
-            </div>
+            {total === 0 ? (
+              <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 0, padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                No leads yet — <Link href="/dashboard/new" style={{ color: "#dc2626", fontWeight: 700 }}>add your first lead</Link> or <Link href="/dashboard/import" style={{ color: "#dc2626", fontWeight: 700 }}>import a batch</Link>.
+              </div>
+            ) : (
+              <>
+                <LeadGroup
+                  title="Needs first email"
+                  hint="never contacted yet"
+                  accent="#dc2626"
+                  leads={needsFirstEmail}
+                  engagement={engagement}
+                  defaultOpen={true}
+                  maxVisible={8}
+                  emptyText="Nobody waiting on a first email."
+                  moreHref="/dashboard/send"
+                />
+                <LeadGroup
+                  title="Due for follow-up"
+                  hint="in sequence, ready for the next email"
+                  accent="#dc2626"
+                  leads={dueFollowup}
+                  engagement={engagement}
+                  defaultOpen={true}
+                  maxVisible={8}
+                  emptyText="No follow-ups due right now."
+                  moreHref="/dashboard/send"
+                />
+                <LeadGroup
+                  title="Waiting"
+                  hint="in sequence, not due yet"
+                  accent="#7c3aed"
+                  leads={waiting}
+                  engagement={engagement}
+                  defaultOpen={false}
+                  maxVisible={6}
+                  emptyText="Nothing waiting."
+                />
+                <LeadGroup
+                  title="Warm / replied"
+                  hint="opened, clicked, replied or booked — worth a call"
+                  accent="#16a34a"
+                  leads={warmLeadsAll}
+                  engagement={engagement}
+                  defaultOpen={false}
+                  maxVisible={6}
+                  emptyText="Nobody warm yet."
+                  moreHref="/dashboard/warm"
+                />
+                <LeadGroup
+                  title="Done"
+                  hint="sequence complete, not interested, or bounced"
+                  accent="#94a3b8"
+                  leads={doneLeads}
+                  engagement={engagement}
+                  defaultOpen={false}
+                  maxVisible={6}
+                  emptyText="Nothing closed out yet."
+                />
+              </>
+            )}
           </div>
 
           {/* Right panel: warm leads + send */}
