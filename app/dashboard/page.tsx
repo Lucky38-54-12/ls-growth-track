@@ -254,6 +254,11 @@ export default async function DashboardPage() {
                 {due > 0 ? `${due} lead${due !== 1 ? "s" : ""} ready for their next email.` : "All caught up — no emails due right now."}
               </p>
               <SendButton due={due} />
+              {due > 0 && (
+                <Link href="/dashboard/send" style={{ display: "block", marginTop: 10, fontSize: 12.5, fontWeight: 700, color: "#dc2626" }}>
+                  Preview what&apos;s about to be sent →
+                </Link>
+              )}
             </div>
 
             {/* Warm leads panel */}

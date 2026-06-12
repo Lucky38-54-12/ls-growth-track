@@ -71,3 +71,22 @@ label {
 .nav-link:hover {
   background: #f8fafc !important;
 }
+
+details > summary {
+  list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary::after {
+  content: "+";
+  font-weight: 900;
+  color: var(--dimmed);
+  margin-left: 8px;
+}
+
+details[open] > summary::after {
+  content: "−";
+}
