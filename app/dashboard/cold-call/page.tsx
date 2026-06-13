@@ -10,7 +10,6 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 export default function ColdCallPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [pasted, setPasted] = useState("");
 
@@ -23,6 +22,7 @@ export default function ColdCallPage() {
   const [callNotes, setCallNotes] = useState("");
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   async function generateFromNotes(data: { company: string; contact_name: string; trade: string; location: string; callNotes: string }) {
     try {
@@ -229,11 +229,11 @@ ${filledBody}
                 }}>Insert cold email template</button>
               </div>
               <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
-                Use &quot;Generate email from notes&quot; above for a personalised draft, or write/edit it yourself. Use <code>{"{{CTA_LINK}}"}</code> as the href for the booking link.
+                Use &quot;Generate email from notes&quot; above for a personalised draft, or write/edit it yourself. Replace <code>[MEETING LINK]</code> with your call link before sending.
               </p>
               <div style={{ marginBottom: 14 }}>
                 <label>Subject</label>
-                <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={`e.g. Great chatting today, ${contactName || "there"}`} />
+                <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={`e.g. Catch-up today 1pm, quick link inside`} />
               </div>
               <div>
                 <label>Email body (HTML &lt;p&gt; paragraphs)</label>
@@ -242,7 +242,7 @@ ${filledBody}
                   onChange={(e) => setBodyHtml(e.target.value)}
                   rows={10}
                   style={{ fontFamily: "monospace", fontSize: 13 }}
-                  placeholder={`<p>Hey ${contactName || "there"},</p>\n<p>Thanks for the chat just now...</p>\n<p>Keen for a <a href="{{CTA_LINK}}">quick chat</a> this week?</p>`}
+                  placeholder={`<p>Hey ${contactName || "there"},</p>\n<p>Looking forward to our chat today at 1pm. Here's the link to join:</p>\n<p>[MEETING LINK]</p>\n<p>Quick heads up on what I want to cover...</p>`}
                 />
               </div>
             </div>
