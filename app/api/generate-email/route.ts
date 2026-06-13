@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { company, contact_name, trade, location, callNotes } = body;
+  const { callNotes } = body;
 
   if (!callNotes || !callNotes.trim()) {
     return NextResponse.json({ error: "Add some call notes first." }, { status: 400 });
@@ -17,22 +17,20 @@ export async function POST(req: NextRequest) {
 
   const today = new Date().toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" });
 
-  const prompt = `You are writing a short follow up email on behalf of Lucky from LS Growth, an outreach agency that helps local trade and service businesses get more leads. Lucky has just got off a cold call with this lead.
+  const prompt = `You are helping Lucky from LS Growth, an outreach agency that helps local trade and service businesses get more leads. Lucky has just got off a cold call and typed up some raw notes.
 
 Today's date: ${today}
 
-Lead details:
-- Company: ${company || "(unknown)"}
-- Contact first name: ${contact_name || "there"}
-- Trade: ${trade || "(unknown)"}
-- Location: ${location || "(unknown)"}
-
-Notes from the call just had with this lead:
+Raw notes from the call:
 """
 ${callNotes}
 """
 
-First, work out what actually needs to happen next based on the notes, then write the email to match:
+First, read the notes and pull out the lead's details if they're mentioned (company name, contact's first name, email address, trade/industry, location). Leave any field as an empty string "" if it isn't mentioned anywhere in the notes.
+
+Then work out what actually needs to happen next based on the notes, and write a follow up email to match:
+
+- Address the contact by their first name if it's mentioned in the notes (e.g. "Hey Mike,"), otherwise use "Hey there,".
 
 - If a call/meeting has been booked for a specific day/time: write a short meeting confirmation. Structure: "Hey {{name}}," then a line confirming the day/time relative to today (e.g. "today at 1pm", "tomorrow at 10am", "Thursday at 2pm") and saying here's the link to join, then a paragraph containing exactly "[MEETING LINK]" and nothing else, then a paragraph giving a quick heads up on what Lucky wants to cover (specific to the notes), then a short closing paragraph with a time estimate (20 to 30 minutes unless notes say otherwise) and offering to shift the time by text if needed. Subject should reference the day/time and that the link is inside, e.g. "Catch-up today 1pm - quick link inside".
 
@@ -53,7 +51,7 @@ Formatting rules:
 - Do NOT wrap the output in a div or include the subject inside the body.
 
 Respond with ONLY a JSON object in this exact shape, no markdown fences:
-{"subject": "...", "bodyHtml": "<p>...</p><p>...</p>"}`;
+{"company": "...", "contact_name": "...", "email": "...", "trade": "...", "location": "...", "subject": "...", "bodyHtml": "<p>...</p><p>...</p>"}`;
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -86,7 +84,15 @@ Respond with ONLY a JSON object in this exact shape, no markdown fences:
       return NextResponse.json({ error: "Unexpected response shape." }, { status: 502 });
     }
 
-    return NextResponse.json({ subject: parsed.subject, bodyHtml: parsed.bodyHtml });
+    return NextResponse.json({
+      company: parsed.company || "",
+      contact_name: parsed.contact_name || "",
+      email: parsed.email || "",
+      trade: parsed.trade || "",
+      location: parsed.location || "",
+      subject: parsed.subject,
+      bodyHtml: parsed.bodyHtml,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
