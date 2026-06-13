@@ -2,7 +2,6 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { coldEmailDraft } from "@/lib/templates";
-import { parseLeadText } from "@/lib/parseLead";
 import Topbar from "@/components/Topbar";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
@@ -11,7 +10,6 @@ export default function ColdCallPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [pasted, setPasted] = useState("");
 
   const [company, setCompany] = useState("");
   const [contactName, setContactName] = useState("");
@@ -36,42 +34,6 @@ export default function ColdCallPage() {
       return { subject: result.subject as string, bodyHtml: result.bodyHtml as string };
     } catch {
       return null;
-    }
-  }
-
-  async function handleParse() {
-    if (!pasted.trim()) return;
-    const parsed = parseLeadText(pasted);
-    if (parsed.company) setCompany(parsed.company);
-    if (parsed.contact_name) setContactName(parsed.contact_name);
-    if (parsed.email) setEmail(parsed.email);
-    if (parsed.trade) setTrade(parsed.trade);
-    if (parsed.location) setLocation(parsed.location);
-
-    const notes = callNotes.trim() || pasted.trim();
-    if (!callNotes.trim()) setCallNotes(pasted.trim());
-
-    // Auto-fill the email draft so the preview shows something straight away.
-    if (!subject.trim() && !bodyHtml.trim()) {
-      const leadInfo = {
-        company: parsed.company || company || "[company]",
-        contact_name: parsed.contact_name || contactName || "there",
-        trade: parsed.trade || trade || "[trade]",
-        location: parsed.location || location || "[location]",
-      };
-
-      setGenerating(true);
-      const generated = await generateFromNotes({ ...leadInfo, callNotes: notes });
-      setGenerating(false);
-
-      if (generated) {
-        setSubject(generated.subject);
-        setBodyHtml(generated.bodyHtml);
-      } else {
-        const draft = coldEmailDraft(leadInfo);
-        setSubject(draft.subject);
-        setBodyHtml(draft.bodyHtml);
-      }
     }
   }
 
@@ -145,7 +107,7 @@ ${filledBody}
 
   return (
     <div>
-      <Topbar title="COLD CALL" subtitle="Paste lead details, log the call, and send a personalised email now" />
+      <Topbar title="COLD CALL" subtitle="Log who you called, generate a follow-up email, and send it now" />
 
       <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
         <div>
@@ -153,31 +115,8 @@ ${filledBody}
 
           <form onSubmit={handleSubmit}>
             <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
-              <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Quick add</div>
-              <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
-                Paste anything about the business (Google Maps listing, website text, directory entry) and we&apos;ll pull out the company name, email, trade and location.
-              </p>
-              <textarea
-                value={pasted}
-                onChange={(e) => setPasted(e.target.value)}
-                rows={5}
-                placeholder={"e.g.\nAcme Plumbing\n123 Queen St, Auckland, NZ\nOwner: Mike\ninfo@acmeplumbing.co.nz"}
-                style={{ resize: "vertical", marginBottom: 12 }}
-              />
-              <button
-                type="button"
-                onClick={handleParse}
-                disabled={generating}
-                className="btn-lift"
-                style={{ padding: "10px 20px", background: generating ? "#64748b" : "#0f172a", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
-              >
-                {generating ? "Filling in & generating email…" : "Fill in details"}
-              </button>
-            </div>
-
-            <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
-              <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Lead details</div>
-              <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>This creates the lead in your pipeline.</p>
+              <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Who you called</div>
+              <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>This creates the lead in your pipeline and is who the email gets sent to.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div>
                   <label>Company</label>
