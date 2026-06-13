@@ -10,9 +10,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Add some call notes first." }, { status: 400 });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "OPENAI_API_KEY is not configured." }, { status: 500 });
+    return NextResponse.json({ error: "GEMINI_API_KEY is not configured." }, { status: 500 });
   }
 
   const today = new Date().toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" });
@@ -54,27 +54,24 @@ Respond with ONLY a JSON object in this exact shape, no markdown fences:
 {"company": "...", "contact_name": "...", "email": "...", "trade": "...", "location": "...", "subject": "...", "bodyHtml": "<p>...</p><p>...</p>"}`;
 
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-        temperature: 0.7,
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
       }),
     });
 
     if (!res.ok) {
       const errText = await res.text();
-      return NextResponse.json({ error: `OpenAI error: ${errText}` }, { status: 502 });
+      return NextResponse.json({ error: `Gemini error: ${errText}` }, { status: 502 });
     }
 
     const data = await res.json();
-    const content = data.choices?.[0]?.message?.content;
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!content) {
       return NextResponse.json({ error: "No response content." }, { status: 502 });
     }
