@@ -2,102 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const TRADES: Record<string, string> = {
-  plumbing: "Plumbing",
-  plumber: "Plumbing",
-  electrical: "Electrical",
-  electrician: "Electrical",
-  cleaning: "Cleaning",
-  cleaner: "Cleaning",
-  landscaping: "Landscaping",
-  gardening: "Gardening",
-  builder: "Building",
-  building: "Building",
-  roofing: "Roofing",
-  roofer: "Roofing",
-  painting: "Painting",
-  painter: "Painting",
-  carpentry: "Carpentry",
-  carpenter: "Carpentry",
-  tiling: "Tiling",
-  tiler: "Tiling",
-  flooring: "Flooring",
-  "pest control": "Pest Control",
-  scaffolding: "Scaffolding",
-  concrete: "Concrete",
-  fencing: "Fencing",
-  glazing: "Glazing",
-  locksmith: "Locksmith",
-  removals: "Removals",
-  "gutter": "Gutter Cleaning",
-  "lawn mowing": "Lawn Mowing",
-  "heat pump": "Heat Pumps",
-  hvac: "HVAC",
-};
-
-const LOCATIONS = [
-  "Auckland", "Wellington", "Christchurch", "Hamilton", "Tauranga", "Dunedin",
-  "Queenstown", "Rotorua", "Napier", "Hastings", "Nelson", "Palmerston North",
-  "New Plymouth", "Whangarei", "Invercargill", "Gisborne", "Whanganui", "Timaru",
-  "New Zealand", "NZ",
-];
-
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function extractCompany(notes: string) {
-  const firstLine = notes.split("\n")[0] || "";
-  const segments = firstLine.split(/\s{2,}|\t/).map((s) => s.trim()).filter(Boolean);
-  for (const seg of segments) {
-    if (!seg.includes("@") && !/^https?:\/\//i.test(seg) && !/^["'+\d]/.test(seg) && seg.length > 1) {
-      return seg.replace(/^["']|["']$/g, "");
-    }
-  }
-  return "";
-}
-
-function extractContactName(notes: string) {
-  const match = notes.match(/\b(?:spoke (?:to|with)|talked to|chatted with|chat(?:ted)? with|got onto|got through to|speaking with)\s+([A-Z][a-zA-Z]+)/i);
-  return match ? match[1] : "";
-}
-
-function extractEmail(notes: string) {
-  const match = notes.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
-  return match ? match[0] : "";
-}
-
-function extractTrade(notes: string) {
-  const lower = notes.toLowerCase();
-  for (const [keyword, label] of Object.entries(TRADES)) {
-    if (lower.includes(keyword)) return label;
-  }
-  return "";
-}
-
-function extractLocation(notes: string) {
-  for (const loc of LOCATIONS) {
-    if (notes.toLowerCase().includes(loc.toLowerCase())) return loc;
-  }
-  return "";
-}
-
-function recap(notes: string) {
-  const collapsed = notes.replace(/\s+/g, " ").trim();
-  const truncated = collapsed.length > 400 ? `${collapsed.slice(0, 400)}…` : collapsed;
-  return escapeHtml(truncated);
-}
-
-function whenPhrase(notes: string) {
-  const day = notes.match(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i);
-  const time = notes.match(/\b(\d{1,2}(?::\d{2})?\s?(?:am|pm))\b/i);
-  return [day?.[0], time ? `at ${time[0]}` : ""].filter(Boolean).join(" ");
-}
-
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { callNotes } = body;
@@ -106,43 +10,96 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Add some call notes first." }, { status: 400 });
   }
 
-  const company = extractCompany(callNotes);
-  const contactName = extractContactName(callNotes);
-  const email = extractEmail(callNotes);
-  const trade = extractTrade(callNotes);
-  const location = extractLocation(callNotes);
-  const name = contactName || "there";
-  const notesRecap = recap(callNotes);
-
-  const day = callNotes.match(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i);
-  const time = callNotes.match(/\b(\d{1,2}(?::\d{2})?\s?(?:am|pm))\b/i);
-  const meetingBooked = (day && time) || /\b(meeting booked|call booked|booked (a|the) (call|meeting|chat))\b/i.test(callNotes);
-  const sendInfo = /\b(send|flick|email (through|over|across)|pricing|quote|proposal|brochure|information)\b/i.test(callNotes);
-
-  let subject: string;
-  let bodyHtml: string;
-
-  if (meetingBooked) {
-    const when = whenPhrase(callNotes) || "soon";
-    subject = `Catch-up ${when}, quick link inside`;
-    bodyHtml = `<p>Hey ${name},</p>
-<p>Looking forward to our chat ${when}. Here's the link to join:</p>
-<p>[MEETING LINK]</p>
-<p>Quick recap of what we covered: "${notesRecap}"</p>
-<p>Should take about 20 to 30 minutes, let me know if you need to shift the time.</p>`;
-  } else if (sendInfo) {
-    subject = company ? `Following up, ${company}` : "Following up";
-    bodyHtml = `<p>Hey ${name},</p>
-<p>Thanks for the chat earlier. As promised, here's a quick recap and I'll get the rest over to you shortly:</p>
-<p>"${notesRecap}"</p>
-<p>In the meantime, feel free to reply with any questions, or grab a <a href="{{CTA_LINK}}">quick chat</a> if it's easier to talk through.</p>`;
-  } else {
-    subject = company ? `Good to chat, ${company}` : "Good to chat earlier";
-    bodyHtml = `<p>Hey ${name},</p>
-<p>Thanks for the chat earlier. Here's a quick recap of where we left things:</p>
-<p>"${notesRecap}"</p>
-<p>Worth a <a href="{{CTA_LINK}}">quick chat</a> about it this week?</p>`;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY is not configured." }, { status: 500 });
   }
 
-  return NextResponse.json({ company, contact_name: contactName, email, trade, location, subject, bodyHtml });
+  const today = new Date().toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" });
+
+  const prompt = `You are helping Lucky from LS Growth, an outreach agency that helps local trade and service businesses get more leads. Lucky has just got off a cold call and typed up some raw notes.
+
+Today's date: ${today}
+
+Raw notes from the call:
+"""
+${callNotes}
+"""
+
+First, read the notes and pull out the lead's details if they're mentioned (company name, contact's first name, email address, trade/industry, location). Leave any field as an empty string "" if it isn't mentioned anywhere in the notes.
+
+Then work out what actually needs to happen next based on the notes, and write a follow up email to match:
+
+- Address the contact by their first name if it's mentioned in the notes (e.g. "Hey Mike,"), otherwise use "Hey there,".
+
+- If a call/meeting has been booked for a specific day/time: write a short meeting confirmation. Structure: "Hey {{name}}," then a line confirming the day/time relative to today (e.g. "today at 1pm", "tomorrow at 10am", "Thursday at 2pm") and saying here's the link to join, then a paragraph containing exactly "[MEETING LINK]" and nothing else, then a paragraph giving a quick heads up on what Lucky wants to cover (specific to the notes), then a short closing paragraph with a time estimate (20 to 30 minutes unless notes say otherwise) and offering to shift the time by text if needed. Subject should reference the day/time and that the link is inside, e.g. "Catch-up today 1pm - quick link inside".
+
+- If the lead asked for something to be sent over (info, pricing, examples, a proposal, etc) and no call is booked: write a short email referencing what they asked for and saying it's attached/coming, or a couple of sentences covering the key points if nothing is being attached. No meeting link needed. End with a low pressure line inviting them to reply with questions, or offering a quick chat using the href "{{CTA_LINK}}" exactly if a next step makes sense.
+
+- Otherwise (general follow up, no meeting booked, nothing specific requested): write a short casual follow up that references specifics from the call (their situation, what they said, objections, interest level) so it reads as personal, not templated. End with one short, low pressure line offering a quick chat, in the href "{{CTA_LINK}}" exactly (it will be replaced later). The link text must be 2 to 4 words (e.g. "quick chat", "quick call this week") and sit naturally inside a sentence, e.g. "Worth a <a href="{{CTA_LINK}}">quick chat</a> about it this week?". Never put the link after a colon or as a standalone phrase.
+
+Tone:
+- Plain, relaxed, casual, like a text to someone you've already been speaking with, not a sales pitch.
+- Avoid corporate/sales phrases like "make a real difference", "build a more consistent client base", "explore how we can help", "dive a bit deeper", "reliable leads", "bring in those recurring customers you're looking for".
+- Don't open with "really enjoyed our chat" or similar stock phrases unless the notes clearly support it.
+
+Formatting rules:
+- Output the email body as HTML using only <p> and <a> tags.
+- If used, the "[MEETING LINK]" placeholder must be on its own in its own <p> tag, exactly as written, with no other text or links in that paragraph.
+- Do NOT include a "Cheers" or "Lucky" sign off, that gets added automatically.
+- Do NOT use dashes or em dashes anywhere in the body paragraphs.
+- Do NOT wrap the output in a div or include the subject inside the body.
+
+Respond with ONLY a JSON object in this exact shape, no markdown fences, no other text:
+{"company": "...", "contact_name": "...", "email": "...", "trade": "...", "location": "...", "subject": "...", "bodyHtml": "<p>...</p><p>...</p>"}`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return NextResponse.json({ error: `Claude error: ${errText}` }, { status: 502 });
+    }
+
+    const data = await res.json();
+    const content: string | undefined = data.content?.[0]?.text;
+    if (!content) {
+      return NextResponse.json({ error: "No response content." }, { status: 502 });
+    }
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return NextResponse.json({ error: "Unexpected response shape." }, { status: 502 });
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!parsed.subject || !parsed.bodyHtml) {
+      return NextResponse.json({ error: "Unexpected response shape." }, { status: 502 });
+    }
+
+    return NextResponse.json({
+      company: parsed.company || "",
+      contact_name: parsed.contact_name || "",
+      email: parsed.email || "",
+      trade: parsed.trade || "",
+      location: parsed.location || "",
+      subject: parsed.subject,
+      bodyHtml: parsed.bodyHtml,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
