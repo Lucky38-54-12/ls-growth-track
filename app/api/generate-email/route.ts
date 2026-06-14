@@ -34,9 +34,9 @@ Then work out what actually needs to happen next based on the notes, and write a
 
 - If a call/meeting has been booked for a specific day/time: write a short meeting confirmation. Structure: "Hey {{name}}," then a line confirming the day/time relative to today (e.g. "today at 1pm", "tomorrow at 10am", "Thursday at 2pm") and saying here's the link to join, then a paragraph containing exactly "[MEETING LINK]" and nothing else, then a paragraph giving a quick heads up on what Lucky wants to cover (specific to the notes), then a short closing paragraph with a time estimate (20 to 30 minutes unless notes say otherwise) and offering to shift the time by text if needed. Subject should reference the day/time and that the link is inside, e.g. "Catch-up today 1pm - quick link inside".
 
-- If the lead asked for something to be sent over (info, pricing, examples, a proposal, etc) and no call is booked: write a short email referencing what they asked for and saying it's attached/coming, or a couple of sentences covering the key points if nothing is being attached. No meeting link needed. End with a low pressure line inviting them to reply with questions, or offering a quick chat using the href "{{CTA_LINK}}" exactly if a next step makes sense.
+- If the lead asked for something to be sent over (info, pricing, examples, a proposal, etc) and no call is booked: write a short email referencing what they asked for and saying it's attached/coming, or a couple of sentences covering the key points if nothing is being attached. No meeting link needed. End with a low pressure line inviting them to reply with questions, or offering a quick chat using the href "https://lsgrowth.agency/book" exactly if a next step makes sense.
 
-- Otherwise (general follow up, no meeting booked, nothing specific requested): write a short casual follow up that references specifics from the call (their situation, what they said, objections, interest level) so it reads as personal, not templated. End with one short, low pressure line offering a quick chat, in the href "{{CTA_LINK}}" exactly (it will be replaced later). The link text must be 2 to 4 words (e.g. "quick chat", "quick call this week") and sit naturally inside a sentence, e.g. "Worth a <a href="{{CTA_LINK}}">quick chat</a> about it this week?". Never put the link after a colon or as a standalone phrase.
+- Otherwise (general follow up, no meeting booked, nothing specific requested): write a short casual follow up that references specifics from the call (their situation, what they said, objections, interest level) so it reads as personal, not templated. End with one short, low pressure line offering a quick chat, with the href "https://lsgrowth.agency/book" exactly. The link text must be 2 to 4 words (e.g. "quick chat", "quick call this week") and sit naturally inside a sentence, e.g. "Worth a <a href="https://lsgrowth.agency/book">quick chat</a> about it this week?". Never put the link after a colon or as a standalone phrase.
 
 Tone:
 - Plain, relaxed, casual, like a text to someone you've already been speaking with, not a sales pitch.
@@ -89,6 +89,10 @@ Respond with ONLY a JSON object in this exact shape, no markdown fences, no othe
       return NextResponse.json({ error: "Unexpected response shape." }, { status: 502 });
     }
 
+    const caseStudyBlock = `<p style="margin-top:18px;font-size:13px;color:#64748b;">Quick look at the kind of results we're getting for ${parsed.trade || "local trade"} businesses right now:</p>
+<p><a href="https://lsgrowth.agency/cleaning"><img src="https://lsgrowth.agency/queenstown-ads.png" alt="Recent ad results" style="max-width:100%;border:1px solid #e2e8f0;border-radius:6px;" /></a></p>
+<p style="font-size:12.5px;color:#64748b;margin-top:-8px;"><a href="https://lsgrowth.agency/cleaning">View the case study</a></p>`;
+
     return NextResponse.json({
       company: parsed.company || "",
       contact_name: parsed.contact_name || "",
@@ -96,7 +100,7 @@ Respond with ONLY a JSON object in this exact shape, no markdown fences, no othe
       trade: parsed.trade || "",
       location: parsed.location || "",
       subject: parsed.subject,
-      bodyHtml: parsed.bodyHtml,
+      bodyHtml: parsed.bodyHtml + caseStudyBlock,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

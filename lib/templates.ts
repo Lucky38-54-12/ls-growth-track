@@ -96,7 +96,7 @@ export function coldEmailDraft(data: {
     .replace(/\{\{contact_name\}\}/g, data.contact_name)
     .replace(/\{\{trade\}\}/g, data.trade)
     .replace(/\{\{location\}\}/g, data.location)
-    .replace(/\{\{cta_link\}\}/g, "{{CTA_LINK}}");
+    .replace(/\{\{cta_link\}\}/g, "https://lsgrowth.agency/book");
 
   const bodyHtml = filled
     .replace(/^<div[^>]*>\n?/, "")
