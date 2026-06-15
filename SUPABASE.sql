@@ -56,8 +56,12 @@ create table if not exists email_sends (
   lead_id text not null,
   step text not null,
   subject text not null,
+  body_html text not null default '',
   sent_at timestamptz not null default now()
 );
 
 create index if not exists email_sends_lead_id_idx on email_sends (lead_id);
 create index if not exists email_sends_sent_at_idx on email_sends (sent_at);
+
+-- If email_sends already existed without this column, run:
+-- alter table email_sends add column if not exists body_html text not null default '';

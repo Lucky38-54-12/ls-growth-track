@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { EmailEvent, Lead } from "@/lib/types";
+import { EmailEvent, EmailSend, Lead } from "@/lib/types";
 import { deviceFromUserAgent, formatDateTime } from "@/lib/format";
 import Topbar from "@/components/Topbar";
 
@@ -15,7 +15,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "sequence_complete", label: "Sequence complete" },
 ];
 
-export default function CallForm({ lead, events }: { lead: Lead; events: EmailEvent[] }) {
+export default function CallForm({ lead, events, sends }: { lead: Lead; events: EmailEvent[]; sends: EmailSend[] }) {
   const router = useRouter();
   const [callNotes, setCallNotes] = useState("");
   const [meetingDateTime, setMeetingDateTime] = useState("");
@@ -128,6 +128,30 @@ export default function CallForm({ lead, events }: { lead: Lead; events: EmailEv
             <p style={{ fontSize: 13.5, whiteSpace: "pre-wrap", color: L.text }}>{lead.notes}</p>
           </div>
         )}
+
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginTop: 20 }}>
+          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 10 }}>
+            Sent emails — {sends.length}
+          </div>
+          {sends.length === 0 ? (
+            <p style={{ fontSize: 13, color: L.dimmed }}>No emails sent to this lead yet.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {sends.map((s) => (
+                <details key={s.id} style={{ border: `1px solid ${L.border}`, background: "#f8fafc" }}>
+                  <summary style={{ padding: "10px 12px", cursor: "pointer", fontSize: 13 }}>
+                    <span style={{ fontWeight: 700, color: L.text }}>{s.subject}</span>
+                    <span style={{ color: L.dimmed, marginLeft: 8 }}>{formatDateTime(s.sent_at)}</span>
+                  </summary>
+                  <div
+                    style={{ padding: "12px 16px", borderTop: `1px solid ${L.border}`, fontFamily: "Arial,Helvetica,sans-serif", fontSize: 14, color: L.text, lineHeight: 1.5 }}
+                    dangerouslySetInnerHTML={{ __html: s.body_html }}
+                  />
+                </details>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginTop: 20 }}>
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 10 }}>

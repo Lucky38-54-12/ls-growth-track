@@ -54,5 +54,6 @@ export interface EmailSend {
   lead_id: string;
   step: string;
   subject: string;
+  body_html: string;
   sent_at: string;
 }

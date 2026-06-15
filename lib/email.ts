@@ -24,10 +24,10 @@ function buildLinks(leadId: string) {
   return { pixel, ctaLink };
 }
 
-async function logSend(leadId: string, step: string, subject: string) {
+async function logSend(leadId: string, step: string, subject: string, bodyHtml: string) {
   try {
     const sb = createSupabaseClient();
-    await sb.from("email_sends").insert({ lead_id: leadId, step, subject });
+    await sb.from("email_sends").insert({ lead_id: leadId, step, subject, body_html: bodyHtml });
   } catch {}
 }
 
@@ -43,7 +43,7 @@ export async function sendOutreachEmail(lead: Lead, step: EmailStep) {
     pixel,
   });
   await transport.sendMail({ from: FROM, to: lead.email, subject, html, text });
-  await logSend(lead.lead_id, step, subject);
+  await logSend(lead.lead_id, step, subject, html);
 }
 
 export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string) {
@@ -57,5 +57,5 @@ ${filledBody}
 ${pixel}`;
   const text = htmlToText(filledBody);
   await transport.sendMail({ from: FROM, to: lead.email, subject, html, text });
-  await logSend(lead.lead_id, "custom", subject);
+  await logSend(lead.lead_id, "custom", subject, html);
 }

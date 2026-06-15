@@ -18,6 +18,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const today = new Date().toISOString().split("T")[0];
 
+  const { data: existingLead } = await sb.from("leads").select("*").eq("email", (body.email as string).toLowerCase()).maybeSingle();
+  if (existingLead) {
+    return NextResponse.json({ lead: existingLead, emailError: null });
+  }
+
   const { data: existing } = await sb.from("leads").select("lead_id");
   const existingIds = new Set<string>((existing || []).map((r: { lead_id: string }) => r.lead_id));
   const leadId = generateLeadId(body.company, existingIds);
