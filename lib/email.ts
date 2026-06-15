@@ -46,6 +46,12 @@ export async function sendOutreachEmail(lead: Lead, step: EmailStep) {
   await logSend(lead.lead_id, step, subject, html);
 }
 
+export async function sendReminderEmail(to: string, subject: string, body: string) {
+  const transport = getTransport();
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.6;max-width:560px;">${body.split("\n").map(l => l.trim() ? `<p style="margin:0 0 12px">${l}</p>` : "").join("")}</div>`;
+  await transport.sendMail({ from: FROM, to, subject, html, text: body });
+}
+
 export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string) {
   const transport = getTransport();
   const { pixel, ctaLink } = buildLinks(lead.lead_id);

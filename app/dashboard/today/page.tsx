@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, Video, ArrowUpRight, Mail, MousePointerClick, Clock, MapPin } from "lucide-react";
+import { Calendar, Video, ArrowUpRight, Mail, MousePointerClick, Clock } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase";
 import { listTodaysEvents, CalendarEvent } from "@/lib/calendar";
 import { buildAnalytics, rate } from "@/lib/analytics";
@@ -7,6 +7,7 @@ import { nextStepFor } from "@/lib/leads";
 import { formatDateTime } from "@/lib/format";
 import { Lead, EmailEvent, EmailSend } from "@/lib/types";
 import Topbar from "@/components/Topbar";
+import MeetingReminderButton from "@/components/MeetingReminderButton";
 
 export const revalidate = 0;
 
@@ -103,25 +104,39 @@ export default async function TodayPage() {
               <div style={{ display: "flex", flexDirection: "column" }}>
                 {todaysMeetings.map(ev => {
                   const lead = leadByEmail.get(ev.attendeeEmail.toLowerCase());
+                  const timeStr = ev.allDay ? "today" : timeFmt.format(new Date(ev.startISO)).replace(" ", "").toLowerCase();
+                  const firstName = (ev.attendeeName || "").split(" ")[0] || "there";
+                  const subLine = [ev.attendeeName, lead?.company].filter(Boolean).join(" · ");
+                  const reminderBody = [
+                    `Hey ${firstName},`,
+                    "",
+                    `Just a reminder we have our meeting today at ${timeStr}. Looking forward to chatting!`,
+                    "",
+                    ...(ev.hangoutLink ? [`You can join here: ${ev.hangoutLink}`, ""] : []),
+                    "Cheers,",
+                    "Lucky",
+                  ].join("\n");
                   return (
-                    <div key={ev.eventId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: `1px solid ${L.border}` }}>
-                      <div style={{ width: 56, flexShrink: 0, fontSize: 13, fontWeight: 800, color: L.text }}>
-                        {ev.allDay ? "All day" : timeFmt.format(new Date(ev.startISO)).replace(" ", "").toLowerCase()}
-                      </div>
+                    <div key={ev.eventId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}` }}>
+                      <div style={{ width: 56, flexShrink: 0, fontSize: 13, fontWeight: 800, color: L.text }}>{timeStr}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {ev.summary || ev.attendeeName || ev.attendeeEmail}
                         </p>
-                        <p style={{ fontSize: 11.5, color: L.dimmed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {ev.attendeeName || ev.attendeeEmail || ev.location || ""}
-                        </p>
+                        {subLine && (
+                          <p style={{ fontSize: 11.5, color: L.dimmed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subLine}</p>
+                        )}
                       </div>
-                      {ev.location && !ev.attendeeName && (
-                        <MapPin style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} />
+                      {ev.attendeeEmail && (
+                        <MeetingReminderButton
+                          to={ev.attendeeEmail}
+                          defaultSubject={`Quick reminder — our meeting today at ${timeStr}`}
+                          defaultBody={reminderBody}
+                        />
                       )}
                       {ev.hangoutLink && (
                         <a href={ev.hangoutLink} target="_blank" rel="noopener noreferrer" className="pill-hover" style={{
-                          display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", fontSize: 11.5, fontWeight: 700,
+                          display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", fontSize: 11.5, fontWeight: 700,
                           color: "var(--blue)", border: `1px solid ${L.border}`, textDecoration: "none", flexShrink: 0,
                         }}>
                           <Video style={{ width: 12, height: 12 }} /> Join
@@ -129,7 +144,7 @@ export default async function TodayPage() {
                       )}
                       {lead && (
                         <Link href={`/dashboard/leads/${lead.lead_id}`} className="pill-hover" style={{
-                          display: "flex", alignItems: "center", padding: "6px", border: `1px solid ${L.border}`, color: L.muted, flexShrink: 0,
+                          display: "flex", alignItems: "center", padding: "5px", border: `1px solid ${L.border}`, color: L.muted, flexShrink: 0,
                         }}>
                           <ArrowUpRight style={{ width: 12, height: 12 }} />
                         </Link>
