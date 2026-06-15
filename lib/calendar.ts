@@ -131,6 +131,7 @@ export interface CalendarEvent {
   attendeeName: string;
   hangoutLink: string;
   location: string;
+  description: string;
 }
 
 // Lists all events (not just lead bookings) in the given UTC range, e.g. for
@@ -166,6 +167,7 @@ export async function listCalendarEvents(timeMinISO: string, timeMaxISO: string)
       attendeeName: attendee?.displayName || "",
       hangoutLink: ev.hangoutLink || "",
       location: ev.location || "",
+      description: ev.description || "",
     });
   }
 

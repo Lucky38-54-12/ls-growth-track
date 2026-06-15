@@ -103,10 +103,18 @@ export default async function TodayPage() {
             ) : (
               <div style={{ display: "flex", flexDirection: "column" }}>
                 {todaysMeetings.map(ev => {
-                  const lead = leadByEmail.get(ev.attendeeEmail.toLowerCase());
+                  // Events created via cold-call booking have name/email in description ("Name <email>")
+                  // because service accounts can't add attendees without Domain-Wide Delegation.
+                  let attendeeEmail = ev.attendeeEmail;
+                  let attendeeName = ev.attendeeName;
+                  if (!attendeeEmail && ev.description) {
+                    const m = ev.description.match(/^(.*?)\s*<([^>]+)>/);
+                    if (m) { attendeeName = attendeeName || m[1].trim(); attendeeEmail = m[2].trim().toLowerCase(); }
+                  }
+                  const lead = leadByEmail.get(attendeeEmail.toLowerCase());
                   const timeStr = ev.allDay ? "today" : timeFmt.format(new Date(ev.startISO)).replace(" ", "").toLowerCase();
-                  const firstName = (ev.attendeeName || "").split(" ")[0] || "there";
-                  const subLine = [ev.attendeeName, lead?.company].filter(Boolean).join(" · ");
+                  const firstName = (attendeeName || "").split(" ")[0] || "there";
+                  const subLine = [attendeeName, lead?.company].filter(Boolean).join(" · ");
                   const reminderBody = [
                     `Hey ${firstName},`,
                     "",
@@ -127,9 +135,9 @@ export default async function TodayPage() {
                           <p style={{ fontSize: 11.5, color: L.dimmed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subLine}</p>
                         )}
                       </div>
-                      {ev.attendeeEmail && (
+                      {attendeeEmail && (
                         <MeetingReminderButton
-                          to={ev.attendeeEmail}
+                          to={attendeeEmail}
                           defaultSubject={`Quick reminder — our meeting today at ${timeStr}`}
                           defaultBody={reminderBody}
                         />
