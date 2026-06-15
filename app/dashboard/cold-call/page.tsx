@@ -249,6 +249,7 @@ export default function ColdCallPage() {
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 8 }}>Body</div>
             <div
               ref={bodyRef}
+              className="email-preview"
               contentEditable={generated}
               onBlur={syncBodyFromPreview}
               suppressContentEditableWarning

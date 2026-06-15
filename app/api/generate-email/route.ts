@@ -75,11 +75,11 @@ Rules that apply to ALL emails:
 Case-specific rules:
 
 A) MEETING_BOOKED:
-- After the greeting, confirm the meeting day/time naturally (e.g. "Looking forward to our chat Wednesday at 3:30pm")
-- One paragraph that references the specific problem or objection they raised on the call and frames the meeting around addressing that — this is the most important part, make it feel personal not generic
-- Mention it won't take long (20-30 minutes)
-- Offer to shift the time if needed via text
-- Include [MEETING LINK] on its own line in a separate paragraph
+- After the greeting, write one line: "Looking forward to our chat [day] at [time]. Here's the link to join:" using the actual day and time from the notes, written naturally (e.g. "today at 1pm", "Wednesday at 3:30pm")
+- Include [MEETING LINK] on its own line in its own paragraph directly after that line
+- One paragraph referencing the specific problem or objection they raised on the call and framing the meeting around addressing that — this is the most important part, make it feel personal not generic
+- End with this exact line as its own paragraph: "Shouldn't take more than 20-30 minutes. If anything comes up and you need to shift the time, just flick me a text."
+- Do not add anything else
 
 B) WANTS_INFO:
 - Open by referencing exactly what they asked for
@@ -148,7 +148,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       return NextResponse.json({ error: "Unexpected response shape." }, { status: 502 });
     }
 
-    const caseStudyBlock = `<p><a href="https://lsgrowth.agency/cleaning">Here's a quick look at what we do for cleaning businesses</a></p>`;
+    const caseStudyBlock = `<p>If you want to see some case studies, here's a link to our website:</p><p><a href="https://lsgrowth.agency/cleaning">https://lsgrowth.agency/cleaning</a></p>`;
 
     return NextResponse.json({
       company: parsed.company || "",
