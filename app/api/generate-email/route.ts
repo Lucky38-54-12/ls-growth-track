@@ -66,7 +66,7 @@ Rules that apply to ALL emails:
 - Short, 2-5 sentences max per paragraph. Never more than 3 paragraphs.
 - Start with a greeting line on its own, e.g. "Hey Mike," — if no contact name was found, use "Hey there,". Every email must open this way, including meeting confirmations.
 - Reference at least ONE specific thing from the notes that proves you were actually on that call with them — not just their industry, something particular they said or wanted
-- Avoid blunt or overly casual openers like "Just confirming...", "I get it", "yeah so", "anyway". Write in full, clear sentences.
+- Never use these phrases anywhere in the email: "Just confirming", "I get it", "yeah so", "anyway", "I want to dig into". Write in full, clear, professional sentences throughout — this is going to a business owner, treat it like a real business email.
 - No dashes or em dashes anywhere
 - No corporate phrases: never use "make a real difference", "explore how we can help", "circle back", "hope this finds you well", "I wanted to reach out", "just wanted to", "following up on our chat", "it was great speaking with you", "I really enjoyed our conversation"
 - No sign-off (Lucky's name and signature are added separately)
@@ -75,7 +75,7 @@ Rules that apply to ALL emails:
 Case-specific rules:
 
 A) MEETING_BOOKED:
-- After the greeting, confirm the meeting day/time (relative to today if possible)
+- After the greeting, confirm the meeting day/time (relative to today if possible) — e.g. "Looking forward to chatting Wednesday at 3:30pm." or "I've got us booked in for Wednesday at 3:30pm." NEVER use the phrase "Just confirming"
 - One line on what you'll cover (keep it light, not a full agenda)
 - Offer to shift the time if needed
 - Include a paragraph with [MEETING LINK] as a placeholder, on its own with no other text or links in that paragraph
@@ -120,7 +120,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-sonnet-4-6",
         max_tokens: 1024,
         messages: [{ role: "user", content: prompt }],
       }),
