@@ -8,7 +8,7 @@ interface Result {
   errors: string[];
 }
 
-export default function SendButton({ due }: { due: number }) {
+export default function SendButton({ due, leadIds, label }: { due: number; leadIds?: string[]; label?: string }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
 
@@ -16,7 +16,11 @@ export default function SendButton({ due }: { due: number }) {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch("/api/send", { method: "POST" });
+      const res = await fetch("/api/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(leadIds ? { leadIds } : {}),
+      });
       const data = await res.json();
       setResult(data);
     } catch {
@@ -40,7 +44,7 @@ export default function SendButton({ due }: { due: number }) {
             fontSize: 14, fontWeight: 700,
           }}
         >
-          {loading ? "Sending…" : `Send due emails (${due})`}
+          {loading ? "Sending…" : (label || `Send due emails (${due})`)}
         </button>
         {result && !loading && (
           <span style={{ fontSize: 13, color: result.failed > 0 ? "var(--red)" : "var(--green)", fontWeight: 600 }}>

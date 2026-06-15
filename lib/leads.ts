@@ -60,3 +60,37 @@ export function generateLeadId(company: string, existingIds: Set<string>): strin
   }
   return candidate;
 }
+
+// Groups leads into campaign "segments" by trade+location, e.g. trade=Cleaning,
+// location="Wellington NZ" -> "Wellington Cleaning Companies". Used to organize
+// the Contacts and Send Queue pages by campaign.
+export interface Segment {
+  key: string;
+  trade: string;
+  location: string;
+  count: number;
+}
+
+export function segmentKey(trade: string, location: string): string {
+  return `${(trade || "").trim().toLowerCase()}|${(location || "").trim().toLowerCase()}`;
+}
+
+export function segmentLabel(trade: string, location: string): string {
+  const shortLocation = location.replace(/\s+(NZ|AU|USA|UK)$/i, "").trim() || location;
+  const tradeLabel = trade.charAt(0).toUpperCase() + trade.slice(1);
+  return `${shortLocation} ${tradeLabel} Companies`;
+}
+
+export function groupBySegment(items: { trade: string; location: string }[]): Segment[] {
+  const map = new Map<string, Segment>();
+  for (const item of items) {
+    const trade = (item.trade || "").trim();
+    const location = (item.location || "").trim();
+    if (!trade || !location) continue;
+    const key = segmentKey(trade, location);
+    const entry = map.get(key);
+    if (entry) entry.count++;
+    else map.set(key, { key, trade, location, count: 1 });
+  }
+  return Array.from(map.values()).sort((a, b) => b.count - a.count);
+}

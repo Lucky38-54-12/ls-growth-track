@@ -30,7 +30,12 @@ export function htmlToText(html: string) {
     .trim();
 }
 
-const TEMPLATES: Record<EmailStep, { subject: string; html: string }> = {
+type StepTemplate = { subject: string; html: string };
+type TemplateSet = Record<EmailStep, StepTemplate>;
+
+// Each industry gets its own copy/social proof — sending the Queenstown
+// Cleaning case study to a non-cleaning business doesn't land.
+const CLEANING_TEMPLATES: TemplateSet = {
   initial: {
     subject: `How Queenstown Cleaning turned 57 leads into 30 booked jobs last month`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
@@ -69,11 +74,68 @@ const TEMPLATES: Record<EmailStep, { subject: string; html: string }> = {
   },
 };
 
+// Generic case study (Cooper Electrical) for industries that don't have
+// their own social proof yet. Swap in industry-specific copy as it's written.
+const DEFAULT_TEMPLATES: TemplateSet = {
+  initial: {
+    subject: `A faster way for {{company}} to turn enquiries into booked jobs`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>Quick one. Most {{trade}} businesses lose 70%+ of new enquiries simply because nobody gets back to them within the first hour, and by then they've already called someone else.</p>
+  <p>We run a lead gen + fast-follow-up system for trade businesses across NZ and Australia: new leads get a response in under 60 seconds, then the follow up sequence runs automatically. For one client, Cooper Electrical, that turned into $80k in booked jobs within about 2 months.</p>
+  <p>I came across {{company}} and figured it might be worth a look for a {{trade}} business in {{location}} too.</p>
+  <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+  followup1: {
+    subject: `Re: A faster way for {{company}} to turn enquiries into booked jobs`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>Following up on my note from last week, totally get it if things are flat out at the moment (that's actually exactly the kind of "good problem" we help {{trade}} businesses create more of).</p>
+  <p>Most local service businesses respond to less than 30% of new enquiries within the first hour, and the rest just go cold and book someone else. Our system contacts every new lead within 60 seconds, then handles the follow up so nothing slips through.</p>
+  <p>If a steady flow of new jobs each month would help {{company}}, happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> this week, no pressure either way.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+  followup2: {
+    subject: `Last note from me, {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>I'll keep this one short, I know inboxes get slammed.</p>
+  <p>I've reached out a couple of times about helping {{company}} bring in more consistent jobs through a managed lead system (we do this for {{trade}} businesses across NZ and Australia — one client, Cooper Electrical, landed $80k in booked work within about 2 months of starting).</p>
+  <p>If now's not the right time, no worries at all, I'll leave it here. But if you ever want to see what a steady pipeline of pre qualified jobs would look like for {{company}}, <a href="{{cta_link}}">just grab a time here</a> and I'll send through some examples from similar businesses.</p>
+  <p>All the best,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+};
+
+export const INDUSTRY_TEMPLATES: Record<string, TemplateSet> = {
+  cleaning: CLEANING_TEMPLATES,
+  default: DEFAULT_TEMPLATES,
+};
+
+export const INDUSTRY_LABELS: Record<string, string> = {
+  cleaning: "Cleaning",
+  default: "Default (generic)",
+};
+
+// Maps a lead's trade to a template set. Add more keys above + cases here
+// as industry-specific copy gets written for other trades.
+export function industryKey(trade: string): string {
+  const t = (trade || "").toLowerCase();
+  if (t.includes("clean")) return "cleaning";
+  return "default";
+}
+
 export function renderTemplate(
   step: EmailStep,
   data: TemplateData
 ): { subject: string; html: string; text: string } {
-  const tmpl = TEMPLATES[step];
+  const tmpl = INDUSTRY_TEMPLATES[industryKey(data.trade)][step];
   const subject = fill(tmpl.subject, data);
   const html = fill(tmpl.html, data);
   const text = htmlToText(fill(tmpl.html, { ...data, pixel: "" }));
@@ -90,7 +152,7 @@ export function coldEmailDraft(data: {
   trade: string;
   location: string;
 }): { subject: string; bodyHtml: string } {
-  const tmpl = TEMPLATES.initial;
+  const tmpl = INDUSTRY_TEMPLATES[industryKey(data.trade)].initial;
   const filled = tmpl.html
     .replace(/\{\{company\}\}/g, data.company)
     .replace(/\{\{contact_name\}\}/g, data.contact_name)

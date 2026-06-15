@@ -1,4 +1,4 @@
-import { renderTemplate, EmailStep } from "@/lib/templates";
+import { renderTemplate, EmailStep, industryKey, INDUSTRY_LABELS } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
@@ -35,13 +35,16 @@ export default function TemplatesPage({
 
   return (
     <div>
-      <Topbar title="EMAIL TEMPLATES" subtitle="The 3-step sequence sent to every lead — preview how it reads for different trades" />
+      <Topbar title="EMAIL TEMPLATES" subtitle="The 3-step sequence sent to leads — different industries get different copy" />
 
       <div style={{ maxWidth: 760, margin: "32px auto", padding: "0 28px" }}>
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Preview with sample lead</div>
-          <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
-            These templates use the same placeholders for every lead. Fill in an example to see how it reads for a different trade or location.
+          <p style={{ fontSize: 13, color: L.muted, marginBottom: 4 }}>
+            Fill in an example to see how the email reads for a different trade or location. Trades containing &quot;clean&quot; get the cleaning-specific copy — everything else gets the default copy.
+          </p>
+          <p style={{ fontSize: 12.5, color: "#2563eb", fontWeight: 700, marginBottom: 16 }}>
+            Showing: {INDUSTRY_LABELS[industryKey(trade)]} template set
           </p>
           <form method="get" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div>
