@@ -121,6 +121,73 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   return { eventId: ev.id, hangoutLink: process.env.GOOGLE_MEET_LINK || "" };
 }
 
+export interface CalendarEvent {
+  eventId: string;
+  summary: string;
+  startISO: string;
+  endISO: string;
+  allDay: boolean;
+  attendeeEmail: string;
+  attendeeName: string;
+  hangoutLink: string;
+  location: string;
+}
+
+// Lists all events (not just lead bookings) in the given UTC range, e.g. for
+// rendering a calendar view.
+export async function listCalendarEvents(timeMinISO: string, timeMaxISO: string): Promise<CalendarEvent[]> {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
+  const auth = getAuth();
+  const calendar = google.calendar({ version: "v3", auth });
+
+  const res = await calendar.events.list({
+    calendarId,
+    timeMin: timeMinISO,
+    timeMax: timeMaxISO,
+    singleEvents: true,
+    orderBy: "startTime",
+    maxResults: 250,
+  });
+
+  const events: CalendarEvent[] = [];
+  for (const ev of res.data.items || []) {
+    const start = ev.start?.dateTime || ev.start?.date;
+    const end = ev.end?.dateTime || ev.end?.date;
+    if (!ev.id || !start || !end) continue;
+    const attendee = (ev.attendees || []).find((a) => !a.self && a.email);
+
+    events.push({
+      eventId: ev.id,
+      summary: ev.summary || "(No title)",
+      startISO: start,
+      endISO: end,
+      allDay: !ev.start?.dateTime,
+      attendeeEmail: attendee?.email?.toLowerCase() || "",
+      attendeeName: attendee?.displayName || "",
+      hangoutLink: ev.hangoutLink || "",
+      location: ev.location || "",
+    });
+  }
+
+  return events;
+}
+
+// Returns the UTC start/end instants for a given calendar day (YYYY-MM-DD)
+// in the given time zone, e.g. for fetching "today"'s events.
+export function getDayRangeUTC(dateStr: string, timeZone = "Pacific/Auckland"): { startISO: string; endISO: string } {
+  const start = parseDateTime(`${dateStr}T00:00`, timeZone);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
+
+// Lists today's events (in NZ time) — used for the "meetings today" prompt
+// on the dashboard.
+export async function listTodaysEvents(timeZone = "Pacific/Auckland"): Promise<CalendarEvent[]> {
+  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const { startISO, endISO } = getDayRangeUTC(todayStr, timeZone);
+  return listCalendarEvents(startISO, endISO);
+}
+
 // Fills in a Meet link wherever an email body references it, supporting both
 // the AI-generated "[MEETING LINK]" placeholder (own paragraph, becomes a link
 // or is removed if there's no link) and the manually-typed "{{MEETING_LINK}}"

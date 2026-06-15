@@ -2,13 +2,14 @@ import { Suspense } from "react";
 import { createSupabaseClient } from "@/lib/supabase";
 import { nextStepFor } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
-import { Building2, Plus, Phone } from "lucide-react";
+import { Building2, Plus, Phone, Calendar, Video } from "lucide-react";
 import SendButton from "@/components/SendButton";
 import SheetSyncButton from "@/components/SheetSyncButton";
 import Topbar from "@/components/Topbar";
 import PipelineStats from "@/components/PipelineStats";
 import FlashMessage from "./FlashMessage";
 import Link from "next/link";
+import { listTodaysEvents, CalendarEvent } from "@/lib/calendar";
 
 export const revalidate = 0;
 
@@ -98,9 +99,10 @@ export default async function DashboardPage({
 }) {
   const sb = createSupabaseClient();
 
-  const [{ data: leads }, { data: events }] = await Promise.all([
+  const [{ data: leads }, { data: events }, todaysMeetings] = await Promise.all([
     sb.from("leads").select("*").order("date_added", { ascending: false }),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
+    listTodaysEvents().catch(() => [] as CalendarEvent[]),
   ]);
 
   const allLeads = (leads || []) as Lead[];
@@ -153,6 +155,32 @@ export default async function DashboardPage({
       <Topbar title="Pipeline" subtitle="New lead outreach pipeline" />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {todaysMeetings.length > 0 && (
+          <Link href="/dashboard/calendar" className="card-hover" style={{
+            display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+            background: "#eff6ff", border: "1px solid #bfdbfe", padding: "12px 16px", textDecoration: "none",
+          }}>
+            <div style={{ width: 32, height: 32, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Calendar style={{ width: 15, height: 15, color: "#1e40af" }} />
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#1e40af" }}>
+              {todaysMeetings.length} meeting{todaysMeetings.length !== 1 ? "s" : ""} today
+            </span>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {todaysMeetings.map((m) => (
+                <span key={m.eventId} style={{
+                  display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600,
+                  color: "#1e40af", background: "#dbeafe", padding: "4px 10px",
+                }}>
+                  {m.allDay ? "All day" : new Intl.DateTimeFormat("en-NZ", { timeZone: "Pacific/Auckland", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(m.startISO)).replace(" ", "").toLowerCase()}
+                  {" · "}{m.summary}
+                  {m.hangoutLink && <Video style={{ width: 11, height: 11 }} />}
+                </span>
+              ))}
+            </div>
+          </Link>
+        )}
 
         <PipelineStats allLeads={allLeads} />
 
