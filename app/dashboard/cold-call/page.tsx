@@ -65,6 +65,7 @@ export default function ColdCallPage() {
       setEmail(result.email || "");
       setTrade(result.trade || "");
       setLocation(result.location || "");
+      setMeetingDateTime(result.meetingDateTime || "");
       setSubject(result.subject);
       setBodyHtml(result.bodyHtml);
       setGenerated(true);
@@ -202,7 +203,7 @@ export default function ColdCallPage() {
                 <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
                   <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Meeting booked?</div>
                   <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
-                    If they agreed to a time on the call, set it here — this adds it to the calendar with a Google Meet link and invites {email || "their email"}. If the email above has a <code>[MEETING LINK]</code> placeholder, it'll be filled in automatically.
+                    Pulled from your notes if a time was agreed — check it's right. On send, this adds it to the calendar with a Google Meet link and invites {email || "their email"}, and fills any <code>[MEETING LINK]</code> placeholder in the email above. Leave blank if no meeting was booked.
                   </p>
                   <input type="datetime-local" value={meetingDateTime} onChange={(e) => setMeetingDateTime(e.target.value)} style={{ maxWidth: 280 }} />
                 </div>

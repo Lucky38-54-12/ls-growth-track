@@ -40,6 +40,7 @@ From the notes, extract:
 - location: city/region if mentioned
 - phone: phone number if mentioned
 - date_called: date of the call if mentioned
+- meeting_datetime: if they agreed to a specific call/meeting day and time, work out the actual date (relative to today's date above) and return it as "YYYY-MM-DDTHH:MM" in 24-hour NZ local time (e.g. "2026-06-18T15:30"). Otherwise "".
 
 Use empty string "" if not found.
 
@@ -105,7 +106,7 @@ OUTPUT FORMAT
 
 Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks. Exactly this shape:
 
-{"company": "", "contact_name": "", "email": "", "trade": "", "location": "", "phone": "", "date_called": "", "call_type": "MEETING_BOOKED | WANTS_INFO | NOT_READY_YET | GENERAL_FOLLOWUP", "subject": "", "bodyHtml": ""}`;
+{"company": "", "contact_name": "", "email": "", "trade": "", "location": "", "phone": "", "date_called": "", "meeting_datetime": "", "call_type": "MEETING_BOOKED | WANTS_INFO | NOT_READY_YET | GENERAL_FOLLOWUP", "subject": "", "bodyHtml": ""}`;
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -153,6 +154,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       email: parsed.email || "",
       trade: parsed.trade || "",
       location: parsed.location || "",
+      meetingDateTime: parsed.meeting_datetime || "",
       subject: parsed.subject,
       bodyHtml: parsed.bodyHtml + caseStudyBlock,
     });
