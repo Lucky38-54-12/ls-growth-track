@@ -45,6 +45,56 @@ export async function readLeadSheet(sheetId: string): Promise<SheetRow[]> {
     .filter((r) => r.company || r.email);
 }
 
+export async function getSheetTitle(sheetId: string): Promise<string> {
+  const auth = getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const res = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: "properties.title" });
+  return res.data.properties?.title || "";
+}
+
+const CITIES = [
+  "Wellington", "Auckland", "Christchurch", "Hamilton", "Tauranga", "Dunedin",
+  "Napier", "Hastings", "Nelson", "Rotorua", "Palmerston North", "Whangarei",
+  "Invercargill", "New Plymouth", "Queenstown", "Wanganui", "Gisborne", "Timaru",
+];
+
+const TRADE_MAP: Record<string, string> = {
+  cleaning: "Cleaning", cleaners: "Cleaning", cleaner: "Cleaning",
+  builders: "Builders", building: "Builders", builder: "Builders",
+  plumbing: "Plumbing", plumbers: "Plumbing", plumber: "Plumbing",
+  electrical: "Electrical", electricians: "Electrical", electrician: "Electrical",
+  landscaping: "Landscaping", landscapers: "Landscaping", gardening: "Landscaping", gardeners: "Landscaping",
+  painters: "Painting", painting: "Painting", painter: "Painting",
+  roofing: "Roofing", roofers: "Roofing", roofer: "Roofing",
+  movers: "Removals", removalists: "Removals", removals: "Removals",
+  pestcontrol: "Pest Control", "pest control": "Pest Control",
+};
+
+// Best-effort guess at trade/location from a sheet title like "Wellington Builders"
+// or "Wellington Cleaning Companies". Falls back gracefully if nothing matches.
+export function parseCampaignFromTitle(title: string): { trade?: string; location?: string } {
+  const result: { trade?: string; location?: string } = {};
+  if (!title) return result;
+
+  const lower = title.toLowerCase();
+  for (const city of CITIES) {
+    if (lower.includes(city.toLowerCase())) {
+      result.location = `${city} NZ`;
+      break;
+    }
+  }
+
+  const words = lower.replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
+  for (const word of words) {
+    if (TRADE_MAP[word]) {
+      result.trade = TRADE_MAP[word];
+      break;
+    }
+  }
+
+  return result;
+}
+
 export function hasCallInfo(row: SheetRow): boolean {
   return !!(row.dateCalled || row.outcome || row.callBack || row.notes);
 }

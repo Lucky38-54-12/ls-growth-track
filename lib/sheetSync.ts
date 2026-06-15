@@ -2,7 +2,7 @@ import { createSupabaseClient } from "./supabase";
 import { generateLeadId } from "./leads";
 import { sendOutreachEmail, sendPersonalizedEmail } from "./email";
 import { generatePersonalizedEmail } from "./ai";
-import { readLeadSheet, hasCallInfo, formatCallNotes } from "./sheets";
+import { readLeadSheet, hasCallInfo, formatCallNotes, getSheetTitle, parseCampaignFromTitle } from "./sheets";
 import { Lead } from "./types";
 
 const TERMINAL_STATUSES = new Set(["replied", "booked", "not_interested", "bounced", "sequence_complete"]);
@@ -14,6 +14,8 @@ export interface SheetSyncResult {
   freshSent: number;
   skipped: number;
   errors: string[];
+  detectedTrade?: string;
+  detectedLocation?: string;
 }
 
 export async function syncLeadsFromSheet(opts: {
@@ -29,6 +31,13 @@ export async function syncLeadsFromSheet(opts: {
   if (!rows.length) {
     throw new Error("No rows with a name or email found in that sheet.");
   }
+
+  // Guess trade/location from the sheet's title (e.g. "Wellington Builders"),
+  // falling back to whatever the user typed in the import form.
+  const title = await getSheetTitle(sheetId.trim()).catch(() => "");
+  const detected = parseCampaignFromTitle(title);
+  const trade = detected.trade || tradeDefault;
+  const location = detected.location || locationDefault;
 
   const sb = createSupabaseClient();
   const { data: existingLeads } = await sb.from("leads").select("*");
@@ -63,8 +72,8 @@ export async function syncLeadsFromSheet(opts: {
         company: row.company || row.email,
         contact_name: "there",
         email: emailLower,
-        trade: tradeDefault,
-        location: locationDefault,
+        trade,
+        location,
         status: "not_contacted" as const,
         date_added: today,
         date_contacted: null,
@@ -120,5 +129,9 @@ export async function syncLeadsFromSheet(opts: {
     }
   }
 
-  return { imported, updated, personalizedSent, freshSent, skipped, errors };
+  return {
+    imported, updated, personalizedSent, freshSent, skipped, errors,
+    detectedTrade: trade || undefined,
+    detectedLocation: location || undefined,
+  };
 }

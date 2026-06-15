@@ -75,6 +75,9 @@ export default function ImportPage() {
     if (data.error) { setSheetError(data.error); return; }
 
     const parts = [`Imported ${data.imported} new lead(s).`];
+    if (data.detectedTrade || data.detectedLocation) {
+      parts.push(`Tagged as ${[data.detectedTrade, data.detectedLocation].filter(Boolean).join(" / ")}.`);
+    }
     if (data.updated) parts.push(`${data.updated} updated with new call notes.`);
     if (data.personalizedSent) parts.push(`${data.personalizedSent} personalized follow-up(s) sent.`);
     if (data.freshSent) parts.push(`${data.freshSent} fresh email(s) sent.`);
@@ -143,6 +146,8 @@ export default function ImportPage() {
           <p style={{ fontSize: 13, color: L.muted, marginBottom: 20 }}>
             Paste the Sheet ID from your scraper sheet (the long ID in the sheet&apos;s URL). New rows are imported,
             and the Date Called / Outcome / Call Back / Notes columns are read so emails can be personalized.
+            Trade and location are detected automatically from the sheet&apos;s name (e.g. &quot;Wellington Builders&quot;) —
+            the fields below are only used as a fallback if nothing is detected.
           </p>
 
           {sheetError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, fontSize: 14, marginBottom: 16 }}>{sheetError}</div>}
