@@ -52,10 +52,16 @@ function initials(name: string) {
   return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
+function segmentLabel(trade: string, location: string): string {
+  const shortLocation = location.replace(/\s+(NZ|AU|USA|UK)$/i, "").trim() || location;
+  const tradeLabel = trade.charAt(0).toUpperCase() + trade.slice(1);
+  return `${shortLocation} ${tradeLabel} Companies`;
+}
+
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: { status?: string; q?: string };
+  searchParams: { status?: string; q?: string; segment?: string };
 }) {
   const sb = createSupabaseClient();
 
@@ -87,9 +93,30 @@ export default async function ContactsPage({
   const newThisWeek = allLeads.filter(l => l.date_added >= sevenDaysAgo).length;
 
   const activeFilter = searchParams?.status || "all";
+  const activeSegment = searchParams?.segment || "all";
   const q = (searchParams?.q || "").trim().toLowerCase();
 
+  const segmentMap = new Map<string, { trade: string; location: string; count: number }>();
+  for (const l of allLeads) {
+    const trade = (l.trade || "").trim();
+    const location = (l.location || "").trim();
+    if (!trade || !location) continue;
+    const key = `${trade.toLowerCase()}|${location.toLowerCase()}`;
+    const entry = segmentMap.get(key);
+    if (entry) entry.count++;
+    else segmentMap.set(key, { trade, location, count: 1 });
+  }
+  const segments = Array.from(segmentMap.entries())
+    .map(([key, v]) => ({ key, ...v }))
+    .sort((a, b) => b.count - a.count);
+
   let filtered = allLeads;
+  if (activeSegment !== "all") {
+    const [segTrade, segLocation] = activeSegment.split("|");
+    filtered = filtered.filter(l =>
+      (l.trade || "").trim().toLowerCase() === segTrade && (l.location || "").trim().toLowerCase() === segLocation
+    );
+  }
   if (activeFilter === "closed") {
     filtered = filtered.filter(l => CLOSED_STATUSES.has(l.status));
   } else if (activeFilter !== "all") {
@@ -165,6 +192,7 @@ export default async function ContactsPage({
           <div style={{ position: "relative", flex: 1, minWidth: 160 }}>
             <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: L.dimmed }} />
             {activeFilter !== "all" && <input type="hidden" name="status" value={activeFilter} />}
+            {activeSegment !== "all" && <input type="hidden" name="segment" value={activeSegment} />}
             <input
               type="text" name="q" defaultValue={searchParams?.q || ""}
               placeholder="Search…"
@@ -174,8 +202,13 @@ export default async function ContactsPage({
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             {FILTERS.map(f => {
               const active = activeFilter === f.key;
+              const params = new URLSearchParams();
+              if (f.key !== "all") params.set("status", f.key);
+              if (activeSegment !== "all") params.set("segment", activeSegment);
+              if (q) params.set("q", q);
+              const qs = params.toString();
               return (
-                <Link key={f.key} href={`/dashboard/contacts${f.key === "all" ? "" : `?status=${f.key}`}${q ? `${f.key === "all" ? "?" : "&"}q=${encodeURIComponent(q)}` : ""}`} style={{
+                <Link key={f.key} href={`/dashboard/contacts${qs ? `?${qs}` : ""}`} style={{
                   padding: "5px 12px", fontSize: 11, fontWeight: 600, textDecoration: "none",
                   border: `1px solid ${active ? "var(--red)" : L.border}`,
                   background: active ? "#fef2f2" : L.surface,
@@ -192,6 +225,37 @@ export default async function ContactsPage({
             <Plus style={{ width: 13, height: 13 }} /> Add Lead
           </Link>
         </form>
+
+        {segments.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: L.dimmed }}>Lists</span>
+            {[{ key: "all", label: "All Leads", count: total }, ...segments.map(s => ({ key: s.key, label: segmentLabel(s.trade, s.location), count: s.count }))].map(s => {
+              const active = activeSegment === s.key;
+              const params = new URLSearchParams();
+              if (s.key !== "all") params.set("segment", s.key);
+              if (activeFilter !== "all") params.set("status", activeFilter);
+              if (q) params.set("q", q);
+              const qs = params.toString();
+              return (
+                <Link key={s.key} href={`/dashboard/contacts${qs ? `?${qs}` : ""}`} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "5px 12px", fontSize: 11, fontWeight: 600, textDecoration: "none",
+                  border: `1px solid ${active ? "#2563eb" : L.border}`,
+                  background: active ? "#eff6ff" : L.surface,
+                  color: active ? "#2563eb" : L.muted,
+                  transition: "all 0.15s",
+                }}>
+                  {s.label}
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: "1px 6px",
+                    background: active ? "#dbeafe" : "#f1f5f9",
+                    color: active ? "#2563eb" : L.dimmed,
+                  }}>{s.count}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
         <p style={{ fontSize: 11, color: L.muted }}>
           Showing {filtered.length} of {allLeads.length}
