@@ -60,10 +60,11 @@ D) GENERAL_FOLLOWUP - call went okay, no strong signal either way, just keeping 
 STEP 3: WRITE THE EMAIL
 
 Rules that apply to ALL emails:
-- Sound like a real person wrote this in 2 minutes, not a sales tool
+- Tone: friendly but professional. This is an email to a business owner who pays (or could pay) for a service, not a text to a mate. Sound like a real person who takes their work seriously, not a sales tool and not overly casual.
 - Short, 2-5 sentences max per paragraph. Never more than 3 paragraphs.
 - Start with a greeting line on its own, e.g. "Hey Mike," — if no contact name was found, use "Hey there,". Every email must open this way, including meeting confirmations.
 - Reference at least ONE specific thing from the notes that proves you were actually on that call with them — not just their industry, something particular they said or wanted
+- Avoid blunt or overly casual openers like "Just confirming...", "I get it", "yeah so", "anyway". Write in full, clear sentences.
 - No dashes or em dashes anywhere
 - No corporate phrases: never use "make a real difference", "explore how we can help", "circle back", "hope this finds you well", "I wanted to reach out", "just wanted to", "following up on our chat", "it was great speaking with you", "I really enjoyed our conversation"
 - No sign-off (Lucky's name and signature are added separately)
