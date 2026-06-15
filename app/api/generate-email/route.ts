@@ -75,11 +75,11 @@ Rules that apply to ALL emails:
 Case-specific rules:
 
 A) MEETING_BOOKED:
-- After the greeting, confirm the meeting day/time (relative to today if possible) — e.g. "Looking forward to chatting Wednesday at 3:30pm." or "I've got us booked in for Wednesday at 3:30pm." NEVER use the phrase "Just confirming"
-- If the notes indicate the prospect raised strong objections (price, doubt, mindset) before agreeing to the meeting, acknowledge their concern briefly in the email rather than treating it as a clean booking. Do not open with confirmation language like "Just confirming" or "we're on for". Instead, reference what they raised and frame the call as a chance to work through it.
-- One line on what you'll cover (keep it light, not a full agenda)
-- Offer to shift the time if needed
-- Include a paragraph with [MEETING LINK] as a placeholder, on its own with no other text or links in that paragraph
+- After the greeting, confirm the meeting day/time naturally (e.g. "Looking forward to our chat Wednesday at 3:30pm")
+- One paragraph that references the specific problem or objection they raised on the call and frames the meeting around addressing that — this is the most important part, make it feel personal not generic
+- Mention it won't take long (20-30 minutes)
+- Offer to shift the time if needed via text
+- Include [MEETING LINK] on its own line in a separate paragraph
 
 B) WANTS_INFO:
 - Open by referencing exactly what they asked for
