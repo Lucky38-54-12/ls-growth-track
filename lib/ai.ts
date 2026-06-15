@@ -111,9 +111,12 @@ Meeting time: ${input.meetingTime}`;
   const block = msg.content[0];
   if (block.type !== "text") throw new Error("Unexpected response from AI");
 
+  const jsonMatch = block.text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error(`Could not find JSON in AI response: ${block.text.slice(0, 200)}`);
+
   let parsed: { subject?: string; bodyHtml?: string };
   try {
-    parsed = JSON.parse(block.text.trim());
+    parsed = JSON.parse(jsonMatch[0]);
   } catch {
     throw new Error(`Could not parse AI response as JSON: ${block.text.slice(0, 200)}`);
   }
