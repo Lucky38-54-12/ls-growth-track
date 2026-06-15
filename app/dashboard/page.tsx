@@ -25,6 +25,15 @@ const COLUMNS: { key: string; label: string }[] = [
   { key: "closed", label: "Closed" },
 ];
 
+const COLD_CALL_COLUMNS: { key: string; label: string }[] = [
+  { key: "not_contacted", label: "New Lead" },
+  { key: "contacted", label: "Email Sent" },
+  { key: "booked", label: "Meeting Booked" },
+  { key: "closed", label: "Closed / No Close" },
+];
+
+const COLD_CALL_EMAIL_SENT_STATUSES = new Set(["contacted", "followup_1_sent", "followup_2_sent", "replied"]);
+
 function initials(name: string) {
   return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
 }
@@ -128,10 +137,12 @@ export default async function DashboardPage({
   }
 
   // Kanban groups
+  const columns = activeSource === "cold_call" ? COLD_CALL_COLUMNS : COLUMNS;
   const grouped: Record<string, Lead[]> = {};
-  for (const col of COLUMNS) grouped[col.key] = [];
+  for (const col of columns) grouped[col.key] = [];
   for (const lead of visibleLeads) {
-    const key = CLOSED_STATUSES.has(lead.status) ? "closed" : lead.status;
+    let key = CLOSED_STATUSES.has(lead.status) ? "closed" : lead.status;
+    if (activeSource === "cold_call" && COLD_CALL_EMAIL_SENT_STATUSES.has(key)) key = "contacted";
     if (grouped[key]) grouped[key].push(lead);
     else grouped["not_contacted"].push(lead);
   }
@@ -210,7 +221,7 @@ export default async function DashboardPage({
           </div>
         ) : (
           <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, alignItems: "start" }}>
-            {COLUMNS.map(col => (
+            {columns.map(col => (
               <KanbanColumn key={col.key} label={col.label} leads={grouped[col.key]} engagement={engagement} />
             ))}
           </div>

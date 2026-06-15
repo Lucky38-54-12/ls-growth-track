@@ -1,5 +1,6 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
+import { formatDateTime } from "@/lib/format";
 import Topbar from "@/components/Topbar";
 import { Search, Plus, Mail, ChevronRight } from "lucide-react";
 import Link from "next/link";
@@ -70,7 +71,9 @@ export default async function ContactsPage({
     if (!engagement[ev.lead_id]) engagement[ev.lead_id] = { opens: 0, clicks: 0, last_event_at: null };
     if (ev.event_type === "open") engagement[ev.lead_id].opens++;
     if (ev.event_type === "click") engagement[ev.lead_id].clicks++;
-    if (!engagement[ev.lead_id].last_event_at) engagement[ev.lead_id].last_event_at = ev.created_at;
+    if (!engagement[ev.lead_id].last_event_at || ev.created_at > engagement[ev.lead_id].last_event_at!) {
+      engagement[ev.lead_id].last_event_at = ev.created_at;
+    }
   }
 
   const total = allLeads.length;
@@ -204,7 +207,7 @@ export default async function ContactsPage({
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${L.border}`, background: "#ffffff" }}>
-                  {["Name", "Trade", "Location", "Status", "Contact", ""].map(h => (
+                  {["Name", "Trade", "Location", "Status", "Contact", "Engagement", ""].map(h => (
                     <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: 9, fontWeight: 700, color: L.dimmed, letterSpacing: "0.14em", textTransform: "uppercase" }}>{h}</th>
                   ))}
                 </tr>
@@ -212,6 +215,7 @@ export default async function ContactsPage({
               <tbody>
                 {filtered.map((lead, i) => {
                   const ss = STATUS_COLOR[lead.status] || STATUS_COLOR.not_contacted;
+                  const ev = engagement[lead.lead_id];
                   return (
                     <tr key={lead.lead_id} className="row-hover" style={{
                       borderBottom: i < filtered.length - 1 ? `1px solid ${L.border}` : "none",
@@ -237,6 +241,19 @@ export default async function ContactsPage({
                         <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: L.muted }}>
                           <Mail style={{ width: 11, height: 11 }} />{lead.email || "—"}
                         </span>
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        {ev && (ev.opens > 0 || ev.clicks > 0) ? (
+                          <div>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
+                              {ev.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+                              {ev.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+                            </div>
+                            {ev.last_event_at && <div style={{ fontSize: 11, color: L.dimmed }}>Last: {formatDateTime(ev.last_event_at)}</div>}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 11, color: L.dimmed }}>—</span>
+                        )}
                       </td>
                       <td style={{ padding: "10px 14px", textAlign: "right" }}>
                         <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: L.dimmed, display: "inline-flex" }}>
