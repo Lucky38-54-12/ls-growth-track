@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { createSupabaseClient } from "@/lib/supabase";
 import { nextStepFor } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
-import SourceFilter from "@/components/SourceFilter";
 import { Building2, Plus, Phone } from "lucide-react";
 import SendButton from "@/components/SendButton";
 import SheetSyncButton from "@/components/SheetSyncButton";
@@ -108,12 +107,16 @@ export default async function DashboardPage({
 
   const due = allLeads.filter(l => nextStepFor(l) !== null).length;
 
-  const trades = Array.from(new Set(allLeads.map(l => l.trade).filter(Boolean))).sort();
+  const tradeMap = new Map<string, string>();
+  for (const l of allLeads) {
+    const key = l.trade?.trim().toLowerCase();
+    if (key && !tradeMap.has(key)) tradeMap.set(key, l.trade);
+  }
+  const trades = Array.from(tradeMap.values()).sort();
   const activeTrade = searchParams?.trade || "all";
-  const sources = Array.from(new Set(allLeads.map(l => l.source).filter(Boolean))).sort();
   const activeSource = searchParams?.source || "all";
   const visibleLeads = allLeads
-    .filter(l => activeTrade === "all" || l.trade === activeTrade)
+    .filter(l => activeTrade === "all" || l.trade?.toLowerCase() === activeTrade.toLowerCase())
     .filter(l => activeSource === "all" || l.source === activeSource);
 
   function tradeHref(t: string) {
@@ -178,14 +181,13 @@ export default async function DashboardPage({
             {trades.map(t => (
               <Link key={t} href={tradeHref(t)} className="pill-hover" style={{
                 padding: "5px 12px", fontSize: 11, fontWeight: 600, textDecoration: "none",
-                border: `1px solid ${activeTrade === t ? L.text : L.border}`,
-                background: activeTrade === t ? L.text : L.surface,
-                color: activeTrade === t ? "#fff" : L.muted,
+                border: `1px solid ${activeTrade.toLowerCase() === t.toLowerCase() ? L.text : L.border}`,
+                background: activeTrade.toLowerCase() === t.toLowerCase() ? L.text : L.surface,
+                color: activeTrade.toLowerCase() === t.toLowerCase() ? "#fff" : L.muted,
                 transition: "all 0.15s",
               }}>{t}</Link>
             ))}
           </div>
-          <SourceFilter sources={sources} activeSource={activeSource} trade={activeTrade} />
           <Link href="/dashboard/new" className="btn-lift" style={{
             display: "flex", alignItems: "center", gap: 6, background: "var(--red)", color: "#fff",
             border: "none", padding: "8px 16px", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0,
