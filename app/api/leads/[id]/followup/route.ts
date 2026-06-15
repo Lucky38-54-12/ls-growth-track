@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { createSupabaseClient } from "@/lib/supabase";
 import { sendPersonalizedEmail } from "@/lib/email";
-import { createBooking } from "@/lib/calendar";
+import { createBooking, fillMeetingLink } from "@/lib/calendar";
 import { Lead } from "@/lib/types";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -50,8 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let sendError: string | null = null;
   if (subject?.trim() && bodyHtml?.trim()) {
     try {
-      let finalBody = bodyHtml.trim();
-      if (meetingLink) finalBody = finalBody.replace(/\{\{MEETING_LINK\}\}/g, meetingLink);
+      const finalBody = fillMeetingLink(bodyHtml.trim(), meetingLink);
       await sendPersonalizedEmail(lead as Lead, subject.trim(), finalBody);
       sent = true;
       updates.last_followup = today;

@@ -2,7 +2,7 @@ import { createSupabaseClient } from "./supabase";
 import { generateLeadId } from "./leads";
 import { generateMeetingConfirmationEmail } from "./ai";
 import { sendPersonalizedEmail } from "./email";
-import { listUpcomingBookings, describeMeetingTime, CalendarBooking } from "./calendar";
+import { listUpcomingBookings, describeMeetingTime, fillMeetingLink, CalendarBooking } from "./calendar";
 import { Lead } from "./types";
 
 export interface CalendarSyncResult {
@@ -15,15 +15,6 @@ export interface CalendarSyncResult {
 function companyFromSummary(summary: string): string {
   const m = summary.match(/^(?:meet|meeting|call|catch[\s-]?up|chat|coffee)\s+with\s+(.+)$/i);
   return (m ? m[1] : summary).trim();
-}
-
-function fillMeetingLink(bodyHtml: string, hangoutLink: string): string {
-  if (hangoutLink) {
-    return bodyHtml.replace(/\[MEETING LINK\]/g, `<a href="${hangoutLink}">${hangoutLink}</a>`);
-  }
-  return bodyHtml
-    .replace(/<p>\s*\[MEETING LINK\]\s*<\/p>/gi, "")
-    .replace(/\[MEETING LINK\]/g, "");
 }
 
 async function findOrCreateLead(sb: ReturnType<typeof createSupabaseClient>, booking: CalendarBooking): Promise<Lead> {

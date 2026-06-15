@@ -20,6 +20,7 @@ export default function ColdCallPage() {
   const [location, setLocation] = useState("");
 
   const [callNotes, setCallNotes] = useState("");
+  const [meetingDateTime, setMeetingDateTime] = useState("");
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -115,16 +116,20 @@ export default function ColdCallPage() {
     const sendRes = await fetch(`/api/leads/${leadData.lead.lead_id}/followup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ callNotes, subject, bodyHtml: finalBodyHtml }),
+      body: JSON.stringify({ callNotes, subject, bodyHtml: finalBodyHtml, meetingDateTime: meetingDateTime || undefined }),
     });
     const sendData = await sendRes.json();
     setLoading(false);
 
+    const parts: string[] = [];
+    if (sendData.meetingBooked) parts.push(`Booked meeting on calendar${sendData.meetingLink ? " with Meet link" : ""}.`);
+    if (sendData.meetingError) parts.push(`Calendar booking failed — ${sendData.meetingError}`);
     if (sendData.sendError) {
-      router.push(`/dashboard?flash=${encodeURIComponent(`Saved ${leadData.lead.company} but email failed: ${sendData.sendError}`)}`);
-      return;
+      parts.push(`Saved ${leadData.lead.company} but email failed: ${sendData.sendError}`);
+    } else {
+      parts.push(`Sent personalised email to ${leadData.lead.company}.`);
     }
-    router.push(`/dashboard?flash=${encodeURIComponent(`Sent personalised email to ${leadData.lead.company}.`)}`);
+    router.push(`/dashboard?flash=${encodeURIComponent(parts.join(" "))}`);
   }
 
   return (
@@ -192,6 +197,14 @@ export default function ColdCallPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Meeting booked?</div>
+                  <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
+                    If they agreed to a time on the call, set it here — this adds it to the calendar with a Google Meet link and invites {email || "their email"}. If the email above has a <code>[MEETING LINK]</code> placeholder, it'll be filled in automatically.
+                  </p>
+                  <input type="datetime-local" value={meetingDateTime} onChange={(e) => setMeetingDateTime(e.target.value)} style={{ maxWidth: 280 }} />
                 </div>
 
                 <div style={{ display: "flex", gap: 12 }}>

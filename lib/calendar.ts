@@ -101,6 +101,22 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   return { eventId: ev.id, hangoutLink: ev.hangoutLink || "" };
 }
 
+// Fills in a Meet link wherever an email body references it, supporting both
+// the AI-generated "[MEETING LINK]" placeholder (own paragraph, becomes a link
+// or is removed if there's no link) and the manually-typed "{{MEETING_LINK}}"
+// placeholder (used as a bare href, like {{CTA_LINK}}).
+export function fillMeetingLink(bodyHtml: string, hangoutLink: string): string {
+  if (hangoutLink) {
+    return bodyHtml
+      .replace(/\[MEETING LINK\]/g, `<a href="${hangoutLink}">${hangoutLink}</a>`)
+      .replace(/\{\{MEETING_LINK\}\}/g, hangoutLink);
+  }
+  return bodyHtml
+    .replace(/<p>\s*\[MEETING LINK\]\s*<\/p>/gi, "")
+    .replace(/\[MEETING LINK\]/g, "")
+    .replace(/\{\{MEETING_LINK\}\}/g, "");
+}
+
 // Describes a meeting time relative to today, e.g. "today at 3:30pm",
 // "tomorrow at 10am", "Wednesday at 3:30pm".
 export function describeMeetingTime(startISO: string, timeZone = "Pacific/Auckland"): string {
