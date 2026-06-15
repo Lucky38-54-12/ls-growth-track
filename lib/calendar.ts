@@ -101,15 +101,17 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   const start = parseDateTime(input.startISO, timeZone);
   const end = new Date(start.getTime() + (input.durationMinutes ?? 30) * 60000);
 
+  // Note: attendees aren't added here — service accounts can't send calendar
+  // invites without Domain-Wide Delegation (Workspace-only). The lead gets
+  // the Meet link via the follow-up email itself instead.
   const res = await calendar.events.insert({
     calendarId,
     conferenceDataVersion: 1,
-    sendUpdates: "all",
     requestBody: {
       summary: input.summary,
+      description: `${input.attendeeName || ""} <${input.attendeeEmail}>`.trim(),
       start: { dateTime: start.toISOString(), timeZone },
       end: { dateTime: end.toISOString(), timeZone },
-      attendees: [{ email: input.attendeeEmail, displayName: input.attendeeName || undefined }],
       conferenceData: {
         createRequest: {
           requestId: `booking-${Date.now()}`,
