@@ -3,7 +3,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 import { nextStepFor } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
 import SourceFilter from "@/components/SourceFilter";
-import { Building2, Plus } from "lucide-react";
+import { Building2, Plus, Phone } from "lucide-react";
 import SendButton from "@/components/SendButton";
 import SheetSyncButton from "@/components/SheetSyncButton";
 import Topbar from "@/components/Topbar";
@@ -146,6 +146,12 @@ export default async function DashboardPage({
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <SendButton due={due} />
           <div style={{ width: 220 }}><SheetSyncButton /></div>
+          <Link href="/dashboard/cold-call" className="btn-lift" style={{
+            display: "flex", alignItems: "center", gap: 6, background: "var(--blue)", color: "#fff",
+            border: "none", padding: "8px 14px", fontSize: 11.5, fontWeight: 700, textDecoration: "none", flexShrink: 0,
+          }}>
+            <Phone style={{ width: 13, height: 13 }} /> Cold Call
+          </Link>
           <Link href="/dashboard/warm" className="pill-hover" style={{
             padding: "8px 14px", background: L.surface, border: `1px solid ${L.border}`,
             fontSize: 11.5, fontWeight: 600, color: L.muted, textDecoration: "none", transition: "all 0.15s",
