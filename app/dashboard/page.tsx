@@ -146,11 +146,14 @@ export default async function DashboardPage({
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <SendButton due={due} />
           <div style={{ width: 220 }}><SheetSyncButton /></div>
-          <Link href="/dashboard/cold-call" className="btn-lift" style={{
-            display: "flex", alignItems: "center", gap: 6, background: "var(--blue)", color: "#fff",
-            border: "none", padding: "8px 14px", fontSize: 11.5, fontWeight: 700, textDecoration: "none", flexShrink: 0,
+          <Link href={`/dashboard?source=cold_call${activeTrade !== "all" ? `&trade=${activeTrade}` : ""}`} className="btn-lift" style={{
+            display: "flex", alignItems: "center", gap: 6,
+            background: activeSource === "cold_call" ? "var(--blue)" : L.surface,
+            color: activeSource === "cold_call" ? "#fff" : L.muted,
+            border: activeSource === "cold_call" ? "none" : `1px solid ${L.border}`,
+            padding: "8px 14px", fontSize: 11.5, fontWeight: 700, textDecoration: "none", flexShrink: 0,
           }}>
-            <Phone style={{ width: 13, height: 13 }} /> Cold Call
+            <Phone style={{ width: 13, height: 13 }} /> Cold Call Leads
           </Link>
           <Link href="/dashboard/warm" className="pill-hover" style={{
             padding: "8px 14px", background: L.surface, border: `1px solid ${L.border}`,
