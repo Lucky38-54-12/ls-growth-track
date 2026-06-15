@@ -33,10 +33,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let meetingError: string | null = null;
   if (meetingDateTime) {
     try {
+      const contactName = lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : "";
       const booking = await createBooking({
-        summary: `Meet with ${lead.contact_name || lead.company}`,
+        summary: `Meet with ${contactName || lead.company}`,
         attendeeEmail: lead.email,
-        attendeeName: lead.contact_name || undefined,
+        attendeeName: contactName || undefined,
         startISO: meetingDateTime,
       });
       meetingLink = booking.hangoutLink;
