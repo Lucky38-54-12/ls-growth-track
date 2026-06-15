@@ -2,13 +2,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Users, BarChart2, Send, FileText, UserPlus, Upload, Flame, Phone,
+  LayoutDashboard, Users, Send, FileText, UserPlus, Upload, Flame, Phone, Calendar, Sun,
 } from "lucide-react";
 
 const NAV = [
+  { href: "/dashboard/today", label: "Today", icon: Sun },
   { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
-  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart2 },
+  { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/send", label: "Send Queue", icon: Send },
   { href: "/dashboard/templates", label: "Templates", icon: FileText },
   { href: "/dashboard/cold-call", label: "Cold Call", icon: Phone },
