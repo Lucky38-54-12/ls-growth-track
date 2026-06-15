@@ -71,6 +71,7 @@ export async function syncLeadsFromSheet(opts: {
         last_followup: null,
         followup_count: 0,
         notes: called ? `[Sheet] ${callNotes}` : "",
+        source: "cold_call",
       };
       const { data: inserted, error } = await sb.from("leads").insert(newLead).select().single();
       if (error || !inserted) {

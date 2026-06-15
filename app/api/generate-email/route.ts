@@ -17,7 +17,9 @@ export async function POST(req: NextRequest) {
 
   const today = new Date().toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" });
 
-  const prompt = `You are helping Lucky from LS Growth, an outreach agency that helps local trade and service businesses get more leads. Lucky has just got off a cold call and typed up some raw notes.
+  const prompt = `You are writing a follow-up email on behalf of Lucky from LS Growth Agency. Lucky just got off a cold call and has written up some notes on how it went. Your job is to turn those notes into a short, human-sounding email that sounds like Lucky actually wrote it.
+
+LS Growth Agency runs Meta ads for trade businesses (cleaners, builders, plumbers, etc.) to generate leads.
 
 Today's date: ${today}
 
@@ -26,32 +28,84 @@ Raw notes from the call:
 ${callNotes}
 """
 
-First, read the notes and pull out the lead's details if they're mentioned (company name, contact's first name, email address, trade/industry, location). Leave any field as an empty string "" if it isn't mentioned anywhere in the notes.
+---
 
-Then work out what actually needs to happen next based on the notes, and write a follow up email to match:
+STEP 1: EXTRACT LEAD DETAILS
 
-- Address the contact by their first name if it's mentioned in the notes (e.g. "Hey Mike,"), otherwise use "Hey there,".
+From the notes, extract:
+- company: business name
+- contact_name: first name only
+- email: email address
+- trade: what kind of business they run
+- location: city/region if mentioned
+- phone: phone number if mentioned
+- date_called: date of the call if mentioned
 
-- If a call/meeting has been booked for a specific day/time: write a short meeting confirmation. Structure: "Hey {{name}}," then a line confirming the day/time relative to today (e.g. "today at 1pm", "tomorrow at 10am", "Thursday at 2pm") and saying here's the link to join, then a paragraph containing exactly "[MEETING LINK]" and nothing else, then a paragraph giving a quick heads up on what Lucky wants to cover (specific to the notes), then a short closing paragraph with a time estimate (20 to 30 minutes unless notes say otherwise) and offering to shift the time by text if needed. Subject should reference the day/time and that the link is inside, e.g. "Catch-up today 1pm - quick link inside".
+Use empty string "" if not found.
 
-- If the lead asked for something to be sent over (info, pricing, examples, a proposal, etc) and no call is booked: write a short email referencing what they asked for and saying it's attached/coming, or a couple of sentences covering the key points if nothing is being attached. No meeting link needed. End with a low pressure line inviting them to reply with questions, or offering a quick chat using the href "https://lsgrowth.agency/book" exactly if a next step makes sense.
+---
 
-- Otherwise (general follow up, no meeting booked, nothing specific requested): write a short casual follow up that references specifics from the call (their situation, what they said, objections, interest level) so it reads as personal, not templated. End with one short, low pressure line offering a quick chat, with the href "https://lsgrowth.agency/book" exactly. The link text must be 2 to 4 words (e.g. "quick chat", "quick call this week") and sit naturally inside a sentence, e.g. "Worth a <a href="https://lsgrowth.agency/book">quick chat</a> about it this week?". Never put the link after a colon or as a standalone phrase.
+STEP 2: CLASSIFY THE CALL
 
-Tone:
-- Plain, relaxed, casual, like a text to someone you've already been speaking with, not a sales pitch.
-- Avoid corporate/sales phrases like "make a real difference", "build a more consistent client base", "explore how we can help", "dive a bit deeper", "reliable leads", "bring in those recurring customers you're looking for".
-- Don't open with "really enjoyed our chat" or similar stock phrases unless the notes clearly support it.
+Read the notes carefully and classify into ONE of these:
 
-Formatting rules:
-- Output the email body as HTML using only <p> and <a> tags.
-- If used, the "[MEETING LINK]" placeholder must be on its own in its own <p> tag, exactly as written, with no other text or links in that paragraph.
-- Do NOT include a "Cheers" or "Lucky" sign off, that gets added automatically.
-- Do NOT use dashes or em dashes anywhere in the body paragraphs.
-- Do NOT wrap the output in a div or include the subject inside the body.
+A) MEETING_BOOKED - they agreed to a call/meeting with a specific day or time mentioned
+B) WANTS_INFO - interested but asked for more info, pricing, a link, or something specific before committing
+C) NOT_READY_YET - showed genuine interest but wasn't ready to move forward (e.g. "not right now", "not sure yet", "want to think about it") - this is a warm lead, just slow
+D) GENERAL_FOLLOWUP - call went okay, no strong signal either way, just keeping the door open
 
-Respond with ONLY a JSON object in this exact shape, no markdown fences, no other text:
-{"company": "...", "contact_name": "...", "email": "...", "trade": "...", "location": "...", "subject": "...", "bodyHtml": "<p>...</p><p>...</p>"}`;
+---
+
+STEP 3: WRITE THE EMAIL
+
+Rules that apply to ALL emails:
+- Sound like a real person wrote this in 2 minutes, not a sales tool
+- Short, 2-5 sentences max per paragraph. Never more than 3 paragraphs.
+- Use the person's first name once, at the start
+- Reference at least ONE specific thing from the notes that proves you were actually on that call with them — not just their industry, something particular they said or wanted
+- No dashes or em dashes anywhere
+- No corporate phrases: never use "make a real difference", "explore how we can help", "circle back", "hope this finds you well", "I wanted to reach out", "just wanted to", "following up on our chat", "it was great speaking with you", "I really enjoyed our conversation"
+- No sign-off (Lucky's name and signature are added separately)
+- HTML: only using <p> and <a> tags. Nothing else.
+
+Case-specific rules:
+
+A) MEETING_BOOKED:
+- Open by confirming the meeting day/time (relative to today if possible)
+- One line on what you'll cover (keep it light, not a full agenda)
+- Offer to shift the time if needed
+- Include a paragraph with [MEETING LINK] as a placeholder, on its own with no other text or links in that paragraph
+
+B) WANTS_INFO:
+- Open by referencing exactly what they asked for
+- Give them what they need or point them to it
+- One soft CTA link to https://lsgrowth.agency/book
+- Don't push hard
+
+C) NOT_READY_YET:
+- Acknowledge where they're at without making it weird
+- Give them one genuinely useful thing (a stat, a question) relevant to what they mentioned
+- Keep the door open casually, no CTA link, just "let me know when the time's right" energy
+- This should feel like a message from someone who's not desperate
+
+D) GENERAL_FOLLOWUP:
+- Reference something specific from the call
+- Keep it casual and brief
+- End with a relaxed inline CTA link (2-4 words like "keen to chat" or "grab a time") linking to https://lsgrowth.agency/book
+
+---
+
+STEP 4: WRITE THE SUBJECT LINE
+
+Short, 4-7 words. No clickbait. No "Following up". Should feel like something a real person would write to someone they just spoke to. Reference the specific context if possible.
+
+---
+
+OUTPUT FORMAT
+
+Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks. Exactly this shape:
+
+{"company": "", "contact_name": "", "email": "", "trade": "", "location": "", "phone": "", "date_called": "", "call_type": "MEETING_BOOKED | WANTS_INFO | NOT_READY_YET | GENERAL_FOLLOWUP", "subject": "", "bodyHtml": ""}`;
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -91,7 +145,7 @@ Respond with ONLY a JSON object in this exact shape, no markdown fences, no othe
 
     const caseStudyBlock = `<p style="margin-top:18px;font-size:13px;color:#64748b;">Quick look at the kind of results we're getting for ${parsed.trade || "local trade"} businesses right now:</p>
 <p><a href="https://lsgrowth.agency/cleaning"><img src="https://lsgrowth.agency/queenstown-ads.png" alt="Recent ad results" style="max-width:100%;border:1px solid #e2e8f0;border-radius:6px;" /></a></p>
-<p style="font-size:12.5px;color:#64748b;margin-top:-8px;"><a href="https://lsgrowth.agency/cleaning">View the case study</a></p>`;
+<p style="font-size:12.5px;color:#64748b;margin-top:-8px;"><a href="https://lsgrowth.agency/cleaning">View the case study</a> &middot; <a href="https://lsgrowth.agency/cleaning">Check out the landing page</a></p>`;
 
     return NextResponse.json({
       company: parsed.company || "",

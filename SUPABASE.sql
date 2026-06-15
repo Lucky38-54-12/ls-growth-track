@@ -14,11 +14,23 @@ create table if not exists leads (
   date_contacted date,
   last_followup date,
   followup_count int not null default 0,
-  notes text not null default ''
+  notes text not null default '',
+  source text not null default 'email_outreach'
 );
 
+-- If leads already existed without this column, run:
+-- alter table leads add column if not exists source text not null default 'email_outreach';
+
 create index if not exists leads_status_idx on leads (status);
+create index if not exists leads_source_idx on leads (source);
 create index if not exists leads_email_idx on leads (email);
+
+-- Tracks which calendar bookings have already had a confirmation email sent,
+-- so the calendar sync doesn't resend on every run.
+create table if not exists calendar_bookings (
+  event_id text primary key,
+  created_at timestamptz not null default now()
+);
 
 -- Email events table (may already exist)
 create table if not exists email_events (

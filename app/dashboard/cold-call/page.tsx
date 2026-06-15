@@ -107,7 +107,7 @@ export default function ColdCallPage() {
     const leadRes = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ company, contact_name: contactName, email, trade, location, sendInitialEmail: false }),
+      body: JSON.stringify({ company, contact_name: contactName, email, trade, location, source: "cold_call", sendInitialEmail: false }),
     });
     const leadData = await leadRes.json();
     if (leadData.error) { setLoading(false); setError(leadData.error); return; }

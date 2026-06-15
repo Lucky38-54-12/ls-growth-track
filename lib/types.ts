@@ -23,6 +23,14 @@ export interface Lead {
   last_followup: string | null;
   followup_count: number;
   notes: string;
+  source: string;
+}
+
+export const LEAD_SOURCES = ["email_outreach", "cold_call"] as const;
+
+export function sourceLabel(source: string): string {
+  if (!source) return "Email Outreach";
+  return source.split("_").map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
 }
 
 export interface EmailEvent {

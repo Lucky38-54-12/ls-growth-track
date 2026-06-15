@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { createSupabaseClient } from "@/lib/supabase";
 import { nextStepFor } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
+import SourceFilter from "@/components/SourceFilter";
 import { Building2, Plus } from "lucide-react";
 import SendButton from "@/components/SendButton";
 import SheetSyncButton from "@/components/SheetSyncButton";
@@ -85,7 +86,7 @@ function KanbanColumn({ label, leads, engagement }: {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { trade?: string };
+  searchParams: { trade?: string; source?: string };
 }) {
   const sb = createSupabaseClient();
 
@@ -109,7 +110,19 @@ export default async function DashboardPage({
 
   const trades = Array.from(new Set(allLeads.map(l => l.trade).filter(Boolean))).sort();
   const activeTrade = searchParams?.trade || "all";
-  const visibleLeads = activeTrade === "all" ? allLeads : allLeads.filter(l => l.trade === activeTrade);
+  const sources = Array.from(new Set(allLeads.map(l => l.source).filter(Boolean))).sort();
+  const activeSource = searchParams?.source || "all";
+  const visibleLeads = allLeads
+    .filter(l => activeTrade === "all" || l.trade === activeTrade)
+    .filter(l => activeSource === "all" || l.source === activeSource);
+
+  function tradeHref(t: string) {
+    const params = new URLSearchParams();
+    if (t !== "all") params.set("trade", t);
+    if (activeSource !== "all") params.set("source", activeSource);
+    const query = params.toString();
+    return `/dashboard${query ? `?${query}` : ""}`;
+  }
 
   // Kanban groups
   const grouped: Record<string, Lead[]> = {};
@@ -143,10 +156,10 @@ export default async function DashboardPage({
           }}>Import CSV</Link>
         </div>
 
-        {/* Trade filter + new lead */}
+        {/* Trade filter + source filter + new lead */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 6, flex: 1, flexWrap: "wrap" }}>
-            <Link href="/dashboard" className="pill-hover" style={{
+            <Link href={tradeHref("all")} className="pill-hover" style={{
               padding: "5px 12px", fontSize: 11, fontWeight: 600, textDecoration: "none",
               border: `1px solid ${activeTrade === "all" ? L.text : L.border}`,
               background: activeTrade === "all" ? L.text : L.surface,
@@ -154,7 +167,7 @@ export default async function DashboardPage({
               transition: "all 0.15s",
             }}>All Trades</Link>
             {trades.map(t => (
-              <Link key={t} href={`/dashboard?trade=${encodeURIComponent(t)}`} className="pill-hover" style={{
+              <Link key={t} href={tradeHref(t)} className="pill-hover" style={{
                 padding: "5px 12px", fontSize: 11, fontWeight: 600, textDecoration: "none",
                 border: `1px solid ${activeTrade === t ? L.text : L.border}`,
                 background: activeTrade === t ? L.text : L.surface,
@@ -163,6 +176,7 @@ export default async function DashboardPage({
               }}>{t}</Link>
             ))}
           </div>
+          <SourceFilter sources={sources} activeSource={activeSource} trade={activeTrade} />
           <Link href="/dashboard/new" className="btn-lift" style={{
             display: "flex", alignItems: "center", gap: 6, background: "var(--red)", color: "#fff",
             border: "none", padding: "8px 16px", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0,

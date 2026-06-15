@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
     last_followup: null,
     followup_count: 0,
     notes: body.notes || "",
+    source: body.source || "email_outreach",
   };
 
   const { data, error } = await sb.from("leads").insert(lead).select().single();
