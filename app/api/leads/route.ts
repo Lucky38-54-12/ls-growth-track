@@ -20,6 +20,10 @@ export async function POST(req: NextRequest) {
 
   const { data: existingLead } = await sb.from("leads").select("*").eq("email", (body.email as string).toLowerCase()).maybeSingle();
   if (existingLead) {
+    if (body.source && body.source !== existingLead.source) {
+      const { data: updated } = await sb.from("leads").update({ source: body.source }).eq("lead_id", existingLead.lead_id).select().single();
+      return NextResponse.json({ lead: updated || existingLead, emailError: null });
+    }
     return NextResponse.json({ lead: existingLead, emailError: null });
   }
 
