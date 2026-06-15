@@ -101,29 +101,24 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   const start = parseDateTime(input.startISO, timeZone);
   const end = new Date(start.getTime() + (input.durationMinutes ?? 30) * 60000);
 
-  // Note: attendees aren't added here — service accounts can't send calendar
-  // invites without Domain-Wide Delegation (Workspace-only). The lead gets
-  // the Meet link via the follow-up email itself instead.
+  // Note: attendees aren't added and no conferenceData is requested here —
+  // service accounts can't send calendar invites or auto-create Meet links
+  // without Domain-Wide Delegation (Workspace-only, not available on a plain
+  // Gmail account). Instead we use one fixed Meet room from GOOGLE_MEET_LINK
+  // and the lead gets that link via the follow-up email itself.
   const res = await calendar.events.insert({
     calendarId,
-    conferenceDataVersion: 1,
     requestBody: {
       summary: input.summary,
       description: `${input.attendeeName || ""} <${input.attendeeEmail}>`.trim(),
       start: { dateTime: start.toISOString(), timeZone },
       end: { dateTime: end.toISOString(), timeZone },
-      conferenceData: {
-        createRequest: {
-          requestId: `booking-${Date.now()}`,
-          conferenceSolutionKey: { type: "hangoutsMeet" },
-        },
-      },
     },
   });
 
   const ev = res.data;
   if (!ev.id) throw new Error("Calendar API did not return an event id");
-  return { eventId: ev.id, hangoutLink: ev.hangoutLink || "" };
+  return { eventId: ev.id, hangoutLink: process.env.GOOGLE_MEET_LINK || "" };
 }
 
 // Fills in a Meet link wherever an email body references it, supporting both
