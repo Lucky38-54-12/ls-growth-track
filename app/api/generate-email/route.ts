@@ -62,7 +62,7 @@ STEP 3: WRITE THE EMAIL
 Rules that apply to ALL emails:
 - Sound like a real person wrote this in 2 minutes, not a sales tool
 - Short, 2-5 sentences max per paragraph. Never more than 3 paragraphs.
-- Use the person's first name once, at the start
+- Start with a greeting line on its own, e.g. "Hey Mike," — if no contact name was found, use "Hey there,". Every email must open this way, including meeting confirmations.
 - Reference at least ONE specific thing from the notes that proves you were actually on that call with them — not just their industry, something particular they said or wanted
 - No dashes or em dashes anywhere
 - No corporate phrases: never use "make a real difference", "explore how we can help", "circle back", "hope this finds you well", "I wanted to reach out", "just wanted to", "following up on our chat", "it was great speaking with you", "I really enjoyed our conversation"
@@ -72,7 +72,7 @@ Rules that apply to ALL emails:
 Case-specific rules:
 
 A) MEETING_BOOKED:
-- Open by confirming the meeting day/time (relative to today if possible)
+- After the greeting, confirm the meeting day/time (relative to today if possible)
 - One line on what you'll cover (keep it light, not a full agenda)
 - Offer to shift the time if needed
 - Include a paragraph with [MEETING LINK] as a placeholder, on its own with no other text or links in that paragraph
