@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY is not configured." }, { status: 500 });
   }
 
-  const today = new Date().toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" });
+  const today = new Date().toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   const prompt = `You are writing a follow-up email on behalf of Lucky from LS Growth Agency. Lucky just got off a cold call and has written up some notes on how it went. Your job is to turn those notes into a short, human-sounding email that sounds like Lucky actually wrote it.
 
