@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 
-const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
+const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 
 function getAuth() {
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
@@ -51,6 +51,54 @@ export async function listUpcomingBookings(): Promise<CalendarBooking[]> {
   }
 
   return bookings;
+}
+
+export interface CreateBookingInput {
+  summary: string;
+  attendeeEmail: string;
+  attendeeName?: string;
+  startISO: string;
+  durationMinutes?: number;
+  timeZone?: string;
+}
+
+export interface CreatedBooking {
+  eventId: string;
+  hangoutLink: string;
+}
+
+// Creates a calendar event with a Google Meet link and invites the attendee,
+// e.g. when a meeting time is agreed during a cold call.
+export async function createBooking(input: CreateBookingInput): Promise<CreatedBooking> {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
+  const auth = getAuth();
+  const calendar = google.calendar({ version: "v3", auth });
+
+  const start = new Date(input.startISO);
+  const end = new Date(start.getTime() + (input.durationMinutes ?? 30) * 60000);
+  const timeZone = input.timeZone || "Pacific/Auckland";
+
+  const res = await calendar.events.insert({
+    calendarId,
+    conferenceDataVersion: 1,
+    sendUpdates: "all",
+    requestBody: {
+      summary: input.summary,
+      start: { dateTime: start.toISOString(), timeZone },
+      end: { dateTime: end.toISOString(), timeZone },
+      attendees: [{ email: input.attendeeEmail, displayName: input.attendeeName || undefined }],
+      conferenceData: {
+        createRequest: {
+          requestId: `booking-${Date.now()}`,
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
+      },
+    },
+  });
+
+  const ev = res.data;
+  if (!ev.id) throw new Error("Calendar API did not return an event id");
+  return { eventId: ev.id, hangoutLink: ev.hangoutLink || "" };
 }
 
 // Describes a meeting time relative to today, e.g. "today at 3:30pm",

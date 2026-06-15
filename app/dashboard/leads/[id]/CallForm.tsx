@@ -18,6 +18,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 export default function CallForm({ lead, events }: { lead: Lead; events: EmailEvent[] }) {
   const router = useRouter();
   const [callNotes, setCallNotes] = useState("");
+  const [meetingDateTime, setMeetingDateTime] = useState("");
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [status, setStatus] = useState("");
@@ -26,8 +27,8 @@ export default function CallForm({ lead, events }: { lead: Lead; events: EmailEv
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!callNotes.trim() && !(subject.trim() && bodyHtml.trim()) && !status) {
-      setError("Add call notes, an email to send, or a status change first.");
+    if (!callNotes.trim() && !(subject.trim() && bodyHtml.trim()) && !status && !meetingDateTime) {
+      setError("Add call notes, an email to send, a status change, or a meeting time first.");
       return;
     }
     setLoading(true);
@@ -36,7 +37,7 @@ export default function CallForm({ lead, events }: { lead: Lead; events: EmailEv
     const res = await fetch(`/api/leads/${lead.lead_id}/followup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ callNotes, subject, bodyHtml, status }),
+      body: JSON.stringify({ callNotes, subject, bodyHtml, status, meetingDateTime: meetingDateTime || undefined }),
     });
     const data = await res.json();
     setLoading(false);
@@ -44,6 +45,8 @@ export default function CallForm({ lead, events }: { lead: Lead; events: EmailEv
 
     const parts: string[] = [];
     if (callNotes.trim()) parts.push("Saved call notes.");
+    if (data.meetingBooked) parts.push(`Booked meeting on calendar${data.meetingLink ? " with Meet link" : ""}.`);
+    if (data.meetingError) parts.push(`Calendar booking failed — ${data.meetingError}`);
     if (data.sent) parts.push(`Sent follow-up to ${lead.company}.`);
     if (data.sendError) parts.push(`Email failed to send — ${data.sendError}`);
     if (status) parts.push(`Status updated to ${status}.`);
@@ -67,9 +70,17 @@ export default function CallForm({ lead, events }: { lead: Lead; events: EmailEv
           </div>
 
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
+            <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Meeting booked?</div>
+            <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
+              If they agreed to a time on the call, set it here — this adds it to the calendar with a Google Meet link and invites {lead.email}. Use <code>{"{{MEETING_LINK}}"}</code> as the href in the email below to drop in the link.
+            </p>
+            <input type="datetime-local" value={meetingDateTime} onChange={(e) => setMeetingDateTime(e.target.value)} style={{ maxWidth: 280 }} />
+          </div>
+
+          <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
             <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Send follow-up</div>
             <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
-              Leave blank to just save the call notes without sending. Use <code>{"{{CTA_LINK}}"}</code> as the href for the booking link.
+              Leave blank to just save the call notes without sending. Use <code>{"{{CTA_LINK}}"}</code> as the href for the booking link, or <code>{"{{MEETING_LINK}}"}</code> for the Meet link if a meeting was booked above.
             </p>
             <div style={{ marginBottom: 14 }}>
               <label>Subject</label>

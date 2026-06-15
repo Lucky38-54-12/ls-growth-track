@@ -3,15 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { createSupabaseClient } from "@/lib/supabase";
 import { sendPersonalizedEmail } from "@/lib/email";
+import { createBooking } from "@/lib/calendar";
 import { Lead } from "@/lib/types";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
-  const { callNotes, subject, bodyHtml, status } = body as {
+  const { callNotes, subject, bodyHtml, status, meetingDateTime } = body as {
     callNotes?: string;
     subject?: string;
     bodyHtml?: string;
     status?: string;
+    meetingDateTime?: string;
   };
 
   const sb = createSupabaseClient();
@@ -26,24 +28,48 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     updates.notes = lead.notes?.trim() ? `${lead.notes}\n${entry}` : entry;
   }
 
+  let meetingLink = "";
+  let meetingBooked = false;
+  let meetingError: string | null = null;
+  if (meetingDateTime) {
+    try {
+      const booking = await createBooking({
+        summary: `Meet with ${lead.contact_name || lead.company}`,
+        attendeeEmail: lead.email,
+        attendeeName: lead.contact_name || undefined,
+        startISO: meetingDateTime,
+      });
+      meetingLink = booking.hangoutLink;
+      meetingBooked = true;
+    } catch (e) {
+      meetingError = e instanceof Error ? e.message : "Calendar booking failed";
+    }
+  }
+
   let sent = false;
   let sendError: string | null = null;
   if (subject?.trim() && bodyHtml?.trim()) {
     try {
-      await sendPersonalizedEmail(lead as Lead, subject.trim(), bodyHtml.trim());
+      let finalBody = bodyHtml.trim();
+      if (meetingLink) finalBody = finalBody.replace(/\{\{MEETING_LINK\}\}/g, meetingLink);
+      await sendPersonalizedEmail(lead as Lead, subject.trim(), finalBody);
       sent = true;
       updates.last_followup = today;
       updates.followup_count = (lead.followup_count || 0) + 1;
-      if (lead.status === "not_contacted") {
-        updates.status = "contacted";
-        updates.date_contacted = today;
-      }
     } catch (e) {
       sendError = e instanceof Error ? e.message : "Send failed";
     }
   }
 
-  if (status && status !== lead.status && updates.status === undefined) {
+  if (meetingBooked) {
+    updates.status = "booked";
+    if (!lead.date_contacted) updates.date_contacted = today;
+  } else if (lead.status === "not_contacted" && sent) {
+    updates.status = "contacted";
+    updates.date_contacted = today;
+  }
+
+  if (status && status !== lead.status) {
     updates.status = status;
   }
 
@@ -51,5 +77,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     await sb.from("leads").update(updates).eq("lead_id", params.id);
   }
 
-  return NextResponse.json({ sent, sendError });
+  return NextResponse.json({ sent, sendError, meetingBooked, meetingLink, meetingError });
 }
