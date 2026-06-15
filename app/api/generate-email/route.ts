@@ -55,6 +55,8 @@ B) WANTS_INFO - interested but asked for more info, pricing, a link, or somethin
 C) NOT_READY_YET - showed genuine interest but wasn't ready to move forward (e.g. "not right now", "not sure yet", "want to think about it") - this is a warm lead, just slow
 D) GENERAL_FOLLOWUP - call went okay, no strong signal either way, just keeping the door open
 
+IMPORTANT: If a specific time is mentioned in the notes (e.g. "3:30pm", "Wednesday 3:30"), always classify as MEETING_BOOKED regardless of how uncertain the notes sound. The tone of the email (e.g. acknowledging hesitation) is handled separately in STEP 3 — classification here is just about whether a time was set.
+
 ---
 
 STEP 3: WRITE THE EMAIL
