@@ -148,9 +148,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       return NextResponse.json({ error: "Unexpected response shape." }, { status: 502 });
     }
 
-    const caseStudyBlock = `<p style="margin-top:18px;font-size:13px;color:#64748b;">Quick look at the kind of results we're getting for ${parsed.trade || "local trade"} businesses right now:</p>
-<p><a href="https://lsgrowth.agency/cleaning"><img src="https://lsgrowth.agency/queenstown-ads.png" alt="Recent ad results" style="max-width:100%;border:1px solid #e2e8f0;border-radius:6px;" /></a></p>
-<p style="font-size:12.5px;color:#64748b;margin-top:-8px;"><a href="https://lsgrowth.agency/cleaning">View the case study</a> &middot; <a href="https://lsgrowth.agency/cleaning">Check out the landing page</a></p>`;
+    const caseStudyBlock = `<p><a href="https://lsgrowth.agency/cleaning">Here's a quick look at what we do for cleaning businesses</a></p>`;
 
     return NextResponse.json({
       company: parsed.company || "",
