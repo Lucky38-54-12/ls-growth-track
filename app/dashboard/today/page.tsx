@@ -45,6 +45,7 @@ export default async function TodayPage() {
 
   const today = todayKey();
   const leadByEmail = new Map(allLeads.map(l => [l.email.toLowerCase(), l]));
+  const leadByContact = new Map(allLeads.filter(l => l.contact_name).map(l => [l.contact_name.toLowerCase().trim(), l]));
 
   // Pipeline stats
   const active = allLeads.filter(l => !CLOSED_STATUSES.has(l.status));
@@ -103,15 +104,27 @@ export default async function TodayPage() {
             ) : (
               <div style={{ display: "flex", flexDirection: "column" }}>
                 {todaysMeetings.map(ev => {
-                  // Events created via cold-call booking have name/email in description ("Name <email>")
-                  // because service accounts can't add attendees without Domain-Wide Delegation.
                   let attendeeEmail = ev.attendeeEmail;
                   let attendeeName = ev.attendeeName;
+
+                  // Cold-call bookings store name/email in description as "Name <email>"
                   if (!attendeeEmail && ev.description) {
-                    const m = ev.description.match(/^(.*?)\s*<([^>]+)>/);
+                    const m = ev.description.match(/^(.*?)\s*<([^>@]+@[^>]+)>/);
                     if (m) { attendeeName = attendeeName || m[1].trim(); attendeeEmail = m[2].trim().toLowerCase(); }
                   }
-                  const lead = leadByEmail.get(attendeeEmail.toLowerCase());
+
+                  // Try lead lookup by email first, then fall back to contact name from event title
+                  let lead = attendeeEmail ? leadByEmail.get(attendeeEmail) : undefined;
+                  if (!lead) {
+                    const nameFromTitle = ev.summary.replace(/^(meet(ing)?|call|chat|catch[ -]?up)\s+(with\s+)?/i, "").trim();
+                    const byName = leadByContact.get(nameFromTitle.toLowerCase());
+                    if (byName) {
+                      lead = byName;
+                      if (!attendeeName) attendeeName = nameFromTitle;
+                      if (!attendeeEmail) attendeeEmail = byName.email;
+                    }
+                  }
+
                   const timeStr = ev.allDay ? "today" : timeFmt.format(new Date(ev.startISO)).replace(" ", "").toLowerCase();
                   const firstName = (attendeeName || "").split(" ")[0] || "there";
                   const subLine = [attendeeName, lead?.company].filter(Boolean).join(" · ");
