@@ -1,0 +1,291 @@
+"use client";
+import { useState, useRef, useEffect } from "react";
+import Topbar from "@/components/Topbar";
+import { Play, StopCircle, Download, Search, MapPin, Hash, Database } from "lucide-react";
+
+const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
+
+interface LogLine { type: string; msg: string }
+
+export default function ScraperPage() {
+  const [query, setQuery]       = useState("");
+  const [location, setLocation] = useState("");
+  const [max, setMax]           = useState("50");
+  const [sheetId, setSheetId]   = useState("");
+
+  const [running, setRunning]       = useState(false);
+  const [done, setDone]             = useState(false);
+  const [exitCode, setExitCode]     = useState<number | null>(null);
+  const [log, setLog]               = useState<LogLine[]>([]);
+  const [importing, setImporting]   = useState(false);
+  const [importResult, setImportResult] = useState("");
+
+  const logRef   = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [log]);
+
+  function appendLog(type: string, msg: string) {
+    setLog(l => [...l, { type, msg }]);
+  }
+
+  async function runScraper(e: React.FormEvent) {
+    e.preventDefault();
+    if (!query.trim() || !location.trim()) return;
+
+    setLog([]);
+    setDone(false);
+    setExitCode(null);
+    setImportResult("");
+    setRunning(true);
+
+    const abort = new AbortController();
+    abortRef.current = abort;
+
+    try {
+      const res = await fetch("/api/scraper", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: query.trim(), location: location.trim(), max: Number(max) || 50, sheetId: sheetId.trim() }),
+        signal: abort.signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Server error" }));
+        appendLog("error", err.error || "Scraper failed to start");
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+
+      if (reader) {
+        while (true) {
+          const { value, done: streamDone } = await reader.read();
+          if (streamDone) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            try {
+              const ev = JSON.parse(line.slice(5).trim());
+              if (ev.type === "done") {
+                setDone(true);
+                setExitCode(ev.code);
+              } else if (ev.msg) {
+                appendLog(ev.type, ev.msg);
+              }
+            } catch { /* skip malformed */ }
+          }
+        }
+      }
+    } catch (err: unknown) {
+      if ((err as Error).name !== "AbortError") {
+        appendLog("error", `Connection error: ${(err as Error).message}`);
+      }
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  function stopScraper() {
+    abortRef.current?.abort();
+    setRunning(false);
+    appendLog("error", "Scraper stopped by user.\n");
+  }
+
+  async function importToDashboard() {
+    if (!sheetId.trim()) {
+      setImportResult("No Sheet ID — enter one above to import scraped leads into the dashboard.");
+      return;
+    }
+    setImporting(true);
+    setImportResult("");
+    try {
+      const res = await fetch("/api/leads/sheet-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sheetId: sheetId.trim(),
+          tradeDefault: query.trim(),
+          locationDefault: location.trim(),
+          personalize: false,
+          sendFresh: false,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) { setImportResult(`Error: ${data.error}`); return; }
+      const parts = [`Imported ${data.imported} new lead(s).`];
+      if (data.detectedTrade || data.detectedLocation) parts.push(`Tagged as ${[data.detectedTrade, data.detectedLocation].filter(Boolean).join(" / ")}.`);
+      if (data.updated) parts.push(`${data.updated} updated.`);
+      if (data.skipped) parts.push(`${data.skipped} skipped.`);
+      if (data.errors?.length) parts.push(`Errors: ${data.errors.join("; ")}`);
+      setImportResult(parts.join(" "));
+    } catch {
+      setImportResult("Import failed — check server logs.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const success = done && exitCode === 0;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <Topbar title="Scraper" subtitle="Google Maps lead scraper — runs locally" />
+
+      <div style={{ maxWidth: 860, margin: "28px auto", padding: "0 28px", display: "flex", flexDirection: "column", gap: 20, width: "100%" }}>
+
+        {/* Config card */}
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, marginBottom: 18 }}>Scraper Config</div>
+
+          <form onSubmit={runScraper} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: L.muted, letterSpacing: "0.06em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
+                <Search style={{ width: 11, height: 11 }} /> Business Type
+              </span>
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="e.g. landscaping companies"
+                required
+                disabled={running}
+                style={{ padding: "9px 12px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
+              />
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: L.muted, letterSpacing: "0.06em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
+                <MapPin style={{ width: 11, height: 11 }} /> Location
+              </span>
+              <input
+                value={location}
+                onChange={e => setLocation(e.target.value)}
+                placeholder="e.g. Auckland"
+                required
+                disabled={running}
+                style={{ padding: "9px 12px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
+              />
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: L.muted, letterSpacing: "0.06em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
+                <Hash style={{ width: 11, height: 11 }} /> Max Leads
+              </span>
+              <input
+                type="number"
+                value={max}
+                onChange={e => setMax(e.target.value)}
+                min={1}
+                max={200}
+                disabled={running}
+                style={{ padding: "9px 12px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
+              />
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: L.muted, letterSpacing: "0.06em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
+                <Database style={{ width: 11, height: 11 }} /> Google Sheet ID <span style={{ fontSize: 10, fontWeight: 500, color: L.dimmed }}>(optional)</span>
+              </span>
+              <input
+                value={sheetId}
+                onChange={e => setSheetId(e.target.value)}
+                placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+                disabled={running}
+                style={{ padding: "9px 12px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
+              />
+            </label>
+
+            <div style={{ gridColumn: "1 / -1", display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
+              {!running ? (
+                <button
+                  type="submit"
+                  className="btn-lift"
+                  style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--red)", color: "#fff", border: "none", padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                >
+                  <Play style={{ width: 13, height: 13 }} />
+                  Run Scraper
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={stopScraper}
+                  style={{ display: "flex", alignItems: "center", gap: 7, background: "#64748b", color: "#fff", border: "none", padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                >
+                  <StopCircle style={{ width: 13, height: 13 }} />
+                  Stop
+                </button>
+              )}
+              <span style={{ fontSize: 12, color: L.dimmed }}>
+                Opens a Chromium browser on your local machine — won&apos;t work on Vercel.
+              </span>
+            </div>
+          </form>
+        </div>
+
+        {/* Terminal output */}
+        {(log.length > 0 || running) && (
+          <div style={{ background: "#0f172a", border: `1px solid #1e293b` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", borderBottom: "1px solid #1e293b" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                Output {running && <span style={{ color: "#22c55e" }}>● running</span>}
+                {done && <span style={{ color: success ? "#22c55e" : "#ef4444" }}>{success ? "● done" : "● failed"}</span>}
+              </span>
+            </div>
+            <div ref={logRef} style={{ height: 320, overflowY: "auto", padding: "12px 16px", fontFamily: "monospace", fontSize: 12, lineHeight: 1.6 }}>
+              {log.map((line, i) => (
+                <div key={i} style={{ color: line.type === "error" || line.type === "stderr" ? "#f87171" : "#94a3b8", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                  {line.msg}
+                </div>
+              ))}
+              {running && <div style={{ color: "#22c55e" }}>_</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Import section — shows after successful scrape */}
+        {done && (
+          <div style={{ background: L.surface, border: `1px solid ${success ? "#bbf7d0" : L.border}`, padding: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: success ? "#16a34a" : L.muted, marginBottom: 12 }}>
+              {success ? "Scrape Complete" : "Scrape Finished with Errors"}
+            </div>
+            {success && sheetId && (
+              <p style={{ fontSize: 13, color: L.muted, marginBottom: 14 }}>
+                Leads have been pushed to your Google Sheet. Import them into the dashboard now, or visit{" "}
+                <a href="/dashboard/import" style={{ color: "var(--red)", fontWeight: 600 }}>Import Leads</a> to configure sending.
+              </p>
+            )}
+            {success && !sheetId && (
+              <p style={{ fontSize: 13, color: L.muted, marginBottom: 14 }}>
+                No Sheet ID was provided, so results weren&apos;t saved to Sheets. Enter a Sheet ID above and run again to persist the data.
+              </p>
+            )}
+            {sheetId && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  onClick={importToDashboard}
+                  disabled={importing}
+                  className="btn-lift"
+                  style={{ display: "flex", alignItems: "center", gap: 7, background: "#0f172a", color: "#fff", border: "none", padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: importing ? "default" : "pointer", opacity: importing ? 0.6 : 1 }}
+                >
+                  <Download style={{ width: 13, height: 13 }} />
+                  {importing ? "Importing…" : "Import to Dashboard"}
+                </button>
+                {importResult && (
+                  <span style={{ fontSize: 13, color: importResult.startsWith("Error") ? "var(--red)" : "#16a34a", fontWeight: 600 }}>
+                    {importResult}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

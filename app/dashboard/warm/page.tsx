@@ -5,7 +5,9 @@ import Topbar from "@/components/Topbar";
 import Link from "next/link";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
-const WARM_STATUSES = new Set(["replied", "booked"]);
+
+// Statuses that are already converted — exclude from "worth a call" list
+const CONVERTED_STATUSES = new Set(["booked", "not_interested", "bounced", "sequence_complete"]);
 
 export const revalidate = 0;
 
@@ -28,20 +30,26 @@ export default async function WarmLeadsPage() {
   }
 
   const warm = ((leads || []) as Lead[]).filter((l) => {
+    if (CONVERTED_STATUSES.has(l.status)) return false;
     const ev = engagement[l.lead_id];
-    return WARM_STATUSES.has(l.status) || (ev && (ev.opens > 0 || ev.clicks > 0));
+    // Show replied (direct signal) OR any lead with tracked opens/clicks
+    return l.status === "replied" || (ev && (ev.opens > 0 || ev.clicks > 0));
   }).sort((a, b) => {
-    const aReplied = WARM_STATUSES.has(a.status) ? 1 : 0;
-    const bReplied = WARM_STATUSES.has(b.status) ? 1 : 0;
-    if (bReplied !== aReplied) return bReplied - aReplied;
+    // Clicks rank highest (strongest intent), then opens, then replied
     const aClicks = engagement[a.lead_id]?.clicks || 0;
     const bClicks = engagement[b.lead_id]?.clicks || 0;
-    return bClicks - aClicks;
+    if (bClicks !== aClicks) return bClicks - aClicks;
+    const aOpens = engagement[a.lead_id]?.opens || 0;
+    const bOpens = engagement[b.lead_id]?.opens || 0;
+    if (bOpens !== aOpens) return bOpens - aOpens;
+    const aReplied = a.status === "replied" ? 1 : 0;
+    const bReplied = b.status === "replied" ? 1 : 0;
+    return bReplied - aReplied;
   });
 
   return (
     <div>
-      <Topbar title="WARM LEADS" subtitle="Anyone who's opened, clicked, or replied — worth a call" />
+      <Topbar title="WARM LEADS" subtitle="Opened, clicked, or replied — not yet booked" />
 
       <div style={{ maxWidth: 960, margin: "32px auto", padding: "0 28px" }}>
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
@@ -72,7 +80,7 @@ export default async function WarmLeadsPage() {
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5, color: L.muted }}>{lead.trade}</td>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13 }}>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {WARM_STATUSES.has(lead.status) && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dcfce7", color: "#166534" }}>{lead.status}</span>}
+                          {lead.status === "replied" && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dcfce7", color: "#166534" }}>replied</span>}
                           {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
                           {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
                         </div>

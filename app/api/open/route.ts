@@ -6,15 +6,39 @@ const PIXEL = Buffer.from(
   "base64"
 );
 
+// Known email security scanners / image proxies that pre-fetch tracking pixels.
+// These fire the pixel before a human reads the email, inflating open counts.
+const BOT_PATTERNS = [
+  "googleimageproxy",
+  "google-apps-script",
+  "yahoomailproxy",
+  "barracudacentral",
+  "mimecast",
+  "proofpoint",
+  "outlook safelinks",
+  "preview",
+  "scanner",
+  "antispam",
+  "antivirus",
+];
+
+function isBot(ua: string | null): boolean {
+  if (!ua) return false;
+  const lower = ua.toLowerCase();
+  return BOT_PATTERNS.some((p) => lower.includes(p));
+}
+
 export async function GET(req: NextRequest) {
   const leadId = req.nextUrl.searchParams.get("id");
   if (leadId) {
-    try {
-      const sb = createSupabaseClient();
-      const userAgent = req.headers.get("user-agent");
-      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
-      await sb.from("email_events").insert({ lead_id: leadId, event_type: "open", user_agent: userAgent, ip });
-    } catch {}
+    const userAgent = req.headers.get("user-agent");
+    if (!isBot(userAgent)) {
+      try {
+        const sb = createSupabaseClient();
+        const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+        await sb.from("email_events").insert({ lead_id: leadId, event_type: "open", user_agent: userAgent, ip });
+      } catch {}
+    }
   }
   return new NextResponse(PIXEL, {
     headers: {
