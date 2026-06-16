@@ -64,7 +64,7 @@ export default async function SendQueuePage({
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
-      <Topbar title="SEND QUEUE" subtitle="Preview exactly what will be sent before it goes out" />
+      <Topbar title="EMAIL OUTREACH" subtitle="Preview exactly what will be sent before it goes out" />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "18px 18px 16px" }}>

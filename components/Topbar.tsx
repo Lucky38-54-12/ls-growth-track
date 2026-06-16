@@ -9,7 +9,7 @@ const SEARCH_ITEMS = [
   { label: "Contacts", href: "/dashboard/contacts", icon: Users },
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar },
   { label: "Inbox", href: "/dashboard/inbox", icon: Inbox },
-  { label: "Send Queue", href: "/dashboard/send", icon: Send },
+  { label: "Email Outreach", href: "/dashboard/send", icon: Send },
   { label: "Templates", href: "/dashboard/templates", icon: FileText },
   { label: "Cold Call", href: "/dashboard/cold-call", icon: Phone },
   { label: "Scraper", href: "/dashboard/scraper", icon: ScanSearch },

@@ -11,7 +11,7 @@ const NAV = [
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
-  { href: "/dashboard/send", label: "Send Queue", icon: Send },
+  { href: "/dashboard/send", label: "Email Outreach", icon: Send },
   { href: "/dashboard/templates", label: "Templates", icon: FileText },
   { href: "/dashboard/cold-call", label: "Cold Call", icon: Phone },
   { href: "/dashboard/scraper", label: "Scraper", icon: ScanSearch },
