@@ -4,6 +4,7 @@ import Topbar from "@/components/Topbar";
 import { Play, StopCircle, Download, Search, MapPin, Hash, Database } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
+const LOCAL_SCRAPER = "http://localhost:5050/scraper/run";
 
 interface LogLine { type: string; msg: string }
 
@@ -21,7 +22,7 @@ export default function ScraperPage() {
   const [importResult, setImportResult] = useState("");
 
   const logRef   = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const esRef    = useRef<EventSource | null>(null);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -31,7 +32,7 @@ export default function ScraperPage() {
     setLog(l => [...l, { type, msg }]);
   }
 
-  async function runScraper(e: React.FormEvent) {
+  function runScraper(e: React.FormEvent) {
     e.preventDefault();
     if (!query.trim() || !location.trim()) return;
 
@@ -41,59 +42,42 @@ export default function ScraperPage() {
     setImportResult("");
     setRunning(true);
 
-    const abort = new AbortController();
-    abortRef.current = abort;
+    const params = new URLSearchParams({
+      query: query.trim(),
+      location: location.trim(),
+      max: String(Number(max) || 50),
+    });
+    if (sheetId.trim()) params.set("sheet_id", sheetId.trim());
 
-    try {
-      const res = await fetch("/api/scraper", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: query.trim(), location: location.trim(), max: Number(max) || 50, sheetId: sheetId.trim() }),
-        signal: abort.signal,
-      });
+    const es = new EventSource(`${LOCAL_SCRAPER}?${params}`);
+    esRef.current = es;
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Server error" }));
-        appendLog("error", err.error || "Scraper failed to start");
-        return;
-      }
-
-      const reader = res.body?.getReader();
-      const dec = new TextDecoder();
-      let buf = "";
-
-      if (reader) {
-        while (true) {
-          const { value, done: streamDone } = await reader.read();
-          if (streamDone) break;
-          buf += dec.decode(value, { stream: true });
-          const lines = buf.split("\n");
-          buf = lines.pop() || "";
-          for (const line of lines) {
-            if (!line.startsWith("data:")) continue;
-            try {
-              const ev = JSON.parse(line.slice(5).trim());
-              if (ev.type === "done") {
-                setDone(true);
-                setExitCode(ev.code);
-              } else if (ev.msg) {
-                appendLog(ev.type, ev.msg);
-              }
-            } catch { /* skip malformed */ }
-          }
+    es.onmessage = (e) => {
+      try {
+        const ev = JSON.parse(e.data);
+        if (ev.msg) appendLog(ev.type, ev.msg);
+        if (ev.type === "done") {
+          setDone(true);
+          setExitCode(ev.code ?? 0);
+          setRunning(false);
+          es.close();
+        } else if (ev.type === "error") {
+          setRunning(false);
+          es.close();
         }
-      }
-    } catch (err: unknown) {
-      if ((err as Error).name !== "AbortError") {
-        appendLog("error", `Connection error: ${(err as Error).message}`);
-      }
-    } finally {
+      } catch { /* skip malformed */ }
+    };
+
+    es.onerror = () => {
+      appendLog("error", "Could not connect to local scraper server (localhost:5050).\nMake sure start_dashboard.bat is running.\n");
       setRunning(false);
-    }
+      es.close();
+    };
   }
 
   function stopScraper() {
-    abortRef.current?.abort();
+    esRef.current?.close();
+    esRef.current = null;
     setRunning(false);
     appendLog("error", "Scraper stopped by user.\n");
   }
@@ -139,23 +123,6 @@ export default function ScraperPage() {
       <Topbar title="Scraper" subtitle="Google Maps lead scraper — runs locally" />
 
       <div style={{ maxWidth: 860, margin: "28px auto", padding: "0 28px", display: "flex", flexDirection: "column", gap: 20, width: "100%" }}>
-        {/* Local-only banner */}
-        <div style={{ background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 18px", display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 18 }}>⚠️</span>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#92400e", margin: 0 }}>
-              The scraper can&apos;t run on Vercel — it needs a local Chromium browser.
-            </p>
-            <p style={{ fontSize: 12, color: "#92400e", margin: "3px 0 0" }}>
-              Open the local dashboard instead:{" "}
-              <a href="http://localhost:5050/scraper" target="_blank" rel="noopener noreferrer"
-                style={{ color: "#b45309", fontWeight: 700, textDecoration: "underline" }}>
-                localhost:5050/scraper
-              </a>
-              {" "}(make sure start_dashboard.bat is running)
-            </p>
-          </div>
-        </div>
 
         {/* Config card */}
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
@@ -239,7 +206,7 @@ export default function ScraperPage() {
                 </button>
               )}
               <span style={{ fontSize: 12, color: L.dimmed }}>
-                Opens a Chromium browser on your local machine — won&apos;t work on Vercel.
+                Runs via local dashboard — keep start_dashboard.bat open.
               </span>
             </div>
           </form>
@@ -250,7 +217,8 @@ export default function ScraperPage() {
           <div style={{ background: "#0f172a", border: `1px solid #1e293b` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", borderBottom: "1px solid #1e293b" }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Output {running && <span style={{ color: "#22c55e" }}>● running</span>}
+                Output{" "}
+                {running && <span style={{ color: "#22c55e" }}>● running</span>}
                 {done && <span style={{ color: success ? "#22c55e" : "#ef4444" }}>{success ? "● done" : "● failed"}</span>}
               </span>
             </div>
@@ -273,13 +241,13 @@ export default function ScraperPage() {
             </div>
             {success && sheetId && (
               <p style={{ fontSize: 13, color: L.muted, marginBottom: 14 }}>
-                Leads have been pushed to your Google Sheet. Import them into the dashboard now, or visit{" "}
+                Leads pushed to your Google Sheet. Import them into the dashboard now, or visit{" "}
                 <a href="/dashboard/import" style={{ color: "var(--red)", fontWeight: 600 }}>Import Leads</a> to configure sending.
               </p>
             )}
             {success && !sheetId && (
               <p style={{ fontSize: 13, color: L.muted, marginBottom: 14 }}>
-                No Sheet ID was provided, so results weren&apos;t saved to Sheets. Enter a Sheet ID above and run again to persist the data.
+                No Sheet ID was provided — results weren&apos;t saved. Enter a Sheet ID above and run again to persist the data.
               </p>
             )}
             {sheetId && (
