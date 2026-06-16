@@ -40,7 +40,11 @@ export async function POST(req: NextRequest) {
 
       send({ type: "start", msg: `Starting scraper: "${query}" in "${location}" (max ${max})...\n` });
 
-      const proc = spawn("python", args, {
+      const pythonBin =
+        process.env.PYTHON_BIN ||
+        "C:\\Users\\lucky\\AppData\\Local\\Programs\\Python\\Python313\\python.exe";
+
+      const proc = spawn(pythonBin, args, {
         cwd: path.dirname(scriptPath),
         env: { ...process.env },
       });
