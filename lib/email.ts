@@ -52,6 +52,29 @@ export async function sendReminderEmail(to: string, subject: string, body: strin
   await transport.sendMail({ from: FROM, to, subject, html, text: body });
 }
 
+export async function sendFreeformEmail(
+  to: string,
+  subject: string,
+  body: string,
+  inReplyTo?: string,
+  references?: string,
+) {
+  const transport = getTransport();
+  const isHtml = /<[a-z][\s\S]*>/i.test(body);
+  const html = isHtml
+    ? body
+    : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.65;white-space:pre-wrap">${body}</div>`;
+  const text = isHtml ? body.replace(/<[^>]+>/g, "") : body;
+  await transport.sendMail({
+    from: FROM,
+    to,
+    subject,
+    html,
+    text,
+    ...(inReplyTo && { inReplyTo, references: references || inReplyTo }),
+  });
+}
+
 export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string) {
   const transport = getTransport();
   const { pixel, ctaLink } = buildLinks(lead.lead_id);
