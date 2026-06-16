@@ -139,6 +139,23 @@ export default function ScraperPage() {
       <Topbar title="Scraper" subtitle="Google Maps lead scraper — runs locally" />
 
       <div style={{ maxWidth: 860, margin: "28px auto", padding: "0 28px", display: "flex", flexDirection: "column", gap: 20, width: "100%" }}>
+        {/* Local-only banner */}
+        <div style={{ background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 18 }}>⚠️</span>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#92400e", margin: 0 }}>
+              The scraper can&apos;t run on Vercel — it needs a local Chromium browser.
+            </p>
+            <p style={{ fontSize: 12, color: "#92400e", margin: "3px 0 0" }}>
+              Open the local dashboard instead:{" "}
+              <a href="http://localhost:5050/scraper" target="_blank" rel="noopener noreferrer"
+                style={{ color: "#b45309", fontWeight: 700, textDecoration: "underline" }}>
+                localhost:5050/scraper
+              </a>
+              {" "}(make sure start_dashboard.bat is running)
+            </p>
+          </div>
+        </div>
 
         {/* Config card */}
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
@@ -285,6 +302,7 @@ export default function ScraperPage() {
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );
