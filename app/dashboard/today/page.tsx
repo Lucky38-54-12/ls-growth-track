@@ -59,9 +59,24 @@ export default async function TodayPage() {
   const openRate = rate(overall.opened, overall.sent);
   const clickRate = rate(overall.clicked, overall.sent);
 
-  // Today's activity
-  const todaysEvents = allEvents.filter(ev => dateKeyFmt.format(new Date(ev.created_at)) === today);
-  const todaysSends = allSends.filter(s => dateKeyFmt.format(new Date(s.sent_at)) === today);
+  // Recent activity — last 7 days, merged and sorted newest first
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  type ActivityItem =
+    | { kind: "event"; ts: string; ev: EmailEvent }
+    | { kind: "send"; ts: string; s: EmailSend };
+  const recentActivity: ActivityItem[] = [
+    ...allEvents.filter(ev => new Date(ev.created_at) >= sevenDaysAgo).map(ev => ({ kind: "event" as const, ts: ev.created_at, ev })),
+    ...allSends.filter(s => new Date(s.sent_at) >= sevenDaysAgo).map(s => ({ kind: "send" as const, ts: s.sent_at, s })),
+  ].sort((a, b) => b.ts.localeCompare(a.ts));
+
+  function dayLabel(ts: string): string {
+    const key = dateKeyFmt.format(new Date(ts));
+    const todayStr = today;
+    const yesterdayStr = dateKeyFmt.format(new Date(Date.now() - 86400000));
+    if (key === todayStr) return "Today";
+    if (key === yesterdayStr) return "Yesterday";
+    return new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, weekday: "long", day: "numeric", month: "short" }).format(new Date(ts));
+  }
 
   const dateLabel = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
@@ -206,42 +221,75 @@ export default async function TodayPage() {
           </div>
         </div>
 
-        {/* Today's activity */}
+        {/* Recent activity — last 7 days */}
         <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
             <Mail style={{ width: 15, height: 15, color: L.muted }} />
-            <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Today&apos;s Activity</span>
-            <span style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed }}>{todaysSends.length} sent · {todaysEvents.length} events</span>
+            <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Recent Activity</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed }}>last 7 days · {recentActivity.length} events</span>
           </div>
-          {todaysSends.length === 0 && todaysEvents.length === 0 ? (
-            <div style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 12.5 }}>No email activity yet today.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {todaysEvents.slice(0, 10).map(ev => {
-                const lead = allLeads.find(l => l.lead_id === ev.lead_id);
-                const isOpen = ev.event_type === "open";
-                return (
-                  <div key={`ev-${ev.id}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: `1px solid ${L.border}` }}>
-                    {isOpen ? <Mail style={{ width: 13, height: 13, color: "var(--blue)", flexShrink: 0 }} /> : <MousePointerClick style={{ width: 13, height: 13, color: "var(--green)", flexShrink: 0 }} />}
-                    <span style={{ fontSize: 13, color: L.text, fontWeight: 600 }}>{lead?.company || ev.lead_id}</span>
-                    <span style={{ fontSize: 12, color: L.muted }}>{isOpen ? "opened an email" : "clicked a link"}</span>
-                    <span style={{ marginLeft: "auto", fontSize: 11.5, color: L.dimmed }}>{formatDateTime(ev.created_at)}</span>
-                  </div>
-                );
-              })}
-              {todaysSends.slice(0, 10).map(s => {
-                const lead = allLeads.find(l => l.lead_id === s.lead_id);
-                return (
-                  <div key={`send-${s.id}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: `1px solid ${L.border}` }}>
-                    <ArrowUpRight style={{ width: 13, height: 13, color: L.muted, flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, color: L.text, fontWeight: 600 }}>{lead?.company || s.lead_id}</span>
-                    <span style={{ fontSize: 12, color: L.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>sent &quot;{s.subject}&quot;</span>
-                    <span style={{ marginLeft: "auto", fontSize: 11.5, color: L.dimmed, flexShrink: 0 }}>{formatDateTime(s.sent_at)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          {recentActivity.length === 0 ? (
+            <div style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 12.5 }}>No activity in the last 7 days.</div>
+          ) : (() => {
+            let lastDay = "";
+            return (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {recentActivity.map((item, i) => {
+                  const day = dayLabel(item.ts);
+                  const showDivider = day !== lastDay;
+                  if (showDivider) lastDay = day;
+                  if (item.kind === "event") {
+                    const ev = item.ev;
+                    const lead = allLeads.find(l => l.lead_id === ev.lead_id);
+                    const isOpen = ev.event_type === "open";
+                    return (
+                      <div key={`ev-${ev.id}-${i}`}>
+                        {showDivider && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 18px", background: "#f8fafc", borderBottom: `1px solid ${L.border}` }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>{day}</span>
+                            <div style={{ flex: 1, height: 1, background: L.border }} />
+                          </div>
+                        )}
+                        <Link href={lead ? `/dashboard/leads/${lead.lead_id}` : "#"} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none" }} className="row-hover">
+                          {isOpen
+                            ? <Mail style={{ width: 13, height: 13, color: "#3b82f6", flexShrink: 0 }} />
+                            : <MousePointerClick style={{ width: 13, height: 13, color: "#16a34a", flexShrink: 0 }} />}
+                          <span style={{ fontSize: 13, color: L.text, fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {lead?.company || ev.lead_id}
+                          </span>
+                          <span style={{ fontSize: 12, color: L.muted, flexShrink: 0 }}>{isOpen ? "opened email" : "clicked link"}</span>
+                          <span style={{ marginLeft: "auto", fontSize: 11.5, color: L.dimmed, flexShrink: 0 }}>
+                            {new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ev.created_at)).replace(" ", "").toLowerCase()}
+                          </span>
+                        </Link>
+                      </div>
+                    );
+                  } else {
+                    const s = item.s;
+                    const lead = allLeads.find(l => l.lead_id === s.lead_id);
+                    return (
+                      <div key={`send-${s.id}-${i}`}>
+                        {showDivider && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 18px", background: "#f8fafc", borderBottom: `1px solid ${L.border}` }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>{day}</span>
+                            <div style={{ flex: 1, height: 1, background: L.border }} />
+                          </div>
+                        )}
+                        <Link href={lead ? `/dashboard/leads/${lead.lead_id}` : "#"} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none" }} className="row-hover">
+                          <ArrowUpRight style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} />
+                          <span style={{ fontSize: 13, color: L.text, fontWeight: 700, flexShrink: 0 }}>{lead?.company || s.lead_id}</span>
+                          <span style={{ fontSize: 12, color: L.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>email sent — &quot;{s.subject}&quot;</span>
+                          <span style={{ marginLeft: "auto", fontSize: 11.5, color: L.dimmed, flexShrink: 0 }}>
+                            {new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(s.sent_at)).replace(" ", "").toLowerCase()}
+                          </span>
+                        </Link>
+                      </div>
+                    );
+                  }
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
