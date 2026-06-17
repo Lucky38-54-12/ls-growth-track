@@ -131,12 +131,12 @@ export default function ScraperPage() {
           <form onSubmit={runScraper} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: L.muted, letterSpacing: "0.06em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
-                <Search style={{ width: 11, height: 11 }} /> Business Type
+                <Search style={{ width: 11, height: 11 }} /> Search Query
               </span>
               <input
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="e.g. landscaping companies"
+                placeholder="e.g. fencing companies wellington"
                 required
                 disabled={running}
                 style={{ padding: "9px 12px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
@@ -145,7 +145,7 @@ export default function ScraperPage() {
 
             <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: L.muted, letterSpacing: "0.06em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
-                <MapPin style={{ width: 11, height: 11 }} /> Location
+                <MapPin style={{ width: 11, height: 11 }} /> Location <span style={{ fontSize: 10, fontWeight: 500, color: L.dimmed, textTransform: "none", letterSpacing: 0 }}>(for pinning + tags)</span>
               </span>
               <input
                 value={location}
