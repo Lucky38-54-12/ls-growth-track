@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import Topbar from "@/components/Topbar";
-import { Play, StopCircle, Download, Search, MapPin, Hash, Database } from "lucide-react";
+import { Play, StopCircle, Download, Search, Hash, Database } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 const LOCAL_SCRAPER = "http://localhost:5050/scraper/run";
@@ -10,7 +10,6 @@ interface LogLine { type: string; msg: string }
 
 export default function ScraperPage() {
   const [query, setQuery]       = useState("");
-  const [location, setLocation] = useState("");
   const [max, setMax]           = useState("50");
   const [sheetId, setSheetId]   = useState("");
 
@@ -34,7 +33,7 @@ export default function ScraperPage() {
 
   function runScraper(e: React.FormEvent) {
     e.preventDefault();
-    if (!query.trim() || !location.trim()) return;
+    if (!query.trim()) return;
 
     setLog([]);
     setDone(false);
@@ -44,7 +43,6 @@ export default function ScraperPage() {
 
     const params = new URLSearchParams({
       query: query.trim(),
-      location: location.trim(),
       max: String(Number(max) || 50),
     });
     if (sheetId.trim()) params.set("sheet_id", sheetId.trim());
@@ -96,7 +94,7 @@ export default function ScraperPage() {
         body: JSON.stringify({
           sheetId: sheetId.trim(),
           tradeDefault: query.trim(),
-          locationDefault: location.trim(),
+          locationDefault: "",
           personalize: false,
           sendFresh: false,
         }),
@@ -137,20 +135,6 @@ export default function ScraperPage() {
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="e.g. fencing companies wellington"
-                required
-                disabled={running}
-                style={{ padding: "9px 12px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
-              />
-            </label>
-
-            <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: L.muted, letterSpacing: "0.06em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
-                <MapPin style={{ width: 11, height: 11 }} /> Location <span style={{ fontSize: 10, fontWeight: 500, color: L.dimmed, textTransform: "none", letterSpacing: 0 }}>(for pinning + tags)</span>
-              </span>
-              <input
-                value={location}
-                onChange={e => setLocation(e.target.value)}
-                placeholder="e.g. Auckland"
                 required
                 disabled={running}
                 style={{ padding: "9px 12px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
