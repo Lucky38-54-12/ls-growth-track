@@ -9,3 +9,19 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ deleted: true });
 }
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const sb = createSupabaseClient();
+  const body = await req.json();
+  const ALLOWED = ["reply_category", "notes", "status"];
+  const update: Record<string, unknown> = {};
+  for (const key of ALLOWED) {
+    if (key in body) update[key] = body[key];
+  }
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+  }
+  const { error } = await sb.from("leads").update(update).eq("lead_id", params.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ updated: true });
+}

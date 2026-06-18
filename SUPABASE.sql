@@ -65,3 +65,18 @@ create index if not exists email_sends_sent_at_idx on email_sends (sent_at);
 
 -- If email_sends already existed without this column, run:
 -- alter table email_sends add column if not exists body_html text not null default '';
+
+-- reply_category: tag replies as Interested / Bad Timing / Not Interested / Has Someone
+-- Run this migration if the table already exists:
+alter table leads
+  add column if not exists reply_category text
+    check (reply_category in ('interested', 'bad_timing', 'not_interested', 'has_someone'));
+
+-- New statuses: followup_3_sent, followup_4_sent, sequence_complete, reenroll_queue
+-- If you added a CHECK constraint on status previously, drop and recreate it:
+-- alter table leads drop constraint if exists leads_status_check;
+-- alter table leads add constraint leads_status_check check (status in (
+--   'not_contacted','contacted','followup_1_sent','followup_2_sent',
+--   'followup_3_sent','followup_4_sent','replied','booked',
+--   'not_interested','bounced','sequence_complete','reenroll_queue'
+-- ));

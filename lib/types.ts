@@ -3,11 +3,16 @@ export type LeadStatus =
   | "contacted"
   | "followup_1_sent"
   | "followup_2_sent"
+  | "followup_3_sent"
+  | "followup_4_sent"
   | "replied"
   | "booked"
   | "not_interested"
   | "bounced"
-  | "sequence_complete";
+  | "sequence_complete"
+  | "reenroll_queue";
+
+export type ReplyCategory = "interested" | "bad_timing" | "not_interested" | "has_someone";
 
 export interface Lead {
   id: string;
@@ -24,6 +29,7 @@ export interface Lead {
   followup_count: number;
   notes: string;
   source: string;
+  reply_category: ReplyCategory | null;
 }
 
 export const LEAD_SOURCES = ["email_outreach", "cold_call"] as const;
@@ -32,6 +38,20 @@ export function sourceLabel(source: string): string {
   if (!source) return "Email Outreach";
   return source.split("_").map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
 }
+
+export const REPLY_CATEGORY_LABELS: Record<ReplyCategory, string> = {
+  interested: "Interested",
+  bad_timing: "Bad Timing",
+  not_interested: "Not Interested",
+  has_someone: "Has Someone",
+};
+
+export const REPLY_CATEGORY_COLORS: Record<ReplyCategory, { bg: string; text: string }> = {
+  interested:     { bg: "#dcfce7", text: "#15803d" },
+  bad_timing:     { bg: "#fef9c3", text: "#854d0e" },
+  not_interested: { bg: "#fee2e2", text: "#dc2626" },
+  has_someone:    { bg: "#ede9fe", text: "#6d28d9" },
+};
 
 export interface EmailEvent {
   id: number;

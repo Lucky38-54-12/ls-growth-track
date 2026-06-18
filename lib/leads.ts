@@ -1,14 +1,20 @@
 import { Lead, LeadStatus } from "./types";
 
-const DAYS_BEFORE_FOLLOWUP_1 = 4;
-const DAYS_BEFORE_FOLLOWUP_2 = 7;
+// Timing is measured from date_contacted (the initial email send date)
+const DAYS_FOLLOWUP_1 = 3;   // Day 3:  short follow-up
+const DAYS_FOLLOWUP_2 = 7;   // Day 7:  social proof / case study
+const DAYS_FOLLOWUP_3 = 14;  // Day 14: last chance
+const DAYS_FOLLOWUP_4 = 21;  // Day 21: breakup email
+
+// Re-enrolment windows
+const DAYS_REENROLL_DEFAULT     = 60; // after sequence_complete with no reply
+const DAYS_REENROLL_HAS_SOMEONE = 90; // if they replied "has_someone"
 
 const TERMINAL_STATUSES = new Set<LeadStatus>([
   "replied",
   "booked",
   "not_interested",
   "bounced",
-  "sequence_complete",
 ]);
 
 function daysSince(dateStr: string | null): number | null {
@@ -18,28 +24,72 @@ function daysSince(dateStr: string | null): number | null {
   return Math.floor((now.getTime() - then.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-export type EmailStep = "initial" | "followup1" | "followup2";
+export type EmailStep = "initial" | "followup1" | "followup2" | "followup3" | "followup4";
 
 export function nextStepFor(lead: Lead): EmailStep | null {
-  const status = lead.status;
+  const { status, date_contacted, last_followup, reply_category } = lead;
+
   if (TERMINAL_STATUSES.has(status)) return null;
-  if (status === "not_contacted" || !lead.date_contacted) return "initial";
-  if (status === "contacted") {
-    const d = daysSince(lead.date_contacted);
-    return d !== null && d >= DAYS_BEFORE_FOLLOWUP_1 ? "followup1" : null;
+
+  // Re-enrol queue — treat like not_contacted (restart at initial)
+  if (status === "reenroll_queue") return "initial";
+
+  // Leads that completed the sequence — check if re-enrol window has passed
+  if (status === "sequence_complete") {
+    const refDate = last_followup || date_contacted;
+    const days = daysSince(refDate);
+    const threshold =
+      reply_category === "has_someone" ? DAYS_REENROLL_HAS_SOMEONE : DAYS_REENROLL_DEFAULT;
+    return days !== null && days >= threshold ? "initial" : null;
   }
-  if (status === "followup_1_sent") {
-    const d = daysSince(lead.last_followup || lead.date_contacted);
-    return d !== null && d >= DAYS_BEFORE_FOLLOWUP_2 ? "followup2" : null;
-  }
+
+  // Not yet started
+  if (status === "not_contacted" || !date_contacted) return "initial";
+
+  // All follow-ups are measured from date_contacted (the initial send date)
+  const daysSinceContact = daysSince(date_contacted);
+  if (daysSinceContact === null) return null;
+
+  if (status === "contacted")      return daysSinceContact >= DAYS_FOLLOWUP_1 ? "followup1" : null;
+  if (status === "followup_1_sent") return daysSinceContact >= DAYS_FOLLOWUP_2 ? "followup2" : null;
+  if (status === "followup_2_sent") return daysSinceContact >= DAYS_FOLLOWUP_3 ? "followup3" : null;
+  if (status === "followup_3_sent") return daysSinceContact >= DAYS_FOLLOWUP_4 ? "followup4" : null;
+  // followup_4_sent → sequence_complete is set immediately after send (in the API), not here
+
   return null;
 }
 
+// Status to set after each step is sent. followup4 completes the sequence.
 export const STEP_NEW_STATUS: Record<EmailStep, LeadStatus> = {
-  initial: "contacted",
+  initial:   "contacted",
   followup1: "followup_1_sent",
   followup2: "followup_2_sent",
+  followup3: "followup_3_sent",
+  followup4: "sequence_complete", // breakup email = sequence done
 };
+
+// Returns true if this sequence_complete lead is due for re-enrolment
+// but hasn't yet been re-enrolled. Used to populate the Re-enrol Queue section.
+export function isReadyForReenroll(lead: Lead): boolean {
+  if (lead.status !== "sequence_complete") return false;
+  const refDate = lead.last_followup || lead.date_contacted;
+  const days = daysSince(refDate);
+  if (days === null) return false;
+  const threshold =
+    lead.reply_category === "has_someone" ? DAYS_REENROLL_HAS_SOMEONE : DAYS_REENROLL_DEFAULT;
+  return days >= threshold;
+}
+
+// Days remaining until a sequence_complete lead is eligible for re-enrolment.
+export function daysUntilReenroll(lead: Lead): number | null {
+  if (lead.status !== "sequence_complete") return null;
+  const refDate = lead.last_followup || lead.date_contacted;
+  const days = daysSince(refDate);
+  if (days === null) return null;
+  const threshold =
+    lead.reply_category === "has_someone" ? DAYS_REENROLL_HAS_SOMEONE : DAYS_REENROLL_DEFAULT;
+  return Math.max(0, threshold - days);
+}
 
 export function slugify(value: string): string {
   return (
@@ -61,9 +111,7 @@ export function generateLeadId(company: string, existingIds: Set<string>): strin
   return candidate;
 }
 
-// Groups leads into campaign "segments" by trade+location, e.g. trade=Cleaning,
-// location="Wellington NZ" -> "Wellington Cleaning Companies". Used to organize
-// the Contacts and Send Queue pages by campaign.
+// Groups leads into campaign "segments" by trade+location.
 export interface Segment {
   key: string;
   trade: string;

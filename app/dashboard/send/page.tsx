@@ -1,8 +1,9 @@
 import { createSupabaseClient } from "@/lib/supabase";
-import { nextStepFor, groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
+import { nextStepFor, groupBySegment, segmentKey, segmentLabel, isReadyForReenroll } from "@/lib/leads";
 import { renderTemplate, EmailStep, industryKey, INDUSTRY_LABELS } from "@/lib/templates";
-import { Lead, EmailSend, EmailEvent } from "@/lib/types";
+import { Lead, EmailSend, EmailEvent, REPLY_CATEGORY_LABELS, REPLY_CATEGORY_COLORS, ReplyCategory } from "@/lib/types";
 import SendButton from "@/components/SendButton";
+import ReplyTagPicker from "@/components/ReplyTagPicker";
 import Topbar from "@/components/Topbar";
 import Link from "next/link";
 
@@ -10,24 +11,40 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 
 export const revalidate = 0;
 
+const DAILY_LIMIT = 15;
+
 const STEP_LABEL: Record<EmailStep, string> = {
-  initial: "Initial Outreach",
+  initial:   "Initial",
   followup1: "Follow-up 1",
   followup2: "Follow-up 2",
+  followup3: "Follow-up 3",
+  followup4: "Breakup",
 };
 
-const STEP_ORDER: EmailStep[] = ["initial", "followup1", "followup2"];
-
-const STEP_TIMING: Record<EmailStep, string> = {
-  initial: "Sent immediately on import",
-  followup1: "4 days after initial — if no reply",
-  followup2: "7 days after follow-up 1 — if no reply",
-};
+const STEP_ORDER: EmailStep[] = ["initial", "followup1", "followup2", "followup3", "followup4"];
 
 const STEP_DAY: Record<EmailStep, string> = {
-  initial: "Day 0",
-  followup1: "Day 4+",
-  followup2: "Day 11+",
+  initial:   "Day 0",
+  followup1: "Day 3",
+  followup2: "Day 7",
+  followup3: "Day 14",
+  followup4: "Day 21",
+};
+
+const STEP_DESC: Record<EmailStep, string> = {
+  initial:   "First touch",
+  followup1: "Short follow-up",
+  followup2: "Social proof",
+  followup3: "Last chance",
+  followup4: "Breakup email",
+};
+
+const STEP_COLORS: Record<EmailStep, { bg: string; border: string; label: string; text: string }> = {
+  initial:   { bg: "#fff7ed", border: "#fed7aa", label: "#c2410c", text: "#9a3412" },
+  followup1: { bg: "#fffbeb", border: "#fde68a", label: "#b45309", text: "#92400e" },
+  followup2: { bg: "#fefce8", border: "#fef08a", label: "#854d0e", text: "#713f12" },
+  followup3: { bg: "#fff1f2", border: "#fecdd3", label: "#be123c", text: "#9f1239" },
+  followup4: { bg: "#f5f3ff", border: "#ddd6fe", label: "#6d28d9", text: "#4c1d95" },
 };
 
 type QueueItem = { lead: Lead; step: EmailStep; subject: string; html: string };
@@ -59,14 +76,29 @@ export default async function OutreachPage({
   const bookedCount = allLeads.filter(l => l.status === "booked").length;
   const replyRate = totalSent > 0 ? Math.round(((repliedCount + bookedCount) / totalSent) * 100) : 0;
 
-  // --- Sequence stage breakdown ---
-  const stageCounts = {
-    not_contacted: allLeads.filter(l => l.status === "not_contacted").length,
-    contacted: allLeads.filter(l => l.status === "contacted").length,
-    followup_1_sent: allLeads.filter(l => l.status === "followup_1_sent").length,
-    followup_2_sent: allLeads.filter(l => l.status === "followup_2_sent").length,
-    converted: repliedCount + bookedCount,
+  // Reply category breakdown
+  const replyCats: Record<ReplyCategory, number> = {
+    interested: allLeads.filter(l => l.reply_category === "interested").length,
+    bad_timing: allLeads.filter(l => l.reply_category === "bad_timing").length,
+    not_interested: allLeads.filter(l => l.reply_category === "not_interested").length,
+    has_someone: allLeads.filter(l => l.reply_category === "has_someone").length,
   };
+
+  // Stage breakdown
+  const stageCounts = {
+    not_contacted:    allLeads.filter(l => l.status === "not_contacted").length,
+    contacted:        allLeads.filter(l => l.status === "contacted").length,
+    followup_1_sent:  allLeads.filter(l => l.status === "followup_1_sent").length,
+    followup_2_sent:  allLeads.filter(l => l.status === "followup_2_sent").length,
+    followup_3_sent:  allLeads.filter(l => l.status === "followup_3_sent").length,
+    converted:        repliedCount + bookedCount,
+  };
+
+  // Replied leads awaiting category tag
+  const awaitingTag = allLeads.filter(l => l.status === "replied" && !l.reply_category);
+
+  // Re-enrol queue
+  const reenrollReady = allLeads.filter(isReadyForReenroll);
 
   // --- Queue ---
   const queue: QueueItem[] = allLeads
@@ -85,6 +117,8 @@ export default async function OutreachPage({
     })
     .filter((x): x is QueueItem => x !== null);
 
+  const overLimit = queue.length > DAILY_LIMIT;
+
   const activeSegment = searchParams?.segment || "all";
   const segments = groupBySegment(queue.map((q) => q.lead));
   const visibleQueue =
@@ -95,100 +129,151 @@ export default async function OutreachPage({
   const selectedId = searchParams?.lead;
   const selected = (selectedId && visibleQueue.find((q) => q.lead.lead_id === selectedId)) || visibleQueue[0];
 
-  // Counts per step in the visible queue
-  const queueByStep: Record<EmailStep, number> = { initial: 0, followup1: 0, followup2: 0 };
+  const queueByStep: Record<EmailStep, number> = { initial: 0, followup1: 0, followup2: 0, followup3: 0, followup4: 0 };
   for (const q of visibleQueue) queueByStep[q.step]++;
+
+  // Pipeline stage → queue count mapping
+  const STAGE_STATUS_MAP: Array<{
+    key: string;
+    label: string;
+    day: string;
+    desc: string;
+    count: number;
+    dueCount: number;
+    colors: typeof STEP_COLORS.initial;
+  }> = [
+    {
+      key: "not_contacted", label: "Not Started", day: "", desc: "Awaiting initial",
+      count: stageCounts.not_contacted, dueCount: queueByStep.initial,
+      colors: { bg: "#f8fafc", border: L.border, label: L.muted, text: L.dimmed },
+    },
+    { key: "initial",   label: "Email 1", day: "Day 0",  desc: "Initial outreach", count: stageCounts.contacted,       dueCount: 0, colors: STEP_COLORS.initial },
+    { key: "followup1", label: "Email 2", day: "Day 3",  desc: "Short follow-up",  count: stageCounts.followup_1_sent, dueCount: queueByStep.followup1, colors: STEP_COLORS.followup1 },
+    { key: "followup2", label: "Email 3", day: "Day 7",  desc: "Social proof",     count: stageCounts.followup_2_sent, dueCount: queueByStep.followup2, colors: STEP_COLORS.followup2 },
+    { key: "followup3", label: "Email 4", day: "Day 14", desc: "Last chance",      count: stageCounts.followup_3_sent, dueCount: queueByStep.followup3, colors: STEP_COLORS.followup3 },
+    { key: "followup4", label: "Email 5", day: "Day 21", desc: "Breakup email",    count: 0,                           dueCount: queueByStep.followup4, colors: STEP_COLORS.followup4 },
+    {
+      key: "converted", label: "Converted", day: "", desc: `${repliedCount} replied · ${bookedCount} booked`,
+      count: stageCounts.converted, dueCount: 0,
+      colors: { bg: "#f0fdf4", border: "#bbf7d0", label: "#15803d", text: "#166534" },
+    },
+  ];
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
-      <Topbar title="EMAIL OUTREACH" subtitle="Automated 3-step sequence — stops when they reply or book" />
+      <Topbar title="EMAIL OUTREACH" subtitle={`5-step sequence · ${DAILY_LIMIT}/day send limit`} />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
 
         {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
           {[
-            { label: "Active in Sequence", value: activeLeads.length, color: L.text },
-            { label: "Due to Send", value: queue.length, color: queue.length > 0 ? "#dc2626" : L.text },
-            { label: "Total Emails Sent", value: totalSent.toLocaleString(), color: L.text },
-            { label: "Open Rate", value: `${openRate}%`, color: openRate > 30 ? "#16a34a" : L.text },
-            { label: "Reply / Booked", value: `${replyRate}%`, color: replyRate > 5 ? "#16a34a" : L.text },
-          ].map(({ label, value, color }) => (
+            { label: "Active in Sequence", value: activeLeads.length, color: L.text, sub: null },
+            { label: "Due to Send", value: queue.length, color: queue.length > 0 ? "#dc2626" : L.text, sub: overLimit ? `Limit: ${DAILY_LIMIT}/day` : null },
+            { label: "Total Emails Sent", value: totalSent.toLocaleString(), color: L.text, sub: null },
+            { label: "Open Rate", value: `${openRate}%`, color: openRate > 30 ? "#16a34a" : L.text, sub: `${totalOpens} opens` },
+            { label: "Reply / Booked", value: `${replyRate}%`, color: replyRate > 5 ? "#16a34a" : L.text, sub: `${repliedCount} replied · ${bookedCount} booked` },
+          ].map(({ label, value, color, sub }) => (
             <div key={label} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "14px 18px" }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: L.dimmed, marginBottom: 6 }}>{label}</div>
               <div style={{ fontSize: 26, fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
+              {sub && <div style={{ fontSize: 10.5, color: L.dimmed, marginTop: 5 }}>{sub}</div>}
             </div>
           ))}
         </div>
 
+        {/* Reply category breakdown */}
+        {Object.values(replyCats).some(v => v > 0) && (
+          <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "12px 18px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>Reply Breakdown</span>
+            {(Object.keys(replyCats) as ReplyCategory[]).map(cat => {
+              const n = replyCats[cat];
+              if (!n) return null;
+              const c = REPLY_CATEGORY_COLORS[cat];
+              return (
+                <span key={cat} style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", background: c.bg, color: c.text }}>
+                  {REPLY_CATEGORY_LABELS[cat]}: {n}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Staggered send warning */}
+        {overLimit && (
+          <div style={{ background: "#fffbeb", border: "1px solid #fde68a", padding: "12px 18px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>
+                {queue.length} emails due — over the {DAILY_LIMIT}/day limit
+              </div>
+              <div style={{ fontSize: 12, color: "#b45309", marginTop: 2 }}>
+                Consider splitting across multiple days to avoid spam filters. Send {DAILY_LIMIT} today and come back tomorrow for the rest.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Sequence pipeline */}
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "18px 20px" }}>
           <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, marginBottom: 16 }}>Sequence Pipeline</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 28px 1fr 28px 1fr 28px 1fr 28px 1fr", alignItems: "center", gap: 0 }}>
-
-            {/* Stage: Queued */}
-            <div style={{ padding: "12px 14px", background: "#f8fafc", border: `1px solid ${L.border}` }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: L.dimmed }}>Not Started</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: L.text, margin: "4px 0" }}>{stageCounts.not_contacted}</div>
-              <div style={{ fontSize: 11, color: L.dimmed }}>Awaiting initial</div>
-            </div>
-
-            <div style={{ textAlign: "center", color: L.dimmed, fontSize: 16, fontWeight: 300 }}>›</div>
-
-            {/* Step 1 */}
-            <div style={{ padding: "12px 14px", background: "#fff7ed", border: "1px solid #fed7aa" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#c2410c" }}>Step 1 · Day 0</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: "#c2410c", margin: "4px 0" }}>{stageCounts.contacted + queueByStep.initial}</div>
-              <div style={{ fontSize: 11, color: "#9a3412" }}>Initial outreach</div>
-              {queueByStep.initial > 0 && <div style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", marginTop: 4 }}>↑ {queueByStep.initial} due now</div>}
-            </div>
-
-            <div style={{ textAlign: "center", color: L.dimmed, fontSize: 16, fontWeight: 300 }}>›</div>
-
-            {/* Step 2 */}
-            <div style={{ padding: "12px 14px", background: "#fffbeb", border: "1px solid #fde68a" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#b45309" }}>Step 2 · Day 4+</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: "#b45309", margin: "4px 0" }}>{stageCounts.followup_1_sent + queueByStep.followup1}</div>
-              <div style={{ fontSize: 11, color: "#92400e" }}>Follow-up 1</div>
-              {queueByStep.followup1 > 0 && <div style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", marginTop: 4 }}>↑ {queueByStep.followup1} due now</div>}
-            </div>
-
-            <div style={{ textAlign: "center", color: L.dimmed, fontSize: 16, fontWeight: 300 }}>›</div>
-
-            {/* Step 3 */}
-            <div style={{ padding: "12px 14px", background: "#fefce8", border: "1px solid #fef08a" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#854d0e" }}>Step 3 · Day 11+</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: "#854d0e", margin: "4px 0" }}>{stageCounts.followup_2_sent + queueByStep.followup2}</div>
-              <div style={{ fontSize: 11, color: "#713f12" }}>Follow-up 2</div>
-              {queueByStep.followup2 > 0 && <div style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", marginTop: 4 }}>↑ {queueByStep.followup2} due now</div>}
-            </div>
-
-            <div style={{ textAlign: "center", color: L.dimmed, fontSize: 16, fontWeight: 300 }}>›</div>
-
-            {/* Converted */}
-            <div style={{ padding: "12px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#15803d" }}>Converted</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: "#15803d", margin: "4px 0" }}>{stageCounts.converted}</div>
-              <div style={{ fontSize: 11, color: "#166534" }}>{repliedCount} replied · {bookedCount} booked</div>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ display: "flex", alignItems: "stretch", gap: 0, minWidth: 700 }}>
+              {STAGE_STATUS_MAP.map((stage, i) => (
+                <div key={stage.key} style={{ display: "flex", alignItems: "center", flex: i === 0 || i === STAGE_STATUS_MAP.length - 1 ? "0 0 auto" : 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, padding: "10px 12px", background: stage.colors.bg, border: `1px solid ${stage.colors.border}`, minWidth: 0 }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: stage.colors.label, whiteSpace: "nowrap" }}>
+                      {stage.label}{stage.day ? ` · ${stage.day}` : ""}
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: stage.colors.label, margin: "3px 0" }}>{stage.count}</div>
+                    <div style={{ fontSize: 10, color: stage.colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{stage.desc}</div>
+                    {stage.dueCount > 0 && <div style={{ fontSize: 9, fontWeight: 800, color: "#dc2626", marginTop: 3 }}>↑ {stage.dueCount} due</div>}
+                  </div>
+                  {i < STAGE_STATUS_MAP.length - 1 && (
+                    <div style={{ padding: "0 4px", color: L.dimmed, fontSize: 14, fontWeight: 300, flexShrink: 0 }}>›</div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Sequence settings */}
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${L.border}`, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {/* Sequence settings strip */}
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${L.border}`, display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
             {STEP_ORDER.map((step) => (
-              <div key={step} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "#f8fafc", border: `1px solid ${L.border}`, fontSize: 11 }}>
+              <div key={step} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "#f8fafc", border: `1px solid ${L.border}`, fontSize: 10.5 }}>
                 <span style={{ fontWeight: 700, color: L.text }}>{STEP_LABEL[step]}</span>
                 <span style={{ color: L.dimmed }}>·</span>
                 <span style={{ color: L.muted }}>{STEP_DAY[step]}</span>
                 <span style={{ color: L.dimmed }}>·</span>
-                <span style={{ color: L.dimmed }}>{STEP_TIMING[step]}</span>
+                <span style={{ color: L.dimmed }}>{STEP_DESC[step]}</span>
               </div>
             ))}
-            <Link href="/dashboard/templates" style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "transparent", border: `1px solid ${L.border}`, fontSize: 11, fontWeight: 700, color: "#2563eb", textDecoration: "none" }}>
-              Edit email templates →
-            </Link>
           </div>
         </div>
+
+        {/* Replied leads awaiting tag */}
+        {awaitingTag.length > 0 && (
+          <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "16px 18px" }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, marginBottom: 12 }}>
+              Tag Replies ({awaitingTag.length})
+            </div>
+            <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 14 }}>
+              These leads replied but haven&apos;t been categorised yet. Tag each one to track pipeline health and set the right re-enrol window.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {awaitingTag.map(lead => (
+                <div key={lead.lead_id} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 16, padding: "10px 14px", background: "#f8fafc", border: `1px solid ${L.border}` }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: L.text }}>{lead.company}</div>
+                    <div style={{ fontSize: 11, color: L.dimmed, marginTop: 1 }}>{lead.email}</div>
+                    {lead.notes && <div style={{ fontSize: 11, color: L.muted, marginTop: 3, fontStyle: "italic" }}>{lead.notes}</div>}
+                  </div>
+                  <ReplyTagPicker leadId={lead.lead_id} current={lead.reply_category} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Ready to send */}
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "16px 18px" }}>
@@ -197,14 +282,13 @@ export default async function OutreachPage({
               <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>Ready to Send</div>
               <p style={{ fontSize: 12.5, color: L.muted, marginTop: 3 }}>
                 {queue.length > 0
-                  ? `${queue.length} lead${queue.length !== 1 ? "s" : ""} due across ${segments.length} campaign${segments.length !== 1 ? "s" : ""}`
+                  ? `${queue.length} lead${queue.length !== 1 ? "s" : ""} due across ${segments.length} campaign${segments.length !== 1 ? "s" : ""}${overLimit ? ` — send ${DAILY_LIMIT} today` : ""}`
                   : "All caught up — no emails due right now."}
               </p>
             </div>
             <SendButton due={queue.length} />
           </div>
 
-          {/* Campaign tabs */}
           {segments.length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", paddingTop: 10, borderTop: `1px solid ${L.border}` }}>
               <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: L.dimmed }}>Campaigns</span>
@@ -251,8 +335,7 @@ export default async function OutreachPage({
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                  {/* Column headers */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px", gap: 0, padding: "6px 14px", background: "#f8fafc", border: `1px solid ${L.border}` }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 70px", gap: 0, padding: "6px 14px", background: "#f8fafc", border: `1px solid ${L.border}` }}>
                     {["Company", "Step", ""].map((h, i) => (
                       <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: L.dimmed }}>{h}</div>
                     ))}
@@ -263,30 +346,29 @@ export default async function OutreachPage({
                     const params = new URLSearchParams();
                     if (activeSegment !== "all") params.set("segment", activeSegment);
                     params.set("lead", lead.lead_id);
-
-                    const stepColors: Record<EmailStep, { bg: string; text: string }> = {
-                      initial: { bg: "#fff7ed", text: "#c2410c" },
-                      followup1: { bg: "#fffbeb", text: "#b45309" },
-                      followup2: { bg: "#fefce8", text: "#854d0e" },
-                    };
-                    const sc = stepColors[step];
+                    const sc = STEP_COLORS[step];
 
                     return (
                       <Link key={lead.lead_id} href={`/dashboard/send?${params.toString()}`} style={{
-                        display: "grid", gridTemplateColumns: "1fr 100px 100px",
+                        display: "grid", gridTemplateColumns: "1fr 110px 70px",
                         alignItems: "center", gap: 0,
                         background: active ? "#fef2f2" : L.surface,
                         border: `1px solid ${active ? "var(--red)" : L.border}`,
-                        borderLeft: active ? "2px solid var(--red)" : `2px solid transparent`,
+                        borderLeft: active ? "2px solid var(--red)" : "2px solid transparent",
                         padding: "10px 14px", textDecoration: "none",
                         marginTop: -1,
                       }}>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13.5, color: L.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.company}</div>
-                          <div style={{ fontSize: 11.5, color: L.dimmed, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.email}</div>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: L.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.company}</div>
+                          <div style={{ fontSize: 11, color: L.dimmed, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.email}</div>
+                          {lead.notes && (
+                            <div style={{ fontSize: 10.5, color: L.muted, marginTop: 2, fontStyle: "italic", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {lead.notes}
+                            </div>
+                          )}
                         </div>
-                        <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: sc.bg, color: sc.text, display: "inline-block" }}>
-                          {STEP_LABEL[step]}
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: sc.bg, color: sc.label, display: "inline-block", whiteSpace: "nowrap" }}>
+                          {STEP_LABEL[step]} · {STEP_DAY[step]}
                         </span>
                         <div style={{ display: "flex", justifyContent: "flex-end" }}>
                           <SendButton due={1} leadIds={[lead.lead_id]} label="Send" />
@@ -302,24 +384,31 @@ export default async function OutreachPage({
             <div style={{ position: "sticky", top: 20, display: "flex", flexDirection: "column", gap: 10 }}>
               {selected ? (
                 <>
-                  {/* Preview header */}
                   <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
                     <div style={{ padding: "12px 16px", borderBottom: `1px solid ${L.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div>
                         <div style={{ fontWeight: 800, fontSize: 13.5, color: L.text }}>{selected.lead.company}</div>
                         <div style={{ fontSize: 11.5, color: L.dimmed, marginTop: 1 }}>{selected.lead.email}</div>
                       </div>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#fff7ed", color: "#c2410c" }}>
-                        {STEP_LABEL[selected.step]}
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: STEP_COLORS[selected.step].bg, color: STEP_COLORS[selected.step].label, whiteSpace: "nowrap" }}>
+                        {STEP_LABEL[selected.step]} · {STEP_DAY[selected.step]}
                       </span>
                     </div>
                     <div style={{ padding: "14px 16px" }}>
                       <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.dimmed, marginBottom: 3 }}>Subject</div>
                       <div style={{ fontSize: 13.5, fontWeight: 700, color: L.text, marginBottom: 12 }}>{selected.subject}</div>
                       <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.dimmed, marginBottom: 6 }}>Body</div>
-                      <div style={{ border: `1px solid ${L.border}`, padding: 14, background: "#f8fafc", maxHeight: 340, overflow: "auto", fontSize: 13, lineHeight: 1.6 }}
-                        dangerouslySetInnerHTML={{ __html: selected.html }} />
+                      <div
+                        style={{ border: `1px solid ${L.border}`, padding: 14, background: "#f8fafc", maxHeight: 300, overflow: "auto", fontSize: 13, lineHeight: 1.6 }}
+                        dangerouslySetInnerHTML={{ __html: selected.html }}
+                      />
                     </div>
+                    {selected.lead.notes && (
+                      <div style={{ padding: "0 16px 12px" }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.dimmed, marginBottom: 4 }}>Notes</div>
+                        <div style={{ fontSize: 12.5, color: L.muted, fontStyle: "italic" }}>{selected.lead.notes}</div>
+                      </div>
+                    )}
                     <div style={{ padding: "0 16px 14px", display: "flex", gap: 8, alignItems: "center" }}>
                       <SendButton due={1} leadIds={[selected.lead.lead_id]} label="Send this email" />
                       <Link href={`/dashboard/leads/${selected.lead.lead_id}`} style={{ fontSize: 12, color: "#2563eb", fontWeight: 600, textDecoration: "none" }}>
@@ -328,47 +417,45 @@ export default async function OutreachPage({
                     </div>
                   </div>
 
-                  {/* Sequence status for this lead */}
+                  {/* Sequence status tracker */}
                   <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "14px 16px" }}>
                     <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 12 }}>Sequence Status</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                       {STEP_ORDER.map((step, i) => {
                         const stepIndex = STEP_ORDER.indexOf(selected.step);
                         const isDone = i < stepIndex;
                         const isCurrent = step === selected.step;
-                        const isPending = i > stepIndex;
+                        const sc = STEP_COLORS[step];
                         return (
                           <div key={step} style={{
-                            display: "flex", gap: 10, alignItems: "flex-start",
-                            padding: "8px 10px",
+                            display: "flex", gap: 9, alignItems: "flex-start", padding: "7px 9px",
                             background: isCurrent ? "#fef2f2" : isDone ? "#f0fdf4" : "#f8fafc",
                             border: `1px solid ${isCurrent ? "#fca5a5" : isDone ? "#bbf7d0" : L.border}`,
                           }}>
                             <span style={{
-                              width: 18, height: 18, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 10, fontWeight: 800,
+                              width: 17, height: 17, borderRadius: "50%", flexShrink: 0,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 9, fontWeight: 800,
                               background: isCurrent ? "var(--red)" : isDone ? "#16a34a" : "#e2e8f0",
                               color: isCurrent || isDone ? "#fff" : L.dimmed,
                             }}>
                               {isDone ? "✓" : i + 1}
                             </span>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: isCurrent ? "var(--red)" : isDone ? "#15803d" : L.muted }}>
-                                {STEP_LABEL[step]}
+                              <div style={{ fontSize: 11.5, fontWeight: 700, color: isCurrent ? "var(--red)" : isDone ? "#15803d" : L.muted }}>
+                                {STEP_LABEL[step]} · {STEP_DAY[step]}
                                 {isCurrent && " · Due now"}
                                 {isDone && " · Sent"}
-                                {isPending && " · Pending"}
+                                {!isCurrent && !isDone && " · Pending"}
                               </div>
-                              <div style={{ fontSize: 11, color: L.dimmed, marginTop: 1 }}>{STEP_TIMING[step]}</div>
+                              <div style={{ fontSize: 10.5, color: L.dimmed, marginTop: 1 }}>{STEP_DESC[step]}</div>
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${L.border}`, fontSize: 11.5, color: L.dimmed, lineHeight: 1.5 }}>
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${L.border}`, fontSize: 11.5, color: L.dimmed }}>
                       Template: <strong style={{ color: L.muted }}>{INDUSTRY_LABELS[industryKey(selected.lead.trade)]}</strong>
-                      {" · "}
-                      <Link href={`/dashboard/templates?trade=${encodeURIComponent(selected.lead.trade)}`} style={{ color: "#2563eb" }}>Edit</Link>
                     </div>
                   </div>
                 </>
@@ -380,6 +467,44 @@ export default async function OutreachPage({
             </div>
           </div>
         )}
+
+        {/* Re-enrol queue */}
+        {reenrollReady.length > 0 && (
+          <div style={{ background: L.surface, border: `1px solid #ddd6fe`, padding: "16px 18px" }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#6d28d9", marginBottom: 6 }}>
+              Re-enrol Queue ({reenrollReady.length})
+            </div>
+            <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 14 }}>
+              These contacts completed the sequence and are now past their re-enrolment window. They&apos;ll appear in the send queue above automatically — or you can review them first.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {reenrollReady.map(lead => {
+                const rc = lead.reply_category;
+                return (
+                  <div key={lead.lead_id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", alignItems: "center", gap: 16, padding: "10px 14px", background: "#faf5ff", border: `1px solid #ddd6fe` }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: L.text }}>{lead.company}</div>
+                      <div style={{ fontSize: 11, color: L.dimmed }}>{lead.email}</div>
+                      {lead.notes && <div style={{ fontSize: 11, color: L.muted, fontStyle: "italic", marginTop: 2 }}>{lead.notes}</div>}
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      {rc && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: REPLY_CATEGORY_COLORS[rc].bg, color: REPLY_CATEGORY_COLORS[rc].text, display: "block", marginBottom: 4 }}>
+                          {REPLY_CATEGORY_LABELS[rc]}
+                        </span>
+                      )}
+                      <div style={{ fontSize: 10.5, color: "#6d28d9" }}>Ready to re-enrol</div>
+                    </div>
+                    <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ fontSize: 12, fontWeight: 600, color: "#6d28d9", textDecoration: "none", whiteSpace: "nowrap" }}>
+                      View →
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

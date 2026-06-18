@@ -29,12 +29,14 @@ export default async function WarmLeadsPage() {
     }
   }
 
-  const warm = ((leads || []) as Lead[]).filter((l) => {
+  const isWarm = (l: Lead) => {
     if (CONVERTED_STATUSES.has(l.status)) return false;
     const ev = engagement[l.lead_id];
     // Show replied (direct signal) OR any lead with tracked opens/clicks
     return l.status === "replied" || (ev && (ev.opens > 0 || ev.clicks > 0));
-  }).sort((a, b) => {
+  };
+
+  const warm = ((leads || []) as Lead[]).filter(isWarm).sort((a, b) => {
     // Clicks rank highest (strongest intent), then opens, then replied
     const aClicks = engagement[a.lead_id]?.clicks || 0;
     const bClicks = engagement[b.lead_id]?.clicks || 0;
@@ -46,6 +48,10 @@ export default async function WarmLeadsPage() {
     const bReplied = b.status === "replied" ? 1 : 0;
     return bReplied - aReplied;
   });
+
+  const sentNoActivity = ((leads || []) as Lead[])
+    .filter((l) => !CONVERTED_STATUSES.has(l.status) && l.status !== "not_contacted" && !isWarm(l))
+    .sort((a, b) => (b.date_contacted || "").localeCompare(a.date_contacted || ""));
 
   return (
     <div>
@@ -91,6 +97,39 @@ export default async function WarmLeadsPage() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginTop: 24 }}>
+          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 18 }}>
+            Sent, No Activity Yet — {sentNoActivity.length} lead{sentNoActivity.length !== 1 ? "s" : ""}
+          </div>
+          {sentNoActivity.length === 0 ? (
+            <p style={{ color: L.muted, fontSize: 13 }}>Nothing pending — every contacted lead has opened, clicked, or replied.</p>
+          ) : (
+            <table style={{ borderCollapse: "collapse", width: "100%" }}>
+              <thead>
+                <tr>
+                  {["Company", "Contact", "Email", "Trade", "Status", "Date Contacted"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "10px 12px", borderBottom: `1px solid ${L.border}`, color: L.muted, fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sentNoActivity.map((lead) => (
+                  <tr key={lead.lead_id}>
+                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>
+                      <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: "var(--red)" }}>{lead.company}</Link>
+                    </td>
+                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5 }}>{lead.contact_name}</td>
+                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5, color: L.muted }}>{lead.email}</td>
+                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5, color: L.muted }}>{lead.trade}</td>
+                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted }}>{lead.status}</td>
+                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted }}>{lead.date_contacted || "—"}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}

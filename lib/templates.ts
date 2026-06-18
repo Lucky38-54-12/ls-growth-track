@@ -1,4 +1,4 @@
-export type EmailStep = "initial" | "followup1" | "followup2";
+export type EmailStep = "initial" | "followup1" | "followup2" | "followup3" | "followup4";
 
 interface TemplateData {
   company: string;
@@ -33,9 +33,8 @@ export function htmlToText(html: string) {
 type StepTemplate = { subject: string; html: string };
 type TemplateSet = Record<EmailStep, StepTemplate>;
 
-// Each industry gets its own copy/social proof — sending the Queenstown
-// Cleaning case study to a non-cleaning business doesn't land.
 const CLEANING_TEMPLATES: TemplateSet = {
+  // Day 0 — initial outreach with Queenstown Cleaning case study
   initial: {
     subject: `How Queenstown Cleaning turned 57 leads into 30 booked jobs last month`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
@@ -50,63 +49,118 @@ const CLEANING_TEMPLATES: TemplateSet = {
 </div>
 {{pixel}}`,
   },
+
+  // Day 3 — short follow-up
   followup1: {
     subject: `Re: How Queenstown Cleaning turned 57 leads into 30 booked jobs last month`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
-  <p>Following up on my note from last week, totally get it if things are flat out at the moment (that's actually exactly the kind of "good problem" we help {{trade}} businesses create more of).</p>
-  <p>Most local service businesses respond to less than 30% of new enquiries within the first hour, and the rest just go cold and book someone else. Our system contacts every new lead within 60 seconds, then handles the follow up so nothing slips through.</p>
-  <p>If a steady flow of new jobs each month would help {{company}}, happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> this week, no pressure either way.</p>
+  <p>Just bumping this up in case it got buried. The core idea is simple — most {{trade}} businesses lose enquiries just because nobody gets back within the hour. Our system responds in under 60 seconds and handles all the follow up automatically, so you're converting leads you'd otherwise lose.</p>
+  <p>Happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> and show you exactly how it works for {{company}}.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
 </div>
 {{pixel}}`,
   },
+
+  // Day 7 — social proof / case study
   followup2: {
-    subject: `Last note from me, {{company}}`,
+    subject: `8 booked jobs in week one — {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>Wanted to share one more example. In Queenstown Cleaning's first week running our system they got 19 new enquiries, and 8 of those turned into paid, booked jobs by the end of the week.</p>
+  <p>The reason it works is speed. New leads get a personalised text back within 60 seconds, before they've had a chance to call someone else. Most {{trade}} businesses respond hours later (or not at all) so the job's already gone by then.</p>
+  <p>If {{company}} wants a consistent flow of jobs without chasing quotes, worth a <a href="{{cta_link}}">quick 15 min look</a>.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+
+  // Day 14 — last chance
+  followup3: {
+    subject: `Before I move on — {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>One last thing before I wrap this up. We take on a small number of {{trade}} businesses at a time so we can actually get results (not just sell a package and disappear), and we've got a spot available in {{location}} right now.</p>
+  <p>If {{company}} is even a little curious about a predictable source of new jobs each month, this week is probably the right time. <a href="{{cta_link}}">Book 15 minutes here</a> and I'll show you exactly what the first 30 days would look like.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+
+  // Day 21 — breakup email
+  followup4: {
+    subject: `Last one from me, {{company}}`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
   <p>I'll keep this one short, I know inboxes get slammed.</p>
-  <p>I've reached out a couple of times about helping {{company}} bring in more consistent jobs through a managed lead system (we do this for {{trade}} businesses across NZ and Australia, and last month alone Queenstown Cleaning got 57 new leads and 30 of them turned into booked jobs).</p>
-  <p>If now's not the right time, no worries at all, I'll leave it here. But if you ever want to see what a steady pipeline of pre qualified jobs would look like for {{company}}, <a href="{{cta_link}}">just grab a time here</a> and I'll send through some examples from similar businesses.</p>
+  <p>I've reached out a few times about helping {{company}} get more consistent {{trade}} jobs through a done-for-you lead system. I'll leave it here after this one.</p>
+  <p>If the timing ever changes, <a href="{{cta_link}}">grab a time here</a> and I'll send through some real numbers from other {{trade}} businesses we've worked with in {{location}}.</p>
   <p>All the best,<br>Lucky<br>LS Growth</p>
 </div>
 {{pixel}}`,
   },
 };
 
-// Generic case study (Cooper Electrical) for industries that don't have
-// their own social proof yet. Swap in industry-specific copy as it's written.
 const DEFAULT_TEMPLATES: TemplateSet = {
+  // Day 0
   initial: {
     subject: `A faster way for {{company}} to turn enquiries into booked jobs`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
   <p>Quick one. Most {{trade}} businesses lose 70%+ of new enquiries simply because nobody gets back to them within the first hour, and by then they've already called someone else.</p>
-  <p>We run a lead gen + fast-follow-up system for trade businesses across NZ and Australia: new leads get a response in under 60 seconds, then the follow up sequence runs automatically. For one client, Cooper Electrical, that turned into $80k in booked jobs within about 2 months.</p>
+  <p>We run a lead gen + fast-follow-up system for trade businesses across NZ and Australia: new leads get a response in under 60 seconds, then the follow up sequence runs automatically. For one client, Cooper Electrical, that turned into $80k in booked jobs within about 2 months of starting.</p>
   <p>I came across {{company}} and figured it might be worth a look for a {{trade}} business in {{location}} too.</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
 </div>
 {{pixel}}`,
   },
+
+  // Day 3
   followup1: {
     subject: `Re: A faster way for {{company}} to turn enquiries into booked jobs`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
-  <p>Following up on my note from last week, totally get it if things are flat out at the moment (that's actually exactly the kind of "good problem" we help {{trade}} businesses create more of).</p>
-  <p>Most local service businesses respond to less than 30% of new enquiries within the first hour, and the rest just go cold and book someone else. Our system contacts every new lead within 60 seconds, then handles the follow up so nothing slips through.</p>
-  <p>If a steady flow of new jobs each month would help {{company}}, happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> this week, no pressure either way.</p>
+  <p>Just bumping this in case it got buried. The short version: most {{trade}} businesses lose leads just because nobody follows up fast enough. Our system handles that part automatically — new enquiries get a response within 60 seconds, every time.</p>
+  <p>Happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> this week and show you how it'd work for {{company}}.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
 </div>
 {{pixel}}`,
   },
+
+  // Day 7 — social proof
   followup2: {
+    subject: `$80k in booked jobs in 2 months — {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>Wanted to share a quick case study. Cooper Electrical started running our lead gen system 2 months ago. They'd been relying on referrals and were losing leads because responses were too slow. After we set up the automated follow-up, they closed $80k in new booked work in the first 2 months.</p>
+  <p>The system contacts every new enquiry within 60 seconds, then follows up automatically until they book or say no. Nothing slips through.</p>
+  <p>If {{company}} wants something similar, <a href="{{cta_link}}">grab a quick 15 min call</a> and I'll walk you through the numbers.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+
+  // Day 14 — last chance
+  followup3: {
+    subject: `Before I move on — {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>One more from me. We only take on a small number of {{trade}} businesses at a time and we have a spot available in {{location}} right now.</p>
+  <p>If {{company}} wants a consistent pipeline of pre-qualified jobs without chasing every lead manually, <a href="{{cta_link}}">book 15 minutes here</a> and I'll show you what the first 30 days would look like.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+
+  // Day 21 — breakup
+  followup4: {
     subject: `Last note from me, {{company}}`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
   <p>I'll keep this one short, I know inboxes get slammed.</p>
-  <p>I've reached out a couple of times about helping {{company}} bring in more consistent jobs through a managed lead system (we do this for {{trade}} businesses across NZ and Australia — one client, Cooper Electrical, landed $80k in booked work within about 2 months of starting).</p>
-  <p>If now's not the right time, no worries at all, I'll leave it here. But if you ever want to see what a steady pipeline of pre qualified jobs would look like for {{company}}, <a href="{{cta_link}}">just grab a time here</a> and I'll send through some examples from similar businesses.</p>
+  <p>I've reached out a few times about helping {{company}} bring in more consistent jobs through a managed lead system. I'll leave it here after this one.</p>
+  <p>If the timing ever changes, <a href="{{cta_link}}">just grab a time here</a> and I'll send through some examples from similar {{trade}} businesses.</p>
   <p>All the best,<br>Lucky<br>LS Growth</p>
 </div>
 {{pixel}}`,
@@ -123,8 +177,6 @@ export const INDUSTRY_LABELS: Record<string, string> = {
   default: "Default (generic)",
 };
 
-// Maps a lead's trade to a template set. Add more keys above + cases here
-// as industry-specific copy gets written for other trades.
 export function industryKey(trade: string): string {
   const t = (trade || "").toLowerCase();
   if (t.includes("clean")) return "cleaning";
@@ -142,10 +194,6 @@ export function renderTemplate(
   return { subject, html, text };
 }
 
-// Returns an editable starting point for a personalised cold email: the
-// initial template's content with placeholders filled in, minus the
-// outer wrapper div and tracking pixel (sendPersonalizedEmail adds those
-// plus the signature).
 export function coldEmailDraft(data: {
   company: string;
   contact_name: string;

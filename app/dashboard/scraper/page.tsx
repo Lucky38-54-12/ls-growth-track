@@ -4,7 +4,8 @@ import Topbar from "@/components/Topbar";
 import { Play, StopCircle, Download, Search, Hash, Database } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
-const LOCAL_SCRAPER = "http://localhost:5050/scraper/run";
+const SCRAPER_URL = process.env.NEXT_PUBLIC_SCRAPER_URL || "http://localhost:5050";
+const LOCAL_SCRAPER = `${SCRAPER_URL}/scraper/run`;
 
 interface LogLine { type: string; msg: string }
 
@@ -190,7 +191,7 @@ export default function ScraperPage() {
                 </button>
               )}
               <span style={{ fontSize: 12, color: L.dimmed }}>
-                Runs via local dashboard — keep start_dashboard.bat open.
+                {process.env.NEXT_PUBLIC_SCRAPER_URL ? "Runs on cloud scraper server." : "Runs via local dashboard — keep start_dashboard.bat open."}
               </span>
             </div>
           </form>
