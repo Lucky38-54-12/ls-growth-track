@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { createSupabaseClient } from "@/lib/supabase";
 import { generateLeadId, nextStepFor, STEP_NEW_STATUS } from "@/lib/leads";
 import { sendOutreachEmail } from "@/lib/email";
+import { generatePersonalizationHook } from "@/lib/ai";
 import { Lead } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -38,9 +39,11 @@ export async function POST(req: NextRequest) {
     // Auto-detect scraper format: 2nd column is phone number
     const isScraperFmt = parts.length >= 3 && /^[\d\s+\-().]{6,}$/.test(parts[1]);
     let company: string, email: string, contactName: string, trade: string, location: string;
+    let website = "", facebook = "";
 
     if (isScraperFmt) {
-      [company, , email] = parts;
+      // Scraper CSV columns: Business Name, Number, Email, Website, Facebook Page, ...
+      [company, , email, website = "", facebook = ""] = parts;
       contactName = "";
       trade = tradeDefault;
       location = locationDefault;
@@ -75,6 +78,9 @@ export async function POST(req: NextRequest) {
       followup_count: 0,
       notes: "",
       source: "email_outreach",
+      website: website || null,
+      facebook: facebook || null,
+      personalization_hook: null,
     });
   }
 
@@ -85,9 +91,32 @@ export async function POST(req: NextRequest) {
   const { data: inserted, error } = await sb.from("leads").insert(newLeads).select();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const leads = inserted as Lead[];
+
+  // Generate a research-based personalization hook for each new lead so the
+  // outreach email references something real instead of a generic merge field.
+  // Best-effort: if the AI call fails for a lead, it just falls back to the
+  // generic line in the template (handled in lib/templates.ts).
+  for (const lead of leads) {
+    try {
+      const hook = await generatePersonalizationHook({
+        company: lead.company,
+        trade: lead.trade,
+        location: lead.location,
+        website: lead.website,
+        facebook: lead.facebook,
+        notes: lead.notes,
+      });
+      lead.personalization_hook = hook;
+      await sb.from("leads").update({ personalization_hook: hook }).eq("lead_id", lead.lead_id);
+    } catch {
+      // leave personalization_hook null — template falls back to generic line
+    }
+  }
+
   let sent = 0;
   if (sendNow) {
-    for (const lead of inserted as Lead[]) {
+    for (const lead of leads) {
       const step = nextStepFor(lead);
       if (!step) continue;
       try {

@@ -30,6 +30,9 @@ export interface Lead {
   notes: string;
   source: string;
   reply_category: ReplyCategory | null;
+  website: string | null;
+  facebook: string | null;
+  personalization_hook: string | null;
 }
 
 export const LEAD_SOURCES = ["email_outreach", "cold_call"] as const;

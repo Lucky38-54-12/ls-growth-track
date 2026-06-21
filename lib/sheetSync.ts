@@ -1,7 +1,7 @@
 import { createSupabaseClient } from "./supabase";
 import { generateLeadId } from "./leads";
 import { sendOutreachEmail, sendPersonalizedEmail } from "./email";
-import { generatePersonalizedEmail } from "./ai";
+import { generatePersonalizedEmail, generatePersonalizationHook } from "./ai";
 import { readLeadSheet, hasCallInfo, formatCallNotes, getSheetTitle, parseCampaignFromTitle } from "./sheets";
 import { Lead } from "./types";
 
@@ -81,6 +81,9 @@ export async function syncLeadsFromSheet(opts: {
         followup_count: 0,
         notes: called ? `[Sheet] ${callNotes}` : "",
         source: "cold_call",
+        website: row.website || null,
+        facebook: row.facebook || null,
+        personalization_hook: null,
       };
       const { data: inserted, error } = await sb.from("leads").insert(newLead).select().single();
       if (error || !inserted) {
@@ -91,6 +94,24 @@ export async function syncLeadsFromSheet(opts: {
       lead = inserted as Lead;
       leadsByEmail.set(emailLower, lead);
       imported++;
+
+      // Best-effort: generate a real personalization hook from the website/Facebook
+      // we just captured, so the cold initial email isn't stuck with the generic
+      // merge-field line. If this fails, templates.ts falls back gracefully.
+      try {
+        const hook = await generatePersonalizationHook({
+          company: lead.company,
+          trade: lead.trade,
+          location: lead.location,
+          website: lead.website,
+          facebook: lead.facebook,
+          notes: lead.notes,
+        });
+        lead.personalization_hook = hook;
+        await sb.from("leads").update({ personalization_hook: hook }).eq("lead_id", lead.lead_id);
+      } catch {
+        // leave personalization_hook null — template falls back to generic line
+      }
     } else if (called && !lead.notes?.includes(callNotes)) {
       // Append the sheet's call info rather than overwriting notes added on the dashboard
       const entry = `[Sheet] ${callNotes}`;

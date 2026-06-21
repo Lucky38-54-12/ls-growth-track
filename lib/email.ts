@@ -41,6 +41,7 @@ export async function sendOutreachEmail(lead: Lead, step: EmailStep) {
     location: lead.location,
     cta_link: ctaLink,
     pixel,
+    personalization: lead.personalization_hook || undefined,
   });
   await transport.sendMail({ from: FROM, to: lead.email, subject, html, text });
   await logSend(lead.lead_id, step, subject, html);

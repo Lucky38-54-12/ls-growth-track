@@ -7,6 +7,13 @@ interface TemplateData {
   location: string;
   cta_link: string;
   pixel: string;
+  personalization?: string;
+}
+
+// Fallback used only when no AI-generated personalization hook exists yet
+// (e.g. older leads imported before this was added, or the AI call failed).
+function genericPersonalizationFallback(d: Pick<TemplateData, "company" | "trade" | "location">) {
+  return `I came across ${d.company} and wanted to see if something similar could work for a ${d.trade} business in ${d.location}.`;
 }
 
 function fill(tpl: string, d: TemplateData) {
@@ -16,7 +23,8 @@ function fill(tpl: string, d: TemplateData) {
     .replace(/\{\{trade\}\}/g, d.trade)
     .replace(/\{\{location\}\}/g, d.location)
     .replace(/\{\{cta_link\}\}/g, d.cta_link)
-    .replace(/\{\{pixel\}\}/g, d.pixel);
+    .replace(/\{\{pixel\}\}/g, d.pixel)
+    .replace(/\{\{personalization\}\}/g, d.personalization || genericPersonalizationFallback(d));
 }
 
 export function htmlToText(html: string) {
@@ -42,7 +50,7 @@ const CLEANING_TEMPLATES: TemplateSet = {
   <p>Quick one. In the last 30 days we generated 57 new window cleaning and house cleaning enquiries for Queenstown Cleaning, working out at around $7 to $11 per lead, and 30 of those have already turned into booked, paying jobs. Check out some real stats below.</p>
   <p><a href="https://lsgrowth.agency/cleaning"><img src="https://lsgrowth.agency/queenstown-ads.png" alt="Queenstown Cleaning ad results, last 30 days" style="max-width:100%;border:1px solid #e2e8f0;border-radius:6px;" /></a></p>
   <p style="font-size:12.5px;color:#64748b;margin-top:-8px;">Real numbers from Queenstown Cleaning's ad account, last 30 days. <a href="https://lsgrowth.agency/cleaning">View full size</a></p>
-  <p>I came across {{company}} and wanted to see if something similar could work for a {{trade}} business in {{location}}.</p>
+  <p>{{personalization}}</p>
   <p>We run the whole lead gen process for {{trade}} businesses across NZ and Australia (ads, fast follow up, booking) so you get a steady stream of qualified jobs without chasing quotes or relying on word of mouth.</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
@@ -109,7 +117,7 @@ const DEFAULT_TEMPLATES: TemplateSet = {
   <p>Hey {{contact_name}},</p>
   <p>Quick one. Most {{trade}} businesses lose 70%+ of new enquiries simply because nobody gets back to them within the first hour, and by then they've already called someone else.</p>
   <p>We run a lead gen + fast-follow-up system for trade businesses across NZ and Australia: new leads get a response in under 60 seconds, then the follow up sequence runs automatically. For one client, Cooper Electrical, that turned into $80k in booked jobs within about 2 months of starting.</p>
-  <p>I came across {{company}} and figured it might be worth a look for a {{trade}} business in {{location}} too.</p>
+  <p>{{personalization}}</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
 </div>
@@ -206,7 +214,8 @@ export function coldEmailDraft(data: {
     .replace(/\{\{contact_name\}\}/g, data.contact_name)
     .replace(/\{\{trade\}\}/g, data.trade)
     .replace(/\{\{location\}\}/g, data.location)
-    .replace(/\{\{cta_link\}\}/g, "https://lsgrowth.agency/book");
+    .replace(/\{\{cta_link\}\}/g, "https://lsgrowth.agency/book")
+    .replace(/\{\{personalization\}\}/g, genericPersonalizationFallback(data));
 
   const bodyHtml = filled
     .replace(/^<div[^>]*>\n?/, "")

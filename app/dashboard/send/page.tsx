@@ -112,6 +112,7 @@ export default async function OutreachPage({
         location: lead.location,
         cta_link: "#",
         pixel: "",
+        personalization: lead.personalization_hook || undefined,
       });
       return { lead, step, subject, html };
     })
