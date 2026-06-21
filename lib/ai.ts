@@ -130,6 +130,53 @@ function validateHook(text: string): string {
   return text;
 }
 
+export interface ColdCallPrepInput {
+  company: string;
+  trade: string;
+  location: string;
+  website: string | null;
+  facebook: string | null;
+}
+
+const COLD_CALL_PREP_SYSTEM_PROMPT = `You write short prep notes for Lucky from LS Growth, who runs done-for-you lead generation (ads, follow-up, booking) for trade businesses in NZ, right before he cold-calls a business.
+
+You'll be given a business name, trade, location, and what's known about their online presence (website, Facebook). Write 2-4 short bullet lines (each starting with "- ") that Lucky can glance at right before dialing:
+- One line of genuine trade-specific context: a real, well-known pain point or opportunity for that trade (e.g. seasonal demand swings, high average job value, how they currently get most jobs — word of mouth/referral vs ads, why a steady lead pipeline matters for that trade specifically). Make it specific to the trade, not generic "every business needs marketing" filler.
+- One line on this business's specific web presence gap (no website = losing search traffic to competitors who rank; has Facebook but no website = inconsistent online presence; has both = low priority, skip this line or note they at least have presence to build on)
+- Optionally one line suggesting a natural opening question or angle for the call based on the above
+
+Rules:
+- Plain bullet lines only, no headers, no greeting, no sign-off
+- Casual, direct, written for Lucky to skim in 5 seconds, not corporate
+- No dashes within a line (only the leading "- " bullet marker), no em dashes
+- Do not invent specific facts about this exact business beyond the website/Facebook presence given
+
+Respond with ONLY the bullet lines, no other text.`;
+
+export async function generateColdCallPrep(input: ColdCallPrepInput): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+
+  const client = new Anthropic({ apiKey });
+
+  const userPrompt = `Business: ${input.company}
+Trade: ${input.trade || "unknown"}
+Location: ${input.location || "unknown"}
+Website: ${input.website || "none found"}
+Facebook: ${input.facebook || "none found"}`;
+
+  const msg = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 300,
+    system: COLD_CALL_PREP_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+
+  const block = msg.content[0];
+  if (block.type !== "text") throw new Error("Unexpected response from AI");
+  return block.text.trim();
+}
+
 export interface MeetingConfirmationInput {
   company: string;
   contactName: string;

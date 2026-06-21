@@ -55,7 +55,7 @@ export default function CallForm({ lead, events, sends }: { lead: Lead; events: 
 
   return (
     <div>
-      <Topbar title="LOG CALL" subtitle={`${lead.company} · ${lead.contact_name} · ${lead.email}`} />
+      <Topbar title="LOG CALL" subtitle={[lead.company, lead.phone, lead.contact_name, lead.email].filter(Boolean).join(" · ")} />
 
       <div style={{ maxWidth: 720, margin: "32px auto", padding: "0 28px" }}>
         {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, marginBottom: 18, fontSize: 14 }}>{error}</div>}

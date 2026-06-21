@@ -33,6 +33,7 @@ export interface Lead {
   website: string | null;
   facebook: string | null;
   personalization_hook: string | null;
+  phone: string | null;
 }
 
 export const LEAD_SOURCES = ["email_outreach", "cold_call"] as const;

@@ -129,6 +129,35 @@ export function segmentLabel(trade: string, location: string): string {
   return `${shortLocation} ${tradeLabel} Companies`;
 }
 
+// Major NZ regions to rotate through for auto-prospecting, biggest markets first.
+export const PROSPECT_REGIONS = [
+  "Auckland", "Wellington", "Christchurch", "Hamilton", "Tauranga",
+  "Dunedin", "Palmerston North", "Napier", "Nelson", "Rotorua",
+  "New Plymouth", "Whangarei", "Invercargill", "Queenstown",
+] as const;
+
+// Picks the region with the fewest existing leads for this trade, so the
+// auto-prospector spreads coverage across the country instead of hammering
+// the same city every time. Ties broken by PROSPECT_REGIONS order.
+export function pickNextRegion(existingLeads: { trade: string; location: string }[], trade: string): string {
+  const counts = new Map<string, number>(PROSPECT_REGIONS.map((r) => [r, 0]));
+  for (const lead of existingLeads) {
+    if ((lead.trade || "").trim().toLowerCase() !== trade.toLowerCase()) continue;
+    const region = PROSPECT_REGIONS.find((r) => (lead.location || "").toLowerCase().includes(r.toLowerCase()));
+    if (region) counts.set(region, (counts.get(region) || 0) + 1);
+  }
+  let best: string = PROSPECT_REGIONS[0];
+  let bestCount = Infinity;
+  for (const region of PROSPECT_REGIONS) {
+    const count = counts.get(region) || 0;
+    if (count < bestCount) {
+      best = region;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
 export function groupBySegment(items: { trade: string; location: string }[]): Segment[] {
   const map = new Map<string, Segment>();
   for (const item of items) {
