@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, Video, ArrowUpRight, Mail, MousePointerClick, Clock } from "lucide-react";
+import { Calendar, Video, ArrowUpRight, Mail, MousePointerClick, Clock, Flame, MailCheck, MousePointer2, MessageCircleHeart } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase";
 import { listTodaysEvents, CalendarEvent } from "@/lib/calendar";
 import { buildAnalytics, rate } from "@/lib/analytics";
@@ -81,11 +81,11 @@ export default async function TodayPage() {
   const dateLabel = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
   const cards = [
-    { label: "Active Pipeline", value: String(active.length), sub: "leads in motion" },
-    { label: "Due For Follow-up", value: String(dueLeads.length), sub: "ready to send" },
-    { label: "Open Rate", value: `${openRate}%`, sub: `${overall.opened} of ${overall.sent} emails` },
-    { label: "Click Rate", value: `${clickRate}%`, sub: `${overall.clicked} of ${overall.sent} emails` },
-    { label: "Reply Rate", value: `${replyRate}%`, sub: `${warm} replied or booked` },
+    { label: "Active Pipeline", value: String(active.length), sub: "leads in motion", icon: Flame },
+    { label: "Due For Follow-up", value: String(dueLeads.length), sub: "ready to send", icon: Clock },
+    { label: "Open Rate", value: `${openRate}%`, sub: `${overall.opened} of ${overall.sent} emails`, icon: MailCheck },
+    { label: "Click Rate", value: `${clickRate}%`, sub: `${overall.clicked} of ${overall.sent} emails`, icon: MousePointer2 },
+    { label: "Reply Rate", value: `${replyRate}%`, sub: `${warm} replied or booked`, icon: MessageCircleHeart },
   ];
 
   return (
@@ -95,11 +95,16 @@ export default async function TodayPage() {
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
 
         {/* Stats */}
-        <div className="today-stats" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-          {cards.map(({ label, value, sub }) => (
-            <div key={label} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "16px 18px" }}>
-              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: L.muted, marginBottom: 8 }}>{label}</p>
-              <div style={{ fontSize: 38, fontWeight: 900, color: L.text, lineHeight: 1, marginBottom: 5 }}>{value}</div>
+        <div className="today-stats" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
+          {cards.map(({ label, value, sub, icon: Icon }) => (
+            <div key={label} className="stat-card" style={{ padding: "18px 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: L.muted }}>{label}</p>
+                <div style={{ width: 26, height: 26, borderRadius: 8, background: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon style={{ width: 13, height: 13, color: "var(--red)" }} />
+                </div>
+              </div>
+              <div style={{ fontSize: 34, fontWeight: 800, color: L.text, lineHeight: 1, marginBottom: 5, letterSpacing: "-0.02em" }}>{value}</div>
               <p style={{ fontSize: 11, color: L.muted }}>{sub}</p>
             </div>
           ))}
@@ -108,7 +113,7 @@ export default async function TodayPage() {
         <div className="today-grid" style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 16, alignItems: "start" }}>
 
           {/* Today's meetings */}
-          <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
+          <div className="surface-card" style={{ overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
               <Calendar style={{ width: 15, height: 15, color: L.muted }} />
               <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Today&apos;s Meetings</span>
@@ -193,7 +198,7 @@ export default async function TodayPage() {
           </div>
 
           {/* Needs follow-up */}
-          <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
+          <div className="surface-card" style={{ overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
               <Clock style={{ width: 15, height: 15, color: L.muted }} />
               <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Needs Follow-up</span>
@@ -211,7 +216,7 @@ export default async function TodayPage() {
                       <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
                       <p style={{ fontSize: 11.5, color: L.dimmed }}>{lead.trade || "—"}{lead.location ? ` · ${lead.location}` : ""}</p>
                     </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", background: "#fef2f2", color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "#fef2f2", color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>
                       {nextStepFor(lead)}
                     </span>
                   </Link>
@@ -222,7 +227,7 @@ export default async function TodayPage() {
         </div>
 
         {/* Recent activity — last 7 days */}
-        <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
+        <div className="surface-card" style={{ overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
             <Mail style={{ width: 15, height: 15, color: L.muted }} />
             <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Recent Activity</span>

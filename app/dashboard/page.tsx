@@ -47,7 +47,7 @@ function KanbanCard({ lead, engagement }: { lead: Lead; engagement: Record<strin
       display: "block", background: L.surface, border: `1px solid ${L.border}`, padding: "12px 14px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 28, height: 28, border: `1px solid ${L.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${L.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Building2 style={{ width: 12, height: 12, color: L.muted }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -61,8 +61,8 @@ function KanbanCard({ lead, engagement }: { lead: Lead; engagement: Record<strin
       </div>
       {(ev?.opens > 0 || ev?.clicks > 0) && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${L.border}` }}>
-          {ev?.opens > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
-          {ev?.clicks > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+          {ev?.opens > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+          {ev?.clicks > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
         </div>
       )}
     </Link>
@@ -74,16 +74,16 @@ function KanbanColumn({ label, leads, engagement }: {
 }) {
   return (
     <div style={{ width: 270, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{
+      <div className="surface-card" style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 12px", background: L.surface, border: `1px solid ${L.border}`,
+        padding: "10px 14px",
       }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: L.text }}>{label}</span>
-        <span style={{ fontSize: 20, fontWeight: 900, color: L.text }}>{leads.length}</span>
+        <span style={{ fontSize: 20, fontWeight: 800, color: L.text }}>{leads.length}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 80 }}>
         {leads.length === 0 ? (
-          <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 12, background: L.surface, border: `1px dashed ${L.border}` }}>Empty</div>
+          <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 12, background: "#f8fafc", border: `1px dashed ${L.border}`, borderRadius: 10 }}>Empty</div>
         ) : (
           leads.map(lead => <KanbanCard key={lead.lead_id} lead={lead} engagement={engagement} />)
         )}
@@ -161,7 +161,7 @@ export default async function DashboardPage({
             display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
             background: "#eff6ff", border: "1px solid #bfdbfe", padding: "12px 16px", textDecoration: "none",
           }}>
-            <div style={{ width: 32, height: 32, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Calendar style={{ width: 15, height: 15, color: "#1e40af" }} />
             </div>
             <span style={{ fontSize: 13, fontWeight: 800, color: "#1e40af" }}>
@@ -171,7 +171,7 @@ export default async function DashboardPage({
               {todaysMeetings.map((m) => (
                 <span key={m.eventId} style={{
                   display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600,
-                  color: "#1e40af", background: "#dbeafe", padding: "4px 10px",
+                  color: "#1e40af", background: "#dbeafe", padding: "4px 10px", borderRadius: 20,
                 }}>
                   {m.allDay ? "All day" : new Intl.DateTimeFormat("en-NZ", { timeZone: "Pacific/Auckland", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(m.startISO)).replace(" ", "").toLowerCase()}
                   {" · "}{m.summary}
@@ -244,7 +244,7 @@ export default async function DashboardPage({
 
         {/* Kanban board */}
         {allLeads.length === 0 ? (
-          <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
+          <div className="surface-card" style={{ padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
             No leads yet — <Link href="/dashboard/new" style={{ color: "var(--red)", fontWeight: 700 }}>add your first lead</Link> or <Link href="/dashboard/import" style={{ color: "var(--red)", fontWeight: 700 }}>import a batch</Link>.
           </div>
         ) : (
