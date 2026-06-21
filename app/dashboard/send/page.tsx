@@ -121,12 +121,12 @@ export default async function OutreachPage({
 
   const overLimit = queue.length > DAILY_LIMIT;
 
-  const activeSegment = searchParams?.segment || "all";
   const segments = groupBySegment(queue.map((q) => q.lead));
-  const visibleQueue =
-    activeSegment === "all"
-      ? queue
-      : queue.filter((q) => segmentKey(q.lead.trade, q.lead.location) === activeSegment);
+  const firstSegmentKey = segments.length > 0 ? segments[0].key : null;
+  const activeSegment = searchParams?.segment || firstSegmentKey || "";
+  const visibleQueue = activeSegment
+    ? queue.filter((q) => segmentKey(q.lead.trade, q.lead.location) === activeSegment)
+    : queue;
 
   const selectedId = searchParams?.lead;
   const selected = (selectedId && visibleQueue.find((q) => q.lead.lead_id === selectedId)) || visibleQueue[0];
@@ -282,10 +282,10 @@ export default async function OutreachPage({
           {segments.length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", paddingTop: 10, borderTop: `1px solid ${L.border}` }}>
               <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: L.dimmed }}>Campaigns</span>
-              {[{ key: "all", trade: "", location: "", count: queue.length }, ...segments].map((s) => {
+              {segments.map((s) => {
                 const active = activeSegment === s.key;
-                const label = s.key === "all" ? "All Due" : segmentLabel(s.trade, s.location);
-                const href = s.key === "all" ? "/dashboard/send" : `/dashboard/send?segment=${encodeURIComponent(s.key)}`;
+                const label = segmentLabel(s.trade, s.location);
+                const href = `/dashboard/send?segment=${encodeURIComponent(s.key)}`;
                 return (
                   <Link key={s.key} href={href} className="pill-hover" style={{
                     display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", fontSize: 11,
@@ -309,7 +309,7 @@ export default async function OutreachPage({
 
             {/* Lead list */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {activeSegment !== "all" && visibleQueue.length > 0 && (
+              {activeSegment && visibleQueue.length > 0 && (
                 <div className="surface-card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 12.5, color: L.muted }}>
                     {visibleQueue.length} lead{visibleQueue.length !== 1 ? "s" : ""} due in{" "}
@@ -328,7 +328,7 @@ export default async function OutreachPage({
                   {visibleQueue.map(({ lead, step }) => {
                     const active = selected?.lead.lead_id === lead.lead_id;
                     const params = new URLSearchParams();
-                    if (activeSegment !== "all") params.set("segment", activeSegment);
+                    if (activeSegment) params.set("segment", activeSegment);
                     params.set("lead", lead.lead_id);
                     const sc = STEP_COLORS[step];
 
