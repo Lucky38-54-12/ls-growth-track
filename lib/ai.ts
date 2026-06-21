@@ -113,7 +113,21 @@ Notes: ${input.notes || "none"}`;
   const block = msg.content[0];
   if (block.type !== "text") throw new Error("Unexpected response from AI");
 
-  return block.text.trim();
+  return validateHook(block.text.trim());
+}
+
+// Guards against the model refusing (e.g. when call notes say the lead asked
+// not to be contacted again) and returning a multi-paragraph explanation
+// instead of a sentence. That text must never reach a live email — better to
+// throw here and let the caller fall back to the generic line.
+function validateHook(text: string): string {
+  const tooLong = text.length > 280;
+  const multiLine = text.includes("\n");
+  const soundsLikeRefusal = /\b(i can't|i cannot|in good conscience|as an ai|i'm not able to|i won't)\b/i.test(text);
+  if (tooLong || multiLine || soundsLikeRefusal) {
+    throw new Error(`Personalization hook failed validation, discarding: ${text.slice(0, 120)}`);
+  }
+  return text;
 }
 
 export interface MeetingConfirmationInput {
