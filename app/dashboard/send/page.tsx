@@ -6,8 +6,9 @@ import SendButton from "@/components/SendButton";
 import ReplyTagPicker from "@/components/ReplyTagPicker";
 import Topbar from "@/components/Topbar";
 import Link from "next/link";
+import { Send, Users, Clock, Mail, TrendingUp, AlertTriangle, RotateCcw, Building2 } from "lucide-react";
 
-const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
+const L = { surface: "#ffffff", border: "#e6eaf0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
 export const revalidate = 0;
 
@@ -160,50 +161,40 @@ export default async function OutreachPage({
     },
   ];
 
+  const statCards = [
+    { label: "Active in Sequence", value: String(activeLeads.length), sub: null as string | null, icon: Users, accent: false },
+    { label: "Due to Send", value: String(queue.length), sub: overLimit ? `Limit: ${DAILY_LIMIT}/day` : null, icon: Clock, accent: queue.length > 0 },
+    { label: "Total Emails Sent", value: totalSent.toLocaleString(), sub: null, icon: Mail, accent: false },
+    { label: "Open Rate", value: `${openRate}%`, sub: `${totalOpens} opens`, icon: TrendingUp, accent: false },
+    { label: "Reply / Booked", value: `${replyRate}%`, sub: `${repliedCount} replied · ${bookedCount} booked`, icon: Send, accent: replyRate > 5 },
+  ];
+
   return (
-    <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
+    <div style={{ background: "#f4f6fa", minHeight: "100vh" }}>
       <Topbar title="EMAIL OUTREACH" subtitle={`5-step sequence · ${DAILY_LIMIT}/day send limit`} />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
 
         {/* Stats row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
-          {[
-            { label: "Active in Sequence", value: activeLeads.length, color: L.text, sub: null },
-            { label: "Due to Send", value: queue.length, color: queue.length > 0 ? "#dc2626" : L.text, sub: overLimit ? `Limit: ${DAILY_LIMIT}/day` : null },
-            { label: "Total Emails Sent", value: totalSent.toLocaleString(), color: L.text, sub: null },
-            { label: "Open Rate", value: `${openRate}%`, color: openRate > 30 ? "#16a34a" : L.text, sub: `${totalOpens} opens` },
-            { label: "Reply / Booked", value: `${replyRate}%`, color: replyRate > 5 ? "#16a34a" : L.text, sub: `${repliedCount} replied · ${bookedCount} booked` },
-          ].map(({ label, value, color, sub }) => (
-            <div key={label} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "14px 18px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: L.dimmed, marginBottom: 6 }}>{label}</div>
-              <div style={{ fontSize: 26, fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
-              {sub && <div style={{ fontSize: 10.5, color: L.dimmed, marginTop: 5 }}>{sub}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
+          {statCards.map(({ label, value, sub, icon: Icon, accent }) => (
+            <div key={label} className="stat-card" style={{ padding: "16px 18px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: L.muted }}>{label}</p>
+                <div style={{ width: 26, height: 26, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: accent ? "#fef2f2" : "#f1f5f9" }}>
+                  <Icon style={{ width: 13, height: 13, color: accent ? "var(--red)" : L.dimmed }} />
+                </div>
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: L.text, lineHeight: 1, letterSpacing: "-0.01em" }}>{value}</div>
+              {sub && <div style={{ fontSize: 11, color: L.dimmed, marginTop: 5 }}>{sub}</div>}
             </div>
           ))}
         </div>
 
-        {/* Reply category breakdown */}
-        {Object.values(replyCats).some(v => v > 0) && (
-          <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "12px 18px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>Reply Breakdown</span>
-            {(Object.keys(replyCats) as ReplyCategory[]).map(cat => {
-              const n = replyCats[cat];
-              if (!n) return null;
-              const c = REPLY_CATEGORY_COLORS[cat];
-              return (
-                <span key={cat} style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", background: c.bg, color: c.text }}>
-                  {REPLY_CATEGORY_LABELS[cat]}: {n}
-                </span>
-              );
-            })}
-          </div>
-        )}
-
         {/* Staggered send warning */}
         {overLimit && (
-          <div style={{ background: "#fffbeb", border: "1px solid #fde68a", padding: "12px 18px", display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+          <div className="surface-card" style={{ background: "#fffbeb", borderColor: "#fde68a", padding: "12px 18px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <AlertTriangle style={{ width: 16, height: 16, color: "#b45309", flexShrink: 0, marginTop: 1 }} />
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>
                 {queue.length} emails due — over the {DAILY_LIMIT}/day limit
@@ -216,54 +207,52 @@ export default async function OutreachPage({
         )}
 
         {/* Sequence pipeline */}
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "18px 20px" }}>
-          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, marginBottom: 16 }}>Sequence Pipeline</div>
+        <div className="surface-card" style={{ padding: "18px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>Sequence Pipeline</span>
+            {Object.values(replyCats).some(v => v > 0) && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                {(Object.keys(replyCats) as ReplyCategory[]).map(cat => {
+                  const n = replyCats[cat];
+                  if (!n) return null;
+                  const c = REPLY_CATEGORY_COLORS[cat];
+                  return (
+                    <span key={cat} style={{ fontSize: 10.5, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: c.bg, color: c.text }}>
+                      {REPLY_CATEGORY_LABELS[cat]}: {n}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <div style={{ overflowX: "auto" }}>
-            <div style={{ display: "flex", alignItems: "stretch", gap: 0, minWidth: 700 }}>
-              {STAGE_STATUS_MAP.map((stage, i) => (
-                <div key={stage.key} style={{ display: "flex", alignItems: "center", flex: i === 0 || i === STAGE_STATUS_MAP.length - 1 ? "0 0 auto" : 1, minWidth: 0 }}>
-                  <div style={{ flex: 1, padding: "10px 12px", background: stage.colors.bg, border: `1px solid ${stage.colors.border}`, minWidth: 0 }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: stage.colors.label, whiteSpace: "nowrap" }}>
-                      {stage.label}{stage.day ? ` · ${stage.day}` : ""}
-                    </div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: stage.colors.label, margin: "3px 0" }}>{stage.count}</div>
-                    <div style={{ fontSize: 10, color: stage.colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{stage.desc}</div>
-                    {stage.dueCount > 0 && <div style={{ fontSize: 9, fontWeight: 800, color: "#dc2626", marginTop: 3 }}>↑ {stage.dueCount} due</div>}
+            <div style={{ display: "flex", alignItems: "stretch", gap: 8, minWidth: 700 }}>
+              {STAGE_STATUS_MAP.map((stage) => (
+                <div key={stage.key} style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 12, background: stage.colors.bg, border: `1px solid ${stage.colors.border}` }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: stage.colors.label, whiteSpace: "nowrap" }}>
+                    {stage.label}{stage.day ? ` · ${stage.day}` : ""}
                   </div>
-                  {i < STAGE_STATUS_MAP.length - 1 && (
-                    <div style={{ padding: "0 4px", color: L.dimmed, fontSize: 14, fontWeight: 300, flexShrink: 0 }}>›</div>
-                  )}
+                  <div style={{ fontSize: 22, fontWeight: 800, color: stage.colors.label, margin: "4px 0" }}>{stage.count}</div>
+                  <div style={{ fontSize: 10.5, color: stage.colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{stage.desc}</div>
+                  {stage.dueCount > 0 && <div style={{ fontSize: 9.5, fontWeight: 800, color: "#dc2626", marginTop: 4 }}>↑ {stage.dueCount} due</div>}
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Sequence settings strip */}
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${L.border}`, display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
-            {STEP_ORDER.map((step) => (
-              <div key={step} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "#f8fafc", border: `1px solid ${L.border}`, fontSize: 10.5 }}>
-                <span style={{ fontWeight: 700, color: L.text }}>{STEP_LABEL[step]}</span>
-                <span style={{ color: L.dimmed }}>·</span>
-                <span style={{ color: L.muted }}>{STEP_DAY[step]}</span>
-                <span style={{ color: L.dimmed }}>·</span>
-                <span style={{ color: L.dimmed }}>{STEP_DESC[step]}</span>
-              </div>
-            ))}
           </div>
         </div>
 
         {/* Replied leads awaiting tag */}
         {awaitingTag.length > 0 && (
-          <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "16px 18px" }}>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, marginBottom: 12 }}>
+          <div className="surface-card" style={{ padding: "16px 18px" }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, marginBottom: 4 }}>
               Tag Replies ({awaitingTag.length})
             </div>
             <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 14 }}>
               These leads replied but haven&apos;t been categorised yet. Tag each one to track pipeline health and set the right re-enrol window.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {awaitingTag.map(lead => (
-                <div key={lead.lead_id} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 16, padding: "10px 14px", background: "#f8fafc", border: `1px solid ${L.border}` }}>
+                <div key={lead.lead_id} className="row-hover" style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 16, padding: "10px 14px", borderRadius: 10, background: "#f8fafc" }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13, color: L.text }}>{lead.company}</div>
                     <div style={{ fontSize: 11, color: L.dimmed, marginTop: 1 }}>{lead.email}</div>
@@ -277,8 +266,8 @@ export default async function OutreachPage({
         )}
 
         {/* Ready to send */}
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "16px 18px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div className="surface-card" style={{ padding: "16px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 10 }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>Ready to Send</div>
               <p style={{ fontSize: 12.5, color: L.muted, marginTop: 3 }}>
@@ -298,15 +287,15 @@ export default async function OutreachPage({
                 const label = s.key === "all" ? "All Due" : segmentLabel(s.trade, s.location);
                 const href = s.key === "all" ? "/dashboard/send" : `/dashboard/send?segment=${encodeURIComponent(s.key)}`;
                 return (
-                  <Link key={s.key} href={href} style={{
+                  <Link key={s.key} href={href} className="pill-hover" style={{
                     display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", fontSize: 11,
-                    fontWeight: 600, textDecoration: "none",
+                    fontWeight: 600, textDecoration: "none", borderRadius: 20,
                     border: `1px solid ${active ? "var(--red)" : L.border}`,
                     background: active ? "#fef2f2" : L.surface,
                     color: active ? "var(--red)" : L.muted,
                   }}>
                     {label}
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", background: active ? "#fee2e2" : "#f1f5f9", color: active ? "var(--red)" : L.dimmed }}>{s.count}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 10, background: active ? "#fee2e2" : "#f1f5f9", color: active ? "var(--red)" : L.dimmed }}>{s.count}</span>
                   </Link>
                 );
               })}
@@ -321,7 +310,7 @@ export default async function OutreachPage({
             {/* Lead list */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {activeSegment !== "all" && visibleQueue.length > 0 && (
-                <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div className="surface-card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 12.5, color: L.muted }}>
                     {visibleQueue.length} lead{visibleQueue.length !== 1 ? "s" : ""} due in{" "}
                     <strong style={{ color: L.text }}>{segmentLabel(visibleQueue[0].lead.trade, visibleQueue[0].lead.location)}</strong>
@@ -331,17 +320,11 @@ export default async function OutreachPage({
               )}
 
               {visibleQueue.length === 0 ? (
-                <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "32px", textAlign: "center", color: L.dimmed, fontSize: 13 }}>
+                <div className="surface-card" style={{ padding: "32px", textAlign: "center", color: L.dimmed, fontSize: 13 }}>
                   Nothing due in this campaign.
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 70px", gap: 0, padding: "6px 14px", background: "#f8fafc", border: `1px solid ${L.border}` }}>
-                    {["Company", "Step", ""].map((h, i) => (
-                      <div key={i} style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: L.dimmed }}>{h}</div>
-                    ))}
-                  </div>
-
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {visibleQueue.map(({ lead, step }) => {
                     const active = selected?.lead.lead_id === lead.lead_id;
                     const params = new URLSearchParams();
@@ -350,25 +333,21 @@ export default async function OutreachPage({
                     const sc = STEP_COLORS[step];
 
                     return (
-                      <Link key={lead.lead_id} href={`/dashboard/send?${params.toString()}`} style={{
-                        display: "grid", gridTemplateColumns: "1fr 110px 70px",
-                        alignItems: "center", gap: 0,
+                      <Link key={lead.lead_id} href={`/dashboard/send?${params.toString()}`} className="card-hover" style={{
+                        display: "grid", gridTemplateColumns: "auto 1fr 110px 70px",
+                        alignItems: "center", gap: 12,
                         background: active ? "#fef2f2" : L.surface,
                         border: `1px solid ${active ? "var(--red)" : L.border}`,
-                        borderLeft: active ? "2px solid var(--red)" : "2px solid transparent",
                         padding: "10px 14px", textDecoration: "none",
-                        marginTop: -1,
                       }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${active ? "#fca5a5" : L.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: active ? "#fff" : "#f8fafc" }}>
+                          <Building2 style={{ width: 13, height: 13, color: active ? "var(--red)" : L.muted }} />
+                        </div>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 13, color: L.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.company}</div>
                           <div style={{ fontSize: 11, color: L.dimmed, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.email}</div>
-                          {lead.notes && (
-                            <div style={{ fontSize: 10.5, color: L.muted, marginTop: 2, fontStyle: "italic", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {lead.notes}
-                            </div>
-                          )}
                         </div>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: sc.bg, color: sc.label, display: "inline-block", whiteSpace: "nowrap" }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: sc.bg, color: sc.label, display: "inline-block", whiteSpace: "nowrap" }}>
                           {STEP_LABEL[step]} · {STEP_DAY[step]}
                         </span>
                         <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -385,13 +364,13 @@ export default async function OutreachPage({
             <div style={{ position: "sticky", top: 20, display: "flex", flexDirection: "column", gap: 10 }}>
               {selected ? (
                 <>
-                  <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
-                    <div style={{ padding: "12px 16px", borderBottom: `1px solid ${L.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: 13.5, color: L.text }}>{selected.lead.company}</div>
+                  <div className="surface-card">
+                    <div style={{ padding: "12px 16px", borderBottom: `1px solid ${L.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, fontSize: 13.5, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selected.lead.company}</div>
                         <div style={{ fontSize: 11.5, color: L.dimmed, marginTop: 1 }}>{selected.lead.email}</div>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: STEP_COLORS[selected.step].bg, color: STEP_COLORS[selected.step].label, whiteSpace: "nowrap" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: STEP_COLORS[selected.step].bg, color: STEP_COLORS[selected.step].label, whiteSpace: "nowrap" }}>
                         {STEP_LABEL[selected.step]} · {STEP_DAY[selected.step]}
                       </span>
                     </div>
@@ -400,7 +379,8 @@ export default async function OutreachPage({
                       <div style={{ fontSize: 13.5, fontWeight: 700, color: L.text, marginBottom: 12 }}>{selected.subject}</div>
                       <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.dimmed, marginBottom: 6 }}>Body</div>
                       <div
-                        style={{ border: `1px solid ${L.border}`, padding: 14, background: "#f8fafc", maxHeight: 300, overflow: "auto", fontSize: 13, lineHeight: 1.6 }}
+                        className="email-preview"
+                        style={{ border: `1px solid ${L.border}`, borderRadius: 10, padding: 14, background: "#f8fafc", maxHeight: 300, overflow: "auto", fontSize: 13, lineHeight: 1.6 }}
                         dangerouslySetInnerHTML={{ __html: selected.html }}
                       />
                     </div>
@@ -410,26 +390,25 @@ export default async function OutreachPage({
                         <div style={{ fontSize: 12.5, color: L.muted, fontStyle: "italic" }}>{selected.lead.notes}</div>
                       </div>
                     )}
-                    <div style={{ padding: "0 16px 14px", display: "flex", gap: 8, alignItems: "center" }}>
+                    <div style={{ padding: "0 16px 14px", display: "flex", gap: 12, alignItems: "center" }}>
                       <SendButton due={1} leadIds={[selected.lead.lead_id]} label="Send this email" />
-                      <Link href={`/dashboard/leads/${selected.lead.lead_id}`} style={{ fontSize: 12, color: "#2563eb", fontWeight: 600, textDecoration: "none" }}>
+                      <Link href={`/dashboard/leads/${selected.lead.lead_id}`} style={{ fontSize: 12, color: "var(--blue)", fontWeight: 600, textDecoration: "none" }}>
                         View lead →
                       </Link>
                     </div>
                   </div>
 
                   {/* Sequence status tracker */}
-                  <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "14px 16px" }}>
+                  <div className="surface-card" style={{ padding: "14px 16px" }}>
                     <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 12 }}>Sequence Status</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                       {STEP_ORDER.map((step, i) => {
                         const stepIndex = STEP_ORDER.indexOf(selected.step);
                         const isDone = i < stepIndex;
                         const isCurrent = step === selected.step;
-                        const sc = STEP_COLORS[step];
                         return (
                           <div key={step} style={{
-                            display: "flex", gap: 9, alignItems: "flex-start", padding: "7px 9px",
+                            display: "flex", gap: 9, alignItems: "flex-start", padding: "7px 9px", borderRadius: 8,
                             background: isCurrent ? "#fef2f2" : isDone ? "#f0fdf4" : "#f8fafc",
                             border: `1px solid ${isCurrent ? "#fca5a5" : isDone ? "#bbf7d0" : L.border}`,
                           }}>
@@ -461,7 +440,7 @@ export default async function OutreachPage({
                   </div>
                 </>
               ) : (
-                <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "40px", textAlign: "center", color: L.dimmed, fontSize: 13 }}>
+                <div className="surface-card" style={{ padding: "40px", textAlign: "center", color: L.dimmed, fontSize: 13 }}>
                   Select a lead to preview their email.
                 </div>
               )}
@@ -471,18 +450,21 @@ export default async function OutreachPage({
 
         {/* Re-enrol queue */}
         {reenrollReady.length > 0 && (
-          <div style={{ background: L.surface, border: `1px solid #ddd6fe`, padding: "16px 18px" }}>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#6d28d9", marginBottom: 6 }}>
-              Re-enrol Queue ({reenrollReady.length})
+          <div className="surface-card" style={{ borderColor: "#ddd6fe", padding: "16px 18px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <RotateCcw style={{ width: 14, height: 14, color: "#6d28d9" }} />
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#6d28d9" }}>
+                Re-enrol Queue ({reenrollReady.length})
+              </div>
             </div>
             <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 14 }}>
               These contacts completed the sequence and are now past their re-enrolment window. They&apos;ll appear in the send queue above automatically — or you can review them first.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {reenrollReady.map(lead => {
                 const rc = lead.reply_category;
                 return (
-                  <div key={lead.lead_id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", alignItems: "center", gap: 16, padding: "10px 14px", background: "#faf5ff", border: `1px solid #ddd6fe` }}>
+                  <div key={lead.lead_id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", alignItems: "center", gap: 16, padding: "10px 14px", borderRadius: 10, background: "#faf5ff", border: "1px solid #ddd6fe" }}>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 13, color: L.text }}>{lead.company}</div>
                       <div style={{ fontSize: 11, color: L.dimmed }}>{lead.email}</div>
@@ -490,7 +472,7 @@ export default async function OutreachPage({
                     </div>
                     <div style={{ textAlign: "right" }}>
                       {rc && (
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: REPLY_CATEGORY_COLORS[rc].bg, color: REPLY_CATEGORY_COLORS[rc].text, display: "block", marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: REPLY_CATEGORY_COLORS[rc].bg, color: REPLY_CATEGORY_COLORS[rc].text, display: "block", marginBottom: 4 }}>
                           {REPLY_CATEGORY_LABELS[rc]}
                         </span>
                       )}
