@@ -17,7 +17,7 @@ const NAV = [
   { href: "/dashboard/cold-call", label: "Cold Call", icon: Phone },
   { href: "/dashboard/scraper", label: "Scraper", icon: ScanSearch },
   { href: "/dashboard/new", label: "Add Lead", icon: UserPlus },
-  { href: "/dashboard/import", label: "Import Leads", icon: Upload },
+  { href: "/dashboard/import", label: "Lead Sheets", icon: Upload },
   { href: "/dashboard/warm", label: "Warm Leads", icon: Flame },
 ];
 

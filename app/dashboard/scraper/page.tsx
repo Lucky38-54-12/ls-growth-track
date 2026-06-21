@@ -107,6 +107,23 @@ export default function ScraperPage() {
       if (data.updated) parts.push(`${data.updated} updated.`);
       if (data.skipped) parts.push(`${data.skipped} skipped.`);
       if (data.errors?.length) parts.push(`Errors: ${data.errors.join("; ")}`);
+
+      // Register this sheet so future rows added to it keep flowing in
+      // automatically via the daily cron, without coming back here.
+      const trackRes = await fetch("/api/tracked-sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sheetId: sheetId.trim(),
+          tradeDefault: data.detectedTrade || query.trim(),
+          locationDefault: data.detectedLocation || "",
+          personalize: false,
+          sendFresh: false,
+        }),
+      });
+      const trackData = await trackRes.json();
+      if (!trackData.error) parts.push("This sheet will now auto-sync daily.");
+
       setImportResult(parts.join(" "));
     } catch {
       setImportResult("Import failed — check server logs.");
@@ -226,8 +243,9 @@ export default function ScraperPage() {
             </div>
             {success && sheetId && (
               <p style={{ fontSize: 13, color: L.muted, marginBottom: 14 }}>
-                Leads pushed to your Google Sheet. Import them into the dashboard now, or visit{" "}
-                <a href="/dashboard/import" style={{ color: "var(--red)", fontWeight: 600 }}>Import Leads</a> to configure sending.
+                Leads pushed to your Google Sheet. Click below to bring them into the dashboard and put this
+                sheet on daily auto-sync — see all auto-synced sheets on the{" "}
+                <a href="/dashboard/import" style={{ color: "var(--red)", fontWeight: 600 }}>Lead Sheets</a> page.
               </p>
             )}
             {success && !sheetId && (

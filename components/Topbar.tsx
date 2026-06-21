@@ -15,7 +15,7 @@ const SEARCH_ITEMS = [
   { label: "Cold Call", href: "/dashboard/cold-call", icon: Phone },
   { label: "Scraper", href: "/dashboard/scraper", icon: ScanSearch },
   { label: "Add Lead", href: "/dashboard/new", icon: UserPlus },
-  { label: "Import Leads", href: "/dashboard/import", icon: Upload },
+  { label: "Lead Sheets", href: "/dashboard/import", icon: Upload },
   { label: "Warm Leads", href: "/dashboard/warm", icon: Flame },
 ];
 

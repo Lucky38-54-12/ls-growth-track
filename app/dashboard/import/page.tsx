@@ -1,64 +1,41 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import Topbar from "@/components/Topbar";
+import { TrackedSheet } from "@/lib/types";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
 export default function ImportPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [trade, setTrade] = useState("");
-  const [location, setLocation] = useState("");
-  const [text, setText] = useState("");
-  const [sendNow, setSendNow] = useState(true);
+  const [sheets, setSheets] = useState<TrackedSheet[]>([]);
+  const [loadingSheets, setLoadingSheets] = useState(true);
 
   const [sheetId, setSheetId] = useState("");
   const [sheetTrade, setSheetTrade] = useState("");
   const [sheetLocation, setSheetLocation] = useState("");
   const [personalize, setPersonalize] = useState(true);
   const [sendFresh, setSendFresh] = useState(true);
-  const [sheetLoading, setSheetLoading] = useState(false);
-  const [sheetError, setSheetError] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState("");
+  const [flash, setFlash] = useState("");
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const content = await file.text();
-    setText(content);
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!text.trim()) { setError("Paste some leads or upload a file first."); return; }
-    setLoading(true);
-    setError("");
-
-    const rows = text.split("\n").map((l) => l.trim()).filter(Boolean);
-    const res = await fetch("/api/leads/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows, tradeDefault: trade, locationDefault: location, sendNow }),
-    });
+  async function loadSheets() {
+    setLoadingSheets(true);
+    const res = await fetch("/api/tracked-sheets");
     const data = await res.json();
-    setLoading(false);
-
-    if (data.error) { setError(data.error); return; }
-
-    const parts = [`Imported ${data.imported} lead(s).`];
-    if (data.skipped) parts.push(`${data.skipped} skipped.`);
-    if (data.sent) parts.push(`${data.sent} first email(s) sent.`);
-    router.push(`/dashboard?flash=${encodeURIComponent(parts.join(" "))}`);
+    setSheets(data.sheets || []);
+    setLoadingSheets(false);
   }
 
-  async function handleSheetSync(e: React.FormEvent) {
-    e.preventDefault();
-    if (!sheetId.trim()) { setSheetError("Paste a Google Sheet ID first."); return; }
-    setSheetLoading(true);
-    setSheetError("");
+  useEffect(() => { loadSheets(); }, []);
 
-    const res = await fetch("/api/leads/sheet-sync", {
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sheetId.trim()) { setError("Paste a Google Sheet ID first."); return; }
+    setAdding(true);
+    setError("");
+    setFlash("");
+
+    const res = await fetch("/api/tracked-sheets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -70,89 +47,86 @@ export default function ImportPage() {
       }),
     });
     const data = await res.json();
-    setSheetLoading(false);
+    setAdding(false);
 
-    if (data.error) { setSheetError(data.error); return; }
+    if (data.error) { setError(data.error); return; }
 
-    const parts = [`Imported ${data.imported} new lead(s).`];
-    if (data.detectedTrade || data.detectedLocation) {
-      parts.push(`Tagged as ${[data.detectedTrade, data.detectedLocation].filter(Boolean).join(" / ")}.`);
-    }
-    if (data.updated) parts.push(`${data.updated} updated with new call notes.`);
-    if (data.personalizedSent) parts.push(`${data.personalizedSent} personalized follow-up(s) sent.`);
-    if (data.freshSent) parts.push(`${data.freshSent} fresh email(s) sent.`);
-    if (data.skipped) parts.push(`${data.skipped} skipped.`);
-    if (data.errors?.length) parts.push(`Errors: ${data.errors.join("; ")}`);
-    router.push(`/dashboard?flash=${encodeURIComponent(parts.join(" "))}`);
+    setSheetId(""); setSheetTrade(""); setSheetLocation("");
+    const imported = data.firstSync?.imported;
+    setFlash(imported !== undefined ? `Sheet added. Imported ${imported} lead(s) right away — it'll keep syncing daily.` : "Sheet added. It'll sync daily from now on.");
+    loadSheets();
+  }
+
+  async function handleRemove(id: string) {
+    if (!confirm("Stop auto-syncing this sheet? Leads already imported will stay.")) return;
+    await fetch(`/api/tracked-sheets/${id}`, { method: "DELETE" });
+    loadSheets();
+  }
+
+  async function handleToggleActive(sheet: TrackedSheet) {
+    await fetch(`/api/tracked-sheets/${sheet.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: !sheet.active }),
+    });
+    loadSheets();
   }
 
   return (
     <div>
-      <Topbar title="IMPORT LEADS" subtitle="Bulk import from CSV or scraper output" />
+      <Topbar title="LEAD SHEETS" subtitle="Sheets sync automatically every day — no manual import needed" />
 
       <div style={{ maxWidth: 760, margin: "32px auto", padding: "0 28px", display: "flex", flexDirection: "column", gap: 20 }}>
         {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, fontSize: 14 }}>{error}</div>}
+        {flash && <div style={{ background: "#dcfce7", border: "1px solid #86efac", color: "#166534", padding: "10px 16px", borderRadius: 0, fontSize: 14 }}>{flash}</div>}
 
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
-          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Bulk Import</div>
-          <p style={{ fontSize: 13, color: L.muted, marginBottom: 20 }}>Paste leads or upload a CSV. Accepts scraper output or simple format.</p>
+          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Auto-synced sheets</div>
+          <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
+            Every sheet below is checked once a day. New rows become leads automatically, and call notes
+            (Date Called / Outcome / Call Back / Notes columns) are picked up to personalize follow-ups.
+          </p>
 
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <div>
-                <label>Default trade <span style={{ fontWeight: 400, color: L.dimmed }}>(all rows)</span></label>
-                <input value={trade} onChange={(e) => setTrade(e.target.value)} placeholder="e.g. Plumbing" />
-              </div>
-              <div>
-                <label>Default location <span style={{ fontWeight: 400, color: L.dimmed }}>(all rows)</span></label>
-                <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Auckland NZ" />
-              </div>
-            </div>
+          {loadingSheets && <p style={{ fontSize: 13, color: L.dimmed }}>Loading…</p>}
+          {!loadingSheets && sheets.length === 0 && <p style={{ fontSize: 13, color: L.dimmed }}>No sheets yet — add one below.</p>}
 
-            <div>
-              <label>Paste leads <span style={{ fontWeight: 400, color: L.dimmed }}>(one per line)</span></label>
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={12}
-                placeholder={"Company Name, email@domain.com\nOr paste scraper CSV directly (Business Name, Phone, Email, Website, ...)"}
-                style={{ resize: "vertical", fontFamily: "monospace", fontSize: 13, marginTop: 5 }}
-              />
+          {!loadingSheets && sheets.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {sheets.map((s) => (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, border: `1px solid ${L.border}`, padding: "12px 14px", opacity: s.active ? 1 : 0.5 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>
+                      {[s.trade_default, s.location_default].filter(Boolean).join(" / ") || "Untitled sheet"}
+                    </div>
+                    <div style={{ fontSize: 12, color: L.dimmed, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis" }}>{s.sheet_id}</div>
+                    <div style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>
+                      {s.last_result ? s.last_result : "Not synced yet"}
+                      {s.last_synced_at ? ` · ${new Date(s.last_synced_at).toLocaleString()}` : ""}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                    <button onClick={() => handleToggleActive(s)} style={{ padding: "6px 12px", background: "transparent", border: `1px solid ${L.border}`, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                      {s.active ? "Pause" : "Resume"}
+                    </button>
+                    <button onClick={() => handleRemove(s.id)} style={{ padding: "6px 12px", background: "transparent", border: `1px solid ${L.border}`, color: "var(--red)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-
-            <div>
-              <label>Or upload a CSV file</label>
-              <input type="file" accept=".csv" onChange={handleFileChange} style={{ marginTop: 5 }} />
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap", marginTop: 4 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 0 }}>
-                <input type="checkbox" checked={sendNow} onChange={(e) => setSendNow(e.target.checked)} style={{ width: "auto" }} />
-                <span style={{ fontWeight: 600, fontSize: 13 }}>Send first email immediately</span>
-              </label>
-              <button type="submit" disabled={loading} className="btn-lift" style={{
-                marginLeft: "auto", padding: "11px 24px",
-                background: loading ? "#fca5a5" : "var(--red)", color: "#fff",
-                border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
-              }}>
-                {loading ? "Importing…" : "Import leads"}
-              </button>
-            </div>
-          </form>
+          )}
         </div>
 
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
-          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Sync from Google Sheet</div>
+          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Add a sheet</div>
           <p style={{ fontSize: 13, color: L.muted, marginBottom: 20 }}>
-            Paste the Sheet ID from your scraper sheet (the long ID in the sheet&apos;s URL). New rows are imported,
-            and the Date Called / Outcome / Call Back / Notes columns are read so emails can be personalized.
-            Trade and location are detected automatically from the sheet&apos;s name (e.g. &quot;Wellington Builders&quot;) —
-            the fields below are only used as a fallback if nothing is detected.
+            Paste the Sheet ID from your scraper sheet (the long ID in the sheet&apos;s URL). Trade and location
+            are detected automatically from the sheet&apos;s name (e.g. &quot;Wellington Builders&quot;) — the fields
+            below are only a fallback if nothing is detected.
           </p>
 
-          {sheetError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, fontSize: 14, marginBottom: 16 }}>{sheetError}</div>}
-
-          <form onSubmit={handleSheetSync} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <form onSubmit={handleAdd} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <label>Google Sheet ID</label>
               <input
@@ -165,11 +139,11 @@ export default function ImportPage() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <div>
-                <label>Default trade <span style={{ fontWeight: 400, color: L.dimmed }}>(new leads)</span></label>
+                <label>Default trade <span style={{ fontWeight: 400, color: L.dimmed }}>(fallback)</span></label>
                 <input value={sheetTrade} onChange={(e) => setSheetTrade(e.target.value)} placeholder="e.g. Fencing" />
               </div>
               <div>
-                <label>Default location <span style={{ fontWeight: 400, color: L.dimmed }}>(new leads)</span></label>
+                <label>Default location <span style={{ fontWeight: 400, color: L.dimmed }}>(fallback)</span></label>
                 <input value={sheetLocation} onChange={(e) => setSheetLocation(e.target.value)} placeholder="e.g. Christchurch NZ" />
               </div>
             </div>
@@ -186,32 +160,15 @@ export default function ImportPage() {
             </div>
 
             <div>
-              <button type="submit" disabled={sheetLoading} className="btn-lift" style={{
+              <button type="submit" disabled={adding} className="btn-lift" style={{
                 padding: "11px 24px",
-                background: sheetLoading ? "#fca5a5" : "var(--red)", color: "#fff",
-                border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: sheetLoading ? "default" : "pointer",
+                background: adding ? "#fca5a5" : "var(--red)", color: "#fff",
+                border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: adding ? "default" : "pointer",
               }}>
-                {sheetLoading ? "Syncing…" : "Sync & send"}
+                {adding ? "Adding…" : "Add sheet"}
               </button>
             </div>
           </form>
-        </div>
-
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
-          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 14 }}>Format Guide</div>
-          <table style={{ fontSize: 13, borderCollapse: "collapse", width: "100%" }}>
-            {[
-              ["Minimal", "Acme Plumbing, acme@gmail.com"],
-              ["With contact", "Acme Plumbing, acme@gmail.com, Mike"],
-              ["Full", "Acme Plumbing, acme@gmail.com, Mike, Plumbing, Auckland NZ"],
-              ["Scraper CSV", "Business Name, Phone, Email, Website, … (auto-detected)"],
-            ].map(([fmt, ex]) => (
-              <tr key={fmt}>
-                <td style={{ padding: "6px 16px 6px 0", fontWeight: 700, whiteSpace: "nowrap" }}>{fmt}</td>
-                <td style={{ padding: "6px 0", color: L.muted, fontFamily: "monospace", fontSize: 12 }}>{ex}</td>
-              </tr>
-            ))}
-          </table>
         </div>
       </div>
     </div>
