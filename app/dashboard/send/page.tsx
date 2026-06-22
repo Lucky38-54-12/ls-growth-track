@@ -6,7 +6,7 @@ import SendButton from "@/components/SendButton";
 import ReplyTagPicker from "@/components/ReplyTagPicker";
 import Topbar from "@/components/Topbar";
 import Link from "next/link";
-import { Send, Users, Clock, Mail, TrendingUp, AlertTriangle, RotateCcw, Building2 } from "lucide-react";
+import { Send, Users, Clock, Mail, TrendingUp, AlertTriangle, RotateCcw, Building2, Zap, CheckCircle } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e6eaf0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -171,9 +171,22 @@ export default async function OutreachPage({
 
   return (
     <div style={{ background: "#f4f6fa", minHeight: "100vh" }}>
-      <Topbar title="EMAIL OUTREACH" subtitle={`5-step sequence · ${DAILY_LIMIT}/day send limit`} />
+      <Topbar title="EMAIL OUTREACH" subtitle="✨ Fully automated · Runs daily at 9am" />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {/* Automation Status Banner */}
+        <div className="surface-card" style={{ background: "#f0fdf4", borderColor: "#bbf7d0", padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, border: "1px solid #bbf7d0" }}>
+          <CheckCircle style={{ width: 18, height: 18, color: "#16a34a", flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#15803d" }}>
+              Automated Email System Active
+            </div>
+            <div style={{ fontSize: 12, color: "#16a34a", marginTop: 2 }}>
+              New leads from Google Sheets automatically get emailed on Days 0, 3, 7, 14, 21. Next run: Tomorrow at 9am.
+            </div>
+          </div>
+        </div>
 
         {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
@@ -265,18 +278,17 @@ export default async function OutreachPage({
           </div>
         )}
 
-        {/* Ready to send */}
+        {/* Scheduled to Send */}
         <div className="surface-card" style={{ padding: "16px 18px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>Ready to Send</div>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>⚙️ Scheduled to Send at 9am</div>
               <p style={{ fontSize: 12.5, color: L.muted, marginTop: 3 }}>
                 {queue.length > 0
-                  ? `${queue.length} lead${queue.length !== 1 ? "s" : ""} due across ${segments.length} campaign${segments.length !== 1 ? "s" : ""}${overLimit ? ` — send ${DAILY_LIMIT} today` : ""}`
-                  : "All caught up — no emails due right now."}
+                  ? `${queue.length} lead${queue.length !== 1 ? "s" : ""} scheduled across ${segments.length} campaign${segments.length !== 1 ? "s" : ""}`
+                  : "All caught up — no emails scheduled for tomorrow."}
               </p>
             </div>
-            <SendButton due={queue.length} />
           </div>
 
           {segments.length > 0 && (
@@ -312,10 +324,9 @@ export default async function OutreachPage({
               {activeSegment && visibleQueue.length > 0 && (
                 <div className="surface-card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 12.5, color: L.muted }}>
-                    {visibleQueue.length} lead{visibleQueue.length !== 1 ? "s" : ""} due in{" "}
+                    {visibleQueue.length} lead{visibleQueue.length !== 1 ? "s" : ""} scheduled for{" "}
                     <strong style={{ color: L.text }}>{segmentLabel(visibleQueue[0].lead.trade, visibleQueue[0].lead.location)}</strong>
                   </span>
-                  <SendButton due={visibleQueue.length} leadIds={visibleQueue.map((q) => q.lead.lead_id)} label={`Send campaign (${visibleQueue.length})`} />
                 </div>
               )}
 
@@ -334,7 +345,7 @@ export default async function OutreachPage({
 
                     return (
                       <Link key={lead.lead_id} href={`/dashboard/send?${params.toString()}`} className="card-hover" style={{
-                        display: "grid", gridTemplateColumns: "auto 1fr 110px 70px",
+                        display: "grid", gridTemplateColumns: "auto 1fr 110px auto",
                         alignItems: "center", gap: 12,
                         background: active ? "#fef2f2" : L.surface,
                         border: `1px solid ${active ? "var(--red)" : L.border}`,
@@ -350,9 +361,7 @@ export default async function OutreachPage({
                         <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: sc.bg, color: sc.label, display: "inline-block", whiteSpace: "nowrap" }}>
                           {STEP_LABEL[step]} · {STEP_DAY[step]}
                         </span>
-                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                          <SendButton due={1} leadIds={[lead.lead_id]} label="Send" />
-                        </div>
+                        <CheckCircle style={{ width: 16, height: 16, color: "#16a34a", flexShrink: 0 }} />
                       </Link>
                     );
                   })}
@@ -391,7 +400,6 @@ export default async function OutreachPage({
                       </div>
                     )}
                     <div style={{ padding: "0 16px 14px", display: "flex", gap: 12, alignItems: "center" }}>
-                      <SendButton due={1} leadIds={[selected.lead.lead_id]} label="Send this email" />
                       <Link href={`/dashboard/leads/${selected.lead.lead_id}`} style={{ fontSize: 12, color: "var(--blue)", fontWeight: 600, textDecoration: "none" }}>
                         View lead →
                       </Link>
