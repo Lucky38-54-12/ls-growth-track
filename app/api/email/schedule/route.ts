@@ -1,18 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
-import { listSheets, getSheetData, updateSheetCell } from "@/lib/sheets-connector";
-import { buildScheduledEmails, getNextEmailStep } from "@/lib/email-scheduler";
+import { getSheetData, updateSheetCell } from "@/lib/sheets-connector";
+import { buildScheduledEmails } from "@/lib/email-scheduler";
+import { google } from "googleapis";
+import { JWT } from "google-auth-library";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Get the Drive ID from env or use a default "My Drive"
-const DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || "root";
+// Get folder ID from env
+const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
-// The master spreadsheet that has all leads
-const MASTER_SPREADSHEET_ID = process.env.GOOGLE_MASTER_SPREADSHEET_ID;
+if (!FOLDER_ID) {
+  console.error("GOOGLE_DRIVE_FOLDER_ID not set");
+}
 
-if (!MASTER_SPREADSHEET_ID) {
-  console.error("GOOGLE_MASTER_SPREADSHEET_ID not set");
+function getServiceAccountAuth(): JWT {
+  const keyString = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (!keyString) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var not set");
+
+  const key = JSON.parse(keyString);
+  const jwtClient = new JWT({
+    email: key.client_email,
+    key: key.private_key,
+    scopes: [
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/spreadsheets",
+    ],
+  });
+
+  return jwtClient;
+}
+
+async function getSheetFilesInFolder(folderId: string): Promise<Array<{ id: string; name: string }>> {
+  const auth = getServiceAccountAuth();
+  const drive = google.drive({ version: "v3", auth });
+
+  const response = await drive.files.list({
+    q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+    spaces: "drive",
+    fields: "files(id, name)",
+    pageSize: 100,
+  });
+
+  return response.data.files || [];
 }
 
 export async function POST(req: NextRequest) {
@@ -23,36 +53,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!MASTER_SPREADSHEET_ID) {
+    if (!FOLDER_ID) {
       return NextResponse.json(
-        { error: "Master spreadsheet ID not configured" },
+        { error: "Google Drive folder ID not configured" },
         { status: 500 }
       );
     }
 
     console.log("Starting email schedule job...");
 
-    // List all sheets in the master spreadsheet
-    const sheetNames = await listSheets(MASTER_SPREADSHEET_ID);
-    console.log(`Found ${sheetNames.length} sheets:`, sheetNames);
+    // List all spreadsheets in the folder
+    const spreadsheets = await getSheetFilesInFolder(FOLDER_ID);
+    console.log(`Found ${spreadsheets.length} spreadsheets:`, spreadsheets.map((s) => s.name));
 
     let totalEmailsSent = 0;
     const results: any[] = [];
 
-    // Process each sheet
-    for (const sheetName of sheetNames) {
-      console.log(`Processing sheet: ${sheetName}`);
+    // Process each spreadsheet
+    for (const spreadsheet of spreadsheets) {
+      console.log(`Processing spreadsheet: ${spreadsheet.name}`);
 
       try {
-        const sheetData = await getSheetData(MASTER_SPREADSHEET_ID, sheetName);
+        // Get the first sheet (usually "Sheet1" or the main data sheet)
+        const sheetData = await getSheetData(spreadsheet.id, "Sheet1");
         console.log(`  Found ${sheetData.rows.length} leads`);
 
         // Build emails for this sheet
         const emails = buildScheduledEmails(
           sheetData.rows.map((row) => ({
             ...row,
-            trade: sheetName.split("-")[0], // Extract trade from sheet name
-            location: sheetName.split("-").slice(1).join("-"),
+            trade: spreadsheet.name.split("-")[0].trim(),
+            location: spreadsheet.name,
           }))
         );
 
@@ -67,7 +98,7 @@ export async function POST(req: NextRequest) {
               subject: email.subject,
               html: email.html,
               // Track opens/clicks for engagement metrics
-              tags: [email.step, sheetName],
+              tags: [email.step, spreadsheet.name],
             });
 
             if (response.error) {
@@ -77,28 +108,19 @@ export async function POST(req: NextRequest) {
 
             totalEmailsSent++;
             console.log(`  ✓ Sent ${email.step} to ${email.email}`);
-
-            // Log the send back to Sheets (append to a log sheet)
-            await logEmailSend({
-              spreadsheetId: MASTER_SPREADSHEET_ID,
-              email: email.email,
-              company: email.company,
-              step: email.step,
-              timestamp: new Date().toISOString(),
-              sheetName,
-            });
-
-            // Mark in the original sheet that this email was sent
-            // (This is a simplified approach - a real system would update the specific row)
           } catch (error) {
             console.error(`Error sending to ${email.email}:`, error);
           }
         }
 
-        results.push({ sheet: sheetName, sent: emails.length, success: true });
+        results.push({ spreadsheet: spreadsheet.name, sent: emails.length, success: true });
       } catch (error) {
-        console.error(`Error processing sheet ${sheetName}:`, error);
-        results.push({ sheet: sheetName, success: false, error: String(error) });
+        console.error(`Error processing spreadsheet ${spreadsheet.name}:`, error);
+        results.push({
+          spreadsheet: spreadsheet.name,
+          success: false,
+          error: String(error),
+        });
       }
     }
 
@@ -107,6 +129,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       totalSent: totalEmailsSent,
+      spreadsheets: spreadsheets.length,
       results,
       timestamp: new Date().toISOString(),
     });
