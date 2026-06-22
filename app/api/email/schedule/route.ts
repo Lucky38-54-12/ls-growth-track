@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
-import { getSheetData, updateSheetCell } from "@/lib/sheets-connector";
+import { getSheetData } from "@/lib/sheets-connector";
 import { buildScheduledEmails } from "@/lib/email-scheduler";
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
@@ -19,7 +19,7 @@ function getServiceAccountAuth(): JWT {
   if (!keyString) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var not set");
 
   const key = JSON.parse(keyString);
-  const jwtClient = new JWT({
+  return new JWT({
     email: key.client_email,
     key: key.private_key,
     scopes: [
@@ -27,13 +27,11 @@ function getServiceAccountAuth(): JWT {
       "https://www.googleapis.com/auth/spreadsheets",
     ],
   });
-
-  return jwtClient;
 }
 
-async function getSheetFilesInFolder(folderId: string): Promise<Array<{ id: string; name: string }>> {
+async function getSheetFilesInFolder(folderId: string): Promise<any[]> {
   const auth = getServiceAccountAuth();
-  const drive = google.drive({ version: "v3", auth });
+  const drive = google.drive({ version: "v3", auth: auth as any });
 
   const response = await drive.files.list({
     q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
@@ -42,7 +40,7 @@ async function getSheetFilesInFolder(folderId: string): Promise<Array<{ id: stri
     pageSize: 100,
   });
 
-  return response.data.files || [];
+  return (response.data.files as any) || [];
 }
 
 export async function POST(req: NextRequest) {

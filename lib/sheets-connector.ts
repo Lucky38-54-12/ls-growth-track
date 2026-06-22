@@ -71,7 +71,7 @@ function mapColumns(headers: string[]): ColumnMapping {
 
 export async function getSheetData(spreadsheetId: string, range: string): Promise<SheetData> {
   const auth = getServiceAccountAuth();
-  const sheets = google.sheets({ version: "v4", auth });
+  const sheets = google.sheets({ version: "v4", auth: auth as any });
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
@@ -87,28 +87,28 @@ export async function getSheetData(spreadsheetId: string, range: string): Promis
   const mapping = mapColumns(headers);
 
   const rows = values.slice(1).map((row: any[]) => ({
-    businessName: row[mapping.businessName] || "",
-    email: row[mapping.email] || "",
-    phone: row[mapping.phone] || "",
-    website: row[mapping.website] || "",
-    facebook: row[mapping.facebook] || "",
-    dateCalled: row[mapping.dateCalled] || "",
-    outcome: row[mapping.outcome] || "",
-    callBack: row[mapping.callBack] || "",
-    notes: row[mapping.notes] || "",
+    businessName: mapping.businessName !== undefined ? row[mapping.businessName] || "" : "",
+    email: mapping.email !== undefined ? row[mapping.email] || "" : "",
+    phone: mapping.phone !== undefined ? row[mapping.phone] || "" : "",
+    website: mapping.website !== undefined ? row[mapping.website] || "" : "",
+    facebook: mapping.facebook !== undefined ? row[mapping.facebook] || "" : "",
+    dateCalled: mapping.dateCalled !== undefined ? row[mapping.dateCalled] || "" : "",
+    outcome: mapping.outcome !== undefined ? row[mapping.outcome] || "" : "",
+    callBack: mapping.callBack !== undefined ? row[mapping.callBack] || "" : "",
+    notes: mapping.notes !== undefined ? row[mapping.notes] || "" : "",
   }));
 
   return {
     sheetId: spreadsheetId,
     sheetName: range,
-    columnMap: mapping,
+    columnMap: mapping as any,
     rows,
   };
 }
 
 export async function listSheets(spreadsheetId: string): Promise<string[]> {
   const auth = getServiceAccountAuth();
-  const sheets = google.sheets({ version: "v4", auth });
+  const sheets = google.sheets({ version: "v4", auth: auth as any });
 
   const response = await sheets.spreadsheets.get({ spreadsheetId });
   return (
@@ -124,7 +124,7 @@ export async function appendToSheet(
   values: any[][]
 ): Promise<void> {
   const auth = getServiceAccountAuth();
-  const sheets = google.sheets({ version: "v4", auth });
+  const sheets = google.sheets({ version: "v4", auth: auth as any });
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
@@ -140,7 +140,7 @@ export async function updateSheetCell(
   values: any[][]
 ): Promise<void> {
   const auth = getServiceAccountAuth();
-  const sheets = google.sheets({ version: "v4", auth });
+  const sheets = google.sheets({ version: "v4", auth: auth as any });
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
