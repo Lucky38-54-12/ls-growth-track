@@ -109,6 +109,120 @@ const CLEANING_TEMPLATES: TemplateSet = {
   },
 };
 
+const PLUMBING_TEMPLATES: TemplateSet = {
+  initial: {
+    subject: `How local plumbers are booking 40+ jobs per month with lead automation`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>Quick one. Most plumbing jobs get called out to 3-4 different companies before someone picks up the phone. If you're not responding within 30 minutes, the job's already gone.</p>
+  <p>We run a lead gen + fast response system for plumbers across NZ: every new enquiry gets contacted within 30 minutes, then we handle all the follow-up automatically. One client went from 15 jobs/month to 40+ booked jobs within 60 days.</p>
+  <p>{{personalization}}</p>
+  <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd work for {{company}}?</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+  followup1: {
+    subject: `Re: How local plumbers are booking 40+ jobs per month`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>Just bumping this in case it got buried. The reality: if you're not the first call back on a plumbing job, you lose it. Our system handles that — every enquiry gets a callback within 30 minutes, guaranteed.</p>
+  <p>Happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> and walk you through how it works for {{company}}.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+  followup2: {
+    subject: `25 booked jobs in 30 days — {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>One more example. Local plumbing business in Wellington was getting 12-15 calls a month but only booking 5-6 because responses were too slow. After we set up the auto-response system, they booked 25 jobs in the first 30 days.</p>
+  <p>Speed wins in plumbing. Be the first call back and you get the job.</p>
+  <p>If {{company}} wants to stop leaving jobs on the table, <a href="{{cta_link}}">grab 15 minutes</a> and I'll show you the numbers.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+  followup3: {
+    subject: `Before I move on — {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>One last thing. We take on a few plumbing businesses at a time and we've got availability in {{location}} right now.</p>
+  <p>If {{company}} is tired of leaving booked jobs on the table because responses are too slow, this week is the right time to talk. <a href="{{cta_link}}">Book 15 minutes here</a> and I'll show you exactly what the first 30 days would look like.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+  followup4: {
+    subject: `Last one from me, {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>I'll keep this one short, I know inboxes get slammed.</p>
+  <p>I've reached out a few times about helping {{company}} book more plumbing jobs through fast response automation. I'll leave it here after this one.</p>
+  <p>If the timing ever changes, <a href="{{cta_link}}">grab a time here</a> and I'll send through some real numbers from other plumbing businesses we've worked with in {{location}}.</p>
+  <p>All the best,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+};
+
+const ELECTRICAL_TEMPLATES: TemplateSet = {
+  initial: {
+    subject: `How sparkies are turning £15k+ in monthly revenue with lead automation`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>Quick one. Electrical jobs get called out fast — but most get booked by whoever responds first. If you're not on the phone within 20 minutes, you've lost it.</p>
+  <p>We run lead gen + instant response for sparks across NZ: new jobs get a callback within 20 minutes, every time, and we handle all follow-up automatically. One client tripled their monthly revenue in 90 days.</p>
+  <p>{{personalization}}</p>
+  <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd work for {{company}}?</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+  followup1: {
+    subject: `Re: How sparkies are turning £15k+ in monthly revenue`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>Just bumping this in case it got buried. In electrical work, speed = money. First callback wins the job. Our system handles that automatically — every new enquiry gets a response within 20 minutes.</p>
+  <p>Happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> and show you how it works for {{company}}.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+  followup2: {
+    subject: `$18k in extra jobs booked — {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>One more example. Sparky in Auckland was getting 30-40 calls a month but only booking 12-15 because responses were too slow. After we set up the automation, they booked $18k worth of extra jobs in the first 60 days by just being faster on the phone.</p>
+  <p>Speed wins. Every day you're slow is lost revenue.</p>
+  <p>If {{company}} wants to stop leaving money on the table, <a href="{{cta_link}}">grab 15 minutes</a> and I'll walk you through it.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+  followup3: {
+    subject: `Before I move on — {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>One last thing. We take on a small number of electrical businesses at a time and we've got a spot available in {{location}} right now.</p>
+  <p>If {{company}} is ready to stop losing jobs to faster competitors, <a href="{{cta_link}}">book 15 minutes here</a> and I'll show you exactly what your first 60 days would look like.</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+  followup4: {
+    subject: `Last one from me, {{company}}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>I'll keep this one short.</p>
+  <p>I've reached out a few times about helping {{company}} book more electrical jobs through faster response times and automation. I'll leave it here after this one.</p>
+  <p>If the timing ever changes, <a href="{{cta_link}}">grab a time here</a> and I'll send through real numbers from other sparks we've worked with in {{location}}.</p>
+  <p>All the best,<br>Lucky<br>LS Growth</p>
+</div>
+{{pixel}}`,
+  },
+};
+
 const DEFAULT_TEMPLATES: TemplateSet = {
   // Day 0
   initial: {
@@ -177,17 +291,23 @@ const DEFAULT_TEMPLATES: TemplateSet = {
 
 export const INDUSTRY_TEMPLATES: Record<string, TemplateSet> = {
   cleaning: CLEANING_TEMPLATES,
+  plumbing: PLUMBING_TEMPLATES,
+  electrical: ELECTRICAL_TEMPLATES,
   default: DEFAULT_TEMPLATES,
 };
 
 export const INDUSTRY_LABELS: Record<string, string> = {
   cleaning: "Cleaning",
+  plumbing: "Plumbing",
+  electrical: "Electrical",
   default: "Default (generic)",
 };
 
 export function industryKey(trade: string): string {
   const t = (trade || "").toLowerCase();
   if (t.includes("clean")) return "cleaning";
+  if (t.includes("plumb")) return "plumbing";
+  if (t.includes("elec") || t.includes("spark")) return "electrical";
   return "default";
 }
 
