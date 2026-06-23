@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { createSupabaseClient } from "@/lib/supabase";
-import { nextStepFor } from "@/lib/leads";
+import { nextStepFor, groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
 import { Building2, Plus, Phone, Calendar, Video } from "lucide-react";
 import SendButton from "@/components/SendButton";
@@ -92,10 +92,43 @@ function KanbanColumn({ label, leads, engagement }: {
   );
 }
 
+function groupByStatus(leads: Lead[], columns: { key: string; label: string }[], activeSource: string): Record<string, Lead[]> {
+  const grouped: Record<string, Lead[]> = {};
+  for (const col of columns) grouped[col.key] = [];
+  for (const lead of leads) {
+    let key = CLOSED_STATUSES.has(lead.status) ? "closed" : lead.status;
+    if (activeSource === "cold_call" && COLD_CALL_EMAIL_SENT_STATUSES.has(key)) key = "contacted";
+    if (grouped[key]) grouped[key].push(lead);
+    else grouped["not_contacted"].push(lead);
+  }
+  return grouped;
+}
+
+function KanbanSection({ label, leads, columns, engagement, activeSource }: {
+  label: string; leads: Lead[]; columns: { key: string; label: string }[];
+  engagement: Record<string, EngagementSummary>; activeSource: string;
+}) {
+  const grouped = groupByStatus(leads, columns, activeSource);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{label}</span>
+        <span style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 7px", background: "#e2e8f0", color: L.muted }}>{leads.length}</span>
+        <div style={{ flex: 1, height: 1, background: L.border }} />
+      </div>
+      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, alignItems: "start" }}>
+        {columns.map(col => (
+          <KanbanColumn key={col.key} label={col.label} leads={grouped[col.key]} engagement={engagement} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { trade?: string; source?: string };
+  searchParams: { source?: string };
 }) {
   const sb = createSupabaseClient();
 
@@ -118,36 +151,18 @@ export default async function DashboardPage({
 
   const due = allLeads.filter(l => nextStepFor(l) !== null).length;
 
-  const tradeMap = new Map<string, string>();
-  for (const l of allLeads) {
-    const key = l.trade?.trim().toLowerCase();
-    if (key && !tradeMap.has(key)) tradeMap.set(key, l.trade);
-  }
-  const trades = Array.from(tradeMap.values()).sort();
-  const activeTrade = searchParams?.trade || "all";
   const activeSource = searchParams?.source || "all";
-  const visibleLeads = allLeads
-    .filter(l => activeTrade === "all" || l.trade?.toLowerCase() === activeTrade.toLowerCase())
-    .filter(l => activeSource === "all" || l.source === activeSource);
+  const visibleLeads = allLeads.filter(l => activeSource === "all" || l.source === activeSource);
 
-  function tradeHref(t: string) {
-    const params = new URLSearchParams();
-    if (t !== "all") params.set("trade", t);
-    if (activeSource !== "all") params.set("source", activeSource);
-    const query = params.toString();
-    return `/dashboard${query ? `?${query}` : ""}`;
-  }
-
-  // Kanban groups
   const columns = activeSource === "cold_call" ? COLD_CALL_COLUMNS : COLUMNS;
-  const grouped: Record<string, Lead[]> = {};
-  for (const col of columns) grouped[col.key] = [];
-  for (const lead of visibleLeads) {
-    let key = CLOSED_STATUSES.has(lead.status) ? "closed" : lead.status;
-    if (activeSource === "cold_call" && COLD_CALL_EMAIL_SENT_STATUSES.has(key)) key = "contacted";
-    if (grouped[key]) grouped[key].push(lead);
-    else grouped["not_contacted"].push(lead);
-  }
+
+  // Section the pipeline by trade/city segment.
+  const segments = groupBySegment(visibleLeads);
+  const sections = segments.map(s => ({
+    key: s.key,
+    label: segmentLabel(s.trade, s.location),
+    leads: visibleLeads.filter(l => segmentKey(l.trade, l.location) === s.key),
+  }));
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
@@ -188,7 +203,7 @@ export default async function DashboardPage({
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <SendButton due={due} />
           <div style={{ width: 220 }}><SheetSyncButton /></div>
-          <Link href={`/dashboard?source=cold_call${activeTrade !== "all" ? `&trade=${activeTrade}` : ""}`} className="btn-lift" style={{
+          <Link href="/dashboard?source=cold_call" className="btn-lift" style={{
             display: "flex", alignItems: "center", gap: 6,
             background: activeSource === "cold_call" ? "var(--blue)" : L.surface,
             color: activeSource === "cold_call" ? "#fff" : L.muted,
@@ -207,26 +222,8 @@ export default async function DashboardPage({
           }}>Import CSV</Link>
         </div>
 
-        {/* Trade filter + source filter + new lead */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 6, flex: 1, flexWrap: "wrap" }}>
-            <Link href={tradeHref("all")} className="pill-hover" style={{
-              padding: "5px 12px", fontSize: 11, fontWeight: 600, textDecoration: "none",
-              border: `1px solid ${activeTrade === "all" ? L.text : L.border}`,
-              background: activeTrade === "all" ? L.text : L.surface,
-              color: activeTrade === "all" ? "#fff" : L.muted,
-              transition: "all 0.15s",
-            }}>All Trades</Link>
-            {trades.map(t => (
-              <Link key={t} href={tradeHref(t)} className="pill-hover" style={{
-                padding: "5px 12px", fontSize: 11, fontWeight: 600, textDecoration: "none",
-                border: `1px solid ${activeTrade.toLowerCase() === t.toLowerCase() ? L.text : L.border}`,
-                background: activeTrade.toLowerCase() === t.toLowerCase() ? L.text : L.surface,
-                color: activeTrade.toLowerCase() === t.toLowerCase() ? "#fff" : L.muted,
-                transition: "all 0.15s",
-              }}>{t}</Link>
-            ))}
-          </div>
+        {/* New lead */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
           <Link href="/dashboard/new" className="btn-lift" style={{
             display: "flex", alignItems: "center", gap: 6, background: "var(--red)", color: "#fff",
             border: "none", padding: "8px 16px", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0,
@@ -239,18 +236,18 @@ export default async function DashboardPage({
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: L.dimmed }}>Pipeline</p>
           <div style={{ flex: 1, height: 1, background: L.border }} />
-          <p style={{ fontSize: 10, color: L.dimmed }}>{visibleLeads.length} lead{visibleLeads.length !== 1 ? "s" : ""}</p>
+          <p style={{ fontSize: 10, color: L.dimmed }}>{visibleLeads.length} lead{visibleLeads.length !== 1 ? "s" : ""} · {sections.length} list{sections.length !== 1 ? "s" : ""}</p>
         </div>
 
-        {/* Kanban board */}
+        {/* Kanban boards, one per trade/city */}
         {allLeads.length === 0 ? (
           <div className="surface-card" style={{ padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
             No leads yet — <Link href="/dashboard/new" style={{ color: "var(--red)", fontWeight: 700 }}>add your first lead</Link> or <Link href="/dashboard/import" style={{ color: "var(--red)", fontWeight: 700 }}>import a batch</Link>.
           </div>
         ) : (
-          <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, alignItems: "start" }}>
-            {columns.map(col => (
-              <KanbanColumn key={col.key} label={col.label} leads={grouped[col.key]} engagement={engagement} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {sections.map(s => (
+              <KanbanSection key={s.key} label={s.label} leads={s.leads} columns={columns} engagement={engagement} activeSource={activeSource} />
             ))}
           </div>
         )}

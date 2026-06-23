@@ -119,13 +119,19 @@ export interface Segment {
   count: number;
 }
 
+export const UNCATEGORIZED_KEY = "__uncategorized__";
+
 export function segmentKey(trade: string, location: string): string {
-  return `${(trade || "").trim().toLowerCase()}|${(location || "").trim().toLowerCase()}`;
+  const t = (trade || "").trim().toLowerCase();
+  if (!t) return UNCATEGORIZED_KEY;
+  return `${t}|${(location || "").trim().toLowerCase()}`;
 }
 
 export function segmentLabel(trade: string, location: string): string {
-  const shortLocation = location.replace(/\s+(NZ|AU|USA|UK)$/i, "").trim() || location;
+  if (!trade?.trim()) return "Uncategorized";
   const tradeLabel = trade.charAt(0).toUpperCase() + trade.slice(1);
+  if (!location?.trim()) return `${tradeLabel} Companies`;
+  const shortLocation = location.replace(/\s+(NZ|AU|USA|UK)$/i, "").trim() || location;
   return `${shortLocation} ${tradeLabel} Companies`;
 }
 
@@ -163,11 +169,15 @@ export function groupBySegment(items: { trade: string; location: string }[]): Se
   for (const item of items) {
     const trade = (item.trade || "").trim();
     const location = (item.location || "").trim();
-    if (!trade || !location) continue;
     const key = segmentKey(trade, location);
     const entry = map.get(key);
     if (entry) entry.count++;
     else map.set(key, { key, trade, location, count: 1 });
   }
-  return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  // Uncategorized always sorts last; everything else by count desc.
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.key === UNCATEGORIZED_KEY) return 1;
+    if (b.key === UNCATEGORIZED_KEY) return -1;
+    return b.count - a.count;
+  });
 }

@@ -6,6 +6,72 @@ import Topbar from "@/components/Topbar";
 import { Search, Plus, Mail, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
+function LeadRow({ lead, engagement, isLast }: { lead: Lead; engagement: Record<string, EngagementSummary>; isLast: boolean }) {
+  const ss = STATUS_COLOR[lead.status] || STATUS_COLOR.not_contacted;
+  const ev = engagement[lead.lead_id];
+  return (
+    <tr className="row-hover" style={{ borderBottom: isLast ? "none" : `1px solid ${L.border}`, cursor: "pointer" }}>
+      <td style={{ padding: "8px 14px" }}>
+        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+          <div style={{ width: 26, height: 26, background: ss.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, color: ss.fg, flexShrink: 0 }}>
+            {initials(lead.company)}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: L.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.company}</div>
+            <div style={{ fontSize: 10.5, color: L.dimmed }}>{lead.contact_name || "—"}</div>
+          </div>
+        </Link>
+      </td>
+      <td style={{ padding: "8px 14px" }}>
+        <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", background: ss.bg, color: ss.fg }}>{STATUS_LABEL[lead.status] || lead.status}</span>
+      </td>
+      <td style={{ padding: "8px 14px" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: L.muted }}>
+          <Mail style={{ width: 11, height: 11 }} />{lead.email || "—"}
+        </span>
+      </td>
+      <td style={{ padding: "8px 14px" }}>
+        {ev && (ev.opens > 0 || ev.clicks > 0) ? (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {ev.opens > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+            {ev.clicks > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+          </div>
+        ) : (
+          <span style={{ fontSize: 11, color: L.dimmed }}>—</span>
+        )}
+      </td>
+      <td style={{ padding: "8px 14px", textAlign: "right" }}>
+        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: L.dimmed, display: "inline-flex" }}>
+          <ChevronRight style={{ width: 14, height: 14 }} />
+        </Link>
+      </td>
+    </tr>
+  );
+}
+
+function SegmentSection({ label, leads, engagement }: { label: string; leads: Lead[]; engagement: Record<string, EngagementSummary> }) {
+  const warm = leads.filter(l => l.status === "replied" || l.status === "booked").length;
+  return (
+    <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflow: "hidden" }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8, padding: "9px 14px",
+        borderBottom: `1px solid ${L.border}`, background: "#f8fafc",
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: L.text }}>{label}</span>
+        <span style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 7px", background: "#e2e8f0", color: L.muted }}>{leads.length}</span>
+        {warm > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 7px", background: "#dcfce7", color: "#166534" }}>{warm} warm</span>}
+      </div>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <tbody>
+          {leads.map((lead, i) => (
+            <LeadRow key={lead.lead_id} lead={lead} engagement={engagement} isLast={i === leads.length - 1} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export const revalidate = 0;
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
@@ -56,7 +122,7 @@ function initials(name: string) {
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: { status?: string; q?: string; segment?: string };
+  searchParams: { status?: string; q?: string };
 }) {
   const sb = createSupabaseClient();
 
@@ -88,15 +154,9 @@ export default async function ContactsPage({
   const newThisWeek = allLeads.filter(l => l.date_added >= sevenDaysAgo).length;
 
   const activeFilter = searchParams?.status || "all";
-  const activeSegment = searchParams?.segment || "all";
   const q = (searchParams?.q || "").trim().toLowerCase();
 
-  const segments = groupBySegment(allLeads);
-
   let filtered = allLeads;
-  if (activeSegment !== "all") {
-    filtered = filtered.filter(l => segmentKey(l.trade, l.location) === activeSegment);
-  }
   if (activeFilter === "closed") {
     filtered = filtered.filter(l => CLOSED_STATUSES.has(l.status));
   } else if (activeFilter !== "all") {
@@ -111,6 +171,16 @@ export default async function ContactsPage({
       (l.email || "").toLowerCase().includes(q)
     );
   }
+
+  // Section the filtered leads by trade/city segment, ordered by total segment size.
+  const segments = groupBySegment(allLeads);
+  const sections = segments
+    .map(s => ({
+      key: s.key,
+      label: segmentLabel(s.trade, s.location),
+      leads: filtered.filter(l => segmentKey(l.trade, l.location) === s.key),
+    }))
+    .filter(s => s.leads.length > 0);
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
@@ -172,7 +242,6 @@ export default async function ContactsPage({
           <div style={{ position: "relative", flex: 1, minWidth: 160 }}>
             <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: L.dimmed }} />
             {activeFilter !== "all" && <input type="hidden" name="status" value={activeFilter} />}
-            {activeSegment !== "all" && <input type="hidden" name="segment" value={activeSegment} />}
             <input
               type="text" name="q" defaultValue={searchParams?.q || ""}
               placeholder="Search…"
@@ -184,7 +253,6 @@ export default async function ContactsPage({
               const active = activeFilter === f.key;
               const params = new URLSearchParams();
               if (f.key !== "all") params.set("status", f.key);
-              if (activeSegment !== "all") params.set("segment", activeSegment);
               if (q) params.set("q", q);
               const qs = params.toString();
               return (
@@ -206,111 +274,20 @@ export default async function ContactsPage({
           </Link>
         </form>
 
-        {segments.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: L.dimmed }}>Lists</span>
-            {[{ key: "all", label: "All Leads", count: total }, ...segments.map(s => ({ key: s.key, label: segmentLabel(s.trade, s.location), count: s.count }))].map(s => {
-              const active = activeSegment === s.key;
-              const params = new URLSearchParams();
-              if (s.key !== "all") params.set("segment", s.key);
-              if (activeFilter !== "all") params.set("status", activeFilter);
-              if (q) params.set("q", q);
-              const qs = params.toString();
-              return (
-                <Link key={s.key} href={`/dashboard/contacts${qs ? `?${qs}` : ""}`} style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "5px 12px", fontSize: 11, fontWeight: 600, textDecoration: "none",
-                  border: `1px solid ${active ? "#2563eb" : L.border}`,
-                  background: active ? "#eff6ff" : L.surface,
-                  color: active ? "#2563eb" : L.muted,
-                  transition: "all 0.15s",
-                }}>
-                  {s.label}
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: "1px 6px",
-                    background: active ? "#dbeafe" : "#f1f5f9",
-                    color: active ? "#2563eb" : L.dimmed,
-                  }}>{s.count}</span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-
         <p style={{ fontSize: 11, color: L.muted }}>
-          Showing {filtered.length} of {allLeads.length}
+          Showing {filtered.length} of {allLeads.length} across {sections.length} list{sections.length !== 1 ? "s" : ""}
         </p>
 
-        {/* Table */}
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", overflow: "hidden" }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding: 40, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
-              No contacts match this view.
-            </div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${L.border}`, background: "#ffffff" }}>
-                  {["Name", "Trade", "Location", "Status", "Contact", "Engagement", ""].map(h => (
-                    <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: 9, fontWeight: 700, color: L.dimmed, letterSpacing: "0.14em", textTransform: "uppercase" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((lead, i) => {
-                  const ss = STATUS_COLOR[lead.status] || STATUS_COLOR.not_contacted;
-                  const ev = engagement[lead.lead_id];
-                  return (
-                    <tr key={lead.lead_id} className="row-hover" style={{
-                      borderBottom: i < filtered.length - 1 ? `1px solid ${L.border}` : "none",
-                      cursor: "pointer",
-                    }}>
-                      <td style={{ padding: "10px 14px" }}>
-                        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-                          <div style={{ width: 30, height: 30, background: ss.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: ss.fg, flexShrink: 0 }}>
-                            {initials(lead.company)}
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: L.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.company}</div>
-                            <div style={{ fontSize: 11, color: L.dimmed }}>{lead.contact_name || "—"}</div>
-                          </div>
-                        </Link>
-                      </td>
-                      <td style={{ padding: "10px 14px", fontSize: 12, color: L.muted }}>{lead.trade || "—"}</td>
-                      <td style={{ padding: "10px 14px", fontSize: 12, color: L.muted }}>{lead.location || "—"}</td>
-                      <td style={{ padding: "10px 14px" }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", background: ss.bg, color: ss.fg }}>{STATUS_LABEL[lead.status] || lead.status}</span>
-                      </td>
-                      <td style={{ padding: "10px 14px" }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: L.muted }}>
-                          <Mail style={{ width: 11, height: 11 }} />{lead.email || "—"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "10px 14px" }}>
-                        {ev && (ev.opens > 0 || ev.clicks > 0) ? (
-                          <div>
-                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
-                              {ev.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
-                              {ev.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
-                            </div>
-                            {ev.last_event_at && <div style={{ fontSize: 11, color: L.dimmed }}>Last: {formatDateTime(ev.last_event_at)}</div>}
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: 11, color: L.dimmed }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "10px 14px", textAlign: "right" }}>
-                        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: L.dimmed, display: "inline-flex" }}>
-                          <ChevronRight style={{ width: 14, height: 14 }} />
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+        {/* Sectioned lists, one per trade/city */}
+        {sections.length === 0 ? (
+          <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 40, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
+            No contacts match this view.
+          </div>
+        ) : (
+          sections.map(s => (
+            <SegmentSection key={s.key} label={s.label} leads={s.leads} engagement={engagement} />
+          ))
+        )}
       </div>
     </div>
   );
