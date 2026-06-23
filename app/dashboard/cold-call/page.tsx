@@ -3,6 +3,8 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { coldEmailDraft } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
+import { Lead } from "@/lib/types";
+import Link from "next/link";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -26,6 +28,21 @@ export default function ColdCallPage() {
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0);
+
+  const [recentlyEmailed, setRecentlyEmailed] = useState<Lead[]>([]);
+
+  useEffect(() => {
+    fetch("/api/leads")
+      .then(res => res.json())
+      .then((data: Lead[]) => {
+        if (!Array.isArray(data)) return;
+        const emailed = data
+          .filter(l => l.source === "cold_call" && l.last_followup)
+          .sort((a, b) => (b.last_followup || "").localeCompare(a.last_followup || ""));
+        setRecentlyEmailed(emailed);
+      })
+      .catch(() => {});
+  }, []);
 
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -269,6 +286,32 @@ export default function ColdCallPage() {
               <p>Cheers,<br />Lucky<br />LS Growth</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 1080, margin: "0 auto 40px", padding: "0 28px" }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
+          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 12 }}>
+            Recently emailed from cold calls
+          </div>
+          {recentlyEmailed.length === 0 ? (
+            <p style={{ fontSize: 13, color: L.muted }}>Nobody yet — once you send a follow-up email above, they'll show up here.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {recentlyEmailed.map(l => (
+                <Link key={l.lead_id} href={`/dashboard/leads/${l.lead_id}`} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                  padding: "8px 4px", textDecoration: "none", borderBottom: `1px solid ${L.border}`,
+                }}>
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: L.text }}>{l.company}</span>
+                    <span style={{ fontSize: 12, color: L.muted, marginLeft: 8 }}>{l.email}</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: L.muted, flexShrink: 0 }}>{l.last_followup}</span>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
