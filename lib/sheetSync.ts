@@ -32,12 +32,14 @@ export async function syncLeadsFromSheet(opts: {
     throw new Error("No rows with a name or email found in that sheet.");
   }
 
-  // Guess trade/location from the sheet's title (e.g. "Wellington Builders"),
-  // falling back to whatever the user typed in the import form.
+  // Guess trade/location from the sheet's title (e.g. "Wellington Builders"). The
+  // scraper page sends the raw search query (e.g. "electrical companies christchurch")
+  // as tradeDefault, so also parse that for a city before falling back to locationDefault.
   const title = await getSheetTitle(sheetId.trim()).catch(() => "");
   const detected = parseCampaignFromTitle(title);
-  const trade = detected.trade || tradeDefault;
-  const location = detected.location || locationDefault;
+  const detectedFromQuery = parseCampaignFromTitle(tradeDefault);
+  const trade = detected.trade || detectedFromQuery.trade || tradeDefault;
+  const location = detected.location || detectedFromQuery.location || locationDefault;
 
   const sb = createSupabaseClient();
   const { data: existingLeads } = await sb.from("leads").select("*");
