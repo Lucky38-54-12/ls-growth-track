@@ -72,6 +72,20 @@ alter table leads
   add column if not exists reply_category text
     check (reply_category in ('interested', 'bad_timing', 'not_interested', 'has_someone'));
 
+-- Tracked sheets — Google Sheets registered for daily auto-sync (Lead Sheets page)
+create table if not exists tracked_sheets (
+  id uuid default gen_random_uuid() primary key,
+  sheet_id text unique not null,
+  trade_default text,
+  location_default text,
+  personalize boolean not null default true,
+  send_fresh boolean not null default true,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  last_synced_at timestamptz,
+  last_result text
+);
+
 -- New statuses: followup_3_sent, followup_4_sent, sequence_complete, reenroll_queue
 -- If you added a CHECK constraint on status previously, drop and recreate it:
 -- alter table leads drop constraint if exists leads_status_check;
