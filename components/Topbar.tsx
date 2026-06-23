@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Search, Plus, X, LayoutDashboard, Users, Send, FileText, UserPlus, Upload, Flame, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks } from "lucide-react";
+import { Bell, Search, Plus, X, LayoutDashboard, Users, Send, FileText, UserPlus, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -16,7 +16,7 @@ const SEARCH_ITEMS = [
   { label: "Scraper", href: "/dashboard/scraper", icon: ScanSearch },
   { label: "Add Lead", href: "/dashboard/new", icon: UserPlus },
   { label: "Lead Sheets", href: "/dashboard/import", icon: Upload },
-  { label: "Warm Leads", href: "/dashboard/warm", icon: Flame },
+  { label: "Email Tracking", href: "/dashboard/warm", icon: MailOpen },
 ];
 
 export default function Topbar({ title, subtitle }: { title: string; subtitle?: string }) {

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Users, Send, FileText, UserPlus, Upload, Flame, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks,
+  LayoutDashboard, Users, Send, FileText, UserPlus, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks,
 } from "lucide-react";
 
 const NAV = [
@@ -18,7 +18,7 @@ const NAV = [
   { href: "/dashboard/scraper", label: "Scraper", icon: ScanSearch },
   { href: "/dashboard/new", label: "Add Lead", icon: UserPlus },
   { href: "/dashboard/import", label: "Lead Sheets", icon: Upload },
-  { href: "/dashboard/warm", label: "Warm Leads", icon: Flame },
+  { href: "/dashboard/warm", label: "Email Tracking", icon: MailOpen },
 ];
 
 export default function Sidebar() {

@@ -234,7 +234,7 @@ export default async function DashboardPage({
           <Link href="/dashboard/warm" className="pill-hover" style={{
             padding: "8px 14px", background: L.surface, border: `1px solid ${L.border}`,
             fontSize: 11.5, fontWeight: 600, color: L.muted, textDecoration: "none", transition: "all 0.15s",
-          }}>Warm Leads</Link>
+          }}>Email Tracking</Link>
           <Link href="/dashboard/import" className="pill-hover" style={{
             padding: "8px 14px", background: L.surface, border: `1px solid ${L.border}`,
             fontSize: 11.5, fontWeight: 600, color: L.muted, textDecoration: "none", transition: "all 0.15s",

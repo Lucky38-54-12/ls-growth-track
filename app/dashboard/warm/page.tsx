@@ -1,23 +1,29 @@
 import { createSupabaseClient } from "@/lib/supabase";
-import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
+import { EmailEvent, EmailSend, EngagementSummary } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
 import Topbar from "@/components/Topbar";
 import Link from "next/link";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
-// Statuses that are already converted — exclude from "worth a call" list
-const CONVERTED_STATUSES = new Set(["booked", "not_interested", "bounced", "sequence_complete"]);
-
 export const revalidate = 0;
 
-export default async function WarmLeadsPage() {
+interface SendRow extends EmailSend {
+  company: string;
+  contact_name: string;
+  email: string;
+}
+
+export default async function EmailTrackingPage() {
   const sb = createSupabaseClient();
 
-  const [{ data: leads }, { data: events }] = await Promise.all([
-    sb.from("leads").select("*").order("date_added", { ascending: false }),
+  const [{ data: sends }, { data: leads }, { data: events }] = await Promise.all([
+    sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
+    sb.from("leads").select("lead_id,company,contact_name,email"),
     sb.from("email_events").select("*"),
   ]);
+
+  const leadById = new Map((leads || []).map((l) => [l.lead_id, l]));
 
   const engagement: Record<string, EngagementSummary> = {};
   for (const ev of (events || []) as EmailEvent[]) {
@@ -29,107 +35,77 @@ export default async function WarmLeadsPage() {
     }
   }
 
-  const isWarm = (l: Lead) => {
-    if (CONVERTED_STATUSES.has(l.status)) return false;
-    const ev = engagement[l.lead_id];
-    // Show replied (direct signal) OR any lead with tracked opens/clicks
-    return l.status === "replied" || (ev && (ev.opens > 0 || ev.clicks > 0));
-  };
-
-  const warm = ((leads || []) as Lead[]).filter(isWarm).sort((a, b) => {
-    // Clicks rank highest (strongest intent), then opens, then replied
-    const aClicks = engagement[a.lead_id]?.clicks || 0;
-    const bClicks = engagement[b.lead_id]?.clicks || 0;
-    if (bClicks !== aClicks) return bClicks - aClicks;
-    const aOpens = engagement[a.lead_id]?.opens || 0;
-    const bOpens = engagement[b.lead_id]?.opens || 0;
-    if (bOpens !== aOpens) return bOpens - aOpens;
-    const aReplied = a.status === "replied" ? 1 : 0;
-    const bReplied = b.status === "replied" ? 1 : 0;
-    return bReplied - aReplied;
+  const rows: SendRow[] = ((sends || []) as EmailSend[]).map((s) => {
+    const lead = leadById.get(s.lead_id);
+    return {
+      ...s,
+      company: lead?.company || "(deleted lead)",
+      contact_name: lead?.contact_name || "",
+      email: lead?.email || "",
+    };
   });
 
-  const sentNoActivity = ((leads || []) as Lead[])
-    .filter((l) => !CONVERTED_STATUSES.has(l.status) && l.status !== "not_contacted" && !isWarm(l))
-    .sort((a, b) => (b.date_contacted || "").localeCompare(a.date_contacted || ""));
+  const totalSent = rows.length;
+  const totalOpened = rows.filter((r) => (engagement[r.lead_id]?.opens || 0) > 0).length;
+  const totalClicked = rows.filter((r) => (engagement[r.lead_id]?.clicks || 0) > 0).length;
+  const openRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0;
 
   return (
     <div>
-      <Topbar title="WARM LEADS" subtitle="Opened, clicked, or replied — not yet booked" />
+      <Topbar title="EMAIL TRACKING" subtitle="Every email sent, and who's opening or clicking" />
 
-      <div style={{ maxWidth: 960, margin: "32px auto", padding: "0 28px" }}>
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
-          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 18 }}>
-            Worth a Call — {warm.length} lead{warm.length !== 1 ? "s" : ""}
-          </div>
-          {warm.length === 0 ? (
-            <p style={{ color: L.muted, fontSize: 13 }}>Nobody warm yet — keep sending!</p>
+      <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
+          {[
+            { label: "Emails Sent", value: totalSent },
+            { label: "Opened", value: `${totalOpened} (${openRate}%)` },
+            { label: "Clicked", value: totalClicked },
+          ].map((c) => (
+            <div key={c.label} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "16px 18px" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 6 }}>{c.label}</p>
+              <p style={{ fontSize: 28, fontWeight: 800, color: L.text }}>{c.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
+          {rows.length === 0 ? (
+            <p style={{ color: L.muted, fontSize: 13 }}>No emails sent yet.</p>
           ) : (
             <table style={{ borderCollapse: "collapse", width: "100%" }}>
               <thead>
                 <tr>
-                  {["Company", "Contact", "Email", "Trade", "Activity", "Last Activity"].map((h) => (
+                  {["Sent", "Company", "Contact", "Subject", "Activity", "Last Activity"].map((h) => (
                     <th key={h} style={{ textAlign: "left", padding: "10px 12px", borderBottom: `1px solid ${L.border}`, color: L.muted, fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {warm.map((lead) => {
-                  const ev = engagement[lead.lead_id];
+                {rows.map((row) => {
+                  const ev = engagement[row.lead_id];
                   return (
-                    <tr key={lead.lead_id} style={{ cursor: "pointer" }}>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>
-                        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: "var(--red)" }}>{lead.company}</Link>
+                    <tr key={row.id}>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted, whiteSpace: "nowrap" }}>
+                        {formatDateTime(row.sent_at)}
                       </td>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5 }}>{lead.contact_name}</td>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5, color: L.muted }}>{lead.email}</td>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5, color: L.muted }}>{lead.trade}</td>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>
+                        <Link href={`/dashboard/leads/${row.lead_id}`} style={{ color: "var(--red)" }}>{row.company}</Link>
+                      </td>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13, color: L.muted }}>{row.contact_name}</td>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5 }}>{row.subject}</td>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13 }}>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {lead.status === "replied" && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dcfce7", color: "#166534" }}>replied</span>}
-                          {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
-                          {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 0, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+                          {!ev?.opens && !ev?.clicks && <span style={{ fontSize: 11, color: L.dimmed }}>No activity</span>}
+                          {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+                          {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
                         </div>
                       </td>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted }}>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted, whiteSpace: "nowrap" }}>
                         {ev?.last_event_at ? formatDateTime(ev.last_event_at) : "—"}
                       </td>
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginTop: 24 }}>
-          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 18 }}>
-            Sent, No Activity Yet — {sentNoActivity.length} lead{sentNoActivity.length !== 1 ? "s" : ""}
-          </div>
-          {sentNoActivity.length === 0 ? (
-            <p style={{ color: L.muted, fontSize: 13 }}>Nothing pending — every contacted lead has opened, clicked, or replied.</p>
-          ) : (
-            <table style={{ borderCollapse: "collapse", width: "100%" }}>
-              <thead>
-                <tr>
-                  {["Company", "Contact", "Email", "Trade", "Status", "Date Contacted"].map((h) => (
-                    <th key={h} style={{ textAlign: "left", padding: "10px 12px", borderBottom: `1px solid ${L.border}`, color: L.muted, fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sentNoActivity.map((lead) => (
-                  <tr key={lead.lead_id}>
-                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>
-                      <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: "var(--red)" }}>{lead.company}</Link>
-                    </td>
-                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5 }}>{lead.contact_name}</td>
-                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5, color: L.muted }}>{lead.email}</td>
-                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5, color: L.muted }}>{lead.trade}</td>
-                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted }}>{lead.status}</td>
-                    <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted }}>{lead.date_contacted || "—"}</td>
-                  </tr>
-                ))}
               </tbody>
             </table>
           )}

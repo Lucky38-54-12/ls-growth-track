@@ -24,6 +24,17 @@ function buildLinks(leadId: string) {
   return { pixel, ctaLink };
 }
 
+// AI-generated email bodies (cold-call follow-ups, etc.) link straight to real
+// URLs instead of the {{CTA_LINK}} placeholder, so those clicks never hit
+// /api/click and never get logged. Rewrite every link to go through the
+// tracker, preserving the real destination as a query param.
+function wrapLinksForTracking(html: string, leadId: string): string {
+  return html.replace(/href="(https?:\/\/[^"]+)"/g, (match, url: string) => {
+    if (url.includes("/api/click")) return match;
+    return `href="${APP_URL}/api/click?id=${encodeURIComponent(leadId)}&url=${encodeURIComponent(url)}"`;
+  });
+}
+
 async function logSend(leadId: string, step: string, subject: string, bodyHtml: string) {
   try {
     const sb = createSupabaseClient();
@@ -79,7 +90,7 @@ export async function sendFreeformEmail(
 export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string) {
   const transport = getTransport();
   const { pixel, ctaLink } = buildLinks(lead.lead_id);
-  const filledBody = bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink);
+  const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
   <p>Cheers,<br>Lucky<br>LS Growth</p>
