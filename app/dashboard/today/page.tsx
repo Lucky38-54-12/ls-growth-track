@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Calendar, Video, ArrowUpRight, Mail, MousePointerClick, Clock, Flame, MailCheck, MousePointer2, MessageCircleHeart } from "lucide-react";
+import { Calendar, Video, ArrowUpRight, Mail, MousePointerClick, Clock, Flame, MailCheck, MousePointer2, MessageCircleHeart, LayoutDashboard } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase";
-import { listTodaysEvents, CalendarEvent } from "@/lib/calendar";
+import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calendar";
 import { buildAnalytics, rate } from "@/lib/analytics";
 import { nextStepFor } from "@/lib/leads";
 import { formatDateTime } from "@/lib/format";
@@ -15,6 +15,16 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 const CLOSED_STATUSES = new Set(["sequence_complete", "not_interested", "bounced"]);
 const WARM_STATUSES = new Set(["replied", "booked"]);
 const TZ = "Pacific/Auckland";
+
+const PIPELINE_STAGES: { key: string; label: string }[] = [
+  { key: "not_contacted", label: "New Lead" },
+  { key: "contacted", label: "Contacted" },
+  { key: "followup_1_sent", label: "Follow-up 1" },
+  { key: "followup_2_sent", label: "Follow-up 2" },
+  { key: "replied", label: "Replied" },
+  { key: "booked", label: "Booked" },
+  { key: "closed", label: "Closed" },
+];
 
 const dateKeyFmt = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
 const timeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true });
@@ -36,23 +46,39 @@ export default async function TodayPage() {
   const allSends = (sends || []) as EmailSend[];
   const allEvents = (events || []) as EmailEvent[];
 
-  let todaysMeetings: CalendarEvent[] = [];
+  // Next 7 days of calendar events, for the calendar overview panel.
+  let upcomingEvents: CalendarEvent[] = [];
   try {
-    todaysMeetings = await listTodaysEvents();
+    const { startISO } = getDayRangeUTC(todayKey(), TZ);
+    const endDateStr = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" })
+      .format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+    const { startISO: endRangeStart } = getDayRangeUTC(endDateStr, TZ);
+    upcomingEvents = await listCalendarEvents(startISO, endRangeStart);
   } catch {
-    todaysMeetings = [];
+    upcomingEvents = [];
   }
-
   const today = todayKey();
   const leadByEmail = new Map(allLeads.map(l => [l.email.toLowerCase(), l]));
   const leadByContact = new Map(allLeads.filter(l => l.contact_name).map(l => [l.contact_name.toLowerCase().trim(), l]));
 
+  // Cold-call prospects that haven't actually been called yet live in the
+  // Call Queue, not the pipeline (see /dashboard page for the same rule).
+  const pipelineLeads = allLeads.filter(l => !(l.source === "cold_call" && l.status === "not_contacted"));
+
   // Pipeline stats
-  const active = allLeads.filter(l => !CLOSED_STATUSES.has(l.status));
+  const active = pipelineLeads.filter(l => !CLOSED_STATUSES.has(l.status));
   const dueLeads = allLeads.filter(l => nextStepFor(l) !== null);
-  const contacted = allLeads.filter(l => l.status !== "not_contacted").length;
-  const warm = allLeads.filter(l => WARM_STATUSES.has(l.status)).length;
+  const contacted = pipelineLeads.filter(l => l.status !== "not_contacted").length;
+  const warm = pipelineLeads.filter(l => WARM_STATUSES.has(l.status)).length;
   const replyRate = contacted > 0 ? Math.round((warm / contacted) * 100) : 0;
+
+  const stageCounts: Record<string, number> = {};
+  for (const stage of PIPELINE_STAGES) stageCounts[stage.key] = 0;
+  for (const lead of pipelineLeads) {
+    const key = CLOSED_STATUSES.has(lead.status) ? "closed" : lead.status;
+    if (stageCounts[key] !== undefined) stageCounts[key]++;
+    else stageCounts["not_contacted"]++;
+  }
 
   // Email performance
   const { overall } = buildAnalytics(allSends, allEvents);
@@ -112,18 +138,25 @@ export default async function TodayPage() {
 
         <div className="today-grid" style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 16, alignItems: "start" }}>
 
-          {/* Today's meetings */}
-          <div className="surface-card" style={{ overflow: "hidden" }}>
+          {/* Calendar — next 7 days */}
+          <div className="surface-card" style={{ overflow: "hidden", gridRow: "1 / 3" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
               <Calendar style={{ width: 15, height: 15, color: L.muted }} />
-              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Today&apos;s Meetings</span>
-              <span style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed }}>{todaysMeetings.length}</span>
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Calendar — Next 7 Days</span>
+              <Link href="/dashboard/calendar" className="pill-hover" style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed, textDecoration: "none" }}>
+                {upcomingEvents.length} event{upcomingEvents.length !== 1 ? "s" : ""}
+              </Link>
             </div>
-            {todaysMeetings.length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 12.5 }}>Nothing booked for today.</div>
-            ) : (
+            {upcomingEvents.length === 0 ? (
+              <div style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 12.5 }}>Nothing booked in the next 7 days.</div>
+            ) : (() => {
+              let lastDay = "";
+              return (
               <div style={{ display: "flex", flexDirection: "column" }}>
-                {todaysMeetings.map(ev => {
+                {upcomingEvents.map(ev => {
+                  const day = dayLabel(ev.startISO);
+                  const showDivider = day !== lastDay;
+                  if (showDivider) lastDay = day;
                   let attendeeEmail = ev.attendeeEmail;
                   let attendeeName = ev.attendeeName;
 
@@ -158,7 +191,14 @@ export default async function TodayPage() {
                     "Lucky",
                   ].join("\n");
                   return (
-                    <div key={ev.eventId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}` }}>
+                    <div key={ev.eventId}>
+                    {showDivider && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 18px", background: "#f8fafc", borderBottom: `1px solid ${L.border}` }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>{day}</span>
+                        <div style={{ flex: 1, height: 1, background: L.border }} />
+                      </div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}` }}>
                       <div style={{ width: 56, flexShrink: 0, fontSize: 13, fontWeight: 800, color: L.text }}>{timeStr}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -191,10 +231,33 @@ export default async function TodayPage() {
                         </Link>
                       )}
                     </div>
+                    </div>
                   );
                 })}
               </div>
-            )}
+              );
+            })()}
+          </div>
+
+          {/* Pipeline overview */}
+          <div className="surface-card" style={{ overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
+              <LayoutDashboard style={{ width: 15, height: 15, color: L.muted }} />
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Pipeline Overview</span>
+              <Link href="/dashboard" className="pill-hover" style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed, textDecoration: "none" }}>
+                {active.length} active
+              </Link>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {PIPELINE_STAGES.map(stage => (
+                <Link key={stage.key} href={`/dashboard?source=all`} className="row-hover" style={{
+                  display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none",
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: L.text, flex: 1 }}>{stage.label}</span>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: L.text }}>{stageCounts[stage.key]}</span>
+                </Link>
+              ))}
+            </div>
           </div>
 
           {/* Needs follow-up */}
