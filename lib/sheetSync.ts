@@ -123,6 +123,19 @@ export async function syncLeadsFromSheet(opts: {
       updated++;
     }
 
+    // Backfill trade/location on existing leads that were imported before this
+    // sheet's title was being parsed correctly — never overwrite a value that's
+    // already set, only fill in blanks.
+    if (lead) {
+      const patch: Partial<Lead> = {};
+      if (!lead.trade && trade) patch.trade = trade;
+      if (!lead.location && location) patch.location = location;
+      if (Object.keys(patch).length) {
+        await sb.from("leads").update(patch).eq("lead_id", lead.lead_id);
+        lead = { ...lead, ...patch };
+      }
+    }
+
     if (TERMINAL_STATUSES.has(lead.status)) continue;
 
     try {
