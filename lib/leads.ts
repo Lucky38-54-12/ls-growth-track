@@ -43,9 +43,10 @@ export function nextStepFor(lead: Lead): EmailStep | null {
     return days !== null && days >= threshold ? "initial" : null;
   }
 
-  // Cold-call prospects need an actual phone call first (via Call Queue),
-  // not an automatic cold email — don't pull them into the email sequence.
-  if (status === "not_contacted" && lead.source === "cold_call") return null;
+  // Cold-call leads always get a one-off personalized email sent manually
+  // via the Cold Call page (called → emailed → meeting_booked) — they never
+  // go through the generic templated initial/followup1/followup2 sequence.
+  if (lead.source === "cold_call") return null;
 
   // Not yet started
   if (status === "not_contacted" || !date_contacted) return "initial";

@@ -1,51 +1,38 @@
 import Link from "next/link";
-import { Building2, Phone } from "lucide-react";
+import { Phone } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase";
-import { nextStepFor } from "@/lib/leads";
+import { formatDateTime } from "@/lib/format";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
 import Topbar from "@/components/Topbar";
 
 export const revalidate = 0;
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
-const CLOSED_STATUSES = new Set(["sequence_complete", "not_interested", "bounced"]);
-const EMAIL_SENT_STATUSES = new Set(["contacted", "followup_1_sent", "followup_2_sent", "replied"]);
 
-const COLUMNS: { key: string; label: string }[] = [
-  { key: "contacted", label: "Email Sent" },
-  { key: "booked", label: "Meeting Booked" },
-  { key: "closed", label: "Closed / No Close" },
-];
+const STATUS_LABELS: Record<string, string> = {
+  called: "Called, not yet emailed",
+  emailed: "Follow-up emailed",
+  meeting_booked: "Meeting booked",
+  contacted: "Email sent",
+  followup_1_sent: "Follow-up 1 sent",
+  followup_2_sent: "Follow-up 2 sent",
+  followup_3_sent: "Follow-up 3 sent",
+  followup_4_sent: "Follow-up 4 sent",
+  replied: "Replied",
+  booked: "Booked",
+  not_interested: "Not interested",
+  bounced: "Bounced",
+  sequence_complete: "Sequence complete",
+};
 
-function KanbanCard({ lead, engagement }: { lead: Lead; engagement: Record<string, EngagementSummary> }) {
-  const ev = engagement[lead.lead_id];
-  const isDue = nextStepFor(lead) !== null;
-  return (
-    <Link href={`/dashboard/leads/${lead.lead_id}`} className="card-hover" style={{
-      display: "block", background: L.surface, border: `1px solid ${L.border}`, padding: "12px 14px",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${L.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Building2 style={{ width: 12, height: 12, color: L.muted }} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
-            <span style={{ fontSize: 10, color: L.dimmed }}>{lead.trade || "—"}</span>
-            {lead.location && <span style={{ fontSize: 10, color: L.dimmed }}>· {lead.location}</span>}
-          </div>
-        </div>
-        {isDue && <span title="Due now" style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--red)", flexShrink: 0 }} />}
-      </div>
-      {(ev?.opens > 0 || ev?.clicks > 0) && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${L.border}` }}>
-          {ev?.opens > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
-          {ev?.clicks > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
-        </div>
-      )}
-    </Link>
-  );
-}
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  meeting_booked: { bg: "#dcfce7", text: "#166534" },
+  booked: { bg: "#dcfce7", text: "#166534" },
+  emailed: { bg: "#dbeafe", text: "#1e40af" },
+  replied: { bg: "#dbeafe", text: "#1e40af" },
+  not_interested: { bg: "#fee2e2", text: "#991b1b" },
+  bounced: { bg: "#fee2e2", text: "#991b1b" },
+};
 
 export default async function ColdCallPipelinePage() {
   const sb = createSupabaseClient();
@@ -63,28 +50,20 @@ export default async function ColdCallPipelinePage() {
     if (!engagement[ev.lead_id].last_event_at) engagement[ev.lead_id].last_event_at = ev.created_at;
   }
 
-  // Uncalled prospects belong in the Call Queue, not here — this page is
-  // every cold-call lead you've actually called, all in one board, with no
-  // split by trade or city.
+  // Uncalled prospects belong in the Call Queue — this page is every
+  // cold-call lead you've actually called, all together, no sections.
   const calledLeads = ((leads || []) as Lead[]).filter(l => l.status !== "not_contacted");
   const queueCount = ((leads || []) as Lead[]).filter(l => l.status === "not_contacted").length;
 
-  const grouped: Record<string, Lead[]> = { contacted: [], booked: [], closed: [] };
-  for (const lead of calledLeads) {
-    const key = CLOSED_STATUSES.has(lead.status) ? "closed" : EMAIL_SENT_STATUSES.has(lead.status) ? "contacted" : lead.status;
-    if (grouped[key]) grouped[key].push(lead);
-    else grouped.contacted.push(lead);
-  }
-
   return (
-    <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
-      <Topbar title="Cold Call Pipeline" subtitle="Every cold-call lead, in one board" />
+    <div>
+      <Topbar title="Cold Call Pipeline" subtitle="Every cold-call lead, all in one place" />
 
-      <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px" }}>
         {queueCount > 0 && (
           <Link href="/dashboard/call-queue" className="card-hover" style={{
             display: "flex", alignItems: "center", gap: 12,
-            background: "#fef2f2", border: "1px solid #fecaca", padding: "12px 16px", textDecoration: "none",
+            background: "#fef2f2", border: "1px solid #fecaca", padding: "12px 16px", textDecoration: "none", marginBottom: 16,
           }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Phone style={{ width: 15, height: 15, color: "var(--red)" }} />
@@ -95,37 +74,54 @@ export default async function ColdCallPipelinePage() {
           </Link>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: L.dimmed }}>All Cold Call Leads</p>
-          <div style={{ flex: 1, height: 1, background: L.border }} />
-          <p style={{ fontSize: 10, color: L.dimmed }}>{calledLeads.length} lead{calledLeads.length !== 1 ? "s" : ""}</p>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
+          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 18 }}>
+            All Cold Call Leads — {calledLeads.length}
+          </div>
+          {calledLeads.length === 0 ? (
+            <p style={{ color: L.muted, fontSize: 13 }}>
+              No cold-call leads yet — work through the <Link href="/dashboard/call-queue" style={{ color: "var(--red)" }}>Call Queue</Link> to add some.
+            </p>
+          ) : (
+            <table style={{ borderCollapse: "collapse", width: "100%" }}>
+              <thead>
+                <tr>
+                  {["Company", "Contact", "Trade", "Status", "Added", "Activity"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "10px 12px", borderBottom: `1px solid ${L.border}`, color: L.muted, fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {calledLeads.map((lead) => {
+                  const ev = engagement[lead.lead_id];
+                  const color = STATUS_COLORS[lead.status] || { bg: "#f1f5f9", text: L.muted };
+                  return (
+                    <tr key={lead.lead_id}>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>
+                        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: "var(--red)" }}>{lead.company}</Link>
+                      </td>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13, color: L.muted }}>{lead.contact_name}</td>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13, color: L.muted }}>{lead.trade || "—"}</td>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}` }}>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: color.bg, color: color.text }}>
+                          {STATUS_LABELS[lead.status] || lead.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted, whiteSpace: "nowrap" }}>{formatDateTime(lead.date_added)}</td>
+                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13 }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {!ev?.opens && !ev?.clicks && <span style={{ fontSize: 11, color: L.dimmed }}>—</span>}
+                          {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+                          {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
-
-        {calledLeads.length === 0 ? (
-          <div className="surface-card" style={{ padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
-            No cold-call leads yet — work through the <Link href="/dashboard/call-queue" style={{ color: "var(--red)", fontWeight: 700 }}>Call Queue</Link> to add some.
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, alignItems: "start" }}>
-            {COLUMNS.map(col => (
-              <div key={col.key} style={{ width: 290, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-                <div className="surface-card" style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px",
-                }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: L.text }}>{col.label}</span>
-                  <span style={{ fontSize: 20, fontWeight: 800, color: L.text }}>{grouped[col.key].length}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 80 }}>
-                  {grouped[col.key].length === 0 ? (
-                    <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 12, background: "#f8fafc", border: `1px dashed ${L.border}`, borderRadius: 10 }}>Empty</div>
-                  ) : (
-                    grouped[col.key].map(lead => <KanbanCard key={lead.lead_id} lead={lead} engagement={engagement} />)
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
