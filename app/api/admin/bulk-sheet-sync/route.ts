@@ -34,6 +34,14 @@ export async function GET() {
   });
   const files = list.data.files || [];
 
+  if (files.length === 0) {
+    const creds = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "{}");
+    return NextResponse.json({
+      found: 0,
+      debug: { folderId, serviceAccountEmail: creds.client_email },
+    });
+  }
+
   const results = [];
   for (const file of files) {
     if (!file.id) continue;
