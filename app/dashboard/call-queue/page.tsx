@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { Lead } from "@/lib/types";
 import Topbar from "@/components/Topbar";
 import ProspectFinder from "./ProspectFinder";
@@ -11,14 +11,13 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 
 export default async function CallQueuePage() {
   const sb = createSupabaseClient();
-  const { data: leads } = await sb
+  const queue = await fetchAllRows<Lead>((from, to) => sb
     .from("leads")
     .select("*")
     .eq("source", "cold_call")
     .eq("status", "not_contacted")
-    .order("date_added", { ascending: false });
-
-  const queue = (leads || []) as Lead[];
+    .order("date_added", { ascending: false })
+    .range(from, to));
 
   return (
     <div>

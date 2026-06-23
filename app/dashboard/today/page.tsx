@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Calendar, Video, ArrowUpRight, Mail, MousePointerClick, Clock, Flame, MailCheck, MousePointer2, MessageCircleHeart, LayoutDashboard } from "lucide-react";
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calendar";
 import { buildAnalytics, rate } from "@/lib/analytics";
 import { nextStepFor } from "@/lib/leads";
@@ -36,13 +36,13 @@ function todayKey(): string {
 export default async function TodayPage() {
   const sb = createSupabaseClient();
 
-  const [{ data: leads }, { data: sends }, { data: events }] = await Promise.all([
-    sb.from("leads").select("*").order("date_added", { ascending: false }),
+  const [leads, { data: sends }, { data: events }] = await Promise.all([
+    fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
   ]);
 
-  const allLeads = (leads || []) as Lead[];
+  const allLeads = leads;
   const allSends = (sends || []) as EmailSend[];
   const allEvents = (events || []) as EmailEvent[];
 

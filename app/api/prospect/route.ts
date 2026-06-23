@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { generateLeadId, pickNextRegion } from "@/lib/leads";
 import { generateColdCallPrep } from "@/lib/ai";
 
@@ -63,8 +63,10 @@ export async function GET(req: NextRequest) {
       }
 
       try {
-        const { data: existingLeads } = await sb.from("leads").select("trade, location, email, lead_id");
-        const region = regionOverride || pickNextRegion((existingLeads || []) as { trade: string; location: string }[], TRADE);
+        const existingLeads = await fetchAllRows<{ trade: string; location: string; email: string; lead_id: string }>(
+          (from, to) => sb.from("leads").select("trade, location, email, lead_id").range(from, to)
+        );
+        const region = regionOverride || pickNextRegion(existingLeads, TRADE);
         const query = `${TRADE.toLowerCase()} companies ${region}`;
 
         send({ type: "start", msg: `Auto-picked region: ${region}. Searching "${query}" (up to ${max})...\n` });
@@ -95,9 +97,9 @@ export async function GET(req: NextRequest) {
           try {
             const scraped = parseScraperOutput(stdoutBuf);
             const existingEmails = new Set(
-              (existingLeads || []).map((l: { email: string }) => l.email?.toLowerCase()).filter(Boolean)
+              existingLeads.map((l) => l.email?.toLowerCase()).filter(Boolean)
             );
-            const existingIds = new Set<string>((existingLeads || []).map((l: { lead_id: string }) => l.lead_id));
+            const existingIds = new Set<string>(existingLeads.map((l) => l.lead_id));
 
             const fresh = scraped.filter(
               (l) => l.email && l.email.includes("@") && !existingEmails.has(l.email.toLowerCase())

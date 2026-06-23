@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "./supabase";
+import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { generateLeadId } from "./leads";
 import { generateMeetingConfirmationEmail } from "./ai";
 import { sendPersonalizedEmail } from "./email";
@@ -24,8 +24,8 @@ async function findOrCreateLead(sb: ReturnType<typeof createSupabaseClient>, boo
   const company = companyFromSummary(booking.summary) || booking.attendeeEmail;
   const contactName = booking.attendeeName || company;
 
-  const { data: existingIdsRows } = await sb.from("leads").select("lead_id");
-  const existingIds = new Set<string>((existingIdsRows || []).map((r: { lead_id: string }) => r.lead_id));
+  const existingIdsRows = await fetchAllRows<{ lead_id: string }>((from, to) => sb.from("leads").select("lead_id").range(from, to));
+  const existingIds = new Set<string>(existingIdsRows.map((r) => r.lead_id));
   const leadId = generateLeadId(company, existingIds);
   const today = new Date().toISOString().split("T")[0];
 

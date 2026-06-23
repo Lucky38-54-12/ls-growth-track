@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "./supabase";
+import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { generateLeadId } from "./leads";
 import { sendOutreachEmail, sendPersonalizedEmail } from "./email";
 import { generatePersonalizedEmail, generatePersonalizationHook } from "./ai";
@@ -42,10 +42,10 @@ export async function syncLeadsFromSheet(opts: {
   const location = detected.location || detectedFromQuery.location || locationDefault;
 
   const sb = createSupabaseClient();
-  const { data: existingLeads } = await sb.from("leads").select("*");
+  const existingLeads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to));
   const leadsByEmail = new Map<string, Lead>();
   const existingIds = new Set<string>();
-  for (const lead of (existingLeads || []) as Lead[]) {
+  for (const lead of existingLeads) {
     if (lead.email) leadsByEmail.set(lead.email.toLowerCase(), lead);
     existingIds.add(lead.lead_id);
   }

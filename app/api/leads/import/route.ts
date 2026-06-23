@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { generateLeadId, nextStepFor, STEP_NEW_STATUS } from "@/lib/leads";
 import { sendOutreachEmail } from "@/lib/email";
 import { generatePersonalizationHook } from "@/lib/ai";
@@ -17,9 +17,9 @@ export async function POST(req: NextRequest) {
   };
 
   const sb = createSupabaseClient();
-  const { data: existing } = await sb.from("leads").select("lead_id, email");
-  const existingIds = new Set<string>((existing || []).map((r: { lead_id: string }) => r.lead_id));
-  const existingEmails = new Set<string>((existing || []).map((r: { email: string }) => r.email.toLowerCase()));
+  const existing = await fetchAllRows<{ lead_id: string; email: string }>((from, to) => sb.from("leads").select("lead_id, email").range(from, to));
+  const existingIds = new Set<string>(existing.map((r) => r.lead_id));
+  const existingEmails = new Set<string>(existing.map((r) => r.email.toLowerCase()));
 
   const today = new Date().toISOString().split("T")[0];
   const newLeads: object[] = [];

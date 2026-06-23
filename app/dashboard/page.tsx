@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { nextStepFor, groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
 import { Building2, Plus, Phone, Calendar, Video } from "lucide-react";
@@ -131,13 +131,13 @@ export default async function DashboardPage({
 }) {
   const sb = createSupabaseClient();
 
-  const [{ data: leads }, { data: events }, todaysMeetings] = await Promise.all([
-    sb.from("leads").select("*").order("date_added", { ascending: false }),
+  const [leads, { data: events }, todaysMeetings] = await Promise.all([
+    fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
     listTodaysEvents().catch(() => [] as CalendarEvent[]),
   ]);
 
-  const allLeads = (leads || []) as Lead[];
+  const allLeads = leads;
 
   // Build engagement map
   const engagement: Record<string, EngagementSummary> = {};

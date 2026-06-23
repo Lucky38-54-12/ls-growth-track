@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
 import { groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
@@ -126,12 +126,12 @@ export default async function ContactsPage({
 }) {
   const sb = createSupabaseClient();
 
-  const [{ data: leads }, { data: events }] = await Promise.all([
-    sb.from("leads").select("*").order("date_added", { ascending: false }),
+  const [leads, { data: events }] = await Promise.all([
+    fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_events").select("*"),
   ]);
 
-  const allLeads = (leads || []) as Lead[];
+  const allLeads = leads;
 
   const engagement: Record<string, EngagementSummary> = {};
   for (const ev of (events || []) as EmailEvent[]) {

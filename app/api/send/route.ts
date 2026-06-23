@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "@/lib/leads";
 import { sendOutreachEmail } from "@/lib/email";
 import { Lead } from "@/lib/types";
 
 export async function POST(req: Request) {
   const sb = createSupabaseClient();
-  const { data: leads, error } = await sb.from("leads").select("*");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const leads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to));
 
   let leadIds: string[] | null = null;
   try {
@@ -21,7 +20,7 @@ export async function POST(req: Request) {
   let sent = 0, failed = 0, skipped = 0;
   const errors: string[] = [];
 
-  const targets = leadIds ? (leads as Lead[]).filter((l) => leadIds!.includes(l.lead_id)) : (leads as Lead[]);
+  const targets = leadIds ? leads.filter((l) => leadIds!.includes(l.lead_id)) : leads;
 
   for (const lead of targets) {
     const step = nextStepFor(lead);

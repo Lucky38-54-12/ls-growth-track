@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { nextStepFor, groupBySegment, segmentKey, segmentLabel, isReadyForReenroll } from "@/lib/leads";
 import { renderTemplate, EmailStep, industryKey, INDUSTRY_LABELS } from "@/lib/templates";
 import { Lead, EmailSend, EmailEvent, REPLY_CATEGORY_LABELS, REPLY_CATEGORY_COLORS, ReplyCategory } from "@/lib/types";
@@ -57,13 +57,13 @@ export default async function OutreachPage({
 }) {
   const sb = createSupabaseClient();
 
-  const [{ data: leads }, { data: sends }, { data: events }] = await Promise.all([
-    sb.from("leads").select("*").order("date_added", { ascending: false }),
+  const [leads, { data: sends }, { data: events }] = await Promise.all([
+    fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_sends").select("id, step, sent_at"),
     sb.from("email_events").select("id, event_type"),
   ]);
 
-  const allLeads = (leads || []) as Lead[];
+  const allLeads = leads;
   const allSends = (sends || []) as Pick<EmailSend, "step">[];
   const allEvents = (events || []) as Pick<EmailEvent, "event_type">[];
 

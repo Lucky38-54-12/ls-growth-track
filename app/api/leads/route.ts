@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { generateLeadId } from "@/lib/leads";
 import { sendOutreachEmail } from "@/lib/email";
 import { Lead } from "@/lib/types";
 
 export async function GET() {
   const sb = createSupabaseClient();
-  const { data, error } = await sb.from("leads").select("*").order("date_added", { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const data = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to));
   return NextResponse.json(data);
 }
 
@@ -27,8 +26,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ lead: existingLead, emailError: null });
   }
 
-  const { data: existing } = await sb.from("leads").select("lead_id");
-  const existingIds = new Set<string>((existing || []).map((r: { lead_id: string }) => r.lead_id));
+  const existing = await fetchAllRows<{ lead_id: string }>((from, to) => sb.from("leads").select("lead_id").range(from, to));
+  const existingIds = new Set<string>(existing.map((r) => r.lead_id));
   const leadId = generateLeadId(body.company, existingIds);
 
   const lead = {

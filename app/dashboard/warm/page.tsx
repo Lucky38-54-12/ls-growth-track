@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { EmailEvent, EmailSend, EngagementSummary } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
 import Topbar from "@/components/Topbar";
@@ -17,13 +17,15 @@ interface SendRow extends EmailSend {
 export default async function EmailTrackingPage() {
   const sb = createSupabaseClient();
 
-  const [{ data: sends }, { data: leads }, { data: events }] = await Promise.all([
+  const [{ data: sends }, leads, { data: events }] = await Promise.all([
     sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
-    sb.from("leads").select("lead_id,company,contact_name,email"),
+    fetchAllRows<{ lead_id: string; company: string; contact_name: string; email: string }>(
+      (from, to) => sb.from("leads").select("lead_id,company,contact_name,email").range(from, to)
+    ),
     sb.from("email_events").select("*"),
   ]);
 
-  const leadById = new Map((leads || []).map((l) => [l.lead_id, l]));
+  const leadById = new Map(leads.map((l) => [l.lead_id, l]));
 
   const engagement: Record<string, EngagementSummary> = {};
   for (const ev of (events || []) as EmailEvent[]) {

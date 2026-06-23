@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Phone } from "lucide-react";
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { formatDateTime } from "@/lib/format";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
 import Topbar from "@/components/Topbar";
@@ -37,8 +37,8 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 export default async function ColdCallPipelinePage() {
   const sb = createSupabaseClient();
 
-  const [{ data: leads }, { data: events }] = await Promise.all([
-    sb.from("leads").select("*").eq("source", "cold_call").order("date_added", { ascending: false }),
+  const [leads, { data: events }] = await Promise.all([
+    fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").eq("source", "cold_call").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_events").select("*"),
   ]);
 
@@ -52,8 +52,8 @@ export default async function ColdCallPipelinePage() {
 
   // Uncalled prospects belong in the Call Queue — this page is every
   // cold-call lead you've actually called, all together, no sections.
-  const calledLeads = ((leads || []) as Lead[]).filter(l => l.status !== "not_contacted");
-  const queueCount = ((leads || []) as Lead[]).filter(l => l.status === "not_contacted").length;
+  const calledLeads = leads.filter(l => l.status !== "not_contacted");
+  const queueCount = leads.filter(l => l.status === "not_contacted").length;
 
   return (
     <div>

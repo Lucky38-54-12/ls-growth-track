@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "@/lib/leads";
 import { sendOutreachEmail } from "@/lib/email";
 import { Lead } from "@/lib/types";
@@ -12,13 +12,12 @@ export async function GET(req: NextRequest) {
   }
 
   const sb = createSupabaseClient();
-  const { data: leads, error } = await sb.from("leads").select("*");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const leads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to));
 
   const today = new Date().toISOString().split("T")[0];
   let sent = 0, failed = 0;
 
-  for (const lead of leads as Lead[]) {
+  for (const lead of leads) {
     const step = nextStepFor(lead);
     if (!step) continue;
     try {
