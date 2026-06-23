@@ -61,10 +61,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
   }
 
+  const isColdCall = lead.source === "cold_call";
+
   if (meetingBooked) {
-    updates.status = "booked";
+    updates.status = isColdCall ? "meeting_booked" : "booked";
     if (!lead.date_contacted) updates.date_contacted = today;
-  } else if (lead.status === "not_contacted" && sent) {
+  } else if (isColdCall && lead.status === "called" && sent) {
+    updates.status = "emailed";
+    updates.date_contacted = today;
+  } else if (!isColdCall && lead.status === "not_contacted" && sent) {
     updates.status = "contacted";
     updates.date_contacted = today;
   }

@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     email: (body.email as string).toLowerCase(),
     trade: body.trade || "",
     location: body.location || "",
-    status: "not_contacted",
+    status: body.source === "cold_call" ? "called" : "not_contacted",
     date_added: today,
     date_contacted: null,
     last_followup: null,
