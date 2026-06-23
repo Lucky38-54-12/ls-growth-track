@@ -14,11 +14,12 @@ function getDriveAuth() {
   });
 }
 
+// Fallback matches the "Email Outreach" folder ID — not a secret, just kept here
+// because the GOOGLE_DRIVE_FOLDER_ID env var wasn't reliably set in production.
+const DEFAULT_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
+
 export async function GET() {
-  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-  if (!folderId) {
-    return NextResponse.json({ error: "GOOGLE_DRIVE_FOLDER_ID not set" }, { status: 500 });
-  }
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
 
   const auth = getDriveAuth();
   const drive = google.drive({ version: "v3", auth: auth as any });
