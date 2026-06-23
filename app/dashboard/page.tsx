@@ -161,13 +161,16 @@ export default async function DashboardPage({
 
   const columns = activeSource === "cold_call" ? COLD_CALL_COLUMNS : COLUMNS;
 
-  // Section the pipeline by trade/city segment.
-  const segments = groupBySegment(visibleLeads);
-  const sections = segments.map(s => ({
-    key: s.key,
-    label: segmentLabel(s.trade, s.location),
-    leads: visibleLeads.filter(l => segmentKey(l.trade, l.location) === s.key),
-  }));
+  // Cold-call leads stay as one unified list — they don't need splitting by
+  // trade/city, just everyone you've actually called in one place. Other
+  // sources still get sectioned by trade/city segment.
+  const sections = activeSource === "cold_call"
+    ? [{ key: "cold_call", label: "All Cold Call Leads", leads: visibleLeads }]
+    : groupBySegment(visibleLeads).map(s => ({
+        key: s.key,
+        label: segmentLabel(s.trade, s.location),
+        leads: visibleLeads.filter(l => segmentKey(l.trade, l.location) === s.key),
+      }));
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
