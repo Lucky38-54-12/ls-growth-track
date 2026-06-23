@@ -27,7 +27,6 @@ const COLUMNS: { key: string; label: string }[] = [
 ];
 
 const COLD_CALL_COLUMNS: { key: string; label: string }[] = [
-  { key: "not_contacted", label: "New Lead" },
   { key: "contacted", label: "Email Sent" },
   { key: "booked", label: "Meeting Booked" },
   { key: "closed", label: "Closed / No Close" },
@@ -99,7 +98,7 @@ function groupByStatus(leads: Lead[], columns: { key: string; label: string }[],
     let key = CLOSED_STATUSES.has(lead.status) ? "closed" : lead.status;
     if (activeSource === "cold_call" && COLD_CALL_EMAIL_SENT_STATUSES.has(key)) key = "contacted";
     if (grouped[key]) grouped[key].push(lead);
-    else grouped["not_contacted"].push(lead);
+    else grouped[columns[0].key].push(lead);
   }
   return grouped;
 }
@@ -151,8 +150,14 @@ export default async function DashboardPage({
 
   const due = allLeads.filter(l => nextStepFor(l) !== null).length;
 
+  // Uncalled cold-call prospects live in the Call Queue, not the pipeline —
+  // they haven't been qualified by a real call yet, so they shouldn't show
+  // up as kanban cards or count toward pipeline totals.
+  const callQueueLeads = allLeads.filter(l => l.source === "cold_call" && l.status === "not_contacted");
+  const pipelineLeads = allLeads.filter(l => !(l.source === "cold_call" && l.status === "not_contacted"));
+
   const activeSource = searchParams?.source || "all";
-  const visibleLeads = allLeads.filter(l => activeSource === "all" || l.source === activeSource);
+  const visibleLeads = pipelineLeads.filter(l => activeSource === "all" || l.source === activeSource);
 
   const columns = activeSource === "cold_call" ? COLD_CALL_COLUMNS : COLUMNS;
 
@@ -197,7 +202,21 @@ export default async function DashboardPage({
           </Link>
         )}
 
-        <PipelineStats allLeads={allLeads} />
+        <PipelineStats allLeads={pipelineLeads} />
+
+        {callQueueLeads.length > 0 && (
+          <Link href="/dashboard/call-queue" className="card-hover" style={{
+            display: "flex", alignItems: "center", gap: 12,
+            background: "#fef2f2", border: "1px solid #fecaca", padding: "12px 16px", textDecoration: "none",
+          }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Phone style={{ width: 15, height: 15, color: "var(--red)" }} />
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "var(--red)" }}>
+              {callQueueLeads.length} prospect{callQueueLeads.length !== 1 ? "s" : ""} waiting in the Call Queue
+            </span>
+          </Link>
+        )}
 
         {/* Action bar */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

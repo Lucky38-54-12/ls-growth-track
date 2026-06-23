@@ -43,6 +43,10 @@ export function nextStepFor(lead: Lead): EmailStep | null {
     return days !== null && days >= threshold ? "initial" : null;
   }
 
+  // Cold-call prospects need an actual phone call first (via Call Queue),
+  // not an automatic cold email — don't pull them into the email sequence.
+  if (status === "not_contacted" && lead.source === "cold_call") return null;
+
   // Not yet started
   if (status === "not_contacted" || !date_contacted) return "initial";
 
