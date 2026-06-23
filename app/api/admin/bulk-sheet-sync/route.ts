@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { syncLeadsFromSheet } from "@/lib/sheetSync";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 function getDriveAuth() {
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
@@ -18,7 +19,9 @@ function getDriveAuth() {
 // because the GOOGLE_DRIVE_FOLDER_ID env var wasn't reliably set in production.
 const DEFAULT_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const offset = Number(req.nextUrl.searchParams.get("offset") || "0");
+  const limit = Number(req.nextUrl.searchParams.get("limit") || "5");
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
 
   const auth = getDriveAuth();
@@ -42,8 +45,10 @@ export async function GET() {
     });
   }
 
+  const batch = files.slice(offset, offset + limit);
+
   const results = [];
-  for (const file of files) {
+  for (const file of batch) {
     if (!file.id) continue;
     try {
       const result = await syncLeadsFromSheet({
@@ -59,5 +64,12 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ found: files.length, results });
+  const nextOffset = offset + limit;
+  return NextResponse.json({
+    found: files.length,
+    processed: `${offset}-${Math.min(nextOffset, files.length)}`,
+    done: nextOffset >= files.length,
+    nextOffset: nextOffset >= files.length ? null : nextOffset,
+    results,
+  });
 }
