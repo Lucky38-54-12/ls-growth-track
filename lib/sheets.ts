@@ -58,33 +58,52 @@ const CITIES = [
   "Invercargill", "New Plymouth", "Queenstown", "Wanganui", "Gisborne", "Timaru",
 ];
 
+// Shorthand/misspellings seen in real sheet titles (e.g. "Chch Sparkys", "Inv- Builders")
+// that don't substring-match the full city name above.
+const CITY_ALIASES: Record<string, string> = {
+  chch: "Christchurch", "chch-": "Christchurch", chrisrchurch: "Christchurch", christchurc: "Christchurch",
+  inv: "Invercargill", "inv-": "Invercargill",
+};
+
 const TRADE_MAP: Record<string, string> = {
   cleaning: "Cleaning", cleaners: "Cleaning", cleaner: "Cleaning",
   builders: "Builders", building: "Builders", builder: "Builders",
-  plumbing: "Plumbing", plumbers: "Plumbing", plumber: "Plumbing",
-  electrical: "Electrical", electricians: "Electrical", electrician: "Electrical",
-  landscaping: "Landscaping", landscapers: "Landscaping", gardening: "Landscaping", gardeners: "Landscaping",
+  plumbing: "Plumbing", plumbers: "Plumbing", plumber: "Plumbing", plumnbers: "Plumbing",
+  electrical: "Electrical", electricians: "Electrical", electrician: "Electrical", sparky: "Electrical", sparkys: "Electrical", sparkies: "Electrical",
+  landscaping: "Landscaping", landscapers: "Landscaping", gardening: "Landscaping", gardeners: "Landscaping", lansdscaping: "Landscaping",
   painters: "Painting", painting: "Painting", painter: "Painting",
   roofing: "Roofing", roofers: "Roofing", roofer: "Roofing",
-  movers: "Removals", removalists: "Removals", removals: "Removals",
+  movers: "Removals", removalists: "Removals", removals: "Removals", moving: "Removals",
   pestcontrol: "Pest Control", "pest control": "Pest Control",
+  renovations: "Renovations", renovation: "Renovations",
+  coatings: "Floor Coatings",
+  fencing: "Fencing", fencers: "Fencing",
 };
 
 // Best-effort guess at trade/location from a sheet title like "Wellington Builders"
-// or "Wellington Cleaning Companies". Falls back gracefully if nothing matches.
+// or "Chch Sparkys". Falls back gracefully if nothing matches.
 export function parseCampaignFromTitle(title: string): { trade?: string; location?: string } {
   const result: { trade?: string; location?: string } = {};
   if (!title) return result;
 
   const lower = title.toLowerCase();
+  const words = lower.replace(/[^a-z\s-]/g, " ").split(/\s+/).filter(Boolean);
+
   for (const city of CITIES) {
     if (lower.includes(city.toLowerCase())) {
       result.location = `${city} NZ`;
       break;
     }
   }
+  if (!result.location) {
+    for (const word of words) {
+      if (CITY_ALIASES[word]) {
+        result.location = `${CITY_ALIASES[word]} NZ`;
+        break;
+      }
+    }
+  }
 
-  const words = lower.replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
   for (const word of words) {
     if (TRADE_MAP[word]) {
       result.trade = TRADE_MAP[word];
