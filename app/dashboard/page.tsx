@@ -1,14 +1,11 @@
 import { Suspense } from "react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { nextStepFor, groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
+import { groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
 import { Plus, Phone, Calendar, Video } from "lucide-react";
-import SendButton from "@/components/SendButton";
-import SheetSyncButton from "@/components/SheetSyncButton";
 import Topbar from "@/components/Topbar";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineBoard from "@/components/PipelineBoard";
-import InboxImportButton from "@/components/InboxImportButton";
 import FlashMessage from "./FlashMessage";
 import Link from "next/link";
 import { listTodaysEvents, CalendarEvent } from "@/lib/calendar";
@@ -16,16 +13,6 @@ import { listTodaysEvents, CalendarEvent } from "@/lib/calendar";
 export const revalidate = 0;
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
-
-const COLUMNS: { key: string; label: string }[] = [
-  { key: "not_contacted", label: "New Lead" },
-  { key: "contacted", label: "Contacted" },
-  { key: "followup_1_sent", label: "Follow-up 1" },
-  { key: "followup_2_sent", label: "Follow-up 2" },
-  { key: "replied", label: "Replied" },
-  { key: "booked", label: "Booked" },
-  { key: "closed", label: "Closed" },
-];
 
 const COLD_CALL_COLUMNS: { key: string; label: string }[] = [
   { key: "contacted", label: "Email Sent" },
@@ -36,7 +23,7 @@ const COLD_CALL_COLUMNS: { key: string; label: string }[] = [
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { source?: string };
+  searchParams: { segment?: string };
 }) {
   const sb = createSupabaseClient();
 
@@ -57,41 +44,29 @@ export default async function DashboardPage({
     if (!engagement[ev.lead_id].last_event_at) engagement[ev.lead_id].last_event_at = ev.created_at;
   }
 
-  const due = allLeads.filter(l => nextStepFor(l) !== null).length;
+  // This board is cold-call only — email-outreach leads have their own
+  // pages (Email Outreach, Email Tracking). Uncalled prospects live in the
+  // Call Queue, not here; this is everyone actually called, emailed, or booked.
+  const coldCallLeads = allLeads.filter(l => l.source === "cold_call");
+  const callQueueLeads = coldCallLeads.filter(l => l.status === "not_contacted");
+  const pipelineLeads = coldCallLeads.filter(l => l.status !== "not_contacted");
 
-  // Uncalled cold-call prospects live in the Call Queue, not the pipeline —
-  // they haven't been qualified by a real call yet, so they shouldn't show
-  // up as kanban cards or count toward pipeline totals.
-  const callQueueLeads = allLeads.filter(l => l.source === "cold_call" && l.status === "not_contacted");
+  // Trade/city segments become filter pills instead of separate stacked
+  // boards — clicking one narrows the single board down to just that group.
+  const segments = groupBySegment(pipelineLeads).map(s => ({ key: s.key, label: segmentLabel(s.trade, s.location), count: s.count }));
+  const activeSegment = searchParams?.segment || "";
+  const visibleLeads = activeSegment
+    ? pipelineLeads.filter(l => segmentKey(l.trade, l.location) === activeSegment)
+    : pipelineLeads;
+  const activeLabel = activeSegment ? (segments.find(s => s.key === activeSegment)?.label || "Cold Call Leads") : "All Cold Call Leads";
 
-  // Email-outreach leads only stay on the board for 2 weeks — past that
-  // they're stale and just clutter the pipeline view.
-  const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  const pipelineLeads = allLeads.filter(l =>
-    !(l.source === "cold_call" && l.status === "not_contacted") &&
-    !(l.source === "email_outreach" && l.date_added < twoWeeksAgo)
-  );
-
-  const activeSource = searchParams?.source || "all";
-  const visibleLeads = pipelineLeads.filter(l => activeSource === "all" || l.source === activeSource);
-
-  const columns = activeSource === "cold_call" ? COLD_CALL_COLUMNS : COLUMNS;
-
-  // Cold-call leads stay as one unified list — they don't need splitting by
-  // trade/city, just everyone you've actually called in one place. Other
-  // sources still get sectioned by trade/city segment.
-  const sections = activeSource === "cold_call"
-    ? [{ key: "cold_call", label: "All Cold Call Leads", leads: visibleLeads }]
-    : groupBySegment(visibleLeads).map(s => ({
-        key: s.key,
-        label: segmentLabel(s.trade, s.location),
-        leads: visibleLeads.filter(l => segmentKey(l.trade, l.location) === s.key),
-      }));
+  const sections = [{ key: activeSegment || "all", label: activeLabel, leads: visibleLeads }];
+  const columns = COLD_CALL_COLUMNS;
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
       <Suspense fallback={null}><FlashMessage /></Suspense>
-      <Topbar title="Pipeline" subtitle="New lead outreach pipeline" />
+      <Topbar title="Cold Call Leads" subtitle="Everyone you've called, emailed, or booked" />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
 
@@ -137,32 +112,27 @@ export default async function DashboardPage({
           </Link>
         )}
 
-        {/* Action bar */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <SendButton due={due} />
-          <div style={{ width: 220 }}><SheetSyncButton /></div>
-          <Link href="/dashboard?source=cold_call" className="btn-lift" style={{
+        {/* Segment filter pills — click one to narrow the board to just that trade/city */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Link href="/dashboard" className="btn-lift" style={{
             display: "flex", alignItems: "center", gap: 6,
-            background: activeSource === "cold_call" ? "var(--blue)" : L.surface,
-            color: activeSource === "cold_call" ? "#fff" : L.muted,
-            border: activeSource === "cold_call" ? "none" : `1px solid ${L.border}`,
+            background: !activeSegment ? "var(--blue)" : L.surface,
+            color: !activeSegment ? "#fff" : L.muted,
+            border: !activeSegment ? "none" : `1px solid ${L.border}`,
             padding: "8px 14px", fontSize: 11.5, fontWeight: 700, textDecoration: "none", flexShrink: 0,
           }}>
-            <Phone style={{ width: 13, height: 13 }} /> Cold Call Leads
+            <Phone style={{ width: 13, height: 13 }} /> All ({pipelineLeads.length})
           </Link>
-          <Link href="/dashboard/warm" className="pill-hover" style={{
-            padding: "8px 14px", background: L.surface, border: `1px solid ${L.border}`,
-            fontSize: 11.5, fontWeight: 600, color: L.muted, textDecoration: "none", transition: "all 0.15s",
-          }}>Email Tracking</Link>
-          <Link href="/dashboard/import" className="pill-hover" style={{
-            padding: "8px 14px", background: L.surface, border: `1px solid ${L.border}`,
-            fontSize: 11.5, fontWeight: 600, color: L.muted, textDecoration: "none", transition: "all 0.15s",
-          }}>Import CSV</Link>
-          <InboxImportButton />
-        </div>
-
-        {/* New lead */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+          {segments.map(s => (
+            <Link key={s.key} href={`/dashboard?segment=${encodeURIComponent(s.key)}`} className="pill-hover" style={{
+              padding: "8px 14px",
+              background: activeSegment === s.key ? "var(--blue)" : L.surface,
+              color: activeSegment === s.key ? "#fff" : L.muted,
+              border: activeSegment === s.key ? "none" : `1px solid ${L.border}`,
+              fontSize: 11.5, fontWeight: 600, textDecoration: "none", transition: "all 0.15s",
+            }}>{s.label} ({s.count})</Link>
+          ))}
+          <div style={{ flex: 1 }} />
           <Link href="/dashboard/new" className="btn-lift" style={{
             display: "flex", alignItems: "center", gap: 6, background: "var(--red)", color: "#fff",
             border: "none", padding: "8px 16px", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0,
@@ -171,20 +141,13 @@ export default async function DashboardPage({
           </Link>
         </div>
 
-        {/* Pipeline label */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: L.dimmed }}>Pipeline</p>
-          <div style={{ flex: 1, height: 1, background: L.border }} />
-          <p style={{ fontSize: 10, color: L.dimmed }}>{visibleLeads.length} lead{visibleLeads.length !== 1 ? "s" : ""} · {sections.length} list{sections.length !== 1 ? "s" : ""}</p>
-        </div>
-
-        {/* Kanban boards, one per trade/city */}
-        {allLeads.length === 0 ? (
+        {/* Kanban board */}
+        {pipelineLeads.length === 0 ? (
           <div className="surface-card" style={{ padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
-            No leads yet — <Link href="/dashboard/new" style={{ color: "var(--red)", fontWeight: 700 }}>add your first lead</Link> or <Link href="/dashboard/import" style={{ color: "var(--red)", fontWeight: 700 }}>import a batch</Link>.
+            No cold-call leads yet — work through the <Link href="/dashboard/call-queue" style={{ color: "var(--red)", fontWeight: 700 }}>Call Queue</Link> to add some.
           </div>
         ) : (
-          <PipelineBoard sections={sections} columns={columns} engagement={engagement} activeSource={activeSource} />
+          <PipelineBoard sections={sections} columns={columns} engagement={engagement} activeSource="cold_call" />
         )}
       </div>
     </div>
