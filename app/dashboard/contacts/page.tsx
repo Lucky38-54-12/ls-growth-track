@@ -5,6 +5,7 @@ import { groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import Topbar from "@/components/Topbar";
 import { Search, Plus, Mail, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import KanbanView from "./KanbanView";
 
 function LeadRow({ lead, engagement, isLast }: { lead: Lead; engagement: Record<string, EngagementSummary>; isLast: boolean }) {
   const ss = STATUS_COLOR[lead.status] || STATUS_COLOR.not_contacted;
@@ -277,6 +278,9 @@ export default async function ContactsPage({
         <p style={{ fontSize: 11, color: L.muted }}>
           Showing {filtered.length} of {allLeads.length} across {sections.length} list{sections.length !== 1 ? "s" : ""}
         </p>
+
+        {/* Kanban pipeline view */}
+        <KanbanView leads={allLeads} />
 
         {/* Sectioned lists, one per trade/city */}
         {sections.length === 0 ? (
