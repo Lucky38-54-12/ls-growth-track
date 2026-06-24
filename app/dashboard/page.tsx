@@ -38,33 +38,51 @@ function initials(name: string) {
   return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
+'use client';
+
+import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+
 function KanbanCard({ lead, engagement }: { lead: Lead; engagement: Record<string, EngagementSummary> }) {
+  const [expanded, setExpanded] = useState(false);
   const ev = engagement[lead.lead_id];
   const isDue = nextStepFor(lead) !== null;
+
   return (
-    <Link href={`/dashboard/leads/${lead.lead_id}`} className="card-hover" style={{
-      display: "block", background: L.surface, border: `1px solid ${L.border}`, padding: "12px 14px",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${L.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Building2 style={{ width: 12, height: 12, color: L.muted }} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
-            <span style={{ fontSize: 10, color: L.dimmed }}>{lead.trade || "—"}</span>
-            {lead.location && <span style={{ fontSize: 10, color: L.dimmed }}>· {lead.location}</span>}
+    <div className="card-hover" style={{
+      display: "block", background: L.surface, border: `1px solid ${L.border}`, borderRadius: 8,
+      cursor: "pointer", transition: "all 0.2s"
+    }} onClick={() => setExpanded(!expanded)}>
+      <div style={{ padding: "12px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${L.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Building2 style={{ width: 12, height: 12, color: L.muted }} />
           </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
+              <span style={{ fontSize: 10, color: L.dimmed }}>{lead.trade || "—"}</span>
+              {lead.location && <span style={{ fontSize: 10, color: L.dimmed }}>· {lead.location}</span>}
+            </div>
+          </div>
+          <ChevronDown style={{ width: 16, height: 16, color: L.muted, transform: expanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+          {isDue && <span title="Due now" style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--red)", flexShrink: 0 }} />}
         </div>
-        {isDue && <span title="Due now" style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--red)", flexShrink: 0 }} />}
+        {(ev?.opens > 0 || ev?.clicks > 0) && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${L.border}` }}>
+            {ev?.opens > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
+            {ev?.clicks > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+          </div>
+        )}
       </div>
-      {(ev?.opens > 0 || ev?.clicks > 0) && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${L.border}` }}>
-          {ev?.opens > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
-          {ev?.clicks > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+      {expanded && (
+        <div style={{ padding: "12px 14px", borderTop: `1px solid ${L.border}`, fontSize: 12, color: L.dimmed, background: "#f8fafc" }}>
+          <p><strong>Email:</strong> {lead.email || "—"}</p>
+          <p><strong>Phone:</strong> {lead.phone || "—"}</p>
+          <p><strong>Contact:</strong> {lead.contact_name || "—"}</p>
         </div>
       )}
-    </Link>
+    </div>
   );
 }
 
