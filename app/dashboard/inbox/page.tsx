@@ -6,6 +6,7 @@ import { RefreshCw, Mail, Send, Inbox, Paperclip, Reply, Archive, Trash2, MailOp
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
 type Mailbox = "inbox" | "sent";
+type Account = "gmail" | "zoho";
 
 interface InboxMessage {
   uid: number;
@@ -57,6 +58,7 @@ function btnStyle(variant: "primary" | "ghost" | "danger" | "outline"): React.CS
 }
 
 export default function InboxPage() {
+  const [account, setAccount] = useState<Account>("gmail");
   const [tab, setTab] = useState<Mailbox>("inbox");
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,28 +87,31 @@ export default function InboxPage() {
     setTimeout(() => setToast(""), 3000);
   }
 
-  const loadMessages = useCallback(async (mailbox: Mailbox) => {
+  const loadMessages = useCallback(async (mailbox: Mailbox, acct: Account) => {
     setLoading(true);
     setError("");
     setSelectedUid(null);
     setDetail(null);
     setReplyOpen(false);
     try {
-      const url = mailbox === "sent" ? "/api/inbox?mailbox=sent" : "/api/inbox";
-      const res = await fetch(url);
+      const params = new URLSearchParams({ account: acct });
+      if (mailbox === "sent") params.set("mailbox", "sent");
+      const res = await fetch(`/api/inbox?${params.toString()}`);
       const data = await res.json();
       if (data.error) { setError(data.error); return; }
       const msgs: InboxMessage[] = data.messages || [];
       setMessages(msgs);
       setSeenSet(new Set(msgs.filter(m => m.seen).map(m => m.uid)));
     } catch {
-      setError("Could not connect to Gmail. Check GMAIL_USER and GMAIL_APP_PASSWORD env vars.");
+      setError(acct === "zoho"
+        ? "Could not connect to Zoho. Check ZOHO_EMAIL_USER and ZOHO_EMAIL_APP_PASSWORD env vars."
+        : "Could not connect to Gmail. Check GMAIL_USER and GMAIL_APP_PASSWORD env vars.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadMessages(tab); }, [tab, loadMessages]);
+  useEffect(() => { loadMessages(tab, account); }, [tab, account, loadMessages]);
 
   async function selectMessage(uid: number) {
     setSelectedUid(uid);
@@ -117,7 +122,7 @@ export default function InboxPage() {
     setSeenSet(s => new Set(s).add(uid));
     try {
       const mailboxParam = tab === "sent" ? "&mailbox=sent" : "";
-      const res = await fetch(`/api/inbox?uid=${uid}${mailboxParam}`);
+      const res = await fetch(`/api/inbox?uid=${uid}${mailboxParam}&account=${account}`);
       const data = await res.json();
       if (data.message) setDetail(data.message);
     } catch {
@@ -140,6 +145,7 @@ export default function InboxPage() {
           body: replyBody,
           inReplyTo: detail.messageId,
           references: detail.messageId,
+          account,
         }),
       });
       const data = await res.json();
@@ -157,7 +163,7 @@ export default function InboxPage() {
     await fetch("/api/inbox", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "archive", uid: selectedUid }),
+      body: JSON.stringify({ action: "archive", uid: selectedUid, account }),
     });
     setMessages(msgs => msgs.filter(m => m.uid !== selectedUid));
     setSelectedUid(null);
@@ -170,7 +176,7 @@ export default function InboxPage() {
     await fetch("/api/inbox", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "trash", uid: selectedUid, mailbox: tab }),
+      body: JSON.stringify({ action: "trash", uid: selectedUid, mailbox: tab, account }),
     });
     setMessages(msgs => msgs.filter(m => m.uid !== selectedUid));
     setSelectedUid(null);
@@ -183,7 +189,7 @@ export default function InboxPage() {
     await fetch("/api/inbox", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "markUnread", uid: selectedUid, mailbox: tab }),
+      body: JSON.stringify({ action: "markUnread", uid: selectedUid, mailbox: tab, account }),
     });
     setSeenSet(s => { const n = new Set(s); n.delete(selectedUid!); return n; });
     setMessages(msgs => msgs.map(m => m.uid === selectedUid ? { ...m, seen: false } : m));
@@ -197,7 +203,7 @@ export default function InboxPage() {
       const res = await fetch("/api/inbox", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: composeTo, subject: composeSubject, body: composeBody }),
+        body: JSON.stringify({ to: composeTo, subject: composeSubject, body: composeBody, account }),
       });
       const data = await res.json();
       if (data.error) { showToast(`Error: ${data.error}`); return; }
@@ -230,11 +236,29 @@ export default function InboxPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <Topbar title="Inbox" subtitle={`Gmail — ${unread > 0 ? `${unread} unread` : "all read"}`} />
+      <Topbar title="Inbox" subtitle={`${account === "zoho" ? "Outreach (Zoho)" : "Personal (Gmail)"} — ${unread > 0 ? `${unread} unread` : "all read"}`} />
 
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
         {/* Message list */}
         <div style={{ width: 340, flexShrink: 0, borderRight: `1px solid ${L.border}`, display: "flex", flexDirection: "column", background: L.surface }}>
+          {/* Account toggle */}
+          <div style={{ display: "flex", gap: 4, padding: "8px 10px", borderBottom: `1px solid ${L.border}` }}>
+            {(["gmail", "zoho"] as Account[]).map((acct) => (
+              <button
+                key={acct}
+                onClick={() => setAccount(acct)}
+                style={{
+                  flex: 1, padding: "6px 10px", fontSize: 11.5, fontWeight: 700, borderRadius: 6, cursor: "pointer",
+                  border: `1px solid ${account === acct ? "var(--red)" : L.border}`,
+                  background: account === acct ? "#fef2f2" : L.surface,
+                  color: account === acct ? "var(--red)" : L.muted,
+                }}
+              >
+                {acct === "zoho" ? "Outreach" : "Personal"}
+              </button>
+            ))}
+          </div>
+
           {/* Tab bar + compose button */}
           <div style={{ display: "flex", alignItems: "stretch", borderBottom: `1px solid ${L.border}`, background: "#f8fafc" }}>
             <button style={tabStyle(tab === "inbox")} onClick={() => setTab("inbox")}>
@@ -248,7 +272,7 @@ export default function InboxPage() {
             </button>
             <div style={{ flex: 1 }} />
             <button
-              onClick={() => loadMessages(tab)}
+              onClick={() => loadMessages(tab, account)}
               title="Refresh"
               style={{ background: "none", border: "none", cursor: "pointer", color: L.dimmed, padding: "0 8px", display: "flex", alignItems: "center" }}
             >

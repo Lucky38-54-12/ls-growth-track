@@ -2,21 +2,22 @@ import nodemailer from "nodemailer";
 import { Resend } from "resend";
 import { Lead } from "./types";
 import { EmailStep } from "./leads";
+import { MailAccount } from "./gmail";
 import { renderTemplate, htmlToText } from "./templates";
 import { createSupabaseClient } from "./supabase";
 
 const FROM = `Lucky <${process.env.GMAIL_USER}>`;
+const ZOHO_FROM = `Lucky <${process.env.ZOHO_EMAIL_USER}>`;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
 const BOOKING_URL = process.env.BOOKING_URL || "https://lsgrowth.agency/book";
 
 // Bulk/automated outreach (cold initial emails, follow-up sequences, campaign
 // emails) goes through Resend on the verified lsgrowth.agency domain instead
 // of Lucky's personal Gmail account — that volume of cold mail is exactly
-// what gets a Gmail account flagged or suspended. Replies still land in his
-// Gmail inbox via Reply-To, so the Inbox page keeps working unchanged.
-// Manual, low-volume sends (meeting reminders, inbox replies/compose) stay
-// on Gmail since they're conversational, not bulk, and benefit from native
-// threading and showing up in the Gmail Sent folder.
+// what gets a Gmail account flagged or suspended. Replies land in the
+// dedicated Zoho outreach mailbox via Reply-To, kept separate from Lucky's
+// personal Gmail. Manual, low-volume sends (meeting reminders, inbox
+// replies/compose) stay on whichever account the Inbox page is viewing.
 const BULK_FROM = "Lucky from LS Growth <outreach@lsgrowth.agency>";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -30,6 +31,18 @@ function getTransport() {
   });
 }
 
+function getZohoTransport() {
+  return nodemailer.createTransport({
+    host: "smtp.zoho.com.au",
+    port: 465,
+    secure: true,
+    auth: {
+      user: process.env.ZOHO_EMAIL_USER,
+      pass: process.env.ZOHO_EMAIL_APP_PASSWORD,
+    },
+  });
+}
+
 async function sendBulkMail(opts: { to: string; subject: string; html: string; text: string }) {
   const { error } = await resend.emails.send({
     from: BULK_FROM,
@@ -37,7 +50,7 @@ async function sendBulkMail(opts: { to: string; subject: string; html: string; t
     subject: opts.subject,
     html: opts.html,
     text: opts.text,
-    reply_to: process.env.GMAIL_USER,
+    reply_to: process.env.ZOHO_EMAIL_USER,
   });
   if (error) throw new Error(error.message);
 }
@@ -93,15 +106,17 @@ export async function sendFreeformEmail(
   body: string,
   inReplyTo?: string,
   references?: string,
+  account: MailAccount = "gmail",
 ) {
-  const transport = getTransport();
+  const transport = account === "zoho" ? getZohoTransport() : getTransport();
+  const from = account === "zoho" ? ZOHO_FROM : FROM;
   const isHtml = /<[a-z][\s\S]*>/i.test(body);
   const html = isHtml
     ? body
     : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.65;white-space:pre-wrap">${body}</div>`;
   const text = isHtml ? body.replace(/<[^>]+>/g, "") : body;
   await transport.sendMail({
-    from: FROM,
+    from,
     to,
     subject,
     html,

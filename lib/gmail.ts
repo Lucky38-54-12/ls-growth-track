@@ -1,6 +1,19 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 
+export type MailAccount = "gmail" | "zoho";
+
+const ACCOUNTS: Record<MailAccount, { host: string; user: string; pass: string }> = {
+  gmail: { host: "imap.gmail.com", user: process.env.GMAIL_USER!, pass: process.env.GMAIL_APP_PASSWORD! },
+  zoho: { host: "imap.zoho.com.au", user: process.env.ZOHO_EMAIL_USER!, pass: process.env.ZOHO_EMAIL_APP_PASSWORD! },
+};
+
+// Gmail and Zoho use different names for the same special folders.
+export const SPECIAL_FOLDERS: Record<MailAccount, { sent: string; trash: string; archive: string }> = {
+  gmail: { sent: "[Gmail]/Sent Mail", trash: "[Gmail]/Trash", archive: "[Gmail]/All Mail" },
+  zoho: { sent: "Sent", trash: "Trash", archive: "Archive" },
+};
+
 export interface InboxMessage {
   uid: number;
   messageId: string;
@@ -20,22 +33,20 @@ export interface MessageDetail extends InboxMessage {
   to: string;
 }
 
-function getClient() {
+function getClient(account: MailAccount = "gmail") {
+  const { host, user, pass } = ACCOUNTS[account];
   return new ImapFlow({
-    host: "imap.gmail.com",
+    host,
     port: 993,
     secure: true,
-    auth: {
-      user: process.env.GMAIL_USER!,
-      pass: process.env.GMAIL_APP_PASSWORD!,
-    },
+    auth: { user, pass },
     logger: false,
   });
 }
 
 // Fetches the most recent messages from any IMAP mailbox (e.g. "INBOX" or "[Gmail]/Sent Mail").
-export async function fetchMailbox(mailbox: string, limit = 40): Promise<InboxMessage[]> {
-  const client = getClient();
+export async function fetchMailbox(mailbox: string, limit = 40, account: MailAccount = "gmail"): Promise<InboxMessage[]> {
+  const client = getClient(account);
   const messages: InboxMessage[] = [];
 
   try {
@@ -80,8 +91,8 @@ export async function fetchMailbox(mailbox: string, limit = 40): Promise<InboxMe
 
 // Fetches every inbox message received on or after `since`, regardless of how
 // many that is (fetchMailbox above is capped by sequence-number `limit`).
-export async function fetchMailboxSince(mailbox: string, since: Date): Promise<InboxMessage[]> {
-  const client = getClient();
+export async function fetchMailboxSince(mailbox: string, since: Date, account: MailAccount = "gmail"): Promise<InboxMessage[]> {
+  const client = getClient(account);
   const messages: InboxMessage[] = [];
 
   try {
@@ -124,32 +135,32 @@ export async function fetchMailboxSince(mailbox: string, since: Date): Promise<I
   return messages;
 }
 
-export async function archiveMessage(uid: number): Promise<void> {
-  const client = getClient();
+export async function archiveMessage(uid: number, account: MailAccount = "gmail"): Promise<void> {
+  const client = getClient(account);
   try {
     await client.connect();
     await client.mailboxOpen("INBOX");
-    await client.messageMove(String(uid), "[Gmail]/All Mail", { uid: true });
+    await client.messageMove(String(uid), SPECIAL_FOLDERS[account].archive, { uid: true });
   } finally {
     await client.logout().catch(() => {});
   }
 }
 
-export async function trashMessage(uid: number, mailbox = "INBOX"): Promise<void> {
-  const client = getClient();
-  const box = mailbox === "sent" ? "[Gmail]/Sent Mail" : "INBOX";
+export async function trashMessage(uid: number, mailbox = "INBOX", account: MailAccount = "gmail"): Promise<void> {
+  const client = getClient(account);
+  const box = mailbox === "sent" ? SPECIAL_FOLDERS[account].sent : "INBOX";
   try {
     await client.connect();
     await client.mailboxOpen(box);
-    await client.messageMove(String(uid), "[Gmail]/Trash", { uid: true });
+    await client.messageMove(String(uid), SPECIAL_FOLDERS[account].trash, { uid: true });
   } finally {
     await client.logout().catch(() => {});
   }
 }
 
-export async function markAsUnread(uid: number, mailbox = "INBOX"): Promise<void> {
-  const client = getClient();
-  const box = mailbox === "sent" ? "[Gmail]/Sent Mail" : "INBOX";
+export async function markAsUnread(uid: number, mailbox = "INBOX", account: MailAccount = "gmail"): Promise<void> {
+  const client = getClient(account);
+  const box = mailbox === "sent" ? SPECIAL_FOLDERS[account].sent : "INBOX";
   try {
     await client.connect();
     await client.mailboxOpen(box);
@@ -160,8 +171,8 @@ export async function markAsUnread(uid: number, mailbox = "INBOX"): Promise<void
 }
 
 // Fetches full content of a single message by UID from the given mailbox.
-export async function fetchMessageDetail(uid: number, mailbox = "INBOX"): Promise<MessageDetail> {
-  const client = getClient();
+export async function fetchMessageDetail(uid: number, mailbox = "INBOX", account: MailAccount = "gmail"): Promise<MessageDetail> {
+  const client = getClient(account);
 
   try {
     await client.connect();
