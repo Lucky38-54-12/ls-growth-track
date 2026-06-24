@@ -2,18 +2,18 @@ import { Suspense } from "react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { nextStepFor, groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
-import { Building2, Plus, Phone, Calendar, Video } from "lucide-react";
+import { Plus, Phone, Calendar, Video } from "lucide-react";
 import SendButton from "@/components/SendButton";
 import SheetSyncButton from "@/components/SheetSyncButton";
 import Topbar from "@/components/Topbar";
 import PipelineStats from "@/components/PipelineStats";
+import PipelineBoard from "@/components/PipelineBoard";
 import FlashMessage from "./FlashMessage";
 import Link from "next/link";
 import { listTodaysEvents, CalendarEvent } from "@/lib/calendar";
 
 export const revalidate = 0;
 
-const CLOSED_STATUSES = new Set(["sequence_complete", "not_interested", "bounced"]);
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
 const COLUMNS: { key: string; label: string }[] = [
@@ -31,98 +31,6 @@ const COLD_CALL_COLUMNS: { key: string; label: string }[] = [
   { key: "booked", label: "Meeting Booked" },
   { key: "closed", label: "Closed / No Close" },
 ];
-
-const COLD_CALL_EMAIL_SENT_STATUSES = new Set(["contacted", "followup_1_sent", "followup_2_sent", "replied"]);
-
-function initials(name: string) {
-  return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
-}
-
-function KanbanCard({ lead, engagement }: { lead: Lead; engagement: Record<string, EngagementSummary> }) {
-  const ev = engagement[lead.lead_id];
-  const isDue = nextStepFor(lead) !== null;
-  return (
-    <Link href={`/dashboard/leads/${lead.lead_id}`} className="card-hover" style={{
-      display: "block", background: L.surface, border: `1px solid ${L.border}`, padding: "12px 14px",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${L.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Building2 style={{ width: 12, height: 12, color: L.muted }} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
-            <span style={{ fontSize: 10, color: L.dimmed }}>{lead.trade || "—"}</span>
-            {lead.location && <span style={{ fontSize: 10, color: L.dimmed }}>· {lead.location}</span>}
-          </div>
-        </div>
-        {isDue && <span title="Due now" style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--red)", flexShrink: 0 }} />}
-      </div>
-      {(ev?.opens > 0 || ev?.clicks > 0) && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${L.border}` }}>
-          {ev?.opens > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
-          {ev?.clicks > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 5, background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
-        </div>
-      )}
-    </Link>
-  );
-}
-
-function KanbanColumn({ label, leads, engagement }: {
-  label: string; leads: Lead[]; engagement: Record<string, EngagementSummary>;
-}) {
-  return (
-    <div style={{ width: 270, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-      <div className="surface-card" style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 14px",
-      }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: L.text }}>{label}</span>
-        <span style={{ fontSize: 20, fontWeight: 800, color: L.text }}>{leads.length}</span>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 80 }}>
-        {leads.length === 0 ? (
-          <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 12, background: "#f8fafc", border: `1px dashed ${L.border}`, borderRadius: 10 }}>Empty</div>
-        ) : (
-          leads.map(lead => <KanbanCard key={lead.lead_id} lead={lead} engagement={engagement} />)
-        )}
-      </div>
-    </div>
-  );
-}
-
-function groupByStatus(leads: Lead[], columns: { key: string; label: string }[], activeSource: string): Record<string, Lead[]> {
-  const grouped: Record<string, Lead[]> = {};
-  for (const col of columns) grouped[col.key] = [];
-  for (const lead of leads) {
-    let key = CLOSED_STATUSES.has(lead.status) ? "closed" : lead.status;
-    if (activeSource === "cold_call" && COLD_CALL_EMAIL_SENT_STATUSES.has(key)) key = "contacted";
-    if (grouped[key]) grouped[key].push(lead);
-    else grouped[columns[0].key].push(lead);
-  }
-  return grouped;
-}
-
-function KanbanSection({ label, leads, columns, engagement, activeSource }: {
-  label: string; leads: Lead[]; columns: { key: string; label: string }[];
-  engagement: Record<string, EngagementSummary>; activeSource: string;
-}) {
-  const grouped = groupByStatus(leads, columns, activeSource);
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{label}</span>
-        <span style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 7px", background: "#e2e8f0", color: L.muted }}>{leads.length}</span>
-        <div style={{ flex: 1, height: 1, background: L.border }} />
-      </div>
-      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, alignItems: "start" }}>
-        {columns.map(col => (
-          <KanbanColumn key={col.key} label={col.label} leads={grouped[col.key]} engagement={engagement} />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default async function DashboardPage({
   searchParams,
@@ -267,11 +175,7 @@ export default async function DashboardPage({
             No leads yet — <Link href="/dashboard/new" style={{ color: "var(--red)", fontWeight: 700 }}>add your first lead</Link> or <Link href="/dashboard/import" style={{ color: "var(--red)", fontWeight: 700 }}>import a batch</Link>.
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {sections.map(s => (
-              <KanbanSection key={s.key} label={s.label} leads={s.leads} columns={columns} engagement={engagement} activeSource={activeSource} />
-            ))}
-          </div>
+          <PipelineBoard sections={sections} columns={columns} engagement={engagement} activeSource={activeSource} />
         )}
       </div>
     </div>
