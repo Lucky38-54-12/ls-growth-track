@@ -2,6 +2,7 @@ import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { Lead, EmailEvent, EngagementSummary, Campaign } from "@/lib/types";
 import Topbar from "@/components/Topbar";
 import ActivateCampaignButton from "@/components/ActivateCampaignButton";
+import CampaignPreviewButton from "@/components/CampaignPreviewButton";
 import { SegmentSection } from "@/components/LeadTable";
 import { notFound } from "next/navigation";
 
@@ -60,7 +61,12 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
               <span style={{ fontSize: 11.5, color: L.muted }}>Staged, not sending yet — review the list below, then activate when ready.</span>
             )}
           </div>
-          {campaign.status === "draft" && <ActivateCampaignButton campaignId={campaign.id} leadCount={members.length} />}
+          {campaign.status === "draft" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <CampaignPreviewButton campaignId={campaign.id} leadCount={members.length} />
+              <ActivateCampaignButton campaignId={campaign.id} leadCount={members.length} />
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 6 }}>
