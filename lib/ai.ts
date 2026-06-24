@@ -71,12 +71,14 @@ export interface CampaignStepEmailInput {
   trade: string;
   location: string;
   notes: string;
+  website?: string | null;
+  personalizationHook?: string | null;
   step: "initial" | "followup1" | "followup2" | "followup3" | "followup4" | "checkin";
   priorSubjects: string[];
 }
 
 const STEP_GUIDANCE: Record<CampaignStepEmailInput["step"], string> = {
-  initial: "This is the FIRST email to this business. Open the conversation — reference something specific from the notes if there's anything there (e.g. a past call), otherwise introduce why you're reaching out.",
+  initial: "This is the FIRST email to this business. Open the conversation — reference something specific from what's known about them if there's anything there, otherwise introduce why you're reaching out without inventing details.",
   followup1: "This is a short bump, sent a few days after the first email got no reply. Keep it brief, don't repeat the first email's pitch, just nudge.",
   followup2: "This is the third touch. Add one new piece of value or proof point, referencing the notes if relevant. Slightly more substance than the bump.",
   followup3: "This is a later touch. Create gentle urgency (e.g. limited spots) without being pushy.",
@@ -94,13 +96,17 @@ export async function generateCampaignStepEmail(input: CampaignStepEmailInput): 
     ? `\n\nSubjects of emails already sent to this business (don't repeat these angles):\n${input.priorSubjects.map((s) => `- ${s}`).join("\n")}`
     : "";
 
+  const hasRealInfo = !!(input.notes?.trim() || input.personalizationHook?.trim() || input.website?.trim());
+  const knownInfoBlock = hasRealInfo
+    ? `\nWhat's actually known about this business (use this to make the email specific and prove you looked them up — don't just repeat it verbatim):
+${input.personalizationHook?.trim() ? `- ${input.personalizationHook.trim()}\n` : ""}${input.website?.trim() ? `- Website: ${input.website.trim()}\n` : ""}${input.notes?.trim() ? `- Notes: ${input.notes.trim()}\n` : ""}`
+    : `\nNothing specific is known about this business yet (no notes, no research hook). Write a clean, honest, generic first-touch email — do NOT invent any specific detail about them that you don't actually know.`;
+
   const userPrompt = `Business: ${input.company}
 Contact name: ${input.contactName || "there"}
 Trade: ${input.trade || "unknown"}
 Location: ${input.location || "unknown"}
-
-Notes on this business (call history, what's been discussed, anything known):
-${input.notes || "none"}
+${knownInfoBlock}
 ${priorSubjectsBlock}
 
 This email's purpose: ${STEP_GUIDANCE[input.step]}`;

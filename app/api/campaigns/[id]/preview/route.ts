@@ -35,6 +35,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         trade: lead.trade,
         location: lead.location,
         notes: lead.notes,
+        website: lead.website,
+        personalizationHook: lead.personalization_hook,
         step: "initial",
         priorSubjects: [],
       });

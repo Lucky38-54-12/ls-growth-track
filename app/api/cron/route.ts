@@ -34,6 +34,8 @@ export async function GET(req: NextRequest) {
           trade: lead.trade,
           location: lead.location,
           notes: lead.notes,
+          website: lead.website,
+          personalizationHook: lead.personalization_hook,
           step,
           priorSubjects: (priorSends || []).map((s) => s.subject as string),
         });
