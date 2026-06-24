@@ -149,3 +149,61 @@ export async function updateSheetCell(
     requestBody: { values },
   });
 }
+
+export async function listSheetsInFolder(folderId: string): Promise<{ id: string; title: string }[]> {
+  const auth = getServiceAccountAuth();
+  const drive = google.drive({ version: "v3", auth: auth as any });
+
+  const list = await drive.files.list({
+    q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+    spaces: "drive",
+    fields: "files(id, name)",
+    pageSize: 1000,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+    corpora: "allDrives",
+  });
+
+  return (list.data.files || [])
+    .filter((f) => f.id && f.name)
+    .map((f) => ({ id: f.id as string, title: f.name as string }));
+}
+
+// Header row matches the column order lib/sheets.ts readLeadSheet() expects
+// (A2:I): Company, Phone, Email, Website, Facebook, Date Called, Outcome,
+// Call Back, Notes — so this sheet can be synced with the same logic as
+// every sheet Lucky builds by hand.
+const LEAD_SHEET_HEADER = ["Company", "Phone", "Email", "Website", "Facebook", "Date Called", "Outcome", "Call Back", "Notes"];
+
+export async function createLeadSheet(title: string, folderId: string): Promise<string> {
+  const auth = getServiceAccountAuth();
+  const sheets = google.sheets({ version: "v4", auth: auth as any });
+  const drive = google.drive({ version: "v3", auth: auth as any });
+
+  const created = await sheets.spreadsheets.create({
+    requestBody: { properties: { title } },
+  });
+  const spreadsheetId = created.data.spreadsheetId;
+  if (!spreadsheetId) throw new Error("Failed to create spreadsheet — no ID returned.");
+
+  // spreadsheets.create always lands in the service account's My Drive root —
+  // move it into the Email Outreach folder so it shows up alongside Lucky's
+  // other sheets instead of getting lost.
+  const file = await drive.files.get({ fileId: spreadsheetId, fields: "parents", supportsAllDrives: true });
+  const previousParents = (file.data.parents || []).join(",");
+  await drive.files.update({
+    fileId: spreadsheetId,
+    addParents: folderId,
+    removeParents: previousParents,
+    supportsAllDrives: true,
+  });
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: "A1:I1",
+    valueInputOption: "RAW",
+    requestBody: { values: [LEAD_SHEET_HEADER] },
+  });
+
+  return spreadsheetId;
+}

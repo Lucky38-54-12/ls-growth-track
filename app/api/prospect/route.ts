@@ -2,16 +2,21 @@ import { NextRequest } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { generateLeadId, pickNextRegion } from "@/lib/leads";
+import { generateLeadId } from "@/lib/leads";
 import { generateColdCallPrep } from "@/lib/ai";
+import { findCoverageGap } from "@/lib/prospecting";
+import { listSheetsInFolder, createLeadSheet, appendToSheet } from "@/lib/sheets-connector";
 
 export const dynamic = "force-dynamic";
 
-// Auto-prospector — picks the next under-covered NZ region for this trade,
-// runs the local Google Maps scraper, writes AI cold-call prep notes for
-// each new business, and saves them straight to the call queue (source =
-// "cold_call", status = "not_contacted"). No manual query typing needed.
-const TRADE = "Fencing";
+// Auto-prospector — looks at which trade + major-city combos don't have a
+// sheet yet in the Email Outreach Drive folder, picks the most under-covered
+// one (cycling across all of Lucky's trades, not just one), runs the local
+// Google Maps scraper, writes AI cold-call prep notes for each new business,
+// and saves them straight to the call queue (source = "cold_call", status =
+// "not_contacted"). It also creates a properly-named sheet for that combo and
+// registers it for daily sync, so it slots into Lucky's normal workflow.
+const DEFAULT_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
 
 interface ScrapedLead {
   name: string;
@@ -62,14 +67,26 @@ export async function GET(req: NextRequest) {
         controller.enqueue(enc.encode(`data: ${JSON.stringify(payload)}\n\n`));
       }
 
+      const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+
       try {
         const existingLeads = await fetchAllRows<{ trade: string; location: string; email: string; lead_id: string }>(
           (from, to) => sb.from("leads").select("trade, location, email, lead_id").range(from, to)
         );
-        const region = regionOverride || pickNextRegion(existingLeads, TRADE);
-        const query = `${TRADE.toLowerCase()} companies ${region}`;
 
-        send({ type: "start", msg: `Auto-picked region: ${region}. Searching "${query}" (up to ${max})...\n` });
+        let sheetTitles: string[] = [];
+        try {
+          sheetTitles = (await listSheetsInFolder(folderId)).map((s) => s.title);
+        } catch (e) {
+          send({ type: "stderr", msg: `Could not list the Email Outreach folder (continuing with lead-count fallback): ${e instanceof Error ? e.message : String(e)}\n` });
+        }
+
+        const gap = findCoverageGap(sheetTitles, existingLeads);
+        const trade = gap.trade;
+        const region = regionOverride || gap.city;
+        const query = `${trade.toLowerCase()} companies ${region}`;
+
+        send({ type: "start", msg: `Auto-picked ${trade} in ${region} (no sheet found for that combo yet). Searching "${query}" (up to ${max})...\n` });
 
         const scriptPath = path.join(process.env.LEAD_SCRAPER_PATH || "C:\\Users\\lucky\\lead-scraper", "scraper.py");
         const pythonBin =
@@ -111,12 +128,13 @@ export async function GET(req: NextRequest) {
 
             const today = new Date().toISOString().split("T")[0];
             let inserted = 0;
+            const insertedRows: ScrapedLead[] = [];
             for (const lead of fresh) {
               let notes = "";
               try {
                 notes = await generateColdCallPrep({
                   company: lead.name,
-                  trade: TRADE,
+                  trade,
                   location: `${region} NZ`,
                   website: lead.website || null,
                   facebook: lead.facebook || null,
@@ -133,7 +151,7 @@ export async function GET(req: NextRequest) {
                 company: lead.name,
                 contact_name: "there",
                 email: lead.email.toLowerCase(),
-                trade: TRADE,
+                trade,
                 location: `${region} NZ`,
                 status: "not_contacted",
                 date_added: today,
@@ -150,10 +168,31 @@ export async function GET(req: NextRequest) {
               const { error } = await sb.from("leads").insert(row);
               if (!error) {
                 inserted++;
+                insertedRows.push(lead);
                 existingEmails.add(lead.email.toLowerCase());
                 send({ type: "stdout", msg: `  Saved ${lead.name} to the call queue.\n` });
               } else {
                 send({ type: "stderr", msg: `  Could not save ${lead.name}: ${error.message}\n` });
+              }
+            }
+
+            if (insertedRows.length > 0) {
+              const sheetTitle = `${region} ${trade}`;
+              try {
+                const sheetId = await createLeadSheet(sheetTitle, folderId);
+                const sheetRows = insertedRows.map((l) => [l.name, l.phone || "", l.email || "", l.website || "", l.facebook || "", "", "", "", ""]);
+                await appendToSheet(sheetId, "A2", sheetRows);
+                await sb.from("tracked_sheets").insert({
+                  sheet_id: sheetId,
+                  trade_default: trade,
+                  location_default: `${region} NZ`,
+                  personalize: false,
+                  send_fresh: false,
+                  active: true,
+                });
+                send({ type: "stdout", msg: `Created sheet "${sheetTitle}" in the Email Outreach folder and registered it for daily sync.\n` });
+              } catch (e) {
+                send({ type: "stderr", msg: `Could not create/sync the Drive sheet (leads are still saved to the queue): ${e instanceof Error ? e.message : String(e)}\n` });
               }
             }
 

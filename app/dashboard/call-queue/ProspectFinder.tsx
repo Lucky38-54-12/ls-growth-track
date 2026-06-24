@@ -56,7 +56,7 @@ export default function ProspectFinder() {
             Auto-Prospector
           </div>
           <p style={{ fontSize: 13, color: L.muted, maxWidth: 480 }}>
-            Picks the next under-covered NZ region, scrapes fencing companies there, writes cold-call prep notes for each new one, and drops them in the queue below.
+            Picks the most under-covered trade + major city (checked against your Email Outreach Drive folder), scrapes companies there, creates a sheet for it, writes cold-call prep notes for each new one, and drops them in the queue below.
           </p>
         </div>
         <button
