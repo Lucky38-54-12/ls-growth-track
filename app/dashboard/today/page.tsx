@@ -107,12 +107,22 @@ export default async function TodayPage() {
   const dateLabel = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
   const cards = [
-    { label: "Active Pipeline", value: String(active.length), sub: "leads in motion", icon: Flame },
-    { label: "Due For Follow-up", value: String(dueLeads.length), sub: "ready to send", icon: Clock },
-    { label: "Open Rate", value: `${openRate}%`, sub: `${overall.opened} of ${overall.sent} emails`, icon: MailCheck },
-    { label: "Click Rate", value: `${clickRate}%`, sub: `${overall.clicked} of ${overall.sent} emails`, icon: MousePointer2 },
-    { label: "Reply Rate", value: `${replyRate}%`, sub: `${warm} replied or booked`, icon: MessageCircleHeart },
+    { label: "Active Pipeline", value: String(active.length), sub: "leads in motion", icon: Flame, color: "#dc2626", bg: "#fef2f2" },
+    { label: "Due For Follow-up", value: String(dueLeads.length), sub: "ready to send", icon: Clock, color: "#d97706", bg: "#fffbeb" },
+    { label: "Open Rate", value: `${openRate}%`, sub: `${overall.opened} of ${overall.sent} emails`, icon: MailCheck, color: "#2563eb", bg: "#eff6ff" },
+    { label: "Click Rate", value: `${clickRate}%`, sub: `${overall.clicked} of ${overall.sent} emails`, icon: MousePointer2, color: "#9333ea", bg: "#faf5ff" },
+    { label: "Reply Rate", value: `${replyRate}%`, sub: `${warm} replied or booked`, icon: MessageCircleHeart, color: "#16a34a", bg: "#f0fdf4" },
   ];
+
+  const stageColors: Record<string, string> = {
+    not_contacted: "#2563eb",
+    contacted: "#0f172a",
+    followup_1_sent: "#d97706",
+    followup_2_sent: "#d97706",
+    replied: "#2563eb",
+    booked: "#16a34a",
+    closed: "#94a3b8",
+  };
 
   return (
     <div>
@@ -122,24 +132,39 @@ export default async function TodayPage() {
 
         {/* Stats */}
         <div className="today-stats" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
-          {cards.map(({ label, value, sub, icon: Icon }) => (
+          {cards.map(({ label, value, sub, icon: Icon, color, bg }) => (
             <div key={label} className="stat-card" style={{ padding: "18px 20px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: L.muted }}>{label}</p>
-                <div style={{ width: 26, height: 26, borderRadius: 8, background: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon style={{ width: 13, height: 13, color: "var(--red)" }} />
+                <div style={{ width: 26, height: 26, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon style={{ width: 13, height: 13, color }} />
                 </div>
               </div>
-              <div style={{ fontSize: 34, fontWeight: 800, color: L.text, lineHeight: 1, marginBottom: 5, letterSpacing: "-0.02em" }}>{value}</div>
+              <div style={{ fontSize: 34, fontWeight: 800, color, lineHeight: 1, marginBottom: 5, letterSpacing: "-0.02em" }}>{value}</div>
               <p style={{ fontSize: 11, color: L.muted }}>{sub}</p>
             </div>
           ))}
         </div>
 
+        {/* Pipeline overview — a strip, not a stacked list */}
+        <Link href="/dashboard" className="surface-card pill-hover" style={{
+          display: "flex", alignItems: "center", gap: 28, padding: "14px 20px", flexWrap: "wrap", textDecoration: "none",
+        }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, flexShrink: 0 }}>
+            <LayoutDashboard style={{ width: 13, height: 13 }} /> Pipeline Overview
+          </span>
+          {PIPELINE_STAGES.map(stage => (
+            <span key={stage.key} style={{ display: "flex", alignItems: "baseline", gap: 6, flexShrink: 0 }}>
+              <span style={{ fontSize: 17, fontWeight: 800, color: stageColors[stage.key] || L.text }}>{stageCounts[stage.key]}</span>
+              <span style={{ fontSize: 11.5, color: L.muted }}>{stage.label}</span>
+            </span>
+          ))}
+        </Link>
+
         <div className="today-grid" style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 16, alignItems: "start" }}>
 
           {/* Calendar — next 7 days */}
-          <div className="surface-card" style={{ overflow: "hidden", gridRow: "1 / 3" }}>
+          <div className="surface-card" style={{ overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
               <Calendar style={{ width: 15, height: 15, color: L.muted }} />
               <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Calendar — Next 7 Days</span>
@@ -237,27 +262,6 @@ export default async function TodayPage() {
               </div>
               );
             })()}
-          </div>
-
-          {/* Pipeline overview */}
-          <div className="surface-card" style={{ overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
-              <LayoutDashboard style={{ width: 15, height: 15, color: L.muted }} />
-              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Pipeline Overview</span>
-              <Link href="/dashboard" className="pill-hover" style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed, textDecoration: "none" }}>
-                {active.length} active
-              </Link>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {PIPELINE_STAGES.map(stage => (
-                <Link key={stage.key} href={`/dashboard?source=all`} className="row-hover" style={{
-                  display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none",
-                }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: L.text, flex: 1 }}>{stage.label}</span>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: L.text }}>{stageCounts[stage.key]}</span>
-                </Link>
-              ))}
-            </div>
           </div>
 
           {/* Needs follow-up */}
