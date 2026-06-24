@@ -34,6 +34,17 @@ export interface Lead {
   facebook: string | null;
   personalization_hook: string | null;
   phone: string | null;
+  campaign_id: string | null;
+}
+
+export type CampaignStatus = "draft" | "active" | "paused" | "completed";
+
+export interface Campaign {
+  id: string;
+  name: string;
+  status: CampaignStatus;
+  created_at: string;
+  activated_at: string | null;
 }
 
 export const LEAD_SOURCES = ["email_outreach", "cold_call"] as const;

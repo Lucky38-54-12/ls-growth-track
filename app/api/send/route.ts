@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "@/lib/leads";
-import { sendOutreachEmail } from "@/lib/email";
+import { sendOutreachEmail, sendPersonalizedEmail } from "@/lib/email";
+import { generateCampaignStepEmail } from "@/lib/ai";
 import { Lead } from "@/lib/types";
 
 export async function POST(req: Request) {
@@ -27,7 +28,30 @@ export async function POST(req: Request) {
     if (!step) { skipped++; continue; }
 
     try {
-      await sendOutreachEmail(lead, step);
+      if (lead.campaign_id) {
+        const { data: priorSends } = await sb
+          .from("email_sends")
+          .select("subject")
+          .eq("lead_id", lead.lead_id)
+          .order("sent_at", { ascending: true });
+        const { subject, bodyHtml } = await generateCampaignStepEmail({
+          company: lead.company,
+          contactName: lead.contact_name,
+          trade: lead.trade,
+          location: lead.location,
+          notes: lead.notes,
+          step,
+          priorSubjects: (priorSends || []).map((s) => s.subject as string),
+        });
+        await sendPersonalizedEmail(lead, subject, bodyHtml, step);
+      } else if (step === "checkin") {
+        // Never happens — checkin is only returned for campaign leads — but
+        // satisfies the type checker without an unsafe cast.
+        skipped++;
+        continue;
+      } else {
+        await sendOutreachEmail(lead, step);
+      }
       const update: Record<string, unknown> = { status: STEP_NEW_STATUS[step] };
       if (step === "initial") {
         update.date_contacted = today;

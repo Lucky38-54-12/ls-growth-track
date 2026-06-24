@@ -1,76 +1,10 @@
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
-import { formatDateTime } from "@/lib/format";
 import { groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import Topbar from "@/components/Topbar";
-import { Search, Plus, Mail, ChevronRight } from "lucide-react";
+import ContactsBatchPanel from "@/components/ContactsBatchPanel";
+import { Search, Plus } from "lucide-react";
 import Link from "next/link";
-
-function LeadRow({ lead, engagement, isLast }: { lead: Lead; engagement: Record<string, EngagementSummary>; isLast: boolean }) {
-  const ss = STATUS_COLOR[lead.status] || STATUS_COLOR.not_contacted;
-  const ev = engagement[lead.lead_id];
-  return (
-    <tr className="row-hover" style={{ borderBottom: isLast ? "none" : `1px solid ${L.border}`, cursor: "pointer" }}>
-      <td style={{ padding: "8px 14px" }}>
-        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          <div style={{ width: 26, height: 26, background: ss.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, color: ss.fg, flexShrink: 0 }}>
-            {initials(lead.company)}
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: L.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lead.company}</div>
-            <div style={{ fontSize: 10.5, color: L.dimmed }}>{lead.contact_name || "—"}</div>
-          </div>
-        </Link>
-      </td>
-      <td style={{ padding: "8px 14px" }}>
-        <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", background: ss.bg, color: ss.fg }}>{STATUS_LABEL[lead.status] || lead.status}</span>
-      </td>
-      <td style={{ padding: "8px 14px" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: L.muted }}>
-          <Mail style={{ width: 11, height: 11 }} />{lead.email || "—"}
-        </span>
-      </td>
-      <td style={{ padding: "8px 14px" }}>
-        {ev && (ev.opens > 0 || ev.clicks > 0) ? (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {ev.opens > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
-            {ev.clicks > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
-          </div>
-        ) : (
-          <span style={{ fontSize: 11, color: L.dimmed }}>—</span>
-        )}
-      </td>
-      <td style={{ padding: "8px 14px", textAlign: "right" }}>
-        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: L.dimmed, display: "inline-flex" }}>
-          <ChevronRight style={{ width: 14, height: 14 }} />
-        </Link>
-      </td>
-    </tr>
-  );
-}
-
-function SegmentSection({ label, leads, engagement }: { label: string; leads: Lead[]; engagement: Record<string, EngagementSummary> }) {
-  const warm = leads.filter(l => l.status === "replied" || l.status === "booked").length;
-  return (
-    <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflow: "hidden" }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8, padding: "9px 14px",
-        borderBottom: `1px solid ${L.border}`, background: "#f8fafc",
-      }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: L.text }}>{label}</span>
-        <span style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 7px", background: "#e2e8f0", color: L.muted }}>{leads.length}</span>
-        {warm > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 7px", background: "#dcfce7", color: "#166534" }}>{warm} warm</span>}
-      </div>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <tbody>
-          {leads.map((lead, i) => (
-            <LeadRow key={lead.lead_id} lead={lead} engagement={engagement} isLast={i === leads.length - 1} />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 export const revalidate = 0;
 
@@ -90,34 +24,6 @@ const FILTERS: { key: string; label: string }[] = [
   { key: "booked", label: "Booked" },
   { key: "closed", label: "Closed" },
 ];
-
-const STATUS_LABEL: Record<string, string> = {
-  not_contacted: "New Lead",
-  contacted: "Contacted",
-  followup_1_sent: "Follow-up 1",
-  followup_2_sent: "Follow-up 2",
-  replied: "Replied",
-  booked: "Booked",
-  sequence_complete: "Closed",
-  not_interested: "Closed",
-  bounced: "Closed",
-};
-
-const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
-  not_contacted: { bg: "#f1f5f9", fg: "#475569" },
-  contacted: { bg: "#dbeafe", fg: "#1e40af" },
-  followup_1_sent: { bg: "#ede9fe", fg: "#6d28d9" },
-  followup_2_sent: { bg: "#ede9fe", fg: "#6d28d9" },
-  replied: { bg: "#dcfce7", fg: "#166534" },
-  booked: { bg: "#dcfce7", fg: "#166534" },
-  sequence_complete: { bg: "#f1f5f9", fg: "#64748b" },
-  not_interested: { bg: "#f1f5f9", fg: "#64748b" },
-  bounced: { bg: "#f1f5f9", fg: "#64748b" },
-};
-
-function initials(name: string) {
-  return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
-}
 
 export default async function ContactsPage({
   searchParams,
@@ -278,16 +184,8 @@ export default async function ContactsPage({
           Showing {filtered.length} of {allLeads.length} across {sections.length} list{sections.length !== 1 ? "s" : ""}
         </p>
 
-        {/* Sectioned lists, one per trade/city */}
-        {sections.length === 0 ? (
-          <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 40, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
-            No contacts match this view.
-          </div>
-        ) : (
-          sections.map(s => (
-            <SegmentSection key={s.key} label={s.label} leads={s.leads} engagement={engagement} />
-          ))
-        )}
+        {/* Sectioned lists, one per trade/city — select a list (or individual leads) to start a campaign */}
+        <ContactsBatchPanel sections={sections} engagement={engagement} />
       </div>
     </div>
   );

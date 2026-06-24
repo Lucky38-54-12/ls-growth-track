@@ -65,6 +65,70 @@ ${input.callNotes}`;
   return { subject: parsed.subject, bodyHtml: parsed.body_html };
 }
 
+export interface CampaignStepEmailInput {
+  company: string;
+  contactName: string;
+  trade: string;
+  location: string;
+  notes: string;
+  step: "initial" | "followup1" | "followup2" | "followup3" | "followup4" | "checkin";
+  priorSubjects: string[];
+}
+
+const STEP_GUIDANCE: Record<CampaignStepEmailInput["step"], string> = {
+  initial: "This is the FIRST email to this business. Open the conversation — reference something specific from the notes if there's anything there (e.g. a past call), otherwise introduce why you're reaching out.",
+  followup1: "This is a short bump, sent a few days after the first email got no reply. Keep it brief, don't repeat the first email's pitch, just nudge.",
+  followup2: "This is the third touch. Add one new piece of value or proof point, referencing the notes if relevant. Slightly more substance than the bump.",
+  followup3: "This is a later touch. Create gentle urgency (e.g. limited spots) without being pushy.",
+  followup4: "This is a 'last one for now' email — acknowledge you've reached out a few times, leave the door open, no hard push.",
+  checkin: "It's been a while since the last touch and they never replied. Send a brief, low-pressure check-in — something genuinely new or seasonal, not a repeat of past emails. No mention of '21 days' or sequence mechanics.",
+};
+
+export async function generateCampaignStepEmail(input: CampaignStepEmailInput): Promise<PersonalizedEmail> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+
+  const client = new Anthropic({ apiKey });
+
+  const priorSubjectsBlock = input.priorSubjects.length
+    ? `\n\nSubjects of emails already sent to this business (don't repeat these angles):\n${input.priorSubjects.map((s) => `- ${s}`).join("\n")}`
+    : "";
+
+  const userPrompt = `Business: ${input.company}
+Contact name: ${input.contactName || "there"}
+Trade: ${input.trade || "unknown"}
+Location: ${input.location || "unknown"}
+
+Notes on this business (call history, what's been discussed, anything known):
+${input.notes || "none"}
+${priorSubjectsBlock}
+
+This email's purpose: ${STEP_GUIDANCE[input.step]}`;
+
+  const msg = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+
+  const block = msg.content[0];
+  if (block.type !== "text") throw new Error("Unexpected response from AI");
+
+  let parsed: { subject?: string; body_html?: string };
+  try {
+    parsed = JSON.parse(block.text.trim());
+  } catch {
+    throw new Error(`Could not parse AI response as JSON: ${block.text.slice(0, 200)}`);
+  }
+
+  if (!parsed.subject || !parsed.body_html) {
+    throw new Error("AI response missing subject or body_html");
+  }
+
+  return { subject: parsed.subject, bodyHtml: parsed.body_html };
+}
+
 export interface PersonalizationHookInput {
   company: string;
   trade: string;

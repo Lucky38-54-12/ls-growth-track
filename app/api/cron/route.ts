@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "@/lib/leads";
-import { sendOutreachEmail } from "@/lib/email";
+import { sendOutreachEmail, sendPersonalizedEmail } from "@/lib/email";
+import { generateCampaignStepEmail } from "@/lib/ai";
 import { Lead } from "@/lib/types";
 
 // Called by Vercel Cron daily at 8am NZT (20:00 UTC)
@@ -21,7 +22,27 @@ export async function GET(req: NextRequest) {
     const step = nextStepFor(lead);
     if (!step) continue;
     try {
-      await sendOutreachEmail(lead, step);
+      if (lead.campaign_id) {
+        const { data: priorSends } = await sb
+          .from("email_sends")
+          .select("subject")
+          .eq("lead_id", lead.lead_id)
+          .order("sent_at", { ascending: true });
+        const { subject, bodyHtml } = await generateCampaignStepEmail({
+          company: lead.company,
+          contactName: lead.contact_name,
+          trade: lead.trade,
+          location: lead.location,
+          notes: lead.notes,
+          step,
+          priorSubjects: (priorSends || []).map((s) => s.subject as string),
+        });
+        await sendPersonalizedEmail(lead, subject, bodyHtml, step);
+      } else if (step === "checkin") {
+        continue; // never happens for non-campaign leads — satisfies type checker
+      } else {
+        await sendOutreachEmail(lead, step);
+      }
       const update: Record<string, unknown> = { status: STEP_NEW_STATUS[step] };
       if (step === "initial") {
         update.date_contacted = today;

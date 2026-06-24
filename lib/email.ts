@@ -42,7 +42,7 @@ async function logSend(leadId: string, step: string, subject: string, bodyHtml: 
   } catch {}
 }
 
-export async function sendOutreachEmail(lead: Lead, step: EmailStep) {
+export async function sendOutreachEmail(lead: Lead, step: Exclude<EmailStep, "checkin">) {
   const transport = getTransport();
   const { pixel, ctaLink } = buildLinks(lead.lead_id);
   const { subject, html, text } = renderTemplate(step, {
@@ -87,7 +87,7 @@ export async function sendFreeformEmail(
   });
 }
 
-export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string) {
+export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string, step: string = "custom") {
   const transport = getTransport();
   const { pixel, ctaLink } = buildLinks(lead.lead_id);
   const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id);
@@ -98,5 +98,5 @@ ${filledBody}
 ${pixel}`;
   const text = htmlToText(filledBody);
   await transport.sendMail({ from: FROM, to: lead.email, subject, html, text });
-  await logSend(lead.lead_id, "custom", subject, html);
+  await logSend(lead.lead_id, step, subject, html);
 }

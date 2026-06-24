@@ -94,3 +94,30 @@ create table if not exists tracked_sheets (
 --   'followup_3_sent','followup_4_sent','replied','booked',
 --   'not_interested','bounced','sequence_complete','reenroll_queue'
 -- ));
+
+-- Campaigns: named, batch-scoped outreach runs (e.g. "Wellington Sparkies").
+-- A campaign starts as 'draft' — staging leads via campaign_leads does NOT
+-- start sending anything. Only activating it (setting leads.campaign_id)
+-- makes /api/send start picking those leads up.
+create table if not exists campaigns (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  status text not null default 'draft' check (status in ('draft', 'active', 'paused', 'completed')),
+  created_at timestamptz not null default now(),
+  activated_at timestamptz
+);
+
+-- Staged membership, set at creation time regardless of campaign status —
+-- lets the draft campaign show "who's in it" before it goes live.
+create table if not exists campaign_leads (
+  campaign_id uuid not null references campaigns(id) on delete cascade,
+  lead_id text not null,
+  primary key (campaign_id, lead_id)
+);
+
+create index if not exists campaign_leads_lead_id_idx on campaign_leads (lead_id);
+
+-- Set on activation only. nextStepFor() and /api/send branch on this to use
+-- AI-personalized campaign emails instead of the static template sequence.
+alter table leads add column if not exists campaign_id uuid references campaigns(id);
+create index if not exists leads_campaign_id_idx on leads (campaign_id);

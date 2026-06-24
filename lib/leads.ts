@@ -24,23 +24,32 @@ function daysSince(dateStr: string | null): number | null {
   return Math.floor((now.getTime() - then.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-export type EmailStep = "initial" | "followup1" | "followup2" | "followup3" | "followup4";
+export type EmailStep = "initial" | "followup1" | "followup2" | "followup3" | "followup4" | "checkin";
+
+// Campaign leads keep nudging instead of going quiet after followup4 — Lucky
+// wants AI check-ins to continue until they book, not a hard stop at day 21.
+const DAYS_CAMPAIGN_CHECKIN = 30;
 
 export function nextStepFor(lead: Lead): EmailStep | null {
-  const { status, date_contacted, last_followup, reply_category } = lead;
+  const { status, date_contacted, last_followup, reply_category, campaign_id } = lead;
 
   if (TERMINAL_STATUSES.has(status)) return null;
 
   // Re-enrol queue — treat like not_contacted (restart at initial)
   if (status === "reenroll_queue") return "initial";
 
-  // Leads that completed the sequence — check if re-enrol window has passed
+  // Leads that completed the sequence — check if re-enrol window has passed.
+  // Campaign leads use a shorter, indefinite check-in cadence instead of the
+  // default 60/90-day re-enrol window, since the campaign should keep
+  // nudging until the lead books or replies.
   if (status === "sequence_complete") {
     const refDate = last_followup || date_contacted;
     const days = daysSince(refDate);
-    const threshold =
-      reply_category === "has_someone" ? DAYS_REENROLL_HAS_SOMEONE : DAYS_REENROLL_DEFAULT;
-    return days !== null && days >= threshold ? "initial" : null;
+    const threshold = campaign_id
+      ? DAYS_CAMPAIGN_CHECKIN
+      : reply_category === "has_someone" ? DAYS_REENROLL_HAS_SOMEONE : DAYS_REENROLL_DEFAULT;
+    const dueStep: EmailStep = campaign_id ? "checkin" : "initial";
+    return days !== null && days >= threshold ? dueStep : null;
   }
 
   // Cold-call leads always get a one-off personalized email sent manually
@@ -71,6 +80,7 @@ export const STEP_NEW_STATUS: Record<EmailStep, LeadStatus> = {
   followup2: "followup_2_sent",
   followup3: "followup_3_sent",
   followup4: "sequence_complete", // breakup email = sequence done
+  checkin: "sequence_complete", // stays in sequence_complete so the 30-day check-in loop repeats
 };
 
 // Returns true if this sequence_complete lead is due for re-enrolment

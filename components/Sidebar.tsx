@@ -2,13 +2,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Users, Send, FileText, UserPlus, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks,
+  LayoutDashboard, Users, Send, FileText, UserPlus, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone,
 } from "lucide-react";
 
 const NAV = [
   { href: "/dashboard/today", label: "Today", icon: Sun },
   { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
+  { href: "/dashboard/campaigns", label: "Campaigns", icon: Megaphone },
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
   { href: "/dashboard/send", label: "Email Outreach", icon: Send },

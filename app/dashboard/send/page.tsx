@@ -102,10 +102,13 @@ export default async function OutreachPage({
   const reenrollReady = allLeads.filter(isReadyForReenroll);
 
   // --- Queue ---
+  // Campaign leads are managed on the Campaigns page and use AI-personalized
+  // emails (not these static templates), so they're excluded from this queue.
   const queue: QueueItem[] = allLeads
+    .filter((lead) => !lead.campaign_id)
     .map((lead) => {
       const step = nextStepFor(lead);
-      if (!step) return null;
+      if (!step || step === "checkin") return null;
       const { subject, html } = renderTemplate(step, {
         company: lead.company,
         contact_name: lead.contact_name || "there",

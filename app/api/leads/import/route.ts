@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
   if (sendNow) {
     for (const lead of leads) {
       const step = nextStepFor(lead);
-      if (!step) continue;
+      if (!step || step === "checkin") continue;
       try {
         await sendOutreachEmail(lead, step);
         const update: Record<string, unknown> = { status: STEP_NEW_STATUS[step] };
