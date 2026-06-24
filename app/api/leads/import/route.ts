@@ -130,5 +130,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Email-outreach leads are assumed to already have an email out (sent here,
+  // or sent through whatever produced this CSV) — they belong on the
+  // "Contacted" stage of the pipeline, never "New Lead".
+  const stillUncontacted = leads.filter((l) => l.status === "not_contacted");
+  if (stillUncontacted.length) {
+    await sb.from("leads").update({ status: "contacted", date_contacted: today }).in(
+      "lead_id",
+      stillUncontacted.map((l) => l.lead_id)
+    );
+  }
+
   return NextResponse.json({ imported: newLeads.length, sent, skipped, errors: parseErrors });
 }

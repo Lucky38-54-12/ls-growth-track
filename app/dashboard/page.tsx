@@ -62,7 +62,14 @@ export default async function DashboardPage({
   // they haven't been qualified by a real call yet, so they shouldn't show
   // up as kanban cards or count toward pipeline totals.
   const callQueueLeads = allLeads.filter(l => l.source === "cold_call" && l.status === "not_contacted");
-  const pipelineLeads = allLeads.filter(l => !(l.source === "cold_call" && l.status === "not_contacted"));
+
+  // Email-outreach leads only stay on the board for 2 weeks — past that
+  // they're stale and just clutter the pipeline view.
+  const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const pipelineLeads = allLeads.filter(l =>
+    !(l.source === "cold_call" && l.status === "not_contacted") &&
+    !(l.source === "email_outreach" && l.date_added < twoWeeksAgo)
+  );
 
   const activeSource = searchParams?.source || "all";
   const visibleLeads = pipelineLeads.filter(l => activeSource === "all" || l.source === activeSource);
