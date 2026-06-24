@@ -275,12 +275,15 @@ export default async function ContactsPage({
           </Link>
         </form>
 
+        {/* Kanban pipeline view - PRIMARY */}
+        <div style={{ marginBottom: 40 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: L.text }}>Pipeline View</h2>
+          <KanbanView leads={allLeads} />
+        </div>
+
         <p style={{ fontSize: 11, color: L.muted }}>
           Showing {filtered.length} of {allLeads.length} across {sections.length} list{sections.length !== 1 ? "s" : ""}
         </p>
-
-        {/* Kanban pipeline view */}
-        <KanbanView leads={allLeads} />
 
         {/* Sectioned lists, one per trade/city */}
         {sections.length === 0 ? (
