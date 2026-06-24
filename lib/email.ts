@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { Lead } from "./types";
 import { EmailStep } from "./leads";
 import { renderTemplate, htmlToText } from "./templates";
@@ -8,6 +9,17 @@ const FROM = `Lucky <${process.env.GMAIL_USER}>`;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
 const BOOKING_URL = process.env.BOOKING_URL || "https://lsgrowth.agency/book";
 
+// Bulk/automated outreach (cold initial emails, follow-up sequences, campaign
+// emails) goes through Resend on the verified lsgrowth.agency domain instead
+// of Lucky's personal Gmail account — that volume of cold mail is exactly
+// what gets a Gmail account flagged or suspended. Replies still land in his
+// Gmail inbox via Reply-To, so the Inbox page keeps working unchanged.
+// Manual, low-volume sends (meeting reminders, inbox replies/compose) stay
+// on Gmail since they're conversational, not bulk, and benefit from native
+// threading and showing up in the Gmail Sent folder.
+const BULK_FROM = "Lucky from LS Growth <outreach@lsgrowth.agency>";
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 function getTransport() {
   return nodemailer.createTransport({
     service: "gmail",
@@ -16,6 +28,18 @@ function getTransport() {
       pass: process.env.GMAIL_APP_PASSWORD,
     },
   });
+}
+
+async function sendBulkMail(opts: { to: string; subject: string; html: string; text: string }) {
+  const { error } = await resend.emails.send({
+    from: BULK_FROM,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
+    reply_to: process.env.GMAIL_USER,
+  });
+  if (error) throw new Error(error.message);
 }
 
 function buildLinks(leadId: string) {
@@ -43,7 +67,6 @@ async function logSend(leadId: string, step: string, subject: string, bodyHtml: 
 }
 
 export async function sendOutreachEmail(lead: Lead, step: Exclude<EmailStep, "checkin">) {
-  const transport = getTransport();
   const { pixel, ctaLink } = buildLinks(lead.lead_id);
   const { subject, html, text } = renderTemplate(step, {
     company: lead.company,
@@ -54,7 +77,7 @@ export async function sendOutreachEmail(lead: Lead, step: Exclude<EmailStep, "ch
     pixel,
     personalization: lead.personalization_hook || undefined,
   });
-  await transport.sendMail({ from: FROM, to: lead.email, subject, html, text });
+  await sendBulkMail({ to: lead.email, subject, html, text });
   await logSend(lead.lead_id, step, subject, html);
 }
 
@@ -88,7 +111,6 @@ export async function sendFreeformEmail(
 }
 
 export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string, step: string = "custom") {
-  const transport = getTransport();
   const { pixel, ctaLink } = buildLinks(lead.lead_id);
   const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
@@ -97,6 +119,6 @@ ${filledBody}
 </div>
 ${pixel}`;
   const text = htmlToText(filledBody);
-  await transport.sendMail({ from: FROM, to: lead.email, subject, html, text });
+  await sendBulkMail({ to: lead.email, subject, html, text });
   await logSend(lead.lead_id, step, subject, html);
 }
