@@ -3,36 +3,12 @@ import { Phone } from "lucide-react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { formatDateTime } from "@/lib/format";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
+import { COLD_CALL_STATUS_LABELS as STATUS_LABELS, COLD_CALL_STATUS_COLORS as STATUS_COLORS } from "@/lib/coldCallStatus";
 import Topbar from "@/components/Topbar";
 
 export const revalidate = 0;
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
-
-const STATUS_LABELS: Record<string, string> = {
-  called: "Called, not yet emailed",
-  emailed: "Follow-up emailed",
-  meeting_booked: "Meeting booked",
-  contacted: "Email sent",
-  followup_1_sent: "Follow-up 1 sent",
-  followup_2_sent: "Follow-up 2 sent",
-  followup_3_sent: "Follow-up 3 sent",
-  followup_4_sent: "Follow-up 4 sent",
-  replied: "Replied",
-  booked: "Booked",
-  not_interested: "Not interested",
-  bounced: "Bounced",
-  sequence_complete: "Sequence complete",
-};
-
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  meeting_booked: { bg: "#dcfce7", text: "#166534" },
-  booked: { bg: "#dcfce7", text: "#166534" },
-  emailed: { bg: "#dbeafe", text: "#1e40af" },
-  replied: { bg: "#dbeafe", text: "#1e40af" },
-  not_interested: { bg: "#fee2e2", text: "#991b1b" },
-  bounced: { bg: "#fee2e2", text: "#991b1b" },
-};
 
 export default async function ColdCallPipelinePage() {
   const sb = createSupabaseClient();

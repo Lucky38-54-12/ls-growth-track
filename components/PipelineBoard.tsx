@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink } from "lucide-react";
+import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock } from "lucide-react";
 import { Lead, EngagementSummary } from "@/lib/types";
 import { nextStepFor } from "@/lib/leads";
+import { cleanNotes, extractMeetingTime } from "@/lib/notes";
+import { COLD_CALL_STATUS_LABELS, COLD_CALL_STATUS_COLORS } from "@/lib/coldCallStatus";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 const CLOSED_STATUSES = new Set(["sequence_complete", "not_interested", "bounced"]);
@@ -33,6 +35,13 @@ function LeadCard({
 }) {
   const ev = engagement[lead.lead_id];
   const isDue = nextStepFor(lead) !== null;
+  const noteEntries = cleanNotes(lead.notes);
+  const meetingTime = extractMeetingTime(noteEntries);
+  const latestNote = noteEntries[noteEntries.length - 1] || null;
+  const olderNotes = noteEntries.slice(0, -1);
+  const [showAllNotes, setShowAllNotes] = useState(false);
+  const statusLabel = COLD_CALL_STATUS_LABELS[lead.status];
+  const statusColor = COLD_CALL_STATUS_COLORS[lead.status];
   return (
     <div
       draggable
@@ -65,6 +74,21 @@ function LeadCard({
 
       {expanded && (
         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${L.border}`, display: "flex", flexDirection: "column", gap: 6 }}>
+          {(statusLabel || meetingTime) && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {statusLabel && (
+                <span style={{
+                  fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 5,
+                  background: statusColor?.bg || "#f1f5f9", color: statusColor?.text || L.muted,
+                }}>{statusLabel}</span>
+              )}
+              {meetingTime && (
+                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 5, background: "#dbeafe", color: "#1e40af" }}>
+                  <CalendarClock style={{ width: 11, height: 11 }} /> {meetingTime}
+                </span>
+              )}
+            </div>
+          )}
           {lead.contact_name && (
             <div style={{ fontSize: 12, color: L.text, fontWeight: 600 }}>{lead.contact_name}</div>
           )}
@@ -88,10 +112,27 @@ function LeadCard({
               <MapPin style={{ width: 11, height: 11, flexShrink: 0 }} /> {lead.location}
             </div>
           )}
-          {lead.notes && (
+          {latestNote && (
             <div style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11.5, color: L.muted }}>
               <StickyNote style={{ width: 11, height: 11, flexShrink: 0, marginTop: 1 }} />
-              <span style={{ whiteSpace: "pre-wrap" }}>{lead.notes}</span>
+              <span style={{ whiteSpace: "pre-wrap" }}>{latestNote.text}</span>
+            </div>
+          )}
+          {olderNotes.length > 0 && (
+            <div>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowAllNotes((s) => !s); }}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 10.5, fontWeight: 700, color: L.dimmed }}
+              >
+                {showAllNotes ? "Hide earlier notes" : `${olderNotes.length} earlier note${olderNotes.length !== 1 ? "s" : ""}`}
+              </button>
+              {showAllNotes && (
+                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                  {olderNotes.map((entry, i) => (
+                    <span key={i} style={{ fontSize: 11, color: L.dimmed, whiteSpace: "pre-wrap" }}>{entry.text}</span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <Link href={`/dashboard/leads/${lead.lead_id}`} style={{
