@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const max = Math.max(1, Math.min(Number(url.searchParams.get("max")) || 20, 50));
   const regionOverride = url.searchParams.get("region")?.trim();
+  const tradeOverride = url.searchParams.get("trade")?.trim();
 
   const sb = createSupabaseClient();
 
@@ -74,19 +75,30 @@ export async function GET(req: NextRequest) {
           (from, to) => sb.from("leads").select("trade, location, email, lead_id").range(from, to)
         );
 
-        let sheetTitles: string[] = [];
-        try {
-          sheetTitles = (await listSheetsInFolder(folderId)).map((s) => s.title);
-        } catch (e) {
-          send({ type: "stderr", msg: `Could not list the Email Outreach folder (continuing with lead-count fallback): ${e instanceof Error ? e.message : String(e)}\n` });
+        let trade: string;
+        let region: string;
+
+        if (tradeOverride && regionOverride) {
+          // Suggestion buttons already know exactly which combo to run —
+          // skip the Drive lookup and auto-pick entirely.
+          trade = tradeOverride;
+          region = regionOverride;
+          send({ type: "start", msg: `Running ${trade} in ${region}. Searching "${trade.toLowerCase()} companies ${region}" (up to ${max})...\n` });
+        } else {
+          let sheetTitles: string[] = [];
+          try {
+            sheetTitles = (await listSheetsInFolder(folderId)).map((s) => s.title);
+          } catch (e) {
+            send({ type: "stderr", msg: `Could not list the Email Outreach folder (continuing with lead-count fallback): ${e instanceof Error ? e.message : String(e)}\n` });
+          }
+
+          const gap = findCoverageGap(sheetTitles, existingLeads);
+          trade = tradeOverride || gap.trade;
+          region = regionOverride || gap.city;
+          send({ type: "start", msg: `Auto-picked ${trade} in ${region} (no sheet found for that combo yet). Searching "${trade.toLowerCase()} companies ${region}" (up to ${max})...\n` });
         }
 
-        const gap = findCoverageGap(sheetTitles, existingLeads);
-        const trade = gap.trade;
-        const region = regionOverride || gap.city;
         const query = `${trade.toLowerCase()} companies ${region}`;
-
-        send({ type: "start", msg: `Auto-picked ${trade} in ${region} (no sheet found for that combo yet). Searching "${query}" (up to ${max})...\n` });
 
         const scriptPath = path.join(process.env.LEAD_SCRAPER_PATH || "C:\\Users\\lucky\\lead-scraper", "scraper.py");
         const pythonBin =
