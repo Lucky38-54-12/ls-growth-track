@@ -78,6 +78,52 @@ export async function fetchMailbox(mailbox: string, limit = 40): Promise<InboxMe
   return messages;
 }
 
+// Fetches every inbox message received on or after `since`, regardless of how
+// many that is (fetchMailbox above is capped by sequence-number `limit`).
+export async function fetchMailboxSince(mailbox: string, since: Date): Promise<InboxMessage[]> {
+  const client = getClient();
+  const messages: InboxMessage[] = [];
+
+  try {
+    await client.connect();
+    const info = await client.mailboxOpen(mailbox);
+    if (!info || info.exists === 0) return [];
+
+    const uids = await client.search({ since }, { uid: true });
+    if (!uids || uids.length === 0) return [];
+
+    for await (const msg of client.fetch(uids, {
+      uid: true,
+      flags: true,
+      envelope: true,
+      bodyStructure: true,
+    }, { uid: true })) {
+      const env = msg.envelope;
+      const fromAddr = env?.from?.[0];
+      const toAddr = env?.to?.[0];
+      const hasAttachment = !!(msg.bodyStructure && JSON.stringify(msg.bodyStructure).includes('"attachment"'));
+      messages.push({
+        uid: msg.uid,
+        messageId: env?.messageId || String(msg.uid),
+        from: fromAddr?.name || fromAddr?.address || "",
+        fromEmail: fromAddr?.address?.toLowerCase() || "",
+        to: toAddr?.address?.toLowerCase() || "",
+        subject: env?.subject || "(No subject)",
+        date: env?.date ? new Date(env.date).toISOString() : new Date().toISOString(),
+        snippet: "",
+        seen: msg.flags?.has("\\Seen") ?? false,
+        hasAttachment,
+      });
+    }
+
+    messages.reverse(); // newest first
+  } finally {
+    await client.logout().catch(() => {});
+  }
+
+  return messages;
+}
+
 export async function archiveMessage(uid: number): Promise<void> {
   const client = getClient();
   try {

@@ -8,6 +8,7 @@ import SheetSyncButton from "@/components/SheetSyncButton";
 import Topbar from "@/components/Topbar";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineBoard from "@/components/PipelineBoard";
+import InboxImportButton from "@/components/InboxImportButton";
 import FlashMessage from "./FlashMessage";
 import Link from "next/link";
 import { listTodaysEvents, CalendarEvent } from "@/lib/calendar";
@@ -157,6 +158,7 @@ export default async function DashboardPage({
             padding: "8px 14px", background: L.surface, border: `1px solid ${L.border}`,
             fontSize: 11.5, fontWeight: 600, color: L.muted, textDecoration: "none", transition: "all 0.15s",
           }}>Import CSV</Link>
+          <InboxImportButton />
         </div>
 
         {/* New lead */}
