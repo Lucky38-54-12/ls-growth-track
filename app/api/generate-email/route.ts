@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
+
+// Strips a website down to plain, deduped text so it's cheap to drop into a
+// prompt as grounding — we want real specifics (services offered, area
+// covered, etc.) instead of the model inventing generic "trade business" filler.
+async function fetchWebsiteSnippet(url: string): Promise<string> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "Mozilla/5.0" } });
+    clearTimeout(timeout);
+    if (!res.ok) return "";
+    const html = await res.text();
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return text.slice(0, 1500);
+  } catch {
+    return "";
+  }
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -17,6 +41,33 @@ export async function POST(req: NextRequest) {
 
   const today = new Date().toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
+  // If this lead was already auto-prospected (it usually has been — Call Queue
+  // leads carry a website, trade, and cold-call research notes from before the
+  // call even happened), pull that record so the email can be grounded in real
+  // specifics instead of generic "trade business" phrasing.
+  const emailMatch = callNotes.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+  let knownInfoBlock = "";
+  if (emailMatch) {
+    const sb = createSupabaseClient();
+    const { data: existingLead } = await sb
+      .from("leads")
+      .select("company, trade, location, website, facebook, notes")
+      .eq("email", emailMatch[0].toLowerCase())
+      .maybeSingle();
+
+    if (existingLead) {
+      const websiteSnippet = existingLead.website ? await fetchWebsiteSnippet(existingLead.website) : "";
+      const parts = [
+        `Company: ${existingLead.company}`,
+        `Trade: ${existingLead.trade || "unknown"}`,
+        `Location: ${existingLead.location || "unknown"}`,
+      ];
+      if (existingLead.notes?.trim()) parts.push(`Prep notes from before the call:\n${existingLead.notes.trim()}`);
+      if (websiteSnippet) parts.push(`Text scraped from their website (${existingLead.website}) — use this to reference something real and specific about what they actually do, don't quote it verbatim:\n${websiteSnippet}`);
+      knownInfoBlock = `\n\nKNOWN INFO ABOUT THIS BUSINESS (from prior research — use it to make the email specific, don't just repeat it):\n${parts.join("\n\n")}`;
+    }
+  }
+
   const prompt = `You are writing a follow-up email on behalf of Lucky from LS Growth Agency. Lucky just got off a cold call and has written up some notes on how it went. Your job is to turn those notes into a short, human-sounding email that sounds like Lucky actually wrote it.
 
 LS Growth Agency runs Meta ads for trade businesses (cleaners, builders, plumbers, etc.) to generate leads.
@@ -27,6 +78,7 @@ Raw notes from the call:
 """
 ${callNotes}
 """
+${knownInfoBlock}
 
 ---
 
@@ -66,6 +118,7 @@ Rules that apply to ALL emails:
 - Short, 2-5 sentences max per paragraph. Never more than 3 paragraphs.
 - Start with a greeting line on its own, e.g. "Hey Mike," — if no contact name was found, use "Hey there,". Every email must open this way, including meeting confirmations.
 - Reference at least ONE specific thing from the notes that proves you were actually on that call with them — not just their industry, something particular they said or wanted
+- Whenever you refer to their type of business, use the actual trade by name (e.g. "fencing businesses", "cleaning companies", "builders") — NEVER the generic phrase "trade business" or "trade businesses". If KNOWN INFO ABOVE includes website text, work in one specific, real detail from it (a service they offer, the area they cover, the kind of jobs they do) so it's obvious you actually looked at their business, not just their industry
 - Never use these phrases anywhere in the email: "Just confirming", "I get it", "yeah so", "anyway", "I want to dig into". Write in full, clear, professional sentences throughout — this is going to a business owner, treat it like a real business email.
 - No dashes or em dashes anywhere
 - No corporate phrases: never use "make a real difference", "explore how we can help", "circle back", "hope this finds you well", "I wanted to reach out", "just wanted to", "following up on our chat", "it was great speaking with you", "I really enjoyed our conversation"

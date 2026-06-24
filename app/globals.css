@@ -1,146 +1,50 @@
-:root {
-  --bg: #f4f6fa;
-  --surface: #ffffff;
-  --border: #e6eaf0;
-  --text: #0f172a;
-  --muted: #64748b;
-  --dimmed: #94a3b8;
-  --red: #dc2626;
-  --green: #16a34a;
-  --blue: #2563eb;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700&display=swap');
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
-  --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.12), 0 4px 8px rgba(15, 23, 42, 0.04);
+* {
+  @apply transition-colors duration-300;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+html {
+  @apply scroll-smooth;
+}
 
 body {
-  font-family: var(--font-inter), -apple-system, "Segoe UI", Arial, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  -webkit-font-smoothing: antialiased;
+  @apply bg-dark text-white;
 }
 
-a { text-decoration: none; color: inherit; }
-
-.email-preview a { text-decoration: underline; color: #2563eb; }
-
-input, textarea, select {
-  font-family: inherit;
-  font-size: 14px;
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+/* Scrollbar */
+::-webkit-scrollbar {
+  @apply w-2;
 }
 
-input:focus, textarea:focus, select:focus {
-  border-color: var(--red);
-  box-shadow: 0 0 0 3px #dc262617;
+::-webkit-scrollbar-track {
+  @apply bg-dark;
 }
 
-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 5px;
-  color: var(--text);
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-700 rounded-full hover:bg-gray-600;
 }
 
-.btn-lift {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  border-radius: var(--radius-sm);
+/* Gradient text */
+.gradient-text {
+  @apply bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent;
 }
 
-.btn-lift:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.btn-lift:active:not(:disabled) {
-  transform: translateY(0);
-}
-
+/* Card animation */
 .card-hover {
-  border-radius: var(--radius-md);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  @apply hover:shadow-hover hover:border-blue-500/50 transition-all;
 }
 
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--dimmed);
+/* Pulse animation */
+@keyframes pulse-slow {
+  0%, 100% { @apply opacity-100; }
+  50% { @apply opacity-50; }
 }
 
-.nav-link:hover {
-  background: #f8fafc !important;
-}
-
-.nav-link-light:hover {
-  background: #f1f5f9 !important;
-  border-radius: var(--radius-sm);
-}
-
-.row-hover:hover {
-  background: #f8fafc !important;
-}
-
-.pill-hover {
-  border-radius: var(--radius-sm);
-}
-
-.pill-hover:hover {
-  background: var(--green) !important;
-  color: #fff !important;
-  border-color: var(--green) !important;
-}
-
-.surface-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-}
-
-.stat-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-details > summary {
-  list-style: none;
-}
-
-details > summary::-webkit-details-marker {
-  display: none;
-}
-
-details > summary::after {
-  content: "+";
-  font-weight: 900;
-  color: var(--dimmed);
-  margin-left: 8px;
-}
-
-details[open] > summary::after {
-  content: "−";
+.pulse-slow {
+  animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
