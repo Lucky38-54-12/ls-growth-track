@@ -21,6 +21,11 @@ create table if not exists leads (
 -- If leads already existed without this column, run:
 -- alter table leads add column if not exists source text not null default 'email_outreach';
 
+-- phone: cold-call leads carry a phone number captured by the scraper —
+-- missing from earlier schema versions, causing prospect inserts with a
+-- phone number to fail with "Could not find the 'phone' column".
+alter table leads add column if not exists phone text;
+
 create index if not exists leads_status_idx on leads (status);
 create index if not exists leads_source_idx on leads (source);
 create index if not exists leads_email_idx on leads (email);
