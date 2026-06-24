@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
-import { Plus, Phone, Calendar, Video } from "lucide-react";
+import { Phone, Calendar, Video } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineBoard from "@/components/PipelineBoard";
@@ -133,12 +133,6 @@ export default async function DashboardPage({
             }}>{s.label} ({s.count})</Link>
           ))}
           <div style={{ flex: 1 }} />
-          <Link href="/dashboard/new" className="btn-lift" style={{
-            display: "flex", alignItems: "center", gap: 6, background: "var(--red)", color: "#fff",
-            border: "none", padding: "8px 16px", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0,
-          }}>
-            <Plus style={{ width: 13, height: 13 }} /> New Lead
-          </Link>
         </div>
 
         {/* Kanban board */}

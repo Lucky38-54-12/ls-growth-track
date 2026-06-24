@@ -3,7 +3,7 @@ import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
 import { groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import Topbar from "@/components/Topbar";
 import ContactsBatchPanel from "@/components/ContactsBatchPanel";
-import { Search, Plus } from "lucide-react";
+import { Search } from "lucide-react";
 import Link from "next/link";
 
 export const revalidate = 0;
@@ -172,12 +172,6 @@ export default async function ContactsPage({
               );
             })}
           </div>
-          <Link href="/dashboard/new" className="btn-lift" style={{
-            display: "flex", alignItems: "center", gap: 6, background: "var(--red)", color: "#fff",
-            border: "none", padding: "8px 16px", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0,
-          }}>
-            <Plus style={{ width: 13, height: 13 }} /> Add Lead
-          </Link>
         </form>
 
         <p style={{ fontSize: 11, color: L.muted }}>

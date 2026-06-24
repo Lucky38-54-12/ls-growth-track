@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Search, Plus, X, LayoutDashboard, Users, Send, FileText, UserPlus, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone } from "lucide-react";
+import { Bell, Search, X, LayoutDashboard, Users, Send, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -15,7 +15,6 @@ const SEARCH_ITEMS = [
   { label: "Call Queue", href: "/dashboard/call-queue", icon: ListChecks },
   { label: "Cold Call", href: "/dashboard/cold-call", icon: Phone },
   { label: "Scraper", href: "/dashboard/scraper", icon: ScanSearch },
-  { label: "Add Lead", href: "/dashboard/new", icon: UserPlus },
   { label: "Lead Sheets", href: "/dashboard/import", icon: Upload },
   { label: "Email Tracking", href: "/dashboard/warm", icon: MailOpen },
 ];
@@ -77,17 +76,6 @@ export default function Topbar({ title, subtitle }: { title: string; subtitle?: 
             <span>Search</span>
             <span style={{ fontSize: 10, background: "#e6eaf0", borderRadius: 4, padding: "1px 5px", color: "#94a3b8", fontWeight: 600 }}>⌘K</span>
           </button>
-
-          <Link href="/dashboard/new" className="btn-lift" style={{
-            display: "flex", alignItems: "center", gap: 6,
-            background: "linear-gradient(135deg, var(--red), #b91c1c)", color: "#fff",
-            border: "none", padding: "0 16px", height: 36, fontSize: 12, fontWeight: 700,
-            textDecoration: "none", flexShrink: 0, whiteSpace: "nowrap",
-            boxShadow: "0 2px 6px rgba(220,38,38,0.25)",
-          }}>
-            <Plus style={{ width: 13, height: 13 }} />
-            Add Lead
-          </Link>
 
           <button className="card-hover" style={{
             position: "relative", width: 36, height: 36, background: "#fff",
