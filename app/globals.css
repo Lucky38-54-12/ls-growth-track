@@ -4,8 +4,19 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --red: #dc2626;
+  --blue: #2563eb;
+  --green: #16a34a;
+}
+
 * {
   @apply transition-colors duration-300;
+}
+
+/* Square corners everywhere — overrides any inline border-radius too */
+*, *::before, *::after {
+  border-radius: 0 !important;
 }
 
 html {
@@ -38,6 +49,68 @@ body {
 /* Card animation */
 .card-hover {
   @apply hover:shadow-hover hover:border-blue-500/50 transition-all;
+}
+
+/* Dashboard interactivity — these classes used to be dead weight (referenced
+   all over the dashboard JSX but never defined), so nothing reacted to a
+   hover. Defining them here is what actually puts the lift/shadow/color
+   feedback on cards, buttons, pills, and rows. */
+.surface-card {
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+a.card-hover, div.card-hover, .surface-card.card-hover {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+a.card-hover:hover, div.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+  border-color: var(--red);
+}
+
+.stat-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+}
+
+.btn-lift {
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+.btn-lift:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+}
+.btn-lift:active {
+  transform: translateY(0);
+  filter: brightness(0.97);
+}
+
+.pill-hover {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.pill-hover:hover {
+  background-color: #fef2f2 !important;
+  border-color: var(--red) !important;
+  color: var(--red) !important;
+}
+
+.row-hover {
+  transition: background-color 0.12s ease;
+}
+.row-hover:hover {
+  background-color: #f8fafc;
+}
+
+.nav-link-light {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.nav-link-light:hover {
+  background-color: #f8fafc;
+  color: #0f172a;
 }
 
 /* Pulse animation */
