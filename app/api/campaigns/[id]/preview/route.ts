@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { generateCampaignStepEmail } from "@/lib/ai";
 import { Lead } from "@/lib/types";
 
-const SAMPLE_SIZE = 3;
+const SAMPLE_LEADS = 2;
+const STEPS: { step: "initial" | "followup1" | "followup2" | "followup3" | "followup4"; day: string }[] = [
+  { step: "initial", day: "Day 0" },
+  { step: "followup1", day: "Day 3" },
+  { step: "followup2", day: "Day 7" },
+  { step: "followup3", day: "Day 14" },
+  { step: "followup4", day: "Day 21" },
+];
 
-// Generates real "initial" emails for a small sample of this campaign's
-// leads — using the same AI call /api/cron makes once the campaign goes
-// live — so you can see exactly what people will receive before activating.
+// Generates the FULL 5-email sequence (not just the first one) for a couple
+// of this campaign's leads — using the same AI call /api/cron makes once the
+// campaign goes live — so you can see exactly what the whole follow-up arc
+// looks like before activating, not just the opener.
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const sb = createSupabaseClient();
 
@@ -22,28 +31,35 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ previews: [] });
   }
 
-  const { data: leads, error } = await sb.from("leads").select("*").in("lead_id", memberIds).limit(SAMPLE_SIZE);
+  const { data: leads, error } = await sb.from("leads").select("*").in("lead_id", memberIds).limit(SAMPLE_LEADS);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const sample = (leads || []) as Lead[];
   const previews = [];
+
   for (const lead of sample) {
-    try {
-      const { subject, bodyHtml } = await generateCampaignStepEmail({
-        company: lead.company,
-        contactName: lead.contact_name,
-        trade: lead.trade,
-        location: lead.location,
-        notes: lead.notes,
-        website: lead.website,
-        personalizationHook: lead.personalization_hook,
-        step: "initial",
-        priorSubjects: [],
-      });
-      previews.push({ leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, subject, bodyHtml });
-    } catch (e) {
-      previews.push({ leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, error: e instanceof Error ? e.message : "Generation failed" });
+    const steps = [];
+    const priorSubjects: string[] = [];
+    for (const { step, day } of STEPS) {
+      try {
+        const { subject, bodyHtml } = await generateCampaignStepEmail({
+          company: lead.company,
+          contactName: lead.contact_name,
+          trade: lead.trade,
+          location: lead.location,
+          notes: lead.notes,
+          website: lead.website,
+          personalizationHook: lead.personalization_hook,
+          step,
+          priorSubjects,
+        });
+        steps.push({ step, day, subject, bodyHtml });
+        priorSubjects.push(subject);
+      } catch (e) {
+        steps.push({ step, day, error: e instanceof Error ? e.message : "Generation failed" });
+      }
     }
+    previews.push({ leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, steps });
   }
 
   return NextResponse.json({ previews, sampleSize: sample.length, totalLeads: memberIds.length });

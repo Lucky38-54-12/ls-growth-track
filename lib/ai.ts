@@ -1,4 +1,28 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { fetchWebsiteSnippet } from "./website";
+
+// Leads imported without a real contact name get stored as the literal
+// placeholder "there" (so templates can write "Hey there,"). When feeding a
+// name into an AI prompt we want that treated as "no name known", not as if
+// "There" were someone's actual first name.
+function realName(name: string | null | undefined): string {
+  const trimmed = (name || "").trim();
+  return trimmed && trimmed.toLowerCase() !== "there" ? trimmed : "";
+}
+
+// Models sometimes wrap JSON in ```json fences despite instructions not to —
+// strip those, then fall back to grabbing the first {...} block, before
+// giving up and letting the caller's catch handle a genuinely bad response.
+function parseJsonResponse<T>(text: string): T {
+  const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  try {
+    return JSON.parse(stripped);
+  } catch {
+    const match = stripped.match(/\{[\s\S]*\}/);
+    if (match) return JSON.parse(match[0]);
+    throw new Error(`Could not parse AI response as JSON: ${text.slice(0, 200)}`);
+  }
+}
 
 export interface PersonalizedEmailInput {
   company: string;
@@ -21,6 +45,7 @@ You'll be given details about a business that was previously called, including n
 - Is 3-5 short sentences/paragraphs max
 - Ends with a call to action linking to a quick chat, using exactly the placeholder {{CTA_LINK}} as the href
 - Signs off as "Lucky, LS Growth"
+- Greeting: if a real contact name is given, use it ("Hey Mike,"). If no name is known, do NOT write "Hey there," — that reads as a template. Just open with "Hi," on its own line, or skip a standalone greeting line entirely and open straight into the first sentence.
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
 {"subject": "...", "body_html": "..."}
@@ -34,7 +59,7 @@ export async function generatePersonalizedEmail(input: PersonalizedEmailInput): 
   const client = new Anthropic({ apiKey });
 
   const userPrompt = `Business: ${input.company}
-Contact name: ${input.contactName || "there"}
+Contact name: ${realName(input.contactName) || "unknown"}
 Trade: ${input.trade || "unknown"}
 Location: ${input.location || "unknown"}
 
@@ -51,12 +76,7 @@ ${input.callNotes}`;
   const block = msg.content[0];
   if (block.type !== "text") throw new Error("Unexpected response from AI");
 
-  let parsed: { subject?: string; body_html?: string };
-  try {
-    parsed = JSON.parse(block.text.trim());
-  } catch {
-    throw new Error(`Could not parse AI response as JSON: ${block.text.slice(0, 200)}`);
-  }
+  const parsed = parseJsonResponse<{ subject?: string; body_html?: string }>(block.text);
 
   if (!parsed.subject || !parsed.body_html) {
     throw new Error("AI response missing subject or body_html");
@@ -103,7 +123,7 @@ ${input.personalizationHook?.trim() ? `- ${input.personalizationHook.trim()}\n` 
     : `\nNothing specific is known about this business yet (no notes, no research hook). Write a clean, honest, generic first-touch email — do NOT invent any specific detail about them that you don't actually know.`;
 
   const userPrompt = `Business: ${input.company}
-Contact name: ${input.contactName || "there"}
+Contact name: ${realName(input.contactName) || "unknown"}
 Trade: ${input.trade || "unknown"}
 Location: ${input.location || "unknown"}
 ${knownInfoBlock}
@@ -121,12 +141,7 @@ This email's purpose: ${STEP_GUIDANCE[input.step]}`;
   const block = msg.content[0];
   if (block.type !== "text") throw new Error("Unexpected response from AI");
 
-  let parsed: { subject?: string; body_html?: string };
-  try {
-    parsed = JSON.parse(block.text.trim());
-  } catch {
-    throw new Error(`Could not parse AI response as JSON: ${block.text.slice(0, 200)}`);
-  }
+  const parsed = parseJsonResponse<{ subject?: string; body_html?: string }>(block.text);
 
   if (!parsed.subject || !parsed.body_html) {
     throw new Error("AI response missing subject or body_html");
@@ -144,38 +159,43 @@ export interface PersonalizationHookInput {
   notes: string | null;
 }
 
-const PERSONALIZATION_SYSTEM_PROMPT = `You write ONE short sentence for a cold outreach email on behalf of Lucky from LS Growth, a company that runs done-for-you lead generation (ads, follow up, booking) for trade businesses in NZ and Australia.
+const PERSONALIZATION_SYSTEM_PROMPT = `You research a business for Lucky from LS Growth, a company that runs done-for-you lead generation (ads, follow up, booking) for trade businesses in NZ and Australia, before he emails them cold.
 
-You'll be given a business's name, trade, location, and what's known about their online presence (website, Facebook page, any notes). Write exactly one sentence that replaces a generic line like "I came across {company} and wanted to see if something similar could work for a {trade} business in {location}."
+You'll be given a business's name, trade, location, and what's known about their online presence — sometimes including real scraped text from their actual website. Your job:
 
-Rules:
-- Reference something TRUE and SPECIFIC about this business's online presence — don't invent anything
-- If they have no website: point out that's costing them search traffic to competitors who do have one
-- If they have a Facebook page but no website: note the mismatch (decent social presence, but missing from Google searches)
-- If they have both a website and Facebook: skip the gap-angle, just note you came across their business while looking at {trade} companies in {location}, naturally
-- If real notes are provided (e.g. from a call), reference the most specific detail from them instead of the website/Facebook angle
-- Sound like a real person noticed something, not a sales tool — casual, one sentence, no corporate phrases
-- No dashes or em dashes
-- Do NOT include a greeting, sign-off, or call to action — just the one sentence
+1. Write exactly ONE short sentence that replaces a generic line like "I came across {company} and wanted to see if something similar could work for a {trade} business in {location}":
+   - If real website text is provided, reference something TRUE and SPECIFIC from it (a service they offer, area they cover, something distinctive) — this is by far the best source, prefer it over anything else
+   - Otherwise if they have no website: point out that's costing them search traffic to competitors who do have one
+   - Otherwise if they have a Facebook page but no website: note the mismatch (decent social presence, but missing from Google searches)
+   - Otherwise if they have both a website and Facebook with no scraped text: just note you came across their business while looking at {trade} companies in {location}, naturally
+   - If real notes are provided (e.g. from a call), reference the most specific detail from them instead
+   - Never invent a detail that isn't actually given to you
+   - Sound like a real person noticed something, not a sales tool — casual, no corporate phrases, no dashes or em dashes
+   - No greeting, sign-off, or call to action — just the one sentence
 
-Respond with ONLY the sentence text, no quotes, no JSON, no markdown.`;
+2. If the scraped website text clearly names a real person as the owner, founder, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a bio with a name), extract their first name. Otherwise return null — never guess or invent a name.
 
-export async function generatePersonalizationHook(input: PersonalizationHookInput): Promise<string> {
+Respond with ONLY a JSON object, no markdown fences, no other text: {"sentence": "...", "contact_name": "John" or null}`;
+
+export async function generatePersonalizationHook(input: PersonalizationHookInput): Promise<{ hook: string; contactName: string | null }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
 
   const client = new Anthropic({ apiKey });
+
+  const websiteSnippet = input.website ? await fetchWebsiteSnippet(input.website) : "";
 
   const userPrompt = `Business: ${input.company}
 Trade: ${input.trade || "unknown"}
 Location: ${input.location || "unknown"}
 Website: ${input.website || "none found"}
 Facebook: ${input.facebook || "none found"}
-Notes: ${input.notes || "none"}`;
+Notes: ${input.notes || "none"}
+${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` : ""}`;
 
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 256,
+    max_tokens: 300,
     system: PERSONALIZATION_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
   });
@@ -183,7 +203,10 @@ Notes: ${input.notes || "none"}`;
   const block = msg.content[0];
   if (block.type !== "text") throw new Error("Unexpected response from AI");
 
-  return validateHook(block.text.trim());
+  const parsed = parseJsonResponse<{ sentence?: string; contact_name?: string | null }>(block.text);
+  if (!parsed.sentence) throw new Error("AI response missing sentence");
+
+  return { hook: validateHook(parsed.sentence), contactName: parsed.contact_name?.trim() || null };
 }
 
 // Guards against the model refusing (e.g. when call notes say the lead asked
@@ -281,7 +304,7 @@ export async function generateMeetingConfirmationEmail(input: MeetingConfirmatio
   const client = new Anthropic({ apiKey });
 
   const userPrompt = `Company: ${input.company}
-Contact name: ${input.contactName || "there"}
+Contact name: ${realName(input.contactName) || "unknown"}
 Meeting time: ${input.meetingTime}`;
 
   const msg = await client.messages.create({

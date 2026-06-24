@@ -6,6 +6,7 @@ import { Phone, Calendar, Video } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import PipelineStats from "@/components/PipelineStats";
 import PipelineBoard from "@/components/PipelineBoard";
+import BackfillNamesButton from "@/components/BackfillNamesButton";
 import FlashMessage from "./FlashMessage";
 import Link from "next/link";
 import { listTodaysEvents, CalendarEvent } from "@/lib/calendar";
@@ -27,10 +28,11 @@ export default async function DashboardPage({
 }) {
   const sb = createSupabaseClient();
 
-  const [leads, { data: events }, todaysMeetings] = await Promise.all([
+  const [leads, { data: events }, todaysMeetings, { count: namesRemaining }] = await Promise.all([
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
     listTodaysEvents().catch(() => [] as CalendarEvent[]),
+    sb.from("leads").select("lead_id", { count: "exact", head: true }).eq("contact_name", "there").not("website", "is", null),
   ]);
 
   const allLeads = leads;
@@ -133,6 +135,7 @@ export default async function DashboardPage({
             }}>{s.label} ({s.count})</Link>
           ))}
           <div style={{ flex: 1 }} />
+          <BackfillNamesButton totalRemaining={namesRemaining || 0} />
         </div>
 
         {/* Kanban board */}

@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
   // generic line in the template (handled in lib/templates.ts).
   for (const lead of leads) {
     try {
-      const hook = await generatePersonalizationHook({
+      const { hook, contactName } = await generatePersonalizationHook({
         company: lead.company,
         trade: lead.trade,
         location: lead.location,
@@ -108,7 +108,12 @@ export async function POST(req: NextRequest) {
         notes: lead.notes,
       });
       lead.personalization_hook = hook;
-      await sb.from("leads").update({ personalization_hook: hook }).eq("lead_id", lead.lead_id);
+      const update: Record<string, unknown> = { personalization_hook: hook };
+      if (contactName && (!lead.contact_name || lead.contact_name === "there")) {
+        lead.contact_name = contactName;
+        update.contact_name = contactName;
+      }
+      await sb.from("leads").update(update).eq("lead_id", lead.lead_id);
     } catch {
       // leave personalization_hook null — template falls back to generic line
     }
