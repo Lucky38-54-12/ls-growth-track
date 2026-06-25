@@ -2,7 +2,7 @@
 // Avoids Buffer/Node-only APIs so it works in the Edge runtime.
 
 export const COOKIE_NAME = "ls_growth_session";
-export const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
+export const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 365; // 1 year — effectively "until you log out"
 
 function getSecret() {
   const secret = process.env.SESSION_SECRET;
