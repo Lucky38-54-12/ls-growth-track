@@ -25,28 +25,49 @@ export async function POST() {
 
   const [messages, existing] = await Promise.all([
     fetchMailboxSince("INBOX", since),
-    fetchAllRows<{ lead_id: string; email: string }>((from, to) =>
-      sb.from("leads").select("lead_id, email").range(from, to)
+    fetchAllRows<{ lead_id: string; email: string; status: string }>((from, to) =>
+      sb.from("leads").select("lead_id, email, status").range(from, to)
     ),
   ]);
 
-  const existingEmails = new Set(existing.map((l) => l.email.toLowerCase()));
+  const existingByEmail = new Map(existing.map((l) => [l.email.toLowerCase(), l]));
   const existingIds = new Set(existing.map((l) => l.lead_id));
   const ownAddress = (process.env.GMAIL_USER || "").toLowerCase();
 
-  const seen = new Map<string, { name: string; date: string }>();
+  // Genuine reply, but already in the pipeline — flip its status to
+  // "replied" instead of being silently skipped, so Replied/Booked stats on
+  // the Campaigns page actually move without someone manually dragging the
+  // card. Never downgrade a lead already marked "booked" or "replied".
+  const ALREADY_TRACKED = new Set(["replied", "booked"]);
+  const seenNew = new Map<string, { name: string; date: string }>();
+  const repliedLeadIds = new Set<string>();
   for (const msg of messages) {
     const email = msg.fromEmail;
     if (!email || email === ownAddress) continue;
     if (!msg.subject.trim().toLowerCase().startsWith("re:")) continue;
     if (SKIP_DOMAINS.some((d) => email.includes(d))) continue;
-    if (existingEmails.has(email)) continue;
-    if (!seen.has(email)) seen.set(email, { name: msg.from, date: msg.date.split("T")[0] });
+
+    const match = existingByEmail.get(email);
+    if (match) {
+      if (!ALREADY_TRACKED.has(match.status)) repliedLeadIds.add(match.lead_id);
+      continue;
+    }
+    if (!seenNew.has(email)) seenNew.set(email, { name: msg.from, date: msg.date.split("T")[0] });
+  }
+
+  let repliedUpdated = 0;
+  if (repliedLeadIds.size) {
+    const { error, count } = await sb
+      .from("leads")
+      .update({ status: "replied" }, { count: "exact" })
+      .in("lead_id", Array.from(repliedLeadIds));
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    repliedUpdated = count || repliedLeadIds.size;
   }
 
   const today = new Date().toISOString().split("T")[0];
   const newLeads: object[] = [];
-  for (const [email, { name, date }] of seen) {
+  for (const [email, { name, date }] of seenNew) {
     const company = name && name !== email ? name : email.split("@")[0];
     const leadId = generateLeadId(company, existingIds);
     existingIds.add(leadId);
@@ -71,11 +92,11 @@ export async function POST() {
   }
 
   if (!newLeads.length) {
-    return NextResponse.json({ imported: 0, scanned: messages.length });
+    return NextResponse.json({ imported: 0, repliedUpdated, scanned: messages.length });
   }
 
   const { error } = await sb.from("leads").insert(newLeads);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ imported: newLeads.length, scanned: messages.length });
+  return NextResponse.json({ imported: newLeads.length, repliedUpdated, scanned: messages.length });
 }

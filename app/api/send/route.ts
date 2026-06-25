@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { nextStepFor, STEP_NEW_STATUS } from "@/lib/leads";
-import { sendOutreachEmail, sendPersonalizedEmail } from "@/lib/email";
-import { generateCampaignStepEmail } from "@/lib/ai";
+import { sendNextStepFor } from "@/lib/sendPipeline";
 import { Lead } from "@/lib/types";
 
 export async function POST(req: Request) {
@@ -17,52 +15,16 @@ export async function POST(req: Request) {
     if (Array.isArray(body?.leadIds)) leadIds = body.leadIds;
   } catch {}
 
-  const today = new Date().toISOString().split("T")[0];
   let sent = 0, failed = 0, skipped = 0;
   const errors: string[] = [];
 
   const targets = leadIds ? leads.filter((l) => leadIds!.includes(l.lead_id)) : leads;
 
   for (const lead of targets) {
-    const step = nextStepFor(lead);
-    if (!step) { skipped++; continue; }
-
     try {
-      if (lead.campaign_id) {
-        const { data: priorSends } = await sb
-          .from("email_sends")
-          .select("subject")
-          .eq("lead_id", lead.lead_id)
-          .order("sent_at", { ascending: true });
-        const { subject, bodyHtml } = await generateCampaignStepEmail({
-          company: lead.company,
-          contactName: lead.contact_name,
-          trade: lead.trade,
-          location: lead.location,
-          notes: lead.notes,
-          website: lead.website,
-          personalizationHook: lead.personalization_hook,
-          step,
-          priorSubjects: (priorSends || []).map((s) => s.subject as string),
-        });
-        await sendPersonalizedEmail(lead, subject, bodyHtml, step);
-      } else if (step === "checkin") {
-        // Never happens — checkin is only returned for campaign leads — but
-        // satisfies the type checker without an unsafe cast.
-        skipped++;
-        continue;
-      } else {
-        await sendOutreachEmail(lead, step);
-      }
-      const update: Record<string, unknown> = { status: STEP_NEW_STATUS[step] };
-      if (step === "initial") {
-        update.date_contacted = today;
-      } else {
-        update.last_followup = today;
-        update.followup_count = (lead.followup_count || 0) + 1;
-      }
-      await sb.from("leads").update(update).eq("lead_id", lead.lead_id);
-      sent++;
+      const result = await sendNextStepFor(lead, sb);
+      if (result.sent) sent++;
+      else skipped++;
     } catch (err: unknown) {
       failed++;
       const msg = err instanceof Error ? err.message : String(err);

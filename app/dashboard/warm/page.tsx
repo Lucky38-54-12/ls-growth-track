@@ -12,6 +12,7 @@ interface SendRow extends EmailSend {
   company: string;
   contact_name: string;
   email: string;
+  status: string;
 }
 
 export default async function EmailTrackingPage() {
@@ -19,8 +20,8 @@ export default async function EmailTrackingPage() {
 
   const [{ data: sends }, leads, { data: events }] = await Promise.all([
     sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
-    fetchAllRows<{ lead_id: string; company: string; contact_name: string; email: string }>(
-      (from, to) => sb.from("leads").select("lead_id,company,contact_name,email").range(from, to)
+    fetchAllRows<{ lead_id: string; company: string; contact_name: string; email: string; status: string }>(
+      (from, to) => sb.from("leads").select("lead_id,company,contact_name,email,status").range(from, to)
     ),
     sb.from("email_events").select("*"),
   ]);
@@ -44,6 +45,7 @@ export default async function EmailTrackingPage() {
       company: lead?.company || "(deleted lead)",
       contact_name: lead?.contact_name || "",
       email: lead?.email || "",
+      status: lead?.status || "",
     };
   });
 
@@ -97,9 +99,10 @@ export default async function EmailTrackingPage() {
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5 }}>{row.subject}</td>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13 }}>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {!ev?.opens && !ev?.clicks && <span style={{ fontSize: 11, color: L.dimmed }}>No activity</span>}
+                          {!ev?.opens && !ev?.clicks && row.status !== "replied" && row.status !== "booked" && <span style={{ fontSize: 11, color: L.dimmed }}>No activity</span>}
                           {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
                           {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
+                          {(row.status === "replied" || row.status === "booked") && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#dcfce7", color: "#15803d" }}>{row.status === "booked" ? "Booked" : "Replied"}</span>}
                         </div>
                       </td>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted, whiteSpace: "nowrap" }}>

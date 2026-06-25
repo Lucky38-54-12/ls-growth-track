@@ -14,7 +14,7 @@ export default function InboxImportButton() {
       const res = await fetch("/api/leads/from-inbox", { method: "POST" });
       const data = await res.json();
       if (data.error) { setError(data.error); setLoading(false); return; }
-      router.push(`/dashboard?flash=${encodeURIComponent(`Imported ${data.imported} lead(s) from the last 2 weeks of inbox mail (scanned ${data.scanned}).`)}`);
+      router.push(`/dashboard?flash=${encodeURIComponent(`Imported ${data.imported} new lead(s), marked ${data.repliedUpdated || 0} existing lead(s) as replied (scanned ${data.scanned}).`)}`);
       router.refresh();
     } catch {
       setError("Network error");
