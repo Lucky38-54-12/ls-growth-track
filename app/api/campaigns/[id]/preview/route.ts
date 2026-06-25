@@ -35,32 +35,37 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const sample = (leads || []) as Lead[];
-  const previews = [];
 
-  for (const lead of sample) {
-    const steps = [];
-    const priorSubjects: string[] = [];
-    for (const { step, day } of STEPS) {
-      try {
-        const { subject, bodyHtml } = await generateCampaignStepEmail({
-          company: lead.company,
-          contactName: lead.contact_name,
-          trade: lead.trade,
-          location: lead.location,
-          notes: lead.notes,
-          website: lead.website,
-          personalizationHook: lead.personalization_hook,
-          step,
-          priorSubjects,
-        });
-        steps.push({ step, day, subject, bodyHtml });
-        priorSubjects.push(subject);
-      } catch (e) {
-        steps.push({ step, day, error: e instanceof Error ? e.message : "Generation failed" });
+  // Each lead's 5 steps must run sequentially (later steps reference earlier
+  // subjects for variety), but the leads themselves are independent — running
+  // them concurrently instead of one-after-another keeps total wall-clock
+  // under Vercel's 60s function cap instead of stacking all leads' calls.
+  const previews = await Promise.all(
+    sample.map(async (lead) => {
+      const steps = [];
+      const priorSubjects: string[] = [];
+      for (const { step, day } of STEPS) {
+        try {
+          const { subject, bodyHtml } = await generateCampaignStepEmail({
+            company: lead.company,
+            contactName: lead.contact_name,
+            trade: lead.trade,
+            location: lead.location,
+            notes: lead.notes,
+            website: lead.website,
+            personalizationHook: lead.personalization_hook,
+            step,
+            priorSubjects,
+          });
+          steps.push({ step, day, subject, bodyHtml });
+          priorSubjects.push(subject);
+        } catch (e) {
+          steps.push({ step, day, error: e instanceof Error ? e.message : "Generation failed" });
+        }
       }
-    }
-    previews.push({ leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, steps });
-  }
+      return { leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, steps };
+    })
+  );
 
   return NextResponse.json({ previews, sampleSize: sample.length, totalLeads: memberIds.length });
 }

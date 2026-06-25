@@ -33,6 +33,9 @@ export default function CampaignPreviewButton({ campaignId, leadCount }: { campa
     setError("");
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/preview`, { method: "POST" });
+      if (!res.headers.get("content-type")?.includes("application/json")) {
+        throw new Error("Generating the previews took too long. Please try again.");
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to generate previews.");
       setPreviews(data.previews || []);
