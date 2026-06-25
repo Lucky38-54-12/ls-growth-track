@@ -169,14 +169,14 @@ export default function ColdCallPage() {
                 onChange={(e) => setCallNotes(e.target.value)}
                 rows={8}
                 placeholder={`e.g. Mike from Acme Plumbing, mike@acmeplumbing.co.nz, Auckland. Busy until next month but interested in more jobs, said to follow up in a few weeks...`}
-                style={{ marginBottom: 12 }}
+                style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 16 }}
               />
               <button
                 type="button"
                 onClick={handleGenerate}
                 disabled={generating}
                 className="btn-lift"
-                style={{ padding: "10px 20px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
+                style={{ display: "inline-block", padding: "10px 20px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
               >
                 {generating ? "Generating…" : "Generate email from notes"}
               </button>
