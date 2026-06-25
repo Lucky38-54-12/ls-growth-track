@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Search, X, LayoutDashboard, Users, Send, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone } from "lucide-react";
+import { Bell, Search, X, LayoutDashboard, Users, Send, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone, Mailbox } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -10,6 +10,7 @@ const SEARCH_ITEMS = [
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar },
   { label: "Inbox", href: "/dashboard/inbox", icon: Inbox },
+  { label: "Outreach Inbox", href: "/dashboard/outreach-inbox", icon: Mailbox },
   { label: "Email Outreach", href: "/dashboard/send", icon: Send },
   { label: "Templates", href: "/dashboard/templates", icon: FileText },
   { label: "Call Queue", href: "/dashboard/call-queue", icon: ListChecks },

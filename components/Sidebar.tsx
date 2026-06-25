@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Users, Send, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone,
+  LayoutDashboard, Users, Send, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone, Mailbox,
 } from "lucide-react";
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { href: "/dashboard/campaigns", label: "Campaigns", icon: Megaphone },
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
+  { href: "/dashboard/outreach-inbox", label: "Outreach Inbox", icon: Mailbox },
   { href: "/dashboard/send", label: "Email Outreach", icon: Send },
   { href: "/dashboard/templates", label: "Templates", icon: FileText },
   { href: "/dashboard/call-queue", label: "Call Queue", icon: ListChecks },
