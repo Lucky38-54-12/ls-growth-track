@@ -165,7 +165,7 @@ export async function generateCampaignStepEmail(input: CampaignStepEmailInput): 
   const knownInfoBlock = hasRealInfo
     ? `\nWhat's actually known about this business (use this to make the email specific and prove you looked them up — don't just repeat it verbatim):
 ${input.personalizationHook?.trim() ? `- ${input.personalizationHook.trim()}\n` : ""}${input.website?.trim() ? `- Website: ${input.website.trim()}\n` : ""}${input.notes?.trim() ? `- Notes: ${input.notes.trim()}\n` : ""}`
-    : `\nNothing specific is known about this business yet (no notes, no research hook). Write a clean, honest, generic first-touch email — do NOT invent any specific detail about them that you don't actually know.`;
+    : `\nNothing specific is known about this business yet beyond their company name, trade, and location. Do NOT open with a generic industry statement like "When a homeowner needs a plumber..." or "Most trade businesses...". Do NOT invent details about them. Instead: open with Hi, (no name), introduce what LS Growth does for their trade in one sentence, drop one real proof point with numbers, then a direct CTA. Short, honest, no fluff.`;
 
   const userPrompt = `Business: ${input.company}
 Contact name: ${realName(input.contactName) || "unknown"}
