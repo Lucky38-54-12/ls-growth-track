@@ -57,7 +57,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
             step,
             priorSubjects,
           });
-          steps.push({ step, day, subject, bodyHtml });
+          const previewHtml = `${bodyHtml}<p>Cheers,<br>Lucky<br>LS Growth</p>`;
+          steps.push({ step, day, subject, bodyHtml: previewHtml });
           priorSubjects.push(subject);
         } catch (e) {
           steps.push({ step, day, error: e instanceof Error ? e.message : "Generation failed" });

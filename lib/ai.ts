@@ -59,7 +59,7 @@ SUBJECT LINE
 OPENING
 - First sentence is always about THEM — their situation, something from their website, something from the call
 - Never open with "I" — never "I wanted to reach out", "I came across your business", "My name is Lucky"
-- If a real contact name is given use it ("Hey Dave,"). If no name, skip the greeting and open straight into the first sentence about them
+- Always open with a greeting. If a real contact name is given use it ("Hey Dave,"). If no name is known, use "Hi," on its own line — never skip the greeting entirely, never use "Hey there,"
 
 BODY
 - Trade owners read email on their phone between jobs — get to the point in 2–3 sentences
