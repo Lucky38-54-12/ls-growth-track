@@ -18,6 +18,8 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 const COLD_CALL_COLUMNS: { key: string; label: string }[] = [
   { key: "contacted", label: "Email Sent" },
   { key: "booked", label: "Meeting Booked" },
+  { key: "no_show", label: "No Show" },
+  { key: "proposal_sent", label: "Proposal Sent" },
   { key: "closed", label: "Closed / No Close" },
 ];
 

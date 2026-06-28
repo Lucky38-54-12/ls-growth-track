@@ -10,7 +10,9 @@ export type LeadStatus =
   | "not_interested"
   | "bounced"
   | "sequence_complete"
-  | "reenroll_queue";
+  | "reenroll_queue"
+  | "no_show"
+  | "proposal_sent";
 
 export type ReplyCategory = "interested" | "bad_timing" | "not_interested" | "has_someone";
 
