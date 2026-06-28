@@ -1,7 +1,7 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { generateLeadId } from "./leads";
 import { sendOutreachEmail, sendPersonalizedEmail } from "./email";
-import { generatePersonalizedEmail, generatePersonalizationHook } from "./ai";
+import { generatePersonalizedEmail, generateCampaignStepEmail, generatePersonalizationHook } from "./ai";
 import { readLeadSheet, hasCallInfo, formatCallNotes, getSheetTitle, parseCampaignFromTitle } from "./sheets";
 import { Lead } from "./types";
 
@@ -151,6 +151,8 @@ export async function syncLeadsFromSheet(opts: {
           trade: lead.trade,
           location: lead.location,
           callNotes,
+          website: lead.website,
+          personalizationHook: lead.personalization_hook,
         });
         await sendPersonalizedEmail(lead, subject, bodyHtml);
         const update: Record<string, unknown> = { last_followup: today, followup_count: (lead.followup_count || 0) + 1 };
@@ -161,7 +163,18 @@ export async function syncLeadsFromSheet(opts: {
         await sb.from("leads").update(update).eq("lead_id", lead.lead_id);
         personalizedSent++;
       } else if (!called && sendFresh && lead.status === "not_contacted") {
-        await sendOutreachEmail(lead, "initial");
+        const { subject: freshSubject, bodyHtml: freshBody } = await generateCampaignStepEmail({
+          company: lead.company,
+          contactName: lead.contact_name,
+          trade: lead.trade,
+          location: lead.location,
+          notes: lead.notes || "",
+          website: lead.website,
+          personalizationHook: lead.personalization_hook,
+          step: "initial",
+          priorSubjects: [],
+        });
+        await sendPersonalizedEmail(lead, freshSubject, freshBody, "initial");
         await sb.from("leads").update({ status: "contacted", date_contacted: today }).eq("lead_id", lead.lead_id);
         freshSent++;
       }

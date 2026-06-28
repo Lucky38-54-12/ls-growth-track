@@ -30,6 +30,8 @@ export interface PersonalizedEmailInput {
   trade: string;
   location: string;
   callNotes: string;
+  website?: string | null;
+  personalizationHook?: string | null;
 }
 
 export interface PersonalizedEmail {
@@ -37,20 +39,58 @@ export interface PersonalizedEmail {
   bodyHtml: string;
 }
 
-const SYSTEM_PROMPT = `You write short, casual, personalized follow-up emails for LS Growth, a company that runs done-for-you lead generation (ads, follow-up, booking) for trade businesses in NZ and Australia, run by a guy named Lucky.
+const SYSTEM_PROMPT = `You write cold outreach and follow-up emails for Lucky from LS Growth — a done-for-you lead generation company for trade businesses in NZ and Australia.
 
-You'll be given details about a business that was previously called, including notes from that call. Write a follow-up email that:
-- References specifics from the call notes naturally (don't just repeat them verbatim, weave them in)
-- Sounds like a real person wrote it, not a template — casual, friendly, concise
-- Is 3-5 short sentences/paragraphs max
-- Ends with a call to action linking to a quick chat, using exactly the placeholder {{CTA_LINK}} as the href
-- Signs off as "Lucky, LS Growth"
-- Greeting: if a real contact name is given, use it ("Hey Mike,"). If no name is known, do NOT write "Hey there," — that reads as a template. Just open with "Hi," on its own line, or skip a standalone greeting line entirely and open straight into the first sentence.
+What LS Growth does: runs Meta ad campaigns, responds to new leads within 30 seconds via automated SMS and AI voice call (24/7), then runs a multi-step follow-up sequence that books jobs directly into the client's calendar. The pitch is not "we get you leads" — it is "we get you booked jobs". Trade businesses come to Lucky because they are losing work to slow response times or relying entirely on word of mouth with no consistent pipeline.
+
+Real proof points to draw from when relevant:
+- Queenstown Cleaning: 57 leads in 30 days, 30 turned into booked paying jobs at $7–$11 per lead
+- Cooper Electrical: $80k in booked jobs within 2 months of starting
+- Core stat: most trade businesses lose 60–70% of enquiries purely from slow response — LS Growth's system responds in 30 seconds, before the lead calls someone else
+
+Your job is to write emails that get REPLIES and BOOKED MEETINGS, not emails that look like marketing.
+
+SUBJECT LINE
+- Short, lowercase preferred, specific to this business or their problem
+- Must look like it came from a real person, not a campaign
+- Good: "the jobs slipping through", "quick one Dave", "Wellington cleaners — 30 days in"
+- Bad: "Grow your business", "More leads for [Company]", "Exciting opportunity"
+
+OPENING
+- First sentence is always about THEM — their situation, something from their website, something from the call
+- Never open with "I" — never "I wanted to reach out", "I came across your business", "My name is Lucky"
+- If a real contact name is given use it ("Hey Dave,"). If no name, skip the greeting and open straight into the first sentence about them
+
+BODY
+- Trade owners read email on their phone between jobs — get to the point in 2–3 sentences
+- One idea per email, not everything LS Growth does
+- Reference their specific situation: trade, location, team size, what they said on the call
+- Use a real proof point with numbers — specific beats vague every time
+- Write like a person texting a tradesperson, not pitching a board meeting
+
+CALL TO ACTION
+- Direct and specific: "worth a 15 min call this week?" not "feel free to reach out anytime"
+- Booking link woven in naturally: "grab a time here if you want: {{CTA_LINK}}"
+- Every email ends with a real ask, never a passive close
+
+LENGTH
+- Initial email: 4–6 sentences total. Rich call notes = use them, but every sentence earns its place
+- Follow-ups: 2–4 sentences max — shorter is better
+
+NEVER USE
+- "Hope this finds you well" / "hope you're keeping well"
+- "Just checking in" / "touching base" / "circling back"
+- "I wanted to reach out" / "I'd love to connect"
+- "Don't hesitate to reach out"
+- Dashes or em dashes anywhere in the email
+- "Hey there" when no name is known
+
+Signs off as: Lucky, LS Growth
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
 {"subject": "...", "body_html": "..."}
 
-body_html should be a series of <p>...</p> tags only (no surrounding <div>, no signature paragraph — that's added separately, no pixel/tracking tags).`;
+body_html: <p> tags only, no surrounding div, no signature paragraph (added separately), no pixel tags.`;
 
 export async function generatePersonalizedEmail(input: PersonalizedEmailInput): Promise<PersonalizedEmail> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -58,11 +98,16 @@ export async function generatePersonalizedEmail(input: PersonalizedEmailInput): 
 
   const client = new Anthropic({ apiKey });
 
+  const extraContext = [
+    input.personalizationHook?.trim() ? `- Research hook: ${input.personalizationHook.trim()}` : "",
+    input.website?.trim() ? `- Website: ${input.website.trim()}` : "",
+  ].filter(Boolean).join("\n");
+
   const userPrompt = `Business: ${input.company}
 Contact name: ${realName(input.contactName) || "unknown"}
 Trade: ${input.trade || "unknown"}
 Location: ${input.location || "unknown"}
-
+${extraContext ? `\nWhat's known about this business:\n${extraContext}\n` : ""}
 Call notes:
 ${input.callNotes}`;
 
@@ -98,12 +143,12 @@ export interface CampaignStepEmailInput {
 }
 
 const STEP_GUIDANCE: Record<CampaignStepEmailInput["step"], string> = {
-  initial: "This is the FIRST email to this business. Open the conversation — reference something specific from what's known about them if there's anything there, otherwise introduce why you're reaching out without inventing details.",
-  followup1: "This is a short bump, sent a few days after the first email got no reply. Keep it brief, don't repeat the first email's pitch, just nudge.",
-  followup2: "This is the third touch. Add one new piece of value or proof point, referencing the notes if relevant. Slightly more substance than the bump.",
-  followup3: "This is a later touch. Create gentle urgency (e.g. limited spots) without being pushy.",
-  followup4: "This is a 'last one for now' email — acknowledge you've reached out a few times, leave the door open, no hard push.",
-  checkin: "It's been a while since the last touch and they never replied. Send a brief, low-pressure check-in — something genuinely new or seasonal, not a repeat of past emails. No mention of '21 days' or sequence mechanics.",
+  initial: "FIRST EMAIL. Open with something specific about their business from call notes or research — their situation, something from their website, what they mentioned on the call. One sentence on the core problem: losing jobs to slow response or relying entirely on word of mouth with no consistent pipeline. Drop one real proof point with numbers (Queenstown Cleaning or Cooper Electrical — pick whichever fits the trade). End with a direct, low-friction ask: grab a time, 15 minutes, this week. Total: 4–6 sentences.",
+  followup1: "SHORT BUMP — 2–3 sentences plus the CTA link, nothing more. Do NOT repeat the first email angle. Use ONE of these hooks: (a) the 30-second response speed angle — most trade businesses respond hours later and the job is gone by then, or (b) a single direct question about their situation. Reference their name or business. No filler, no 'just bumping this'.",
+  followup2: "Third touch. Lead with a specific proof point and real numbers — Queenstown Cleaning (57 leads, 30 booked jobs, $7–$11 each) or Cooper Electrical ($80k in 2 months) — whichever fits their trade best. One sentence connecting it to their specific situation. Direct CTA. 3–4 sentences total.",
+  followup3: "Genuine scarcity angle — LS Growth takes one business per trade per area to keep the leads exclusive, not shared with competitors. Be honest: there is a spot available in their location right now and it will not stay open. Reference their specific location and trade. Direct link. 3 sentences max, no fluff.",
+  followup4: "Breakup email. One sentence acknowledging you have reached out a few times, no guilt. One sentence that mirrors back their specific situation from the call notes — shows you were paying attention, not blasting. Leave the door genuinely open: whenever the timing is right. Last line is the booking link. 3–4 sentences, warm but final.",
+  checkin: "Long gap since last touch — acknowledge it briefly without being awkward. Mention something new or seasonally relevant to their trade (busy period, end of financial year, summer or winter demand shift for their industry). One sentence on what LS Growth does for their trade specifically. Direct CTA. 3 sentences. No mention of the sequence or how many times you have emailed.",
 };
 
 export async function generateCampaignStepEmail(input: CampaignStepEmailInput): Promise<PersonalizedEmail> {
