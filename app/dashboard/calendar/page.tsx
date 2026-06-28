@@ -16,6 +16,8 @@ interface CalendarEvent {
   attendeeName: string;
   hangoutLink: string;
   location: string;
+  leadCompany: string;
+  leadContactName: string;
 }
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -136,6 +138,7 @@ export default function CalendarPage() {
                     {dayEvents.slice(0, 2).map((ev) => (
                       <div key={ev.eventId} style={{ fontSize: 10.5, fontWeight: 600, color: "#1e40af", background: "#dbeafe", padding: "2px 5px", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
                         {!ev.allDay && `${fmtTime(ev.startISO)} `}{ev.summary}
+                        {ev.leadCompany && <span style={{ fontWeight: 400, color: "#3b82f6" }}> · {ev.leadCompany}</span>}
                       </div>
                     ))}
                     {dayEvents.length > 2 && (
@@ -167,11 +170,17 @@ export default function CalendarPage() {
               selectedEvents.map((ev) => (
                 <div key={ev.eventId} style={{ border: `1px solid ${L.border}`, padding: 10 }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{ev.summary}</p>
+                  {ev.leadCompany && (
+                    <p style={{ fontSize: 12, fontWeight: 700, color: "#1e40af", marginTop: 3 }}>{ev.leadCompany}</p>
+                  )}
+                  {ev.leadContactName && (
+                    <p style={{ fontSize: 11.5, color: L.muted, marginTop: 1 }}>{ev.leadContactName}</p>
+                  )}
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, color: L.muted, fontSize: 11.5 }}>
                     <Clock style={{ width: 12, height: 12 }} />
                     {ev.allDay ? "All day" : `${fmtTime(ev.startISO)} – ${fmtTime(ev.endISO)}`}
                   </div>
-                  {(ev.attendeeName || ev.attendeeEmail) && (
+                  {!ev.leadContactName && (ev.attendeeName || ev.attendeeEmail) && (
                     <p style={{ fontSize: 11.5, color: L.muted, marginTop: 4 }}>{ev.attendeeName || ev.attendeeEmail}</p>
                   )}
                   {ev.location && (
