@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock } from "lucide-react";
+import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles } from "lucide-react";
+import FollowUpModal from "@/components/FollowUpModal";
 import { Lead, EngagementSummary } from "@/lib/types";
 import { nextStepFor } from "@/lib/leads";
 import { cleanNotes, extractMeetingTime } from "@/lib/notes";
@@ -28,10 +29,10 @@ function groupByStatus(leads: Lead[], columns: Column[], activeSource: string): 
 }
 
 function LeadCard({
-  lead, engagement, expanded, onToggle, onDragStart,
+  lead, engagement, expanded, onToggle, onDragStart, onFollowUp,
 }: {
   lead: Lead; engagement: Record<string, EngagementSummary>; expanded: boolean;
-  onToggle: () => void; onDragStart: (e: React.DragEvent) => void;
+  onToggle: () => void; onDragStart: (e: React.DragEvent) => void; onFollowUp: (id: string) => void;
 }) {
   const ev = engagement[lead.lead_id];
   const isDue = nextStepFor(lead) !== null;
@@ -135,6 +136,16 @@ function LeadCard({
               )}
             </div>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onFollowUp(lead.lead_id); }}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700,
+              color: "#7c3aed", background: "#ede9fe", border: "none", padding: "6px 10px",
+              cursor: "pointer", marginTop: 4, width: "100%", justifyContent: "center",
+            }}
+          >
+            <Sparkles style={{ width: 11, height: 11 }} /> Craft Follow-Up Email
+          </button>
           <Link href={`/dashboard/leads/${lead.lead_id}`} style={{
             display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: "var(--red)", marginTop: 4, textDecoration: "none",
           }}>
@@ -147,10 +158,11 @@ function LeadCard({
 }
 
 function KanbanColumn({
-  col, leads, engagement, expandedId, onToggle, onDragStart, onDrop, dropDisabled, isDragOver, onDragOverColumn, onDragLeaveColumn,
+  col, leads, engagement, expandedId, onToggle, onDragStart, onFollowUp, onDrop, dropDisabled, isDragOver, onDragOverColumn, onDragLeaveColumn,
 }: {
   col: Column; leads: Lead[]; engagement: Record<string, EngagementSummary>;
   expandedId: string | null; onToggle: (id: string) => void; onDragStart: (lead: Lead) => (e: React.DragEvent) => void;
+  onFollowUp: (id: string) => void;
   onDrop: () => void; dropDisabled: boolean; isDragOver: boolean;
   onDragOverColumn: () => void; onDragLeaveColumn: () => void;
 }) {
@@ -185,6 +197,7 @@ function KanbanColumn({
               expanded={expandedId === lead.lead_id}
               onToggle={() => onToggle(lead.lead_id)}
               onDragStart={onDragStart(lead)}
+              onFollowUp={onFollowUp}
             />
           ))
         )}
@@ -202,6 +215,11 @@ export default function PipelineBoard({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+  const [followUpId, setFollowUpId] = useState<string | null>(null);
+
+  const followUpLead = followUpId
+    ? sections.flatMap(s => s.leads).find(l => l.lead_id === followUpId) || null
+    : null;
 
   function toggle(id: string) {
     setExpandedId(prev => (prev === id ? null : id));
@@ -252,6 +270,14 @@ export default function PipelineBoard({
   }
 
   return (
+    <>
+    {followUpLead && (
+      <FollowUpModal
+        leadId={followUpLead.lead_id}
+        company={followUpLead.company}
+        onClose={() => setFollowUpId(null)}
+      />
+    )}
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {sections.map(section => {
         const grouped = groupByStatus(section.leads, columns, activeSource);
@@ -274,6 +300,7 @@ export default function PipelineBoard({
                     expandedId={expandedId}
                     onToggle={toggle}
                     onDragStart={dragStart}
+                    onFollowUp={(id) => setFollowUpId(id)}
                     dropDisabled={false}
                     isDragOver={dragOverKey === dropKey}
                     onDragOverColumn={() => setDragOverKey(dropKey)}
@@ -287,5 +314,6 @@ export default function PipelineBoard({
         );
       })}
     </div>
+    </>
   );
 }

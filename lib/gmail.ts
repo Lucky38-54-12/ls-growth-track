@@ -135,6 +135,40 @@ export async function fetchMailboxSince(mailbox: string, since: Date, account: M
   return messages;
 }
 
+// Searches inbox for messages from a specific email address, newest first.
+export async function searchInboxByFrom(fromEmail: string, account: MailAccount = "gmail"): Promise<InboxMessage[]> {
+  const client = getClient(account);
+  const messages: InboxMessage[] = [];
+  try {
+    await client.connect();
+    const info = await client.mailboxOpen("INBOX");
+    if (!info || info.exists === 0) return [];
+    const uids = await client.search({ from: fromEmail }, { uid: true });
+    if (!uids || uids.length === 0) return [];
+    for await (const msg of client.fetch(uids, { uid: true, flags: true, envelope: true }, { uid: true })) {
+      const env = msg.envelope;
+      const fromAddr = env?.from?.[0];
+      const toAddr = env?.to?.[0];
+      messages.push({
+        uid: msg.uid,
+        messageId: env?.messageId || String(msg.uid),
+        from: fromAddr?.name || fromAddr?.address || "",
+        fromEmail: fromAddr?.address?.toLowerCase() || "",
+        to: toAddr?.address?.toLowerCase() || "",
+        subject: env?.subject || "(No subject)",
+        date: env?.date ? new Date(env.date).toISOString() : new Date().toISOString(),
+        snippet: "",
+        seen: msg.flags?.has("\\Seen") ?? false,
+        hasAttachment: false,
+      });
+    }
+    messages.reverse();
+  } finally {
+    await client.logout().catch(() => {});
+  }
+  return messages;
+}
+
 export async function archiveMessage(uid: number, account: MailAccount = "gmail"): Promise<void> {
   const client = getClient(account);
   try {
