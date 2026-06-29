@@ -241,9 +241,13 @@ export default function PipelineBoard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!res.ok) throw new Error("update failed");
-    } catch {
-      alert("Couldn't save that move — refresh and try again.");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      console.error("Status save failed:", err);
+      alert(`Couldn't save: ${err instanceof Error ? err.message : "unknown error"} — refresh and try again.`);
     }
   }
 
