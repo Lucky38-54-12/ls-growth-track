@@ -12,6 +12,7 @@ export type LeadStatus =
   | "sequence_complete"
   | "reenroll_queue"
   | "no_show"
+  | "rebooked"
   | "proposal_sent";
 
 export type ReplyCategory = "interested" | "bad_timing" | "not_interested" | "has_someone";
