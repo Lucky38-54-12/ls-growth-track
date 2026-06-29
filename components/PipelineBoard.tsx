@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles } from "lucide-react";
 import FollowUpModal from "@/components/FollowUpModal";
@@ -213,7 +213,7 @@ export default function PipelineBoard({
 }) {
   const [sections, setSections] = useState(initialSections);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const draggingId = useRef<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const [followUpId, setFollowUpId] = useState<string | null>(null);
 
@@ -227,15 +227,15 @@ export default function PipelineBoard({
 
   function dragStart(lead: Lead) {
     return (e: React.DragEvent) => {
-      setDraggingId(lead.lead_id);
+      draggingId.current = lead.lead_id;
       e.dataTransfer.setData("text/plain", lead.lead_id);
       e.dataTransfer.effectAllowed = "move";
     };
   }
 
   async function handleDrop(sectionKey: string, columnKey: string) {
-    const id = draggingId;
-    setDraggingId(null);
+    const id = draggingId.current;
+    draggingId.current = null;
     if (!id) return;
 
     let newStatus: string | null = null;
