@@ -21,7 +21,8 @@ const COLD_CALL_COLUMNS: { key: string; label: string }[] = [
   { key: "no_show", label: "No Show" },
   { key: "rebooked", label: "Rebooked" },
   { key: "proposal_sent", label: "Proposal Sent" },
-  { key: "closed", label: "Closed / No Close" },
+  { key: "closed", label: "Closed" },
+  { key: "no_close", label: "No Close" },
 ];
 
 export default async function DashboardPage({

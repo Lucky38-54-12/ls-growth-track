@@ -9,7 +9,7 @@ import { cleanNotes, extractMeetingTime } from "@/lib/notes";
 import { COLD_CALL_STATUS_LABELS, COLD_CALL_STATUS_COLORS } from "@/lib/coldCallStatus";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
-const CLOSED_STATUSES = new Set(["sequence_complete", "not_interested", "bounced"]);
+const NO_CLOSE_STATUSES = new Set(["sequence_complete", "not_interested", "bounced"]);
 const COLD_CALL_EMAIL_SENT_STATUSES = new Set(["contacted", "followup_1_sent", "followup_2_sent", "replied"]);
 
 type Column = { key: string; label: string };
@@ -19,7 +19,7 @@ function groupByStatus(leads: Lead[], columns: Column[], activeSource: string): 
   const grouped: Record<string, Lead[]> = {};
   for (const col of columns) grouped[col.key] = [];
   for (const lead of leads) {
-    let key = CLOSED_STATUSES.has(lead.status) ? "closed" : lead.status;
+    let key = NO_CLOSE_STATUSES.has(lead.status) ? "no_close" : lead.status;
     if (activeSource === "cold_call" && COLD_CALL_EMAIL_SENT_STATUSES.has(key)) key = "contacted";
     if (grouped[key]) grouped[key].push(lead);
     else grouped[columns[0].key].push(lead);
@@ -270,7 +270,7 @@ export default function PipelineBoard({
                     expandedId={expandedId}
                     onToggle={toggle}
                     onDragStart={dragStart}
-                    dropDisabled={col.key === "closed"}
+                    dropDisabled={false}
                     isDragOver={dragOverKey === dropKey}
                     onDragOverColumn={() => setDragOverKey(dropKey)}
                     onDragLeaveColumn={() => setDragOverKey(prev => (prev === dropKey ? null : prev))}

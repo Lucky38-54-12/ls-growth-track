@@ -13,7 +13,9 @@ export type LeadStatus =
   | "reenroll_queue"
   | "no_show"
   | "rebooked"
-  | "proposal_sent";
+  | "proposal_sent"
+  | "closed"
+  | "no_close";
 
 export type ReplyCategory = "interested" | "bad_timing" | "not_interested" | "has_someone";
 

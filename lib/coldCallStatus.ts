@@ -13,6 +13,8 @@ export const COLD_CALL_STATUS_LABELS: Record<string, string> = {
   no_show: "No Show",
   rebooked: "Rebooked",
   proposal_sent: "Proposal Sent",
+  closed: "Closed",
+  no_close: "No Close",
   not_interested: "Not interested",
   bounced: "Bounced",
   sequence_complete: "Sequence complete",
@@ -28,4 +30,6 @@ export const COLD_CALL_STATUS_COLORS: Record<string, { bg: string; text: string 
   proposal_sent: { bg: "#ede9fe", text: "#5b21b6" },
   not_interested: { bg: "#fee2e2", text: "#991b1b" },
   bounced: { bg: "#fee2e2", text: "#991b1b" },
+  closed: { bg: "#dcfce7", text: "#14532d" },
+  no_close: { bg: "#fee2e2", text: "#991b1b" },
 };
