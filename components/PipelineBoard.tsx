@@ -238,26 +238,27 @@ export default function PipelineBoard({
     draggingId.current = null;
     if (!id) return;
 
-    let newStatus: string | null = null;
-    setSections(prev => prev.map(s => {
-      if (s.key !== sectionKey) return s;
-      return {
-        ...s,
-        leads: s.leads.map(l => {
-          if (l.lead_id !== id) return l;
-          if (l.status === columnKey) return l;
-          newStatus = columnKey;
-          return { ...l, status: columnKey as Lead["status"] };
-        }),
-      };
-    }));
+    // Find the lead BEFORE updating state (setSections updater runs async,
+    // so we can't rely on side-effects inside it to know what to save)
+    const lead = sections
+      .flatMap(s => s.leads)
+      .find(l => l.lead_id === id);
+    if (!lead || lead.status === columnKey) return;
 
-    if (!newStatus) return;
+    // Optimistic UI update
+    setSections(prev => prev.map(s => ({
+      ...s,
+      leads: s.leads.map(l =>
+        l.lead_id === id ? { ...l, status: columnKey as Lead["status"] } : l
+      ),
+    })));
+
+    // Persist to DB
     try {
       const res = await fetch(`/api/leads/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: columnKey }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
