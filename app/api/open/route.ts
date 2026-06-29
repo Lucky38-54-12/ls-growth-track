@@ -6,10 +6,11 @@ const PIXEL = Buffer.from(
   "base64"
 );
 
-// Known email security scanners / image proxies that pre-fetch tracking pixels.
-// These fire the pixel before a human reads the email, inflating open counts.
+// Corporate security scanners that pre-fetch images before a human reads —
+// filtering these avoids false open counts. Gmail's proxy (googleimageproxy)
+// is intentionally NOT blocked here: Gmail only loads images when the
+// recipient actually opens the email, so those hits are real opens.
 const BOT_PATTERNS = [
-  "googleimageproxy",
   "google-apps-script",
   "yahoomailproxy",
   "barracudacentral",

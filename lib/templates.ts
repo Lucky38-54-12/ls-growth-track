@@ -54,8 +54,8 @@ const CLEANING_TEMPLATES: TemplateSet = {
   <p>We run the whole lead gen process for {{trade}} businesses across NZ and Australia (ads, fast follow up, booking) so you get a steady stream of qualified jobs without chasing quotes or relying on word of mouth.</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 
   // Day 3 — short follow-up
@@ -66,8 +66,8 @@ const CLEANING_TEMPLATES: TemplateSet = {
   <p>Just bumping this up in case it got buried. The core idea is simple — most {{trade}} businesses lose enquiries just because nobody gets back within the hour. Our system responds in under 60 seconds and handles all the follow up automatically, so you're converting leads you'd otherwise lose.</p>
   <p>Happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> and show you exactly how it works for {{company}}.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 
   // Day 7 — social proof / case study
@@ -79,8 +79,8 @@ const CLEANING_TEMPLATES: TemplateSet = {
   <p>The reason it works is speed. New leads get a personalised text back within 60 seconds, before they've had a chance to call someone else. Most {{trade}} businesses respond hours later (or not at all) so the job's already gone by then.</p>
   <p>If {{company}} wants a consistent flow of jobs without chasing quotes, worth a <a href="{{cta_link}}">quick 15 min look</a>.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 
   // Day 14 — last chance
@@ -91,8 +91,8 @@ const CLEANING_TEMPLATES: TemplateSet = {
   <p>One last thing before I wrap this up. We take on a small number of {{trade}} businesses at a time so we can actually get results (not just sell a package and disappear), and we've got a spot available in {{location}} right now.</p>
   <p>If {{company}} is even a little curious about a predictable source of new jobs each month, this week is probably the right time. <a href="{{cta_link}}">Book 15 minutes here</a> and I'll show you exactly what the first 30 days would look like.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 
   // Day 21 — breakup email
@@ -104,8 +104,8 @@ const CLEANING_TEMPLATES: TemplateSet = {
   <p>I've reached out a few times about helping {{company}} get more consistent {{trade}} jobs through a done-for-you lead system. I'll leave it here after this one.</p>
   <p>If the timing ever changes, <a href="{{cta_link}}">grab a time here</a> and I'll send through some real numbers from other {{trade}} businesses we've worked with in {{location}}.</p>
   <p>All the best,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 };
 
@@ -119,8 +119,8 @@ const PLUMBING_TEMPLATES: TemplateSet = {
   <p>{{personalization}}</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd work for {{company}}?</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
   followup1: {
     subject: `Re: How local plumbers are booking 40+ jobs per month`,
@@ -129,8 +129,8 @@ const PLUMBING_TEMPLATES: TemplateSet = {
   <p>Just bumping this in case it got buried. The reality: if you're not the first call back on a plumbing job, you lose it. Our system handles that — every enquiry gets a callback within 30 minutes, guaranteed.</p>
   <p>Happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> and walk you through how it works for {{company}}.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
   followup2: {
     subject: `25 booked jobs in 30 days — {{company}}`,
@@ -140,8 +140,8 @@ const PLUMBING_TEMPLATES: TemplateSet = {
   <p>Speed wins in plumbing. Be the first call back and you get the job.</p>
   <p>If {{company}} wants to stop leaving jobs on the table, <a href="{{cta_link}}">grab 15 minutes</a> and I'll show you the numbers.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
   followup3: {
     subject: `Before I move on — {{company}}`,
@@ -150,8 +150,8 @@ const PLUMBING_TEMPLATES: TemplateSet = {
   <p>One last thing. We take on a few plumbing businesses at a time and we've got availability in {{location}} right now.</p>
   <p>If {{company}} is tired of leaving booked jobs on the table because responses are too slow, this week is the right time to talk. <a href="{{cta_link}}">Book 15 minutes here</a> and I'll show you exactly what the first 30 days would look like.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
   followup4: {
     subject: `Last one from me, {{company}}`,
@@ -161,8 +161,8 @@ const PLUMBING_TEMPLATES: TemplateSet = {
   <p>I've reached out a few times about helping {{company}} book more plumbing jobs through fast response automation. I'll leave it here after this one.</p>
   <p>If the timing ever changes, <a href="{{cta_link}}">grab a time here</a> and I'll send through some real numbers from other plumbing businesses we've worked with in {{location}}.</p>
   <p>All the best,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 };
 
@@ -176,8 +176,8 @@ const ELECTRICAL_TEMPLATES: TemplateSet = {
   <p>{{personalization}}</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd work for {{company}}?</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
   followup1: {
     subject: `Re: How sparkies are turning £15k+ in monthly revenue`,
@@ -186,8 +186,8 @@ const ELECTRICAL_TEMPLATES: TemplateSet = {
   <p>Just bumping this in case it got buried. In electrical work, speed = money. First callback wins the job. Our system handles that automatically — every new enquiry gets a response within 20 minutes.</p>
   <p>Happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> and show you how it works for {{company}}.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
   followup2: {
     subject: `$18k in extra jobs booked — {{company}}`,
@@ -197,8 +197,8 @@ const ELECTRICAL_TEMPLATES: TemplateSet = {
   <p>Speed wins. Every day you're slow is lost revenue.</p>
   <p>If {{company}} wants to stop leaving money on the table, <a href="{{cta_link}}">grab 15 minutes</a> and I'll walk you through it.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
   followup3: {
     subject: `Before I move on — {{company}}`,
@@ -207,8 +207,8 @@ const ELECTRICAL_TEMPLATES: TemplateSet = {
   <p>One last thing. We take on a small number of electrical businesses at a time and we've got a spot available in {{location}} right now.</p>
   <p>If {{company}} is ready to stop losing jobs to faster competitors, <a href="{{cta_link}}">book 15 minutes here</a> and I'll show you exactly what your first 60 days would look like.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
   followup4: {
     subject: `Last one from me, {{company}}`,
@@ -218,8 +218,8 @@ const ELECTRICAL_TEMPLATES: TemplateSet = {
   <p>I've reached out a few times about helping {{company}} book more electrical jobs through faster response times and automation. I'll leave it here after this one.</p>
   <p>If the timing ever changes, <a href="{{cta_link}}">grab a time here</a> and I'll send through real numbers from other sparks we've worked with in {{location}}.</p>
   <p>All the best,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 };
 
@@ -234,8 +234,8 @@ const DEFAULT_TEMPLATES: TemplateSet = {
   <p>{{personalization}}</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 
   // Day 3
@@ -246,8 +246,8 @@ const DEFAULT_TEMPLATES: TemplateSet = {
   <p>Just bumping this in case it got buried. The short version: most {{trade}} businesses lose leads just because nobody follows up fast enough. Our system handles that part automatically — new enquiries get a response within 60 seconds, every time.</p>
   <p>Happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> this week and show you how it'd work for {{company}}.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 
   // Day 7 — social proof
@@ -259,8 +259,8 @@ const DEFAULT_TEMPLATES: TemplateSet = {
   <p>The system contacts every new enquiry within 60 seconds, then follows up automatically until they book or say no. Nothing slips through.</p>
   <p>If {{company}} wants something similar, <a href="{{cta_link}}">grab a quick 15 min call</a> and I'll walk you through the numbers.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 
   // Day 14 — last chance
@@ -271,8 +271,8 @@ const DEFAULT_TEMPLATES: TemplateSet = {
   <p>One more from me. We only take on a small number of {{trade}} businesses at a time and we have a spot available in {{location}} right now.</p>
   <p>If {{company}} wants a consistent pipeline of pre-qualified jobs without chasing every lead manually, <a href="{{cta_link}}">book 15 minutes here</a> and I'll show you what the first 30 days would look like.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 
   // Day 21 — breakup
@@ -284,8 +284,8 @@ const DEFAULT_TEMPLATES: TemplateSet = {
   <p>I've reached out a few times about helping {{company}} bring in more consistent jobs through a managed lead system. I'll leave it here after this one.</p>
   <p>If the timing ever changes, <a href="{{cta_link}}">just grab a time here</a> and I'll send through some examples from similar {{trade}} businesses.</p>
   <p>All the best,<br>Lucky<br>LS Growth</p>
-</div>
-{{pixel}}`,
+  {{pixel}}
+</div>`,
   },
 };
 

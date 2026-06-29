@@ -131,8 +131,8 @@ export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtm
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-</div>
-${pixel}`;
+  ${pixel}
+</div>`;
   const text = htmlToText(filledBody);
   await sendBulkMail({ to: lead.email, subject, html, text });
   await logSend(lead.lead_id, step, subject, html);
