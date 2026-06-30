@@ -59,15 +59,14 @@ export default function ColdCallPage() {
     }
   }
 
-  async function handleGenerateAndSend() {
+  async function handleGenerate() {
     if (!callNotes.trim()) {
-      setError("Paste your notes first.");
+      setError("Paste your notes first, then generate the email.");
       return;
     }
     setGenerating(true);
     setError("");
     try {
-      // Step 1: extract lead details + generate email
       const res = await fetch("/api/generate-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -78,64 +77,18 @@ export default function ColdCallPage() {
         setError("Couldn't generate an email right now. Try again, or write/insert one manually.");
         return;
       }
-      const extractedCompany = result.company || "";
-      const extractedEmail = result.email || "";
-      if (!extractedCompany || !extractedEmail) {
-        setCompany(extractedCompany);
-        setContactName(result.contact_name || "");
-        setEmail(extractedEmail);
-        setTrade(result.trade || "");
-        setLocation(result.location || "");
-        setMeetingDateTime(result.meetingDateTime || "");
-        setSubject(result.subject);
-        setBodyHtml(result.bodyHtml);
-        setGenerated(true);
-        setPreviewVersion((v) => v + 1);
-        setError("Couldn't find a company name or email in your notes — fill them in below and send manually.");
-        return;
-      }
-
-      // Step 2: create lead
-      const leadRes = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          company: extractedCompany,
-          contact_name: result.contact_name || "",
-          email: extractedEmail,
-          trade: result.trade || "",
-          location: result.location || "",
-          source: "cold_call",
-          sendInitialEmail: false,
-        }),
-      });
-      const leadData = await leadRes.json();
-      if (leadData.error) { setError(leadData.error); return; }
-
-      // Step 3: send
-      const sendRes = await fetch(`/api/leads/${leadData.lead.lead_id}/followup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          callNotes,
-          subject: result.subject,
-          bodyHtml: result.bodyHtml,
-          meetingDateTime: result.meetingDateTime || undefined,
-        }),
-      });
-      const sendData = await sendRes.json();
-
-      const parts: string[] = [];
-      if (sendData.meetingBooked) parts.push(`Booked meeting on calendar${sendData.meetingLink ? " with Meet link" : ""}.`);
-      if (sendData.meetingError) parts.push(`Calendar booking failed — ${sendData.meetingError}`);
-      if (sendData.sendError) {
-        parts.push(`Saved ${extractedCompany} but email failed: ${sendData.sendError}`);
-      } else {
-        parts.push(`Sent follow-up email to ${extractedCompany}.`);
-      }
-      router.push(`/dashboard?flash=${encodeURIComponent(parts.join(" "))}`);
+      setCompany(result.company || "");
+      setContactName(result.contact_name || "");
+      setEmail(result.email || "");
+      setTrade(result.trade || "");
+      setLocation(result.location || "");
+      setMeetingDateTime(result.meetingDateTime || "");
+      setSubject(result.subject);
+      setBodyHtml(result.bodyHtml);
+      setGenerated(true);
+      setPreviewVersion((v) => v + 1);
     } catch {
-      setError("Something went wrong. Try again.");
+      setError("Couldn't generate an email right now. Try again, or write/insert one manually.");
     } finally {
       setGenerating(false);
     }
@@ -154,13 +107,13 @@ export default function ColdCallPage() {
     setPreviewVersion((v) => v + 1);
   }
 
-  async function handleManualSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     syncBodyFromPreview();
     const finalBodyHtml = bodyRef.current?.innerHTML || bodyHtml;
 
     if (!company.trim() || !email.trim()) {
-      setError("Fill in company name and email before sending.");
+      setError("Couldn't find a company name and email in your notes — fill them in below before sending.");
       return;
     }
     if (!subject.trim() || !finalBodyHtml.trim()) {
@@ -199,73 +152,95 @@ export default function ColdCallPage() {
 
   return (
     <div>
-      <Topbar title="COLD CALL" subtitle="Paste your Read.ai notes and send — no extra steps" />
+      <Topbar title="COLD CALL" subtitle="Paste your notes, generate a follow-up email, and send it now" />
 
       <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
         <div>
           {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, marginBottom: 18, fontSize: 14 }}>{error}</div>}
 
-          <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
-            <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Call notes</div>
-            <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
-              Paste your Read.ai summary. Claude will extract the lead details, write the follow-up email, and send it automatically.
-            </p>
-            <textarea
-              value={callNotes}
-              onChange={(e) => setCallNotes(e.target.value)}
-              rows={8}
-              placeholder={`Paste your Read.ai call summary here…`}
-              style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 16 }}
-            />
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <form onSubmit={handleSubmit}>
+            <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
+              <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Call notes</div>
+              <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
+                Paste or type up your notes from the call — who you spoke to, their company, email, trade, location, what they said, objections, next steps. We'll pull out the details and draft the follow-up for you.
+              </p>
+              <textarea
+                value={callNotes}
+                onChange={(e) => setCallNotes(e.target.value)}
+                rows={8}
+                placeholder={`e.g. Mike from Acme Plumbing, mike@acmeplumbing.co.nz, Auckland. Busy until next month but interested in more jobs, said to follow up in a few weeks...`}
+                style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 16 }}
+              />
               <button
                 type="button"
-                onClick={handleGenerateAndSend}
+                onClick={handleGenerate}
                 disabled={generating}
                 className="btn-lift"
-                style={{ display: "inline-block", padding: "11px 24px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
+                style={{ display: "inline-block", padding: "10px 20px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
               >
-                {generating ? "Sending…" : "Generate & send"}
+                {generating ? "Generating…" : "Generate email from notes"}
               </button>
-              {generating && <span style={{ fontSize: 13, color: L.muted }}>Extracting details, writing email, sending…</span>}
             </div>
-          </div>
 
-          {/* Manual fallback — shown only when extraction fails */}
-          {generated && (
-            <form onSubmit={handleManualSubmit}>
-              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 0, padding: 16, marginBottom: 16 }}>
-                <p style={{ fontSize: 13, color: "#92400e", fontWeight: 600 }}>Couldn&apos;t extract all details automatically — fill in what&apos;s missing and send manually.</p>
-              </div>
-              <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
-                <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 12 }}>Lead details</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div><label>Company</label><input value={company} onChange={(e) => setCompany(e.target.value)} required placeholder="e.g. Acme Plumbing" /></div>
-                    <div><label>Contact first name</label><input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="e.g. Mike" /></div>
-                  </div>
-                  <div><label>Email</label><input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required /></div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div><label>Trade</label><input value={trade} onChange={(e) => setTrade(e.target.value)} placeholder="e.g. Plumbing" /></div>
-                    <div><label>Location</label><input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Auckland NZ" /></div>
+            {generated && (
+              <>
+                <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Lead details</div>
+                  <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
+                    Pulled from your notes. This creates the lead in your pipeline and is who the email gets sent to — fix anything that's missing or wrong.
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div>
+                        <label>Company</label>
+                        <input value={company} onChange={(e) => setCompany(e.target.value)} required placeholder="e.g. Acme Plumbing" />
+                      </div>
+                      <div>
+                        <label>Contact first name</label>
+                        <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="e.g. Mike — leave blank for 'there'" />
+                      </div>
+                    </div>
+                    <div>
+                      <label>Email</label>
+                      <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div>
+                        <label>Trade</label>
+                        <input value={trade} onChange={(e) => setTrade(e.target.value)} placeholder="e.g. Plumbing" />
+                      </div>
+                      <div>
+                        <label>Location</label>
+                        <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Auckland NZ" />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                <button type="submit" disabled={loading} className="btn-lift" style={{
-                  padding: "11px 24px", background: loading ? "#fca5a5" : "var(--red)", color: "#fff",
-                  border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
-                }}>
-                  {loading ? "Sending…" : "Save & send manually"}
-                </button>
-                <a href="/dashboard" className="btn-lift" style={{
-                  padding: "11px 20px", background: "#f8fafc", color: L.text,
-                  border: `1px solid ${L.border}`, borderRadius: 0, fontSize: 14, fontWeight: 700,
-                  display: "inline-flex", alignItems: "center",
-                }}>Cancel</a>
-              </div>
-            </form>
-          )}
+
+                <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Meeting booked?</div>
+                  <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
+                    Pulled from your notes if a time was agreed — check it's right. On send, this adds it to the calendar with a Google Meet link and invites {email || "their email"}, and fills any <code>[MEETING LINK]</code> placeholder in the email above. Leave blank if no meeting was booked.
+                  </p>
+                  <input type="datetime-local" value={meetingDateTime} onChange={(e) => setMeetingDateTime(e.target.value)} style={{ maxWidth: 280 }} />
+                </div>
+
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button type="submit" disabled={loading} className="btn-lift" style={{
+                    padding: "11px 24px", background: loading ? "#fca5a5" : "var(--red)", color: "#fff",
+                    border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
+                  }}>
+                    {loading ? "Sending…" : "Save & send now"}
+                  </button>
+                  <a href="/dashboard" className="btn-lift" style={{
+                    padding: "11px 20px", background: "#f8fafc", color: L.text,
+                    border: `1px solid ${L.border}`, borderRadius: 0, fontSize: 14, fontWeight: 700,
+                    display: "inline-flex", alignItems: "center",
+                  }}>Cancel</a>
+                </div>
+              </>
+            )}
+          </form>
         </div>
 
         <div style={{ position: "sticky", top: 20 }}>
