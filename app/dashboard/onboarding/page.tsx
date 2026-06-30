@@ -75,10 +75,10 @@ export default async function OnboardingPage() {
                   className="card-hover"
                   style={{
                     display: "flex", alignItems: "center", gap: 16, padding: "16px 20px",
-                    background: L.surface, border: `1px solid ${complete ? "#bbf7d0" : L.border}`,
-                    textDecoration: "none",
                     background: complete ? "#f0fdf4" : L.surface,
-                  } as React.CSSProperties}
+                    border: `1px solid ${complete ? "#bbf7d0" : L.border}`,
+                    textDecoration: "none",
+                  }}
                 >
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: complete ? "#dcfce7" : "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     {complete
