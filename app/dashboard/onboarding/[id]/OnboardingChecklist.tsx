@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, Circle, ChevronLeft, Trash2, Save } from "lucide-react";
+import { CheckCircle2, Circle, ChevronLeft, Trash2, Save, Phone } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -20,6 +20,10 @@ export default function OnboardingChecklist({ client, steps }: { client: Client;
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [callNotes, setCallNotes] = useState("");
+  const [sendingCall, setSendingCall] = useState(false);
+  const [callSent, setCallSent] = useState<string | null>(null);
+  const [callError, setCallError] = useState("");
 
   async function toggleStep(key: string) {
     const next = done.includes(key) ? done.filter(k => k !== key) : [...done, key];
@@ -29,6 +33,23 @@ export default function OnboardingChecklist({ client, steps }: { client: Client;
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ completed_steps: next }),
     });
+  }
+
+  async function logCall() {
+    if (!callNotes.trim()) return;
+    setSendingCall(true);
+    setCallError("");
+    setCallSent(null);
+    const res = await fetch(`/api/onboarding/${client.id}/call-followup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callNotes }),
+    });
+    const data = await res.json();
+    setSendingCall(false);
+    if (data.error) { setCallError(data.error); return; }
+    setCallSent(data.to);
+    setCallNotes("");
   }
 
   async function saveNotes() {
@@ -118,6 +139,41 @@ export default function OnboardingChecklist({ client, steps }: { client: Client;
             </button>
           );
         })}
+      </div>
+
+      {/* Log a call */}
+      <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: "20px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <Phone style={{ width: 14, height: 14, color: L.muted }} />
+          <h3 style={{ fontSize: 13, fontWeight: 700, color: L.text }}>Log a call</h3>
+        </div>
+        <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 12 }}>
+          Paste your Read.ai notes — a follow-up email will be written and sent to {client.email || "the client"} automatically.
+        </p>
+        {callSent && (
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 7, padding: "10px 14px", marginBottom: 12, fontSize: 13, color: "#15803d", fontWeight: 600 }}>
+            Follow-up sent to {callSent}
+          </div>
+        )}
+        {callError && (
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "10px 14px", marginBottom: 12, fontSize: 13, color: "#991b1b" }}>
+            {callError}
+          </div>
+        )}
+        <textarea
+          value={callNotes}
+          onChange={e => setCallNotes(e.target.value)}
+          placeholder="Paste Read.ai summary here…"
+          rows={5}
+          style={{ width: "100%", border: `1px solid ${L.border}`, borderRadius: 7, padding: "10px 12px", fontSize: 13, color: L.text, resize: "vertical", outline: "none", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }}
+        />
+        <button
+          onClick={logCall}
+          disabled={sendingCall || !callNotes.trim()}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", background: sendingCall ? "#fca5a5" : "var(--red)", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 700, cursor: sendingCall || !callNotes.trim() ? "default" : "pointer", opacity: !callNotes.trim() ? 0.5 : 1 }}
+        >
+          {sendingCall ? "Sending…" : "Generate & send follow-up"}
+        </button>
       </div>
 
       {/* Notes */}
