@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Users, Send, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone, Mailbox, Settings,
+  LayoutDashboard, Users, Send, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone, Mailbox, Settings, ClipboardList,
 } from "lucide-react";
 
 const NAV = [
@@ -20,6 +20,7 @@ const NAV = [
   { href: "/dashboard/scraper", label: "Scraper", icon: ScanSearch },
   { href: "/dashboard/import", label: "Lead Sheets", icon: Upload },
   { href: "/dashboard/warm", label: "Email Tracking", icon: MailOpen },
+  { href: "/dashboard/onboarding", label: "Onboarding", icon: ClipboardList },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
