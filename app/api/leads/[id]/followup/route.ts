@@ -5,6 +5,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 import { sendPersonalizedEmail } from "@/lib/email";
 import { createBooking, fillMeetingLink } from "@/lib/calendar";
 import { Lead } from "@/lib/types";
+import { generateCallFollowupEmail } from "@/lib/generateCallEmail";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
@@ -49,10 +50,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   let sent = false;
   let sendError: string | null = null;
-  if (subject?.trim() && bodyHtml?.trim()) {
+
+  // Auto-generate email from call notes if no manual email was provided
+  let resolvedSubject = subject?.trim() || "";
+  let resolvedBody = bodyHtml?.trim() || "";
+  if (!resolvedSubject && callNotes?.trim() && lead.email) {
+    const generated = await generateCallFollowupEmail(lead as Lead, callNotes);
+    if (generated) {
+      resolvedSubject = generated.subject;
+      resolvedBody = generated.bodyHtml;
+    }
+  }
+
+  if (resolvedSubject && resolvedBody) {
     try {
-      const finalBody = fillMeetingLink(bodyHtml.trim(), meetingLink);
-      await sendPersonalizedEmail(lead as Lead, subject.trim(), finalBody);
+      const finalBody = fillMeetingLink(resolvedBody, meetingLink);
+      await sendPersonalizedEmail(lead as Lead, resolvedSubject, finalBody);
       sent = true;
       updates.last_followup = today;
       updates.followup_count = (lead.followup_count || 0) + 1;

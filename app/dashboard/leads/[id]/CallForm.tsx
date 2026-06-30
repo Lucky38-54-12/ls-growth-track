@@ -47,7 +47,7 @@ export default function CallForm({ lead, events, sends }: { lead: Lead; events: 
     if (callNotes.trim()) parts.push("Saved call notes.");
     if (data.meetingBooked) parts.push(`Booked meeting on calendar${data.meetingLink ? " with Meet link" : ""}.`);
     if (data.meetingError) parts.push(`Calendar booking failed — ${data.meetingError}`);
-    if (data.sent) parts.push(`Sent follow-up to ${lead.company}.`);
+    if (data.sent) parts.push(`Follow-up email auto-sent to ${lead.company}.`);
     if (data.sendError) parts.push(`Email failed to send — ${data.sendError}`);
     if (status) parts.push(`Status updated to ${status}.`);
     router.push(`/dashboard?flash=${encodeURIComponent(parts.join(" ") || "Saved.")}`);
@@ -67,6 +67,7 @@ export default function CallForm({ lead, events, sends }: { lead: Lead; events: 
               Paste how the call went. Send these notes to Lucky/Claude to get a personalised follow-up written, then paste it below.
             </p>
             <textarea value={callNotes} onChange={(e) => setCallNotes(e.target.value)} rows={6} placeholder="What did they say? Objections, interest level, next steps..." />
+            <p style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>A follow-up email will be auto-generated from these notes and sent immediately.</p>
           </div>
 
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
