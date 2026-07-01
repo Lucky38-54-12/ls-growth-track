@@ -70,7 +70,7 @@ export default function ColdCallPage() {
     const from = LANDING_PAGES.find(p => p.key !== key)?.url || "";
     const to = LANDING_PAGES.find(p => p.key === key)?.url || "";
     if (!from || !to || !bodyRef.current) return;
-    bodyRef.current.innerHTML = bodyRef.current.innerHTML.replaceAll(from, to);
+    bodyRef.current.innerHTML = bodyRef.current.innerHTML.split(from).join(to);
     setBodyHtml(bodyRef.current.innerHTML);
   }
 
