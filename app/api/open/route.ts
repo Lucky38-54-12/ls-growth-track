@@ -37,8 +37,9 @@ export async function GET(req: NextRequest) {
       try {
         const sb = createSupabaseClient();
         const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
-        await sb.from("email_events").insert({ lead_id: leadId, event_type: "open", user_agent: userAgent, ip });
-      } catch (err) { console.error("open-tracking-debug", err); }
+        const result = await sb.from("email_events").insert({ lead_id: leadId, event_type: "open", user_agent: userAgent, ip });
+        console.error("open-tracking-debug", JSON.stringify(result));
+      } catch (err) { console.error("open-tracking-debug-catch", err); }
     }
   }
   return new NextResponse(PIXEL, {
