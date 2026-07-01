@@ -10,6 +10,11 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 
 const PLACEHOLDER_HTML = "<p><em>Paste your notes and generate an email to preview it here.</em></p>";
 
+const LANDING_PAGES = [
+  { key: "standard", label: "Standard", url: "https://lsgrowth.agency" },
+  { key: "cleaning", label: "Cleaning", url: "https://app.lsgrowth.agency/results/cleaning" },
+];
+
 export default function ColdCallPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -28,6 +33,7 @@ export default function ColdCallPage() {
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0);
+  const [selectedPage, setSelectedPage] = useState("standard");
 
   const [recentlyEmailed, setRecentlyEmailed] = useState<Lead[]>([]);
 
@@ -57,6 +63,15 @@ export default function ColdCallPage() {
     if (bodyRef.current) {
       setBodyHtml(bodyRef.current.innerHTML);
     }
+  }
+
+  function swapLandingPage(key: string) {
+    setSelectedPage(key);
+    const from = LANDING_PAGES.find(p => p.key !== key)?.url || "";
+    const to = LANDING_PAGES.find(p => p.key === key)?.url || "";
+    if (!from || !to || !bodyRef.current) return;
+    bodyRef.current.innerHTML = bodyRef.current.innerHTML.replaceAll(from, to);
+    setBodyHtml(bodyRef.current.innerHTML);
   }
 
   async function handleGenerate() {
@@ -253,6 +268,26 @@ export default function ColdCallPage() {
                 }}>Insert cold email template</button>
               )}
             </div>
+
+            {/* Landing page picker */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>Link:</span>
+              <div style={{ display: "flex", gap: 4 }}>
+                {LANDING_PAGES.map(p => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => swapLandingPage(p.key)}
+                    style={{
+                      padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none", borderRadius: 0,
+                      background: selectedPage === p.key ? "var(--red)" : "#f1f5f9",
+                      color: selectedPage === p.key ? "#fff" : L.muted,
+                    }}
+                  >{p.label}</button>
+                ))}
+              </div>
+            </div>
+
             <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
               This is what gets sent. Click into the subject or the email below to edit it before you send.
             </p>
