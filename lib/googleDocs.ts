@@ -145,17 +145,17 @@ export async function createAgreementDoc(data: AgreementData): Promise<string> {
       },
     },
     // Bold section headings
-    ...["1) Scope of Work", "2) Fees (NZD)", "3) Payment Terms & Performance Guarantee", "4) Term", "5) Client Responsibilities", "6) Ownership & Data", "7) Performance & Liability", "8) Publicity", "9) Governing Law", "10) Entire Agreement", "Signatures"].map(heading => {
+    ...["1) Scope of Work", "2) Fees (NZD)", "3) Payment Terms & Performance Guarantee", "4) Term", "5) Client Responsibilities", "6) Ownership & Data", "7) Performance & Liability", "8) Publicity", "9) Governing Law", "10) Entire Agreement", "Signatures"].flatMap(heading => {
       const idx = fullText.indexOf(heading);
-      if (idx < 0) return null;
-      return {
+      if (idx < 0) return [];
+      return [{
         updateTextStyle: {
           range: { startIndex: idx + 1, endIndex: idx + 1 + heading.length },
           textStyle: { bold: true },
           fields: "bold",
         },
-      };
-    }).filter(Boolean),
+      }];
+    }),
   ];
 
   await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests } });
