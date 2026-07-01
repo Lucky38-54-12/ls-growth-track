@@ -5,9 +5,10 @@ import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calenda
 import { buildAnalytics, rate } from "@/lib/analytics";
 import { nextStepFor } from "@/lib/leads";
 import { formatDateTime } from "@/lib/format";
-import { Lead, EmailEvent, EmailSend } from "@/lib/types";
+import { Lead, EmailEvent, EmailSend, RevenueClient, RevenueGoal } from "@/lib/types";
 import Topbar from "@/components/Topbar";
 import MeetingReminderButton from "@/components/MeetingReminderButton";
+import RevenueGoalCard from "@/components/RevenueGoalCard";
 
 export const revalidate = 0;
 
@@ -36,15 +37,19 @@ function todayKey(): string {
 export default async function TodayPage() {
   const sb = createSupabaseClient();
 
-  const [leads, { data: sends }, { data: events }] = await Promise.all([
+  const [leads, { data: sends }, { data: events }, { data: revenueClients }, { data: revenueGoal }] = await Promise.all([
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
+    sb.from("revenue_clients").select("*").order("added_at", { ascending: false }),
+    sb.from("revenue_goal").select("*").eq("id", 1).maybeSingle(),
   ]);
 
   const allLeads = leads;
   const allSends = (sends || []) as EmailSend[];
   const allEvents = (events || []) as EmailEvent[];
+  const allRevenueClients = (revenueClients || []) as RevenueClient[];
+  const monthlyGoal = Number((revenueGoal as RevenueGoal | null)?.monthly_goal ?? 3000);
 
   // Next 7 days of calendar events, for the calendar overview panel.
   let upcomingEvents: CalendarEvent[] = [];
@@ -264,33 +269,8 @@ export default async function TodayPage() {
             })()}
           </div>
 
-          {/* Needs follow-up */}
-          <div className="surface-card" style={{ overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
-              <Clock style={{ width: 15, height: 15, color: L.muted }} />
-              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Needs Follow-up</span>
-              <span style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed }}>{dueLeads.length}</span>
-            </div>
-            {dueLeads.length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 12.5 }}>Nothing due — you&apos;re all caught up.</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {dueLeads.slice(0, 8).map(lead => (
-                  <Link key={lead.lead_id} href={`/dashboard/leads/${lead.lead_id}`} className="row-hover" style={{
-                    display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none",
-                  }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
-                      <p style={{ fontSize: 11.5, color: L.dimmed }}>{lead.trade || "—"}{lead.location ? ` · ${lead.location}` : ""}</p>
-                    </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "#fef2f2", color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>
-                      {nextStepFor(lead)}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Monthly revenue goal */}
+          <RevenueGoalCard clients={allRevenueClients} monthlyGoal={monthlyGoal} />
         </div>
 
         {/* Recent activity — last 7 days */}

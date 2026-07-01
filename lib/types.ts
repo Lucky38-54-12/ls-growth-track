@@ -15,7 +15,8 @@ export type LeadStatus =
   | "rebooked"
   | "proposal_sent"
   | "closed"
-  | "no_close";
+  | "no_close"
+  | "thinking_about_it";
 
 export type ReplyCategory = "interested" | "bad_timing" | "not_interested" | "has_someone";
 
@@ -109,4 +110,16 @@ export interface TrackedSheet {
   created_at: string;
   last_synced_at: string | null;
   last_result: string | null;
+}
+
+export interface RevenueClient {
+  id: string;
+  name: string;
+  amount: number;
+  added_at: string;
+}
+
+export interface RevenueGoal {
+  id: number;
+  monthly_goal: number;
 }
