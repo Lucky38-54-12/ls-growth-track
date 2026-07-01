@@ -12,7 +12,7 @@ const PLACEHOLDER_HTML = "<p><em>Paste your notes and generate an email to previ
 
 const LANDING_PAGES = [
   { key: "standard", label: "Standard", url: "https://lsgrowth.agency" },
-  { key: "cleaning", label: "Cleaning", url: "https://app.lsgrowth.agency/results/cleaning" },
+  { key: "cleaning", label: "Cleaning", url: "https://lsgrowth.agency/cleaning" },
 ];
 
 export default function ColdCallPage() {
