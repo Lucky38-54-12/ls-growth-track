@@ -106,11 +106,13 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   // without Domain-Wide Delegation (Workspace-only, not available on a plain
   // Gmail account). Instead we use one fixed Meet room from GOOGLE_MEET_LINK
   // and the lead gets that link via the follow-up email itself.
+  const meetLink = process.env.GOOGLE_MEET_LINK || "";
   const res = await calendar.events.insert({
     calendarId,
     requestBody: {
       summary: input.summary,
       description: `${input.attendeeName || ""} <${input.attendeeEmail}>`.trim(),
+      location: meetLink,
       start: { dateTime: start.toISOString(), timeZone },
       end: { dateTime: end.toISOString(), timeZone },
     },
@@ -118,7 +120,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
 
   const ev = res.data;
   if (!ev.id) throw new Error("Calendar API did not return an event id");
-  return { eventId: ev.id, hangoutLink: process.env.GOOGLE_MEET_LINK || "" };
+  return { eventId: ev.id, hangoutLink: meetLink };
 }
 
 export interface CalendarEvent {
@@ -159,6 +161,8 @@ export async function listCalendarEvents(timeMinISO: string, timeMaxISO: string)
     if (!ev.id || !start || !end) continue;
     const attendee = (ev.attendees || []).find((a) => !a.self && a.email);
 
+    const location = ev.location || "";
+    const hangoutLink = ev.hangoutLink || (location.startsWith("http") ? location : "");
     events.push({
       eventId: ev.id,
       summary: ev.summary || "(No title)",
@@ -167,8 +171,8 @@ export async function listCalendarEvents(timeMinISO: string, timeMaxISO: string)
       allDay: !ev.start?.dateTime,
       attendeeEmail: attendee?.email?.toLowerCase() || "",
       attendeeName: attendee?.displayName || "",
-      hangoutLink: ev.hangoutLink || "",
-      location: ev.location || "",
+      hangoutLink,
+      location: hangoutLink === location ? "" : location,
       description: ev.description || "",
       leadCompany: "",
       leadContactName: "",
