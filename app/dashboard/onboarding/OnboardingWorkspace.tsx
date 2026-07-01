@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, Circle, FileText } from "lucide-react";
+import { CheckCircle2, Circle, FileText, ExternalLink } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 const PLACEHOLDER_HTML = "<p><em>Paste your notes and generate a recap to preview it here.</em></p>";
@@ -16,6 +16,18 @@ const TOTAL_STEPS = 10;
 
 export default function OnboardingWorkspace({ clients }: { clients: OnboardingClient[] }) {
   const router = useRouter();
+
+  // --- Proposal section ---
+  const [propName, setPropName] = useState("");
+  const [propCompany, setPropCompany] = useState("");
+  const [propEmail, setPropEmail] = useState("");
+  const [propSetupFee, setPropSetupFee] = useState("$750");
+  const [propMonthlyFee, setPropMonthlyFee] = useState("$1,200");
+  const [propStartDate, setPropStartDate] = useState("");
+  const [propTrade, setPropTrade] = useState("");
+  const [generatingDoc, setGeneratingDoc] = useState(false);
+  const [docUrl, setDocUrl] = useState("");
+  const [propError, setPropError] = useState("");
 
   // --- Recap section ---
   const [callNotes, setCallNotes] = useState("");
@@ -43,6 +55,30 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
 
   function syncBody() {
     if (bodyRef.current) setBodyHtml(bodyRef.current.innerHTML);
+  }
+
+  async function handleGenerateDoc() {
+    if (!propCompany.trim() && !propName.trim()) { setPropError("Enter a company or client name."); return; }
+    setGeneratingDoc(true); setPropError(""); setDocUrl("");
+    try {
+      const res = await fetch("/api/onboarding/generate-agreement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientName: propName,
+          company: propCompany || propName,
+          email: propEmail,
+          trade: propTrade,
+          setupFee: propSetupFee,
+          monthlyFee: propMonthlyFee,
+          startDate: propStartDate,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) { setPropError(data.error); return; }
+      setDocUrl(data.url);
+    } catch { setPropError("Something went wrong. Try again."); }
+    finally { setGeneratingDoc(false); }
   }
 
   async function handleGenerate() {
@@ -157,30 +193,38 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
               <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800 }}>Proposal / contract</div>
             </div>
             <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
-              Generate a personalised proposal in Google Docs using your agreement template, then send it straight to the client.
+              Fill in the details and generate a signed-ready agreement in Google Docs — it'll appear in your Drive straight away.
             </p>
+            {propError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 14px", borderRadius: 0, marginBottom: 14, fontSize: 13 }}>{propError}</div>}
+            {docUrl && (
+              <a href={docUrl} target="_blank" rel="noopener noreferrer" className="btn-lift" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", borderRadius: 0, fontSize: 13, fontWeight: 700, textDecoration: "none", marginBottom: 16 }}>
+                <ExternalLink style={{ width: 13, height: 13 }} /> Open agreement in Google Docs
+              </a>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><label>Client name</label><input placeholder="e.g. Sarah Jones" /></div>
-                <div><label>Company</label><input placeholder="e.g. ABC Plumbing" /></div>
+                <div><label>Contact name</label><input value={propName} onChange={e => setPropName(e.target.value)} placeholder="e.g. Sarah Jones" /></div>
+                <div><label>Company</label><input value={propCompany} onChange={e => setPropCompany(e.target.value)} placeholder="e.g. Bright Clean" /></div>
               </div>
-              <div><label>Email</label><input type="email" placeholder="sarah@example.com" /></div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div><label>Package / price</label><input placeholder="e.g. $1,500/mo" /></div>
-                <div><label>Start date</label><input type="date" /></div>
+                <div><label>Email</label><input value={propEmail} onChange={e => setPropEmail(e.target.value)} type="email" placeholder="sarah@example.com" /></div>
+                <div><label>Trade / service type</label><input value={propTrade} onChange={e => setPropTrade(e.target.value)} placeholder="e.g. cleaning, plumbing" /></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div><label>Setup fee</label><input value={propSetupFee} onChange={e => setPropSetupFee(e.target.value)} placeholder="e.g. $750" /></div>
+                <div><label>Monthly fee</label><input value={propMonthlyFee} onChange={e => setPropMonthlyFee(e.target.value)} placeholder="e.g. $1,200" /></div>
+                <div><label>Campaign start</label><input value={propStartDate} onChange={e => setPropStartDate(e.target.value)} placeholder="e.g. Week of 14 Jul" /></div>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <button
-                type="button"
-                disabled
-                className="btn-lift"
-                style={{ padding: "10px 20px", background: "#e2e8f0", color: L.muted, border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: "not-allowed" }}
-              >
-                Generate proposal in Google Docs
-              </button>
-              <span style={{ fontSize: 12, color: L.dimmed }}>Attach your agreement template to enable this</span>
-            </div>
+            <button
+              type="button"
+              onClick={handleGenerateDoc}
+              disabled={generatingDoc}
+              className="btn-lift"
+              style={{ padding: "10px 20px", background: generatingDoc ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: generatingDoc ? "default" : "pointer" }}
+            >
+              {generatingDoc ? "Creating doc…" : "Generate agreement in Google Docs"}
+            </button>
           </div>
         </div>
 
