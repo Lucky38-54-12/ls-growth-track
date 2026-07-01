@@ -167,35 +167,52 @@ export default function CalendarPage() {
             ) : selectedEvents.length === 0 ? (
               <p style={{ fontSize: 12, color: L.dimmed }}>No meetings this day.</p>
             ) : (
-              selectedEvents.map((ev) => (
-                <div key={ev.eventId} style={{ border: `1px solid ${L.border}`, padding: 10 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{ev.summary}</p>
-                  {ev.leadCompany && (
-                    <p style={{ fontSize: 12, fontWeight: 700, color: "#1e40af", marginTop: 3 }}>{ev.leadCompany}</p>
-                  )}
-                  {ev.leadContactName && (
-                    <p style={{ fontSize: 11.5, color: L.muted, marginTop: 1 }}>{ev.leadContactName}</p>
-                  )}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, color: L.muted, fontSize: 11.5 }}>
-                    <Clock style={{ width: 12, height: 12 }} />
-                    {ev.allDay ? "All day" : `${fmtTime(ev.startISO)} – ${fmtTime(ev.endISO)}`}
-                  </div>
-                  {!ev.leadContactName && (ev.attendeeName || ev.attendeeEmail) && (
-                    <p style={{ fontSize: 11.5, color: L.muted, marginTop: 4 }}>{ev.attendeeName || ev.attendeeEmail}</p>
-                  )}
-                  {ev.location && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, color: L.muted, fontSize: 11.5 }}>
-                      <MapPin style={{ width: 12, height: 12 }} />
-                      {ev.location}
+              selectedEvents.map((ev) => {
+                const Wrapper = ev.hangoutLink ? "a" : "div";
+                const wrapperProps = ev.hangoutLink
+                  ? { href: ev.hangoutLink, target: "_blank", rel: "noreferrer" as const }
+                  : {};
+                return (
+                  <Wrapper
+                    key={ev.eventId}
+                    {...wrapperProps}
+                    style={{
+                      display: "block", textDecoration: "none",
+                      border: `1px solid ${ev.hangoutLink ? "#93c5fd" : L.border}`,
+                      padding: 10,
+                      background: ev.hangoutLink ? "#f0f7ff" : L.surface,
+                      cursor: ev.hangoutLink ? "pointer" : "default",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{ev.summary}</p>
+                      {ev.hangoutLink && <Video style={{ width: 14, height: 14, color: "#2563eb", flexShrink: 0, marginTop: 2 }} />}
                     </div>
-                  )}
-                  {ev.hangoutLink && (
-                    <a href={ev.hangoutLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, color: "var(--blue)", fontSize: 11.5, fontWeight: 700 }}>
-                      <Video style={{ width: 12, height: 12 }} /> Join Google Meet
-                    </a>
-                  )}
-                </div>
-              ))
+                    {ev.leadCompany && (
+                      <p style={{ fontSize: 12, fontWeight: 700, color: "#1e40af", marginTop: 3 }}>{ev.leadCompany}</p>
+                    )}
+                    {ev.leadContactName && (
+                      <p style={{ fontSize: 11.5, color: L.muted, marginTop: 1 }}>{ev.leadContactName}</p>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, color: L.muted, fontSize: 11.5 }}>
+                      <Clock style={{ width: 12, height: 12 }} />
+                      {ev.allDay ? "All day" : `${fmtTime(ev.startISO)} – ${fmtTime(ev.endISO)}`}
+                    </div>
+                    {!ev.leadContactName && (ev.attendeeName || ev.attendeeEmail) && (
+                      <p style={{ fontSize: 11.5, color: L.muted, marginTop: 4 }}>{ev.attendeeName || ev.attendeeEmail}</p>
+                    )}
+                    {ev.location && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, color: L.muted, fontSize: 11.5 }}>
+                        <MapPin style={{ width: 12, height: 12 }} />
+                        {ev.location}
+                      </div>
+                    )}
+                    {ev.hangoutLink && (
+                      <p style={{ fontSize: 11, color: "#2563eb", fontWeight: 600, marginTop: 6 }}>Click to join Meet →</p>
+                    )}
+                  </Wrapper>
+                );
+              })
             )}
           </div>
         </div>
