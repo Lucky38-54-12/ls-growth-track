@@ -162,7 +162,8 @@ export async function listCalendarEvents(timeMinISO: string, timeMaxISO: string)
     const attendee = (ev.attendees || []).find((a) => !a.self && a.email);
 
     const location = ev.location || "";
-    const hangoutLink = ev.hangoutLink || (location.startsWith("http") ? location : "");
+    const isTimed = !!ev.start?.dateTime;
+    const hangoutLink = ev.hangoutLink || (location.startsWith("http") ? location : "") || (isTimed ? process.env.GOOGLE_MEET_LINK || "" : "");
     events.push({
       eventId: ev.id,
       summary: ev.summary || "(No title)",
