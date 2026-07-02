@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles } from "lucide-react";
+import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles, Clock } from "lucide-react";
 import FollowUpModal from "@/components/FollowUpModal";
 import { Lead, EngagementSummary } from "@/lib/types";
 import { nextStepFor } from "@/lib/leads";
@@ -10,6 +10,16 @@ import { cleanNotes, extractMeetingTime } from "@/lib/notes";
 import { COLD_CALL_STATUS_LABELS, COLD_CALL_STATUS_COLORS } from "@/lib/coldCallStatus";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
+
+function daysAgo(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff < 7) return `${diff}d ago`;
+  if (diff < 30) return `${Math.floor(diff / 7)}w ago`;
+  return `${Math.floor(diff / 30)}mo ago`;
+}
 const NO_CLOSE_STATUSES = new Set(["sequence_complete", "not_interested", "bounced"]);
 const COLD_CALL_EMAIL_SENT_STATUSES = new Set(["contacted", "followup_1_sent", "followup_2_sent", "replied"]);
 
@@ -36,11 +46,27 @@ function LeadCard({
 }) {
   const ev = engagement[lead.lead_id];
   const isDue = nextStepFor(lead) !== null;
+  const lastTouchpoint = daysAgo(lead.last_followup || lead.date_contacted);
   const noteEntries = cleanNotes(lead.notes);
   const meetingTime = extractMeetingTime(noteEntries);
   const latestNote = noteEntries[noteEntries.length - 1] || null;
   const olderNotes = noteEntries.slice(0, -1);
   const [showAllNotes, setShowAllNotes] = useState(false);
+  const [noteSummary, setNoteSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  useEffect(() => {
+    if (!expanded || noteSummary || summaryLoading || !latestNote) return;
+    setSummaryLoading(true);
+    fetch("/api/summarise-note", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: noteEntries.map(e => e.text).join("\n") }),
+    })
+      .then(r => r.json())
+      .then(d => setNoteSummary(d.summary || null))
+      .finally(() => setSummaryLoading(false));
+  }, [expanded]);
   const statusLabel = COLD_CALL_STATUS_LABELS[lead.status];
   const statusColor = COLD_CALL_STATUS_COLORS[lead.status];
   return (
@@ -113,10 +139,15 @@ function LeadCard({
               <MapPin style={{ width: 11, height: 11, flexShrink: 0 }} /> {lead.location}
             </div>
           )}
+          {lastTouchpoint && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: L.dimmed }}>
+              <Clock style={{ width: 11, height: 11, flexShrink: 0 }} /> Last contact: {lastTouchpoint}
+            </div>
+          )}
           {latestNote && (
             <div style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11.5, color: L.muted }}>
               <StickyNote style={{ width: 11, height: 11, flexShrink: 0, marginTop: 1 }} />
-              <span style={{ whiteSpace: "pre-wrap" }}>{latestNote.text}</span>
+              <span>{summaryLoading ? "Summarising…" : (noteSummary || latestNote.text.slice(0, 120))}</span>
             </div>
           )}
           {olderNotes.length > 0 && (
