@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { Calendar, Video, ArrowUpRight, Clock, Flame, MailCheck, MousePointer2, MessageCircleHeart } from "lucide-react";
+import { Calendar, Video, ArrowUpRight, Clock, Flame, MailCheck, MousePointer2, MessageCircleHeart, Inbox, ShieldAlert } from "lucide-react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calendar";
 import { buildAnalytics, rate } from "@/lib/analytics";
 import { nextStepFor } from "@/lib/leads";
 import { formatDateTime } from "@/lib/format";
-import { Lead, EmailEvent, EmailSend, RevenueClient, RevenueGoal } from "@/lib/types";
+import { Lead, EmailEvent, EmailSend, RevenueClient, RevenueGoal, EmailCheck } from "@/lib/types";
 import Topbar from "@/components/Topbar";
 import MeetingReminderButton from "@/components/MeetingReminderButton";
 import RevenueGoalCard from "@/components/RevenueGoalCard";
@@ -28,12 +28,13 @@ function todayKey(): string {
 export default async function TodayPage() {
   const sb = createSupabaseClient();
 
-  const [leads, { data: sends }, { data: events }, { data: revenueClients }, { data: revenueGoal }] = await Promise.all([
+  const [leads, { data: sends }, { data: events }, { data: revenueClients }, { data: revenueGoal }, { data: heldChecks }] = await Promise.all([
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
     sb.from("revenue_clients").select("*").order("added_at", { ascending: false }),
     sb.from("revenue_goal").select("*").eq("id", 1).maybeSingle(),
+    sb.from("email_checks").select("*").eq("verdict", "rejected").eq("sent", false).order("created_at", { ascending: false }).limit(20),
   ]);
 
   const allLeads = leads;
@@ -41,6 +42,7 @@ export default async function TodayPage() {
   const allEvents = (events || []) as EmailEvent[];
   const allRevenueClients = (revenueClients || []) as RevenueClient[];
   const monthlyGoal = Number((revenueGoal as RevenueGoal | null)?.monthly_goal ?? 3000);
+  const heldEmails = (heldChecks || []) as EmailCheck[];
 
   // Next 7 days of calendar events, for the calendar overview panel.
   let upcomingEvents: CalendarEvent[] = [];
@@ -72,6 +74,12 @@ export default async function TodayPage() {
   const { overall } = buildAnalytics(allSends, allEvents);
   const openRate = rate(overall.opened, overall.sent);
   const clickRate = rate(overall.clicked, overall.sent);
+
+  // Leads that replied and are sitting untouched — this is the human-touchpoint queue.
+  // Once you move a lead off "replied" in the pipeline it naturally drops out of this list.
+  const repliedLeads = pipelineLeads.filter(l => l.status === "replied");
+  const heldByLeadId = new Map(allLeads.map(l => [l.lead_id, l]));
+  const needsAttentionCount = repliedLeads.length + heldEmails.length;
 
   function dayLabel(ts: string): string {
     const key = dateKeyFmt.format(new Date(ts));
@@ -113,6 +121,59 @@ export default async function TodayPage() {
             </div>
           ))}
         </div>
+
+        {/* Needs Attention — replies waiting for a human touchpoint + AI-held emails */}
+        {needsAttentionCount === 0 ? (
+          <div className="surface-card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 10, background: "#f0fdf4", borderColor: "#bbf7d0" }}>
+            <MessageCircleHeart style={{ width: 15, height: 15, color: "#16a34a", flexShrink: 0 }} />
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#166534" }}>All caught up — no replies waiting and nothing held for review.</span>
+          </div>
+        ) : (
+          <div className="surface-card" style={{ overflow: "hidden", borderColor: "#fecdd3" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #fecdd3", background: "#fff1f2" }}>
+              <ShieldAlert style={{ width: 15, height: 15, color: "#be123c" }} />
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#be123c" }}>Needs Your Attention</span>
+              <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "#be123c" }}>{needsAttentionCount}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {repliedLeads.map(lead => (
+                <Link key={`reply-${lead.lead_id}`} href={`/dashboard/leads/${lead.lead_id}`} className="row-hover" style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none",
+                }}>
+                  <Inbox style={{ width: 14, height: 14, color: "#2563eb", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {lead.contact_name || lead.company}
+                    </p>
+                    <p style={{ fontSize: 11.5, color: L.dimmed }}>Replied — {lead.company}{lead.reply_category ? ` · ${lead.reply_category.replace(/_/g, " ")}` : ""}</p>
+                  </div>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>Reply</span>
+                  <ArrowUpRight style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
+                </Link>
+              ))}
+              {heldEmails.map(check => {
+                const lead = heldByLeadId.get(check.lead_id);
+                return (
+                  <Link key={`held-${check.id}`} href={lead ? `/dashboard/leads/${lead.lead_id}` : "#"} className="row-hover" style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none",
+                  }}>
+                    <ShieldAlert style={{ width: 14, height: 14, color: "#be123c", flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {lead?.company || check.lead_id}
+                      </p>
+                      <p style={{ fontSize: 11.5, color: L.dimmed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        Held ({check.step}) — {(check.mechanical_fails?.[0] || check.judgment_flags?.[0] || check.reasoning || "flagged by AI check")}
+                      </p>
+                    </div>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#be123c", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>Held</span>
+                    <ArrowUpRight style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Daily notes */}
         <DailyNotes />
