@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lead, EngagementSummary } from "@/lib/types";
-import { SegmentSection } from "./LeadTable";
+import { LeadRowsTable } from "./LeadTable";
+import { ChevronRight } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -14,6 +15,7 @@ export default function ContactsBatchPanel({
 }: { sections: Section[]; engagement: Record<string, EngagementSummary> }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -31,6 +33,14 @@ export default function ContactsBatchPanel({
     setSelected((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => (select ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  }
+
+  function toggleOpen(key: string) {
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   }
@@ -65,18 +75,70 @@ export default function ContactsBatchPanel({
           No contacts match this view.
         </div>
       ) : (
-        sections.map((s) => (
-          <SegmentSection
-            key={s.key}
-            label={s.label}
-            leads={s.leads}
-            engagement={engagement}
-            selectable
-            selectedIds={selected}
-            onToggleLead={toggleLead}
-            onToggleAll={toggleAll}
-          />
-        ))
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f8fafc", borderBottom: `1px solid ${L.border}` }}>
+                {["", "Batch", "Leads", "Sent", "Replied", "Booked", ""].map((h) => (
+                  <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontSize: 10, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sections.map((s, i) => {
+                const leadIds = s.leads.map((l) => l.lead_id);
+                const sent = s.leads.filter((l) => l.status !== "not_contacted").length;
+                const replied = s.leads.filter((l) => l.status === "replied" || l.status === "booked").length;
+                const booked = s.leads.filter((l) => l.status === "booked").length;
+                const isOpen = openKeys.has(s.key);
+                const allSelected = leadIds.length > 0 && leadIds.every((id) => selected.has(id));
+                const isLastVisible = i === sections.length - 1 && !isOpen;
+                return (
+                  <Fragment key={s.key}>
+                    <tr
+                      className="row-hover"
+                      style={{ cursor: "pointer", borderBottom: isLastVisible ? "none" : `1px solid ${L.border}` }}
+                      onClick={() => toggleOpen(s.key)}
+                    >
+                      <td style={{ padding: "10px 0 10px 14px", width: 28 }}>
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={() => toggleAll(leadIds, !allSelected)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ width: 14, height: 14, cursor: "pointer" }}
+                        />
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{s.label}</span>
+                      </td>
+                      <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text }}>{s.leads.length}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text }}>{sent}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text }}>{replied}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text }}>{booked}</td>
+                      <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                        <ChevronRight style={{ width: 14, height: 14, color: L.dimmed, transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr style={{ borderBottom: i === sections.length - 1 ? "none" : `1px solid ${L.border}` }}>
+                        <td colSpan={7} style={{ padding: 0, background: "#f8fafc" }}>
+                          <LeadRowsTable
+                            leads={s.leads}
+                            engagement={engagement}
+                            selectable
+                            selectedIds={selected}
+                            onToggleLead={toggleLead}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {selected.size > 0 && (

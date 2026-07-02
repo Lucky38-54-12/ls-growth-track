@@ -97,6 +97,34 @@ export function LeadRow({
   );
 }
 
+export function LeadRowsTable({
+  leads, engagement, selectable, selectedIds, onToggleLead,
+}: {
+  leads: Lead[];
+  engagement: Record<string, EngagementSummary>;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleLead?: (leadId: string) => void;
+}) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <tbody>
+        {leads.map((lead, i) => (
+          <LeadRow
+            key={lead.lead_id}
+            lead={lead}
+            engagement={engagement}
+            isLast={i === leads.length - 1}
+            selectable={selectable}
+            selected={selectedIds?.has(lead.lead_id)}
+            onToggle={onToggleLead}
+          />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export function SegmentSection({
   label, leads, engagement, selectable, selectedIds, onToggleLead, onToggleAll,
 }: {
