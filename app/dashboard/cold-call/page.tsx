@@ -34,6 +34,7 @@ export default function ColdCallPage() {
   const [generated, setGenerated] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0);
   const [selectedPage, setSelectedPage] = useState("standard");
+  const [quality, setQuality] = useState<{ verdict: "approved" | "rejected"; mechanicalFails: string[]; judgmentFlags: string[]; reasoning: string } | null>(null);
 
   const [recentlyEmailed, setRecentlyEmailed] = useState<Lead[]>([]);
 
@@ -100,6 +101,7 @@ export default function ColdCallPage() {
       setMeetingDateTime(result.meetingDateTime || "");
       setSubject(result.subject);
       setBodyHtml(result.bodyHtml);
+      setQuality(result.quality || null);
       setGenerated(true);
       setPreviewVersion((v) => v + 1);
     } catch {
@@ -118,6 +120,7 @@ export default function ColdCallPage() {
     });
     setSubject(draft.subject);
     setBodyHtml(draft.bodyHtml);
+    setQuality(null);
     setGenerated(true);
     setPreviewVersion((v) => v + 1);
   }
@@ -268,6 +271,28 @@ export default function ColdCallPage() {
                 }}>Insert cold email template</button>
               )}
             </div>
+
+            {quality && (
+              <div style={{
+                display: "flex", flexDirection: "column", gap: 4, marginBottom: 14, padding: "8px 12px",
+                fontSize: 11.5, borderRadius: 0,
+                background: quality.verdict === "approved" ? "#f0fdf4" : "#fff1f2",
+                border: `1px solid ${quality.verdict === "approved" ? "#bbf7d0" : "#fecdd3"}`,
+                color: quality.verdict === "approved" ? "#15803d" : "#9f1239",
+              }}>
+                <div style={{ fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", fontSize: 10.5 }}>
+                  {quality.verdict === "approved" ? "AI check: approved" : "AI check: needs a look"}
+                </div>
+                {quality.verdict === "rejected" && (
+                  <>
+                    {quality.reasoning && <div>{quality.reasoning}</div>}
+                    {[...quality.mechanicalFails, ...quality.judgmentFlags].map((flag, i) => (
+                      <div key={i}>• {flag}</div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Landing page picker */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { fetchWebsiteSnippet } from "@/lib/website";
+import { checkEmailQuality } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -25,15 +26,19 @@ export async function POST(req: NextRequest) {
   // specifics instead of generic "trade business" phrasing.
   const emailMatch = callNotes.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
   let knownInfoBlock = "";
+  let existingLeadId: string | null = null;
+  let existingLeadNotes = "";
   if (emailMatch) {
     const sb = createSupabaseClient();
     const { data: existingLead } = await sb
       .from("leads")
-      .select("company, trade, location, website, facebook, notes")
+      .select("lead_id, company, trade, location, website, facebook, notes")
       .eq("email", emailMatch[0].toLowerCase())
       .maybeSingle();
 
     if (existingLead) {
+      existingLeadId = existingLead.lead_id;
+      existingLeadNotes = existingLead.notes || "";
       const websiteSnippet = existingLead.website ? await fetchWebsiteSnippet(existingLead.website) : "";
       const parts = [
         `Company: ${existingLead.company}`,
@@ -48,7 +53,7 @@ export async function POST(req: NextRequest) {
 
   const prompt = `You are writing a follow-up email on behalf of Lucky from LS Growth Agency. Lucky just got off a cold call and has written up some notes on how it went. Your job is to turn those notes into a short, human-sounding email that sounds like Lucky actually wrote it.
 
-LS Growth Agency runs Meta ads for trade businesses (cleaners, builders, plumbers, etc.) to generate leads.
+LS Growth Agency gets trade businesses more booked jobs. The pitch is always the outcome — specific booked jobs, real revenue — never the process or mechanism. Never say "we built a system", "automated SMS", "AI voice call", "Meta ads", "30-second response", "follow-up sequence", "done-for-you", or anything describing how it works. This year alone LS Growth has generated over $300,000 worth of booked work for trade businesses across NZ. Use the research and call notes to identify the specific job types this business does (heat pumps, switchboard upgrades, solar, end-of-tenancy cleans, etc.) and reference those by name instead of saying "trade business" or "more jobs" generically.
 
 Today's date: ${today}
 
@@ -96,6 +101,13 @@ Rules that apply to ALL emails:
 - Short, 2-5 sentences max per paragraph. Never more than 3 paragraphs.
 - The very first <p> must be the greeting on its own line. If a contact name was found use it: "Hey Mike,". If no name was found, use "Hi," — never "Hey there,", never skip the greeting, never jump straight into the message.
 - The second-to-last <p> must be a short natural closing line before the sign-off (which is added separately). Match the tone: for meeting confirmations/follow-ups use "Looking forward to speaking with you." or "Looking forward to our chat." For info/general emails use "Looking forward to hearing from you." For not-ready-yet emails use "I'll leave the door open — reach out whenever the time's right." One sentence only, no fluff.
+- The opening reference to the call must match how long ago it was. Use the date_called field and today's date to work this out:
+  * Same day or yesterday: "Good talking earlier" or "Good chat earlier today" is fine
+  * 2–6 days ago: "Following up from our call earlier this week" or similar
+  * 1–4 weeks ago: "Following up from when we spoke a couple of weeks back" or similar
+  * 1–6 months ago: "Following up from when we had a chat a few months back" or similar
+  * Over 6 months or date unknown: "Following up from when we last spoke" — never assume it was recent
+  * Never say "Good talking earlier" or "Good chat" unless the call was same day or yesterday
 - Reference at least ONE specific thing from the notes that proves you were actually on that call with them — not just their industry, something particular they said or wanted
 - Whenever you refer to their type of business, use the actual trade by name (e.g. "fencing businesses", "cleaning companies", "builders") — NEVER the generic phrase "trade business" or "trade businesses". If KNOWN INFO ABOVE includes website text, work in one specific, real detail from it (a service they offer, the area they cover, the kind of jobs they do) so it's obvious you actually looked at their business, not just their industry
 - Never use these phrases anywhere in the email: "Just confirming", "I get it", "yeah so", "anyway", "I want to dig into". Write in full, clear, professional sentences throughout — this is going to a business owner, treat it like a real business email.
@@ -181,6 +193,42 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     }
 
     const caseStudyBlock = `<p>If you want to see some case studies, here's a link to our website:</p><p><a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>`;
+    const finalBodyHtml = parsed.bodyHtml + caseStudyBlock;
+
+    // Same quality gate as the automated campaign sends — this path is
+    // already human-reviewed (Lucky sees the preview before clicking Save &
+    // Send), so a rejection doesn't block anything, it just surfaces as a
+    // badge so he knows to actually read this one instead of trusting it.
+    // Checked against parsed.bodyHtml (the AI-written part only), not
+    // finalBodyHtml — the case-study block below is a fixed block this route
+    // always appends after the close, same as how the campaign path checks
+    // its email before the "Cheers, Lucky" signature gets added on.
+    let quality: { verdict: "approved" | "rejected"; mechanicalFails: string[]; judgmentFlags: string[]; reasoning: string } | null = null;
+    try {
+      quality = await checkEmailQuality({
+        subject: parsed.subject,
+        bodyHtml: parsed.bodyHtml,
+        step: "cold_call_followup",
+        contactName: parsed.contact_name,
+        notes: [callNotes, existingLeadNotes].filter(Boolean).join("\n---\n"),
+        requireCtaPlaceholder: false,
+      });
+      const sb = createSupabaseClient();
+      await sb.from("email_checks").insert({
+        lead_id: existingLeadId || `cold-call-${(parsed.company || parsed.email || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        step: "cold_call_followup",
+        subject: parsed.subject,
+        body_html: finalBodyHtml,
+        verdict: quality.verdict,
+        mechanical_fails: quality.mechanicalFails,
+        judgment_flags: quality.judgmentFlags,
+        reasoning: quality.reasoning,
+        sent: false,
+      });
+    } catch {
+      // Quality check is advisory here, not a gate — never block the cold-call
+      // flow (or Lucky's ability to send) just because the checker itself failed.
+    }
 
     return NextResponse.json({
       company: parsed.company || "",
@@ -190,7 +238,8 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       location: parsed.location || "",
       meetingDateTime: parsed.meeting_datetime || "",
       subject: parsed.subject,
-      bodyHtml: parsed.bodyHtml + caseStudyBlock,
+      bodyHtml: finalBodyHtml,
+      quality,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

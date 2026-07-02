@@ -39,21 +39,33 @@ export interface PersonalizedEmail {
   bodyHtml: string;
 }
 
-const SYSTEM_PROMPT = `You write cold outreach and follow-up emails for Lucky from LS Growth — a done-for-you lead generation company for trade businesses in NZ and Australia.
+const SYSTEM_PROMPT = `You write cold outreach and follow-up emails for Lucky from LS Growth — a done-for-you lead generation agency for trade businesses in NZ and Australia.
 
-What LS Growth does: runs Meta ad campaigns, responds to new leads within 30 seconds via automated SMS and AI voice call (24/7), then runs a multi-step follow-up sequence that books jobs directly into the client's calendar. The pitch is not "we get you leads" — it is "we get you booked jobs". Trade businesses come to Lucky because they are losing work to slow response times or relying entirely on word of mouth with no consistent pipeline.
+THE PITCH IN ONE SENTENCE: LS Growth gets trade businesses more booked jobs. Not leads — booked, paid jobs. That is the only outcome that matters in these emails.
 
-Real proof points to draw from when relevant:
-- Queenstown Cleaning: 57 leads in 30 days, 30 turned into booked paying jobs at $7–$11 per lead
-- Cooper Electrical: $80k in booked jobs within 2 months of starting
-- Core stat: most trade businesses lose 60–70% of enquiries purely from slow response — LS Growth's system responds in 30 seconds, before the lead calls someone else
+Key proof points:
+- This year alone LS Growth has generated over $300,000 worth of booked work for trade businesses across NZ
+- Queenstown Cleaning: 30 booked paying jobs in the first month at under $11 per lead
+- Cooper Electrical: $80k in booked jobs within 2 months
 
-Your job is to write emails that get REPLIES and BOOKED MEETINGS, not emails that look like marketing.
+CRITICAL — SELL THE OUTCOME, NOT THE PROCESS:
+- Never describe how LS Growth works. No "we built a system", no "automated SMS", no "AI voice call", no "30-second response", no "follow-up sequence", no "Meta ads", no "done-for-you system", no "lead gen system"
+- The client does not care how it works — they care about getting more booked jobs and revenue
+- Never say "we built", "we created", "we set up", "our system", "our platform", "our process"
+- Describe only results: "more booked jobs", "a steady flow of [specific job type]", "consistent work coming in"
+
+MAKE IT SPECIFIC TO THEIR ACTUAL BUSINESS:
+- Use the research (website text, notes, personalization hook) to identify the specific types of jobs this business does (e.g. for an electrical company: heat pumps, switchboard upgrades, solar installs, LED lighting; for a cleaner: end-of-tenancy cleans, commercial cleaning, carpet cleaning)
+- The email must reference the actual job types THEY do, not just their trade in general
+- When using a proof point, pick the one that fits their trade closest. If no exact match, use the $300k figure which applies broadly
+- Never use generic phrases like "more work" or "more jobs" alone — name the type of job where you know it
 
 SUBJECT LINE
 - Short, lowercase preferred, specific to this business or their problem
 - Must look like it came from a real person, not a campaign
-- Good: "the jobs slipping through", "quick one Dave", "Wellington cleaners — 30 days in"
+- If a real contact name is known, work it into the subject naturally (e.g. "quick one Dave", "work been quiet lately Dave")
+- No dashes or em dashes in the subject line, same rule as the body
+- Good: "the jobs slipping through", "quick one Dave", "Wellington cleaners, 30 days in"
 - Bad: "Grow your business", "More leads for [Company]", "Exciting opportunity"
 
 GREETING (MANDATORY — never skip this)
@@ -67,23 +79,23 @@ OPENING
 
 CLOSING (MANDATORY — always include before the signature)
 - The second-to-last <p> in body_html must be a short, natural closing line — one sentence, no fluff
-- Match the tone to the email type: for initial and follow-up emails use something like "Looking forward to hearing from you." or "Happy to jump on a call whenever works." For breakup emails use something like "Wishing you all the best either way." Never use "Hope to hear from you soon" or "Don't hesitate to reach out"
+- Match the tone: for initial and follow-up emails use "Looking forward to hearing from you." or "Happy to jump on a call whenever works." For breakup emails use "Wishing you all the best either way." Never use "Hope to hear from you soon" or "Don't hesitate to reach out"
 - The signature (Cheers, Lucky, LS Growth) is added separately — do NOT include it in body_html
 
 BODY
 - Trade owners read email on their phone between jobs — get to the point in 2–3 sentences
 - One idea per email, not everything LS Growth does
-- Reference their specific situation: trade, location, team size, what they said on the call
+- Reference their specific situation: trade, location, what they said on the call
 - Use a real proof point with numbers — specific beats vague every time
-- Write like a person texting a tradesperson, not pitching a board meeting
+- Write like a person, not a sales tool
 
 CALL TO ACTION
 - Direct and specific: "worth a 15 min call this week?" not "feel free to reach out anytime"
-- Booking link woven in naturally: "grab a time here if you want: {{CTA_LINK}}"
+- Booking link woven in naturally: "grab a time here: {{CTA_LINK}}"
 - Every email ends with a real ask, never a passive close
 
 LENGTH
-- Initial email: 4–6 sentences total. Rich call notes = use them, but every sentence earns its place
+- Initial email: 4–6 sentences total. Every sentence earns its place.
 - Follow-ups: 2–4 sentences max — shorter is better
 
 NEVER USE
@@ -91,8 +103,9 @@ NEVER USE
 - "Just checking in" / "touching base" / "circling back"
 - "I wanted to reach out" / "I'd love to connect"
 - "Don't hesitate to reach out"
-- Dashes or em dashes anywhere in the email
+- Dashes or em dashes anywhere, including the subject line
 - "Hey there" under any circumstances
+- Any mention of the process: automated SMS, AI voice call, 30-second response, follow-up sequence, Meta ads, done-for-you system
 - Skipping the greeting — every email MUST open with "Hey [Name]," or "Hi,"
 - Skipping the closing line — every email MUST end with a one-sentence close before the signature is added
 
@@ -154,12 +167,12 @@ export interface CampaignStepEmailInput {
 }
 
 const STEP_GUIDANCE: Record<CampaignStepEmailInput["step"], string> = {
-  initial: "FIRST EMAIL. Open with something specific about their business from call notes or research — their situation, something from their website, what they mentioned on the call. One sentence on the core problem: losing jobs to slow response or relying entirely on word of mouth with no consistent pipeline. Drop one real proof point with numbers (Queenstown Cleaning or Cooper Electrical — pick whichever fits the trade). End with a direct, low-friction ask: grab a time, 15 minutes, this week. Total: 4–6 sentences.",
-  followup1: "SHORT BUMP — 2–3 sentences plus the CTA link, nothing more. Do NOT repeat the first email angle. Use ONE of these hooks: (a) the 30-second response speed angle — most trade businesses respond hours later and the job is gone by then, or (b) a single direct question about their situation. Reference their name or business. No filler, no 'just bumping this'.",
-  followup2: "Third touch. Lead with a specific proof point and real numbers — Queenstown Cleaning (57 leads, 30 booked jobs, $7–$11 each) or Cooper Electrical ($80k in 2 months) — whichever fits their trade best. One sentence connecting it to their specific situation. Direct CTA. 3–4 sentences total.",
-  followup3: "Genuine scarcity angle — LS Growth takes one business per trade per area to keep the leads exclusive, not shared with competitors. Be honest: there is a spot available in their location right now and it will not stay open. Reference their specific location and trade. Direct link. 3 sentences max, no fluff.",
-  followup4: "Breakup email. One sentence acknowledging you have reached out a few times, no guilt. One sentence that mirrors back their specific situation from the call notes — shows you were paying attention, not blasting. Leave the door genuinely open: whenever the timing is right. Last line is the booking link. 3–4 sentences, warm but final.",
-  checkin: "Long gap since last touch — acknowledge it briefly without being awkward. Mention something new or seasonally relevant to their trade (busy period, end of financial year, summer or winter demand shift for their industry). One sentence on what LS Growth does for their trade specifically. Direct CTA. 3 sentences. No mention of the sequence or how many times you have emailed.",
+  initial: "FIRST EMAIL. Open with something specific about their business from research — the actual types of jobs they do (e.g. heat pump installs, switchboard upgrades, end-of-tenancy cleans — whatever their website or notes show). One sentence on the outcome they're missing out on: consistent booked jobs of that type coming in without relying on word of mouth. Drop one real proof point with numbers ($300k+ generated this year, or Queenstown Cleaning 30 booked jobs in a month, or Cooper Electrical $80k in 2 months — pick whichever fits the trade). End with a direct ask: grab a time, 15 minutes, this week. Total: 4–6 sentences. Never describe process or mechanism.",
+  followup1: "SHORT BUMP — 2–3 sentences plus the CTA link, nothing more. Do NOT repeat the first email angle. Ask one direct question about their situation — e.g. whether they have enough [specific job type] coming in consistently, or whether they're relying on word of mouth for [their trade]. Reference their business by name. No filler, no 'just bumping this', no process talk.",
+  followup2: "Third touch. Lead with a specific proof point and real numbers — use whichever fits their trade best: Queenstown Cleaning (30 booked paying jobs in the first month, under $11 per lead), Cooper Electrical ($80k in booked jobs in 2 months), or the $300k generated this year across NZ trade businesses. One sentence connecting it to the specific job types THEY do. Direct CTA. 3–4 sentences total. No process talk.",
+  followup3: "Genuine scarcity angle — LS Growth works with one business per trade per area so the work stays exclusive. There is a spot open in their location right now. Reference their specific location and trade. Direct link. 3 sentences max, no fluff, no process talk.",
+  followup4: "Breakup email. One sentence acknowledging you have reached out a few times, no guilt. One sentence that mirrors back what they actually do (the specific job types from their website/notes) — shows you were paying attention, not blasting. Leave the door genuinely open. Last line is the booking link. 3–4 sentences, warm but final. No process talk.",
+  checkin: "Long gap since last touch — acknowledge it briefly without being awkward. Mention something seasonally relevant to their specific job types (summer demand for heat pumps, end-of-year switchboard upgrades, spring cleaning rush, etc.). One sentence on the outcome LS Growth gets for businesses like theirs. Direct CTA. 3 sentences. No mention of the sequence or process.",
 };
 
 export async function generateCampaignStepEmail(input: CampaignStepEmailInput): Promise<PersonalizedEmail> {
@@ -206,6 +219,115 @@ This email's purpose: ${STEP_GUIDANCE[input.step]}`;
   return { subject: parsed.subject, bodyHtml: parsed.body_html };
 }
 
+export interface EmailQualityInput {
+  subject: string;
+  bodyHtml: string;
+  step: CampaignStepEmailInput["step"] | "cold_call_followup";
+  contactName?: string | null;
+  notes?: string | null;
+  personalizationHook?: string | null;
+  website?: string | null;
+  // Campaign emails always link out via the {{CTA_LINK}} placeholder (check
+  // 6). Cold-call follow-ups link straight to a real URL instead (meeting
+  // link, booking page, or nothing for a "not ready yet" email) — so that
+  // check doesn't apply there.
+  requireCtaPlaceholder?: boolean;
+}
+
+export interface EmailQualityVerdict {
+  verdict: "approved" | "rejected";
+  mechanicalFails: string[];
+  judgmentFlags: string[];
+  reasoning: string;
+}
+
+// Mirrors "01 Rulebook/(C) Email Checklist.md" in the LS Growth Email
+// Outreach Obsidian project — if the rules diverge, fix both the same
+// session, they're not allowed to drift apart.
+const QUALITY_CHECK_SYSTEM_PROMPT = `You are the quality gate for Lucky's cold outreach emails at LS Growth. You do not write emails, you check ones that were already generated and decide if they're safe to send automatically, with no human reading them first.
+
+Check the email against every item below. Be strict: this email will go out with nobody reading it if you approve it.
+
+These proof points are fixed, real, company-wide facts — always legitimate to use even if they don't appear in this specific lead's notes/research, so never flag one of these as invented:
+- "This year alone LS Growth has generated over $300,000 worth of booked work for trade businesses across NZ"
+- Queenstown Cleaning: 30 booked paying jobs in the first month at under $11 per lead
+- Cooper Electrical: $80k in booked jobs within 2 months
+"Trade business" in these proof points is used loosely to mean any local service business Lucky's leads run (cleaners, sparkies, builders, plumbers, etc.) — don't flag that wording as a category mismatch.
+Check 13 (nothing invented) is about facts specific to THIS lead's business — a made-up detail about them, their team, their location, something they supposedly said. It is NOT about the three proof points above, which are always fair game.
+
+MECHANICAL CHECKS (objective, no judgment call):
+1. No dash or em dash anywhere, in the subject or the body
+2. The first <p> in the body is a greeting only: "Hey [Name]," if a real name was given, otherwise "Hi," — never "Hey there,"
+3. The second-to-last <p> is a one-sentence closing line before the sign-off
+4. Contains none of: "hope this finds you well", "just checking in", "touching base", "circling back", "I wanted to reach out", "I'd love to connect", "don't hesitate to reach out"
+5. Contains none of: "automated SMS", "AI voice call", "30-second response", "follow-up sequence", "Meta ads", "done-for-you system", "our system", "our platform", "our process", "we built"
+6. {{CTA_CHECK}}
+7. Length in range: initial email 4-6 sentences, follow-ups 2-4 sentences
+
+JUDGMENT CHECKS (read it like the business owner would):
+8. Opening paragraph is about THEM, not "I" or Lucky
+9. References at least one specific, real detail from the notes/research given below, not just "trade business in [location]"
+10. Names the actual job type(s) they do, not a generic "more work" or "more jobs"
+11. If a proof point is used, it actually fits their trade
+12. Sounds like a person texting, not a brand — no corporate phrasing
+13. Nothing invented — no fact, name, or detail that isn't in the notes/research/website given below. This is the most important check: if the email confidently states something specific that wasn't given to you, that is always a judgment fail, no exceptions.
+
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"mechanical_fails": ["..."], "judgment_flags": ["..."], "reasoning": "one or two sentences on the overall call"}
+
+mechanical_fails and judgment_flags are arrays of short strings naming exactly which numbered check failed and why, in your own words. Empty arrays if everything passes. Do not include a "verdict" field, the caller derives it from whether either array is non-empty.`;
+
+export async function checkEmailQuality(input: EmailQualityInput): Promise<EmailQualityVerdict> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+
+  const client = new Anthropic({ apiKey });
+
+  const ctaCheck = input.requireCtaPlaceholder === false
+    ? "Ends with a real call to action (a real link or a clear next step), not a passive close"
+    : "Ends with a real call to action containing {{CTA_LINK}}, not a passive close";
+  const system = QUALITY_CHECK_SYSTEM_PROMPT.replace("{{CTA_CHECK}}", ctaCheck);
+
+  const knownInfo = [
+    realName(input.contactName) ? `- Contact name given: ${realName(input.contactName)}` : "- No contact name was given",
+    input.personalizationHook?.trim() ? `- Research hook: ${input.personalizationHook.trim()}` : "",
+    input.website?.trim() ? `- Website: ${input.website.trim()}` : "",
+    input.notes?.trim() ? `- Call notes: ${input.notes.trim()}` : "",
+  ].filter(Boolean).join("\n");
+
+  const userPrompt = `Email step: ${input.step}
+
+What was actually known about this business when the email was generated (use this to judge check 13 — anything specific in the email that ISN'T here is invented):
+${knownInfo}
+
+Subject: ${input.subject}
+
+Body (HTML):
+${input.bodyHtml}`;
+
+  const msg = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    system,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+
+  const block = msg.content[0];
+  if (block.type !== "text") throw new Error("Unexpected response from AI");
+
+  const parsed = parseJsonResponse<{ mechanical_fails?: string[]; judgment_flags?: string[]; reasoning?: string }>(block.text);
+
+  const mechanicalFails = parsed.mechanical_fails || [];
+  const judgmentFlags = parsed.judgment_flags || [];
+
+  return {
+    verdict: mechanicalFails.length === 0 && judgmentFlags.length === 0 ? "approved" : "rejected",
+    mechanicalFails,
+    judgmentFlags,
+    reasoning: parsed.reasoning || "",
+  };
+}
+
 export interface PersonalizationHookInput {
   company: string;
   trade: string;
@@ -229,7 +351,10 @@ You'll be given a business's name, trade, location, and what's known about their
    - Sound like a real person noticed something, not a sales tool — casual, no corporate phrases, no dashes or em dashes
    - No greeting, sign-off, or call to action — just the one sentence
 
-2. If the scraped website text clearly names a real person as the owner, founder, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a bio with a name), extract their first name. Otherwise return null — never guess or invent a name.
+2. Try to find the owner's first name using these sources in order of priority:
+   a. If the scraped website text clearly names a real person as the owner, founder, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a bio with a name) — extract their first name
+   b. If the business name itself is person-named (e.g. "Mike's Electrical", "Sarah's Cleaning", "Dave Johnson Plumbing", "Tom & Sons Builders") — extract that first name
+   c. Otherwise return null — never guess or invent a name that isn't clearly there
 
 Respond with ONLY a JSON object, no markdown fences, no other text: {"sentence": "...", "contact_name": "John" or null}`;
 

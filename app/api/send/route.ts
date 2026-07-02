@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     if (Array.isArray(body?.leadIds)) leadIds = body.leadIds;
   } catch {}
 
-  let sent = 0, failed = 0, skipped = 0;
+  let sent = 0, failed = 0, skipped = 0, held = 0;
   const errors: string[] = [];
 
   const targets = leadIds ? leads.filter((l) => leadIds!.includes(l.lead_id)) : leads;
@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     try {
       const result = await sendNextStepFor(lead, sb);
       if (result.sent) sent++;
+      else if (result.held) held++;
       else skipped++;
     } catch (err: unknown) {
       failed++;
@@ -32,5 +33,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ sent, failed, skipped, errors });
+  return NextResponse.json({ sent, failed, skipped, held, errors });
 }

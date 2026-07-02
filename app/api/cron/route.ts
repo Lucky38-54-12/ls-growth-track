@@ -14,16 +14,17 @@ export async function GET(req: NextRequest) {
   const leads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to));
 
   const today = new Date().toISOString().split("T")[0];
-  let sent = 0, failed = 0;
+  let sent = 0, failed = 0, held = 0;
 
   for (const lead of leads) {
     try {
       const result = await sendNextStepFor(lead, sb);
       if (result.sent) sent++;
+      else if (result.held) held++;
     } catch {
       failed++;
     }
   }
 
-  return NextResponse.json({ sent, failed, date: today });
+  return NextResponse.json({ sent, failed, held, date: today });
 }

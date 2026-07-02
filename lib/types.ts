@@ -99,6 +99,20 @@ export interface EmailSend {
   sent_at: string;
 }
 
+export interface EmailCheck {
+  id: number;
+  lead_id: string;
+  step: string;
+  subject: string;
+  body_html: string;
+  verdict: "approved" | "rejected";
+  mechanical_fails: string[];
+  judgment_flags: string[];
+  reasoning: string | null;
+  sent: boolean;
+  created_at: string;
+}
+
 export interface TrackedSheet {
   id: string;
   sheet_id: string;
