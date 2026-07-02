@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, Video, ArrowUpRight, Mail, MousePointerClick, Clock, Flame, MailCheck, MousePointer2, MessageCircleHeart, LayoutDashboard } from "lucide-react";
+import { Calendar, Video, ArrowUpRight, Clock, Flame, MailCheck, MousePointer2, MessageCircleHeart } from "lucide-react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calendar";
 import { buildAnalytics, rate } from "@/lib/analytics";
@@ -9,6 +9,7 @@ import { Lead, EmailEvent, EmailSend, RevenueClient, RevenueGoal } from "@/lib/t
 import Topbar from "@/components/Topbar";
 import MeetingReminderButton from "@/components/MeetingReminderButton";
 import RevenueGoalCard from "@/components/RevenueGoalCard";
+import DailyNotes from "@/components/DailyNotes";
 
 export const revalidate = 0;
 
@@ -16,16 +17,6 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 const CLOSED_STATUSES = new Set(["sequence_complete", "not_interested", "bounced"]);
 const WARM_STATUSES = new Set(["replied", "booked"]);
 const TZ = "Pacific/Auckland";
-
-const PIPELINE_STAGES: { key: string; label: string }[] = [
-  { key: "not_contacted", label: "New Lead" },
-  { key: "contacted", label: "Contacted" },
-  { key: "followup_1_sent", label: "Follow-up 1" },
-  { key: "followup_2_sent", label: "Follow-up 2" },
-  { key: "replied", label: "Replied" },
-  { key: "booked", label: "Booked" },
-  { key: "closed", label: "Closed" },
-];
 
 const dateKeyFmt = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
 const timeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true });
@@ -77,28 +68,10 @@ export default async function TodayPage() {
   const warm = pipelineLeads.filter(l => WARM_STATUSES.has(l.status)).length;
   const replyRate = contacted > 0 ? Math.round((warm / contacted) * 100) : 0;
 
-  const stageCounts: Record<string, number> = {};
-  for (const stage of PIPELINE_STAGES) stageCounts[stage.key] = 0;
-  for (const lead of pipelineLeads) {
-    const key = CLOSED_STATUSES.has(lead.status) ? "closed" : lead.status;
-    if (stageCounts[key] !== undefined) stageCounts[key]++;
-    else stageCounts["not_contacted"]++;
-  }
-
   // Email performance
   const { overall } = buildAnalytics(allSends, allEvents);
   const openRate = rate(overall.opened, overall.sent);
   const clickRate = rate(overall.clicked, overall.sent);
-
-  // Recent activity — last 7 days, merged and sorted newest first
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  type ActivityItem =
-    | { kind: "event"; ts: string; ev: EmailEvent }
-    | { kind: "send"; ts: string; s: EmailSend };
-  const recentActivity: ActivityItem[] = [
-    ...allEvents.filter(ev => new Date(ev.created_at) >= sevenDaysAgo).map(ev => ({ kind: "event" as const, ts: ev.created_at, ev })),
-    ...allSends.filter(s => new Date(s.sent_at) >= sevenDaysAgo).map(s => ({ kind: "send" as const, ts: s.sent_at, s })),
-  ].sort((a, b) => b.ts.localeCompare(a.ts));
 
   function dayLabel(ts: string): string {
     const key = dateKeyFmt.format(new Date(ts));
@@ -118,16 +91,6 @@ export default async function TodayPage() {
     { label: "Click Rate", value: `${clickRate}%`, sub: `${overall.clicked} of ${overall.sent} emails`, icon: MousePointer2, color: "#9333ea", bg: "#faf5ff" },
     { label: "Reply Rate", value: `${replyRate}%`, sub: `${warm} replied or booked`, icon: MessageCircleHeart, color: "#16a34a", bg: "#f0fdf4" },
   ];
-
-  const stageColors: Record<string, string> = {
-    not_contacted: "#2563eb",
-    contacted: "#0f172a",
-    followup_1_sent: "#d97706",
-    followup_2_sent: "#d97706",
-    replied: "#2563eb",
-    booked: "#16a34a",
-    closed: "#94a3b8",
-  };
 
   return (
     <div>
@@ -151,20 +114,8 @@ export default async function TodayPage() {
           ))}
         </div>
 
-        {/* Pipeline overview — a strip, not a stacked list */}
-        <Link href="/dashboard" className="surface-card pill-hover" style={{
-          display: "flex", alignItems: "center", gap: 28, padding: "14px 20px", flexWrap: "wrap", textDecoration: "none",
-        }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, flexShrink: 0 }}>
-            <LayoutDashboard style={{ width: 13, height: 13 }} /> Pipeline Overview
-          </span>
-          {PIPELINE_STAGES.map(stage => (
-            <span key={stage.key} style={{ display: "flex", alignItems: "baseline", gap: 6, flexShrink: 0 }}>
-              <span style={{ fontSize: 17, fontWeight: 800, color: stageColors[stage.key] || L.text }}>{stageCounts[stage.key]}</span>
-              <span style={{ fontSize: 11.5, color: L.muted }}>{stage.label}</span>
-            </span>
-          ))}
-        </Link>
+        {/* Daily notes */}
+        <DailyNotes />
 
         <div className="today-grid" style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 16, alignItems: "start" }}>
 
@@ -273,76 +224,6 @@ export default async function TodayPage() {
           <RevenueGoalCard clients={allRevenueClients} monthlyGoal={monthlyGoal} />
         </div>
 
-        {/* Recent activity — last 7 days */}
-        <div className="surface-card" style={{ overflow: "hidden" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
-            <Mail style={{ width: 15, height: 15, color: L.muted }} />
-            <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Recent Activity</span>
-            <span style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed }}>last 7 days · {recentActivity.length} events</span>
-          </div>
-          {recentActivity.length === 0 ? (
-            <div style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 12.5 }}>No activity in the last 7 days.</div>
-          ) : (() => {
-            let lastDay = "";
-            return (
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {recentActivity.map((item, i) => {
-                  const day = dayLabel(item.ts);
-                  const showDivider = day !== lastDay;
-                  if (showDivider) lastDay = day;
-                  if (item.kind === "event") {
-                    const ev = item.ev;
-                    const lead = allLeads.find(l => l.lead_id === ev.lead_id);
-                    const isOpen = ev.event_type === "open";
-                    return (
-                      <div key={`ev-${ev.id}-${i}`}>
-                        {showDivider && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 18px", background: "#f8fafc", borderBottom: `1px solid ${L.border}` }}>
-                            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>{day}</span>
-                            <div style={{ flex: 1, height: 1, background: L.border }} />
-                          </div>
-                        )}
-                        <Link href={lead ? `/dashboard/leads/${lead.lead_id}` : "#"} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none" }} className="row-hover">
-                          {isOpen
-                            ? <Mail style={{ width: 13, height: 13, color: "#3b82f6", flexShrink: 0 }} />
-                            : <MousePointerClick style={{ width: 13, height: 13, color: "#16a34a", flexShrink: 0 }} />}
-                          <span style={{ fontSize: 13, color: L.text, fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {lead?.company || ev.lead_id}
-                          </span>
-                          <span style={{ fontSize: 12, color: L.muted, flexShrink: 0 }}>{isOpen ? "opened email" : "clicked link"}</span>
-                          <span style={{ marginLeft: "auto", fontSize: 11.5, color: L.dimmed, flexShrink: 0 }}>
-                            {new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(ev.created_at)).replace(" ", "").toLowerCase()}
-                          </span>
-                        </Link>
-                      </div>
-                    );
-                  } else {
-                    const s = item.s;
-                    const lead = allLeads.find(l => l.lead_id === s.lead_id);
-                    return (
-                      <div key={`send-${s.id}-${i}`}>
-                        {showDivider && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 18px", background: "#f8fafc", borderBottom: `1px solid ${L.border}` }}>
-                            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>{day}</span>
-                            <div style={{ flex: 1, height: 1, background: L.border }} />
-                          </div>
-                        )}
-                        <Link href={lead ? `/dashboard/leads/${lead.lead_id}` : "#"} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none" }} className="row-hover">
-                          <ArrowUpRight style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} />
-                          <span style={{ fontSize: 13, color: L.text, fontWeight: 700, flexShrink: 0 }}>{lead?.company || s.lead_id}</span>
-                          <span style={{ fontSize: 12, color: L.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>email sent — &quot;{s.subject}&quot;</span>
-                          <span style={{ marginLeft: "auto", fontSize: 11.5, color: L.dimmed, flexShrink: 0 }}>
-                            {new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(s.sent_at)).replace(" ", "").toLowerCase()}
-                          </span>
-                        </Link>
-                      </div>
-                    );
-                  }
-                })}
-              </div>
-            );
-          })()}
-        </div>
       </div>
 
       <style suppressHydrationWarning>{`
