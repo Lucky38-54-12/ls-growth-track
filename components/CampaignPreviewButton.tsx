@@ -5,12 +5,20 @@ import { Eye, X, ChevronDown } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
+interface Quality {
+  verdict: "approved" | "rejected";
+  mechanicalFails: string[];
+  judgmentFlags: string[];
+  reasoning: string;
+}
+
 interface Step {
   step: string;
   day: string;
   subject?: string;
   bodyHtml?: string;
   error?: string;
+  quality?: Quality | null;
 }
 
 interface Preview {
@@ -114,6 +122,17 @@ export default function CampaignPreviewButton({ campaignId, leadCount }: { campa
                             <span style={{ fontSize: 12.5, fontWeight: 600, color: L.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {s.error ? "Couldn't generate" : s.subject}
                             </span>
+                            {s.quality && (
+                              <span style={{
+                                fontSize: 9.5, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase",
+                                padding: "2px 8px", flexShrink: 0,
+                                background: s.quality.verdict === "approved" ? "#f0fdf4" : "#fff1f2",
+                                color: s.quality.verdict === "approved" ? "#15803d" : "#9f1239",
+                                border: `1px solid ${s.quality.verdict === "approved" ? "#bbf7d0" : "#fecdd3"}`,
+                              }}>
+                                {s.quality.verdict === "approved" ? "Approved" : "Would be held"}
+                              </span>
+                            )}
                             <ChevronDown style={{ width: 13, height: 13, color: L.dimmed, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }} />
                           </button>
                           {isOpen && (
@@ -121,7 +140,18 @@ export default function CampaignPreviewButton({ campaignId, leadCount }: { campa
                               {s.error ? (
                                 <p style={{ fontSize: 12.5, color: "var(--red)" }}>Couldn&apos;t generate: {s.error}</p>
                               ) : (
-                                <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#1a1a1a" }} dangerouslySetInnerHTML={{ __html: s.bodyHtml || "" }} />
+                                <>
+                                  <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#1a1a1a" }} dangerouslySetInnerHTML={{ __html: s.bodyHtml || "" }} />
+                                  {s.quality?.verdict === "rejected" && (
+                                    <div style={{ marginTop: 12, padding: "10px 12px", background: "#fff1f2", border: "1px solid #fecdd3", fontSize: 11.5, color: "#9f1239" }}>
+                                      <strong>Would be held, not sent:</strong>
+                                      {s.quality.reasoning && <div style={{ marginTop: 4 }}>{s.quality.reasoning}</div>}
+                                      <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                                        {[...s.quality.mechanicalFails, ...s.quality.judgmentFlags].map((f, i) => <li key={i}>{f}</li>)}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}

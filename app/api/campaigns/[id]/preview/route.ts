@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { generateCampaignStepEmail } from "@/lib/ai";
+import { generateCampaignStepEmail, checkEmailQuality } from "@/lib/ai";
 import { Lead } from "@/lib/types";
 
 const SAMPLE_LEADS = 2;
@@ -42,7 +42,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   // under Vercel's 60s function cap instead of stacking all leads' calls.
   const previews = await Promise.all(
     sample.map(async (lead) => {
-      const steps = [];
+      // Steps must generate sequentially (each references priorSubjects), but
+      // the quality check for a step doesn't need to block the next step's
+      // generation — kick it off and only await all of them at the end, so
+      // this doesn't turn 5 sequential AI calls into 10 and risk the 60s cap.
+      const steps: { step: string; day: string; subject?: string; bodyHtml?: string; error?: string }[] = [];
+      const checkPromises: Promise<void>[] = [];
       const priorSubjects: string[] = [];
       for (const { step, day } of STEPS) {
         try {
@@ -58,12 +63,23 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
             priorSubjects,
           });
           const previewHtml = `${bodyHtml}<p>Cheers,<br>Lucky<br>LS Growth</p>`;
-          steps.push({ step, day, subject, bodyHtml: previewHtml });
+          const stepResult: { step: string; day: string; subject: string; bodyHtml: string; quality?: unknown } = { step, day, subject, bodyHtml: previewHtml };
+          steps.push(stepResult);
           priorSubjects.push(subject);
+          checkPromises.push(
+            checkEmailQuality({
+              subject, bodyHtml, step,
+              contactName: lead.contact_name,
+              notes: lead.notes,
+              personalizationHook: lead.personalization_hook,
+              website: lead.website,
+            }).then((q) => { stepResult.quality = q; }).catch(() => {})
+          );
         } catch (e) {
           steps.push({ step, day, error: e instanceof Error ? e.message : "Generation failed" });
         }
       }
+      await Promise.all(checkPromises);
       return { leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, steps };
     })
   );
