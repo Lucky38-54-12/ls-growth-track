@@ -63,7 +63,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
             priorSubjects,
           });
           const previewHtml = `${bodyHtml}<p>Cheers,<br>Lucky<br>LS Growth</p>`;
-          const stepResult: { step: string; day: string; subject: string; bodyHtml: string; quality?: unknown } = { step, day, subject, bodyHtml: previewHtml };
+          const stepResult: { step: string; day: string; subject: string; bodyHtml: string; quality?: unknown; qualityError?: string } = { step, day, subject, bodyHtml: previewHtml };
           steps.push(stepResult);
           priorSubjects.push(subject);
           checkPromises.push(
@@ -73,7 +73,9 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
               notes: lead.notes,
               personalizationHook: lead.personalization_hook,
               website: lead.website,
-            }).then((q) => { stepResult.quality = q; }).catch(() => {})
+            }).then((q) => { stepResult.quality = q; }).catch((e) => {
+              stepResult.qualityError = e instanceof Error ? e.message : "Quality check failed";
+            })
           );
         } catch (e) {
           steps.push({ step, day, error: e instanceof Error ? e.message : "Generation failed" });
