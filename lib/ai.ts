@@ -191,10 +191,17 @@ export async function generateCampaignStepEmail(input: CampaignStepEmailInput): 
     ? `\n\nSubjects of emails already sent to this business (don't repeat these angles):\n${input.priorSubjects.map((s) => `- ${s}`).join("\n")}`
     : "";
 
-  const hasRealInfo = !!(input.notes?.trim() || input.personalizationHook?.trim() || input.website?.trim());
+  // The personalization_hook is just a one-sentence summary written earlier
+  // (often at sheet-import time) — it rarely names actual job types. Fetch
+  // the real website text fresh here so the model has something concrete to
+  // draw specific services from instead of guessing plausible-sounding ones.
+  const websiteSnippet = input.website?.trim() ? await fetchWebsiteSnippet(input.website.trim()) : "";
+
+  const hasRealInfo = !!(input.notes?.trim() || input.personalizationHook?.trim() || websiteSnippet);
   const knownInfoBlock = hasRealInfo
     ? `\nWhat's actually known about this business (use this to make the email specific and prove you looked them up — don't just repeat it verbatim):
-${input.personalizationHook?.trim() ? `- ${input.personalizationHook.trim()}\n` : ""}${input.website?.trim() ? `- Website: ${input.website.trim()}\n` : ""}${input.notes?.trim() ? `- Notes: ${input.notes.trim()}\n` : ""}`
+${input.personalizationHook?.trim() ? `- ${input.personalizationHook.trim()}\n` : ""}${input.notes?.trim() ? `- Notes: ${input.notes.trim()}\n` : ""}${websiteSnippet ? `- Real text scraped from their website:\n${websiteSnippet}\n` : input.website?.trim() ? `- Website: ${input.website.trim()} (could not fetch content — do not guess what's on it)\n` : ""}
+Only name specific job types (e.g. "switchboard upgrades", "heat pump installs") if they're actually confirmed above, in the notes, or the scraped website text. If the trade's specific services aren't confirmed anywhere, describe their work in general trade terms instead (e.g. "the jobs you do", "your workload") rather than inventing a plausible-sounding list — an invented service is an automatic reject.`
     : `\nNothing specific is known about this business yet beyond their company name, trade, and location. Do NOT open with a generic industry statement like "When a homeowner needs a plumber..." or "Most trade businesses...". Do NOT invent details about them. Instead: open with Hi, (no name), introduce what LS Growth does for their trade in one sentence, drop one real proof point with numbers, then a direct CTA. Short, honest, no fluff.`;
 
   const userPrompt = `Business: ${input.company}
