@@ -52,10 +52,12 @@ export function nextStepFor(lead: Lead): EmailStep | null {
     return days !== null && days >= threshold ? dueStep : null;
   }
 
-  // Cold-call leads always get a one-off personalized email sent manually
-  // via the Cold Call page (called → emailed → meeting_booked) — they never
-  // go through the generic templated initial/followup1/followup2 sequence.
-  if (lead.source === "cold_call") return null;
+  // Cold-call leads not (yet) in a campaign get a one-off personalized email
+  // sent manually via the Cold Call page (called → emailed → meeting_booked)
+  // — they never go through the generic templated sequence. Once a cold-call
+  // lead is added to a campaign (campaign_id set), it should follow that
+  // campaign's sequence like any other member.
+  if (lead.source === "cold_call" && !campaign_id) return null;
 
   // Not yet started
   if (status === "not_contacted" || !date_contacted) return "initial";
