@@ -181,7 +181,7 @@ const STEP_GUIDANCE: Record<CampaignStepEmailInput["step"], string> = {
   checkin: "Long gap since last touch — acknowledge it briefly without being awkward. Mention something seasonally relevant to their specific job types (summer demand for heat pumps, end-of-year switchboard upgrades, spring cleaning rush, etc.). One sentence on the outcome LS Growth gets for businesses like theirs. Direct CTA. 3 sentences. No mention of the sequence or process.",
 };
 
-export async function generateCampaignStepEmail(input: CampaignStepEmailInput): Promise<PersonalizedEmail> {
+export async function generateCampaignStepEmail(input: CampaignStepEmailInput): Promise<PersonalizedEmail & { websiteSnippet: string }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
 
@@ -229,7 +229,12 @@ This email's purpose: ${STEP_GUIDANCE[input.step]}`;
     throw new Error("AI response missing subject or body_html");
   }
 
-  return { subject: parsed.subject, bodyHtml: parsed.body_html };
+  // Returned so the caller can pass the exact same scraped text into
+  // checkEmailQuality() — without it, the quality gate has no way to verify
+  // specific claims (job types, coverage area) against reality and defensively
+  // flags anything specific as possibly invented, rejecting emails that were
+  // actually grounded in real website content.
+  return { subject: parsed.subject, bodyHtml: parsed.body_html, websiteSnippet };
 }
 
 export interface EmailQualityInput {
@@ -240,6 +245,7 @@ export interface EmailQualityInput {
   notes?: string | null;
   personalizationHook?: string | null;
   website?: string | null;
+  websiteSnippet?: string | null;
   // Campaign emails always link out via the {{CTA_LINK}} placeholder (check
   // 6). Cold-call follow-ups link straight to a real URL instead (meeting
   // link, booking page, or nothing for a "not ready yet" email) — so that
@@ -304,8 +310,10 @@ export async function checkEmailQuality(input: EmailQualityInput): Promise<Email
   const knownInfo = [
     realName(input.contactName) ? `- Contact name given: ${realName(input.contactName)}` : "- No contact name was given",
     input.personalizationHook?.trim() ? `- Research hook: ${input.personalizationHook.trim()}` : "",
-    input.website?.trim() ? `- Website: ${input.website.trim()}` : "",
     input.notes?.trim() ? `- Call notes: ${input.notes.trim()}` : "",
+    input.websiteSnippet?.trim()
+      ? `- Real text scraped from their website:\n${input.websiteSnippet.trim()}`
+      : input.website?.trim() ? `- Website: ${input.website.trim()} (content could not be fetched for this check — do not assume anything specific about it)` : "",
   ].filter(Boolean).join("\n");
 
   const userPrompt = `Email step: ${input.step}

@@ -49,7 +49,7 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     .select("subject")
     .eq("lead_id", lead.lead_id)
     .order("sent_at", { ascending: true });
-  const { subject, bodyHtml } = await generateCampaignStepEmail({
+  const { subject, bodyHtml, websiteSnippet } = await generateCampaignStepEmail({
     company: lead.company,
     contactName: lead.contact_name,
     trade: lead.trade,
@@ -65,6 +65,9 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   // gets checked against the rulebook before it sends. A rejected email is
   // held, not sent — the lead stays at this step and gets picked up again
   // next run instead of going out with an invented detail or a broken rule.
+  // Pass the same scraped website text the generator used, so the checker
+  // can actually verify specific claims instead of flagging anything
+  // specific as possibly invented just because it only has a bare URL.
   const check = await checkEmailQuality({
     subject,
     bodyHtml,
@@ -73,6 +76,7 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     notes: lead.notes,
     personalizationHook: lead.personalization_hook,
     website: lead.website,
+    websiteSnippet,
   });
   await sb.from("email_checks").insert({
     lead_id: lead.lead_id,

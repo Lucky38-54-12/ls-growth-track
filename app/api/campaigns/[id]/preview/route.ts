@@ -51,7 +51,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       const priorSubjects: string[] = [];
       for (const { step, day } of STEPS) {
         try {
-          const { subject, bodyHtml } = await generateCampaignStepEmail({
+          const { subject, bodyHtml, websiteSnippet } = await generateCampaignStepEmail({
             company: lead.company,
             contactName: lead.contact_name,
             trade: lead.trade,
@@ -73,6 +73,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
               notes: lead.notes,
               personalizationHook: lead.personalization_hook,
               website: lead.website,
+              websiteSnippet,
             }).then((q) => { stepResult.quality = q; }).catch((e) => {
               stepResult.qualityError = e instanceof Error ? e.message : "Quality check failed";
             })
