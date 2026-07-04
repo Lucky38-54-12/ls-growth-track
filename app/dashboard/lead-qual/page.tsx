@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import Topbar from "@/components/Topbar";
 import { CalendarCheck, Plus } from "lucide-react";
 
@@ -139,12 +140,12 @@ function LeadQualPageInner() {
                     padding: "14px 16px", borderBottom: `1px solid ${L.border}`,
                   }}
                 >
-                  <div>
+                  <Link href={`/dashboard/lead-qual/${client.id}`} style={{ textDecoration: "none" }}>
                     <p style={{ fontSize: 14, fontWeight: 700, color: L.text }}>{client.name}</p>
                     <p style={{ fontSize: 12, color: L.muted }}>
-                      {client.trade || "No trade set"}{client.phone ? ` · ${client.phone}` : ""}
+                      {client.trade || "No trade set"}{client.phone ? ` · ${client.phone}` : ""} · click to configure &amp; test
                     </p>
-                  </div>
+                  </Link>
                   {connection ? (
                     <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#15803d" }}>
                       <CalendarCheck style={{ width: 14, height: 14 }} />
