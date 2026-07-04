@@ -7,6 +7,9 @@ export interface RunTurnInput {
   clientId: string;
   conversationId: string | null;
   userMessage: string;
+  channelId?: string;
+  contact?: Record<string, unknown>;
+  metaMessageId?: string;
 }
 
 export interface RunTurnOutput {
@@ -42,7 +45,7 @@ async function loadClientConfig(clientId: string): Promise<{ config: ClientConfi
   return { config, rules };
 }
 
-export async function runTurn({ clientId, conversationId, userMessage }: RunTurnInput): Promise<RunTurnOutput> {
+export async function runTurn({ clientId, conversationId, userMessage, channelId, contact, metaMessageId }: RunTurnInput): Promise<RunTurnOutput> {
   const sb = createSupabaseClient();
 
   let conversation;
@@ -52,7 +55,7 @@ export async function runTurn({ clientId, conversationId, userMessage }: RunTurn
   } else {
     const { data, error } = await sb
       .from("lq_conversations")
-      .insert({ client_id: clientId, status: "active", extracted_fields: {} })
+      .insert({ client_id: clientId, channel_id: channelId || null, status: "active", extracted_fields: {}, contact: contact || {} })
       .select()
       .single();
     if (error) throw error;
@@ -60,7 +63,7 @@ export async function runTurn({ clientId, conversationId, userMessage }: RunTurn
   }
   if (!conversation) throw new Error("Conversation not found");
 
-  await sb.from("lq_messages").insert({ conversation_id: conversation.id, role: "user", content: userMessage });
+  await sb.from("lq_messages").insert({ conversation_id: conversation.id, role: "user", content: userMessage, meta_message_id: metaMessageId || null });
 
   const { data: priorMessages } = await sb
     .from("lq_messages")
