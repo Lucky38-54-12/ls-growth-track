@@ -77,11 +77,6 @@ OPENING
 - First content paragraph (after the greeting) is always about THEM — their situation, something from their website, something from the call
 - Never open with "I" — never "I wanted to reach out", "I came across your business", "My name is Lucky"
 
-CLOSING (MANDATORY — always include before the signature)
-- The second-to-last <p> in body_html must be a short, natural closing line — one sentence, no fluff
-- Match the tone: for initial and follow-up emails use "Looking forward to hearing from you." or "Happy to jump on a call whenever works." For breakup emails use "Wishing you all the best either way." Never use "Hope to hear from you soon" or "Don't hesitate to reach out"
-- The signature (Cheers, Lucky, LS Growth) is added separately — do NOT include it in body_html
-
 BODY
 - Trade owners read email on their phone between jobs — get to the point in 2–3 sentences
 - One idea per email, not everything LS Growth does
@@ -89,10 +84,21 @@ BODY
 - Use a real proof point with numbers — specific beats vague every time
 - Write like a person, not a sales tool
 
-CALL TO ACTION
+CALL TO ACTION (MANDATORY — the second-to-last <p> in body_html)
 - Direct and specific: "worth a 15 min call this week?" not "feel free to reach out anytime"
 - Booking link woven in naturally: "grab a time here: {{CTA_LINK}}"
-- Every email ends with a real ask, never a passive close
+
+CLOSING (MANDATORY — the LAST <p> in body_html, after the CTA, before the signature)
+- One short, natural closing line — nothing else in that paragraph
+- Match the tone: for initial and follow-up emails use "Looking forward to hearing from you." or "Happy to jump on a call whenever works." For breakup emails use "Wishing you all the best either way." Never use "Hope to hear from you soon" or "Don't hesitate to reach out"
+- The signature (Cheers, Lucky, LS Growth) is added separately — do NOT include it in body_html
+
+Example structure (order matters):
+<p>Hey Dave,</p>
+<p>[opening about them]</p>
+<p>[proof point / body]</p>
+<p>Worth a 15 min call this week? Grab a time here: {{CTA_LINK}}</p>
+<p>Looking forward to hearing from you.</p>
 
 LENGTH
 - Initial email: 4–6 sentences total. Every sentence earns its place.
@@ -258,7 +264,7 @@ Check 13 (nothing invented) is about facts specific to THIS lead's business — 
 MECHANICAL CHECKS (objective, no judgment call):
 1. No dash or em dash anywhere, in the subject or the body
 2. The first <p> in the body is a greeting only: "Hey [Name]," if a real name was given, otherwise "Hi," — never "Hey there,"
-3. The second-to-last <p> is a one-sentence closing line before the sign-off
+3. The LAST <p> (before the sign-off) is a one-sentence closing line, e.g. "Looking forward to hearing from you." — the second-to-last <p> is the CTA line (check 6), and the closing line always comes after it
 4. Contains none of: "hope this finds you well", "just checking in", "touching base", "circling back", "I wanted to reach out", "I'd love to connect", "don't hesitate to reach out"
 5. Contains none of: "automated SMS", "AI voice call", "30-second response", "follow-up sequence", "Meta ads", "done-for-you system", "our system", "our platform", "our process", "we built"
 6. {{CTA_CHECK}}
@@ -284,8 +290,8 @@ export async function checkEmailQuality(input: EmailQualityInput): Promise<Email
   const client = new Anthropic({ apiKey });
 
   const ctaCheck = input.requireCtaPlaceholder === false
-    ? "Ends with a real call to action (a real link or a clear next step), not a passive close"
-    : "Ends with a real call to action containing {{CTA_LINK}}, not a passive close";
+    ? "The second-to-last <p> is a real call to action (a real link or a clear next step), not a passive close"
+    : "The second-to-last <p> is a real call to action containing {{CTA_LINK}}, not a passive close";
   const system = QUALITY_CHECK_SYSTEM_PROMPT.replace("{{CTA_CHECK}}", ctaCheck);
 
   const knownInfo = [
