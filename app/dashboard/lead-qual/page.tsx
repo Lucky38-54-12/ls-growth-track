@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Topbar from "@/components/Topbar";
 import { CalendarCheck, Plus } from "lucide-react";
@@ -17,6 +17,14 @@ interface LqClient {
 }
 
 export default function LeadQualPage() {
+  return (
+    <Suspense fallback={null}>
+      <LeadQualPageInner />
+    </Suspense>
+  );
+}
+
+function LeadQualPageInner() {
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<LqClient[]>([]);
   const [loading, setLoading] = useState(true);
