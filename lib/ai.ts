@@ -57,6 +57,7 @@ CRITICAL — SELL THE OUTCOME, NOT THE PROCESS:
 MAKE IT SPECIFIC TO THEIR ACTUAL BUSINESS:
 - Use the research (website text, notes, personalization hook) to identify the specific types of jobs this business does (e.g. for an electrical company: heat pumps, switchboard upgrades, solar installs, LED lighting; for a cleaner: end-of-tenancy cleans, commercial cleaning, carpet cleaning)
 - The email must reference the actual job types THEY do, not just their trade in general
+- Match the specificity level of what you were actually given — if the research only says something vague like "residential or commercial electrical project" or "fault-finding to new builds", do NOT upgrade that into a specific invented list like "switchboard upgrades, EV charger installs". Only name a specific job type if it is close to verbatim in the research. When in doubt, quote closer to the source rather than sounding more specific than you actually know
 - When using a proof point, pick the one that fits their trade closest. If no exact match, use the $300k figure which applies broadly
 - Never use generic phrases like "more work" or "more jobs" alone — name the type of job where you know it
 
@@ -71,8 +72,8 @@ SUBJECT LINE
 GREETING (MANDATORY — never skip this)
 - The very first <p> in body_html MUST be the greeting, nothing else in that paragraph
 - If a real contact name is given: "Hey [Name]," (e.g. "Hey Dave,")
-- The "Contact name" field below is sometimes "unknown" even though the notes actually name the real contact (e.g. notes ending "Notes: Conrad") — if you can clearly tell from the notes who the real person is, treat that as the known name and greet them by it. Be consistent: if you use their name anywhere in the subject or body, the greeting must use it too, never "Hi," in that case
-- If no name is known anywhere (not in the field, not in the notes): "Hi," — never "Hey there,", never jump straight into the message
+- The "Contact name" field below is sometimes "unknown" even though the real contact is actually named elsewhere — in the notes (e.g. notes ending "Notes: Conrad") or in the scraped website text (e.g. "Alistair — Director"). If you can clearly tell from either source who the real person is, treat that as the known name and greet them by it. Be consistent: if you use their name anywhere in the subject or body, the greeting must use it too, never "Hi," in that case
+- If no name is known anywhere (not in the field, not the notes, not the website text): "Hi," — never "Hey there,", never jump straight into the message
 
 OPENING
 - First content paragraph (after the greeting) is always about THEM — their situation, something from their website, something from the call
