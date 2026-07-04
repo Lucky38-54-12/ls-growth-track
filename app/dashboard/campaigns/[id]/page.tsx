@@ -3,7 +3,9 @@ import { Lead, EmailEvent, EngagementSummary, Campaign, EmailCheck } from "@/lib
 import Topbar from "@/components/Topbar";
 import ActivateCampaignButton from "@/components/ActivateCampaignButton";
 import CampaignPreviewButton from "@/components/CampaignPreviewButton";
+import SendButton from "@/components/SendButton";
 import { SegmentSection } from "@/components/LeadTable";
+import { nextStepFor } from "@/lib/leads";
 import { notFound } from "next/navigation";
 import { AlertTriangle, CheckCircle } from "lucide-react";
 
@@ -68,6 +70,13 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
   const booked = members.filter((l) => l.status === "booked").length;
   const badge = STATUS_BADGE[campaign.status] || STATUS_BADGE.draft;
 
+  // Only leads actually activated onto this campaign (leads.campaign_id set),
+  // not just staged in campaign_leads — lets a campaign be activated in
+  // batches (e.g. a small test batch first) without the button firing for
+  // leads that aren't live yet.
+  const activeMembers = members.filter((l) => l.campaign_id === campaign.id);
+  const dueMemberIds = activeMembers.filter((l) => nextStepFor(l) !== null).map((l) => l.lead_id);
+
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
       <Topbar title={campaign.name} subtitle={`${members.length} lead${members.length !== 1 ? "s" : ""} in this campaign`} />
@@ -85,6 +94,9 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
               <CampaignPreviewButton campaignId={campaign.id} leadCount={members.length} />
               <ActivateCampaignButton campaignId={campaign.id} leadCount={members.length} />
             </div>
+          )}
+          {activeMembers.length > 0 && (
+            <SendButton due={dueMemberIds.length} leadIds={dueMemberIds} label={`Send due emails (${dueMemberIds.length})`} />
           )}
         </div>
 
