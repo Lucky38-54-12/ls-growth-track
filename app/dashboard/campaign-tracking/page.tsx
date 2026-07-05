@@ -192,7 +192,7 @@ export default async function CampaignTrackingPage() {
                           {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
                           {(lead?.status === "replied" || lead?.status === "booked") && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#dcfce7", color: "#15803d" }}>{lead.status === "booked" ? "Booked" : "Replied"}</span>}
                         </div>
-                        <Link href={`/dashboard/leads/${leadId}`} onClick={(e) => e.stopPropagation()} style={{ fontSize: 11, color: "var(--red)", flexShrink: 0 }}>
+                        <Link href={`/dashboard/leads/${leadId}`} style={{ fontSize: 11, color: "var(--red)", flexShrink: 0 }}>
                           Open lead →
                         </Link>
                       </summary>
