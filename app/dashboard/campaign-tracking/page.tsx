@@ -156,50 +156,67 @@ export default async function CampaignTrackingPage() {
         </div>
 
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>Every Send</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>Sent Sequences — click a lead to see every email sent to them</p>
           {rows.length === 0 ? (
             <p style={{ color: L.muted, fontSize: 13 }}>No campaign emails sent yet.</p>
-          ) : (
-            <table style={{ borderCollapse: "collapse", width: "100%" }}>
-              <thead>
-                <tr>
-                  {["Sent", "Campaign", "Company", "Contact", "Subject", "Activity", "Last Activity"].map((h) => (
-                    <th key={h} style={{ textAlign: "left", padding: "10px 12px", borderBottom: `1px solid ${L.border}`, color: L.muted, fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const ev = engagement[row.lead_id];
-                  const lead = leadById.get(row.lead_id);
+          ) : (() => {
+            // Grouped by lead so the actual step-by-step sequence (initial,
+            // followup1, followup2...) reads in order, rather than an
+            // interleaved flat timeline across every business at once.
+            const byLead = new Map<string, SendRow[]>();
+            for (const row of rows) {
+              if (!byLead.has(row.lead_id)) byLead.set(row.lead_id, []);
+              byLead.get(row.lead_id)!.push(row);
+            }
+            const groups = Array.from(byLead.entries())
+              .map(([leadId, leadRows]) => ({
+                leadId,
+                leadRows: [...leadRows].sort((a, b) => a.sent_at.localeCompare(b.sent_at)),
+                latest: leadRows[0].sent_at, // rows is already sent_at desc, so [0] is most recent
+              }))
+              .sort((a, b) => b.latest.localeCompare(a.latest));
+
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {groups.map(({ leadId, leadRows }) => {
+                  const lead = leadById.get(leadId);
+                  const ev = engagement[leadId];
                   return (
-                    <tr key={row.id}>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted, whiteSpace: "nowrap" }}>
-                        {formatDateTime(row.sent_at)}
-                      </td>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted }}>{row.campaign_name}</td>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>
-                        <Link href={`/dashboard/leads/${row.lead_id}`} style={{ color: "var(--red)" }}>{row.company}</Link>
-                      </td>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13, color: L.muted }}>{row.contact_name}</td>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5 }}>{row.subject}</td>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13 }}>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                          {!ev?.opens && !ev?.clicks && lead?.status !== "replied" && lead?.status !== "booked" && <span style={{ fontSize: 11, color: L.dimmed }}>No activity</span>}
+                    <details key={leadId} style={{ border: `1px solid ${L.border}` }}>
+                      <summary style={{ padding: "12px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, background: "#f8fafc" }}>
+                        <span style={{ fontWeight: 700, fontSize: 13.5, color: L.text }}>{leadRows[0].company}</span>
+                        <span style={{ fontSize: 12, color: L.muted }}>{leadRows[0].campaign_name}</span>
+                        <span style={{ fontSize: 11.5, color: L.dimmed }}>{leadRows.length} email{leadRows.length !== 1 ? "s" : ""} sent</span>
+                        <div style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap" }}>
                           {ev?.opens > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#dbeafe", color: "#1e40af" }}>{ev.opens} open{ev.opens !== 1 ? "s" : ""}</span>}
                           {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
                           {(lead?.status === "replied" || lead?.status === "booked") && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#dcfce7", color: "#15803d" }}>{lead.status === "booked" ? "Booked" : "Replied"}</span>}
                         </div>
-                      </td>
-                      <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted, whiteSpace: "nowrap" }}>
-                        {ev?.last_event_at ? formatDateTime(ev.last_event_at) : "—"}
-                      </td>
-                    </tr>
+                        <Link href={`/dashboard/leads/${leadId}`} onClick={(e) => e.stopPropagation()} style={{ fontSize: 11, color: "var(--red)", flexShrink: 0 }}>
+                          Open lead →
+                        </Link>
+                      </summary>
+                      <div style={{ borderTop: `1px solid ${L.border}` }}>
+                        {leadRows.map((send) => (
+                          <details key={send.id} style={{ borderBottom: `1px solid ${L.border}` }}>
+                            <summary style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", background: "#f1f5f9", color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{send.step}</span>
+                              <span style={{ fontWeight: 600, color: L.text }}>{send.subject}</span>
+                              <span style={{ marginLeft: "auto", fontSize: 11.5, color: L.dimmed, whiteSpace: "nowrap" }}>{formatDateTime(send.sent_at)}</span>
+                            </summary>
+                            <div
+                              style={{ padding: "14px 18px", borderTop: `1px solid ${L.border}`, background: "#fafafa", fontFamily: "Arial,Helvetica,sans-serif", fontSize: 14, color: L.text, lineHeight: 1.5 }}
+                              dangerouslySetInnerHTML={{ __html: send.body_html }}
+                            />
+                          </details>
+                        ))}
+                      </div>
+                    </details>
                   );
                 })}
-              </tbody>
-            </table>
-          )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
