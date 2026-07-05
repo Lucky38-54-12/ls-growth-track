@@ -23,6 +23,8 @@ export default function ClientDetailPage() {
   const [description, setDescription] = useState("");
   const [services, setServices] = useState("");
   const [serviceAreas, setServiceAreas] = useState("");
+  const [responseCommitment, setResponseCommitment] = useState("");
+  const [proofPoint, setProofPoint] = useState("");
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [rulesJson, setRulesJson] = useState("[]");
   const [saving, setSaving] = useState(false);
@@ -41,6 +43,8 @@ export default function ClientDetailPage() {
       .then((r) => r.json())
       .then(({ config }) => {
         setDescription(config.business_info?.description || "");
+        setResponseCommitment(config.business_info?.response_commitment || "");
+        setProofPoint(config.business_info?.proof_point || "");
         setServices((config.services || []).join(", "));
         setServiceAreas((config.service_areas || []).join(", "));
         setFaqs(config.faqs?.length ? config.faqs : [{ question: "", answer: "" }]);
@@ -69,7 +73,7 @@ export default function ClientDetailPage() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        business_info: { description },
+        business_info: { description, response_commitment: responseCommitment, proof_point: proofPoint },
         services: services.split(",").map((s) => s.trim()).filter(Boolean),
         service_areas: serviceAreas.split(",").map((s) => s.trim()).filter(Boolean),
         faqs: faqs.filter((f) => f.question.trim() || f.answer.trim()),
@@ -144,6 +148,26 @@ export default function ClientDetailPage() {
               value={serviceAreas}
               onChange={(e) => setServiceAreas(e.target.value)}
               placeholder="Auckland CBD, North Shore, West Auckland"
+              style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }}
+            />
+
+            <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, margin: "14px 0 6px" }}>
+              RESPONSE COMMITMENT (used to close the chat with urgency — be specific)
+            </p>
+            <input
+              value={responseCommitment}
+              onChange={(e) => setResponseCommitment(e.target.value)}
+              placeholder="e.g. within 30 minutes, or by end of day"
+              style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }}
+            />
+
+            <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, margin: "14px 0 6px" }}>
+              PROOF POINT (optional — a stat/result the AI can drop in naturally)
+            </p>
+            <input
+              value={proofPoint}
+              onChange={(e) => setProofPoint(e.target.value)}
+              placeholder="e.g. we've done 40+ deep cleans in Queenstown this year"
               style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }}
             />
 
