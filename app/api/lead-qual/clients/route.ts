@@ -5,7 +5,7 @@ export async function GET() {
   const sb = createSupabaseClient();
   const { data: clients, error } = await sb
     .from("lq_clients")
-    .select("*, lq_calendar_connections(google_account_email, connected_at)")
+    .select("*, lq_calendar_connections(google_account_email, connected_at), lq_channels(type, external_page_id)")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Topbar from "@/components/Topbar";
-import { CalendarCheck, Plus } from "lucide-react";
+import { CalendarCheck, Plus, MessageCircle } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -15,6 +15,7 @@ interface LqClient {
   phone: string | null;
   status: string;
   lq_calendar_connections: { google_account_email: string; connected_at: string }[] | null;
+  lq_channels: { type: string; external_page_id: string }[] | null;
 }
 
 export default function LeadQualPage() {
@@ -49,6 +50,7 @@ function LeadQualPageInner() {
 
   const oauthError = searchParams.get("error");
   const connectedId = searchParams.get("connected");
+  const fbError = searchParams.get("fbError");
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -82,6 +84,11 @@ function LeadQualPageInner() {
         {connectedId && (
           <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", padding: "10px 14px", fontSize: 13, borderRadius: 8 }}>
             Calendar connected successfully.
+          </div>
+        )}
+        {fbError && (
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: "10px 14px", fontSize: 13, borderRadius: 8 }}>
+            Couldn&apos;t connect Facebook Page: {fbError}
           </div>
         )}
 
@@ -132,12 +139,13 @@ function LeadQualPageInner() {
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, overflow: "hidden" }}>
             {clients.map((client) => {
               const connection = client.lq_calendar_connections?.[0];
+              const fbConnection = client.lq_channels?.find((c) => c.type === "messenger");
               return (
                 <div
                   key={client.id}
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "14px 16px", borderBottom: `1px solid ${L.border}`,
+                    padding: "14px 16px", borderBottom: `1px solid ${L.border}`, flexWrap: "wrap", gap: 8,
                   }}
                 >
                   <Link href={`/dashboard/lead-qual/${client.id}`} style={{ textDecoration: "none" }}>
@@ -146,23 +154,42 @@ function LeadQualPageInner() {
                       {client.trade || "No trade set"}{client.phone ? ` · ${client.phone}` : ""} · click to configure &amp; test
                     </p>
                   </Link>
-                  {connection ? (
-                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#15803d" }}>
-                      <CalendarCheck style={{ width: 14, height: 14 }} />
-                      Connected ({connection.google_account_email})
-                    </span>
-                  ) : (
-                    <a
-                      href={`/api/lead-qual/oauth/google?clientId=${client.id}`}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 6,
-                        fontSize: 12.5, fontWeight: 700, color: "var(--red)",
-                        border: "1px solid var(--red)", borderRadius: 8, padding: "6px 12px", textDecoration: "none",
-                      }}
-                    >
-                      Connect Calendar
-                    </a>
-                  )}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {fbConnection ? (
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#15803d" }}>
+                        <MessageCircle style={{ width: 14, height: 14 }} />
+                        Facebook connected
+                      </span>
+                    ) : (
+                      <a
+                        href={`/api/lead-qual/oauth/facebook?clientId=${client.id}`}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6,
+                          fontSize: 12.5, fontWeight: 700, color: "var(--red)",
+                          border: "1px solid var(--red)", borderRadius: 8, padding: "6px 12px", textDecoration: "none",
+                        }}
+                      >
+                        Connect Facebook Page
+                      </a>
+                    )}
+                    {connection ? (
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#15803d" }}>
+                        <CalendarCheck style={{ width: 14, height: 14 }} />
+                        Connected ({connection.google_account_email})
+                      </span>
+                    ) : (
+                      <a
+                        href={`/api/lead-qual/oauth/google?clientId=${client.id}`}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6,
+                          fontSize: 12.5, fontWeight: 700, color: "var(--red)",
+                          border: "1px solid var(--red)", borderRadius: 8, padding: "6px 12px", textDecoration: "none",
+                        }}
+                      >
+                        Connect Calendar
+                      </a>
+                    )}
+                  </div>
                 </div>
               );
             })}

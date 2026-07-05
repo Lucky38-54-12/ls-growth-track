@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Topbar from "@/components/Topbar";
 import { Send } from "lucide-react";
 
@@ -34,7 +34,50 @@ const OUTCOME_STYLE: Record<string, { bg: string; color: string; label: string }
 };
 
 export default function ClientDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <ClientDetailPageInner />
+    </Suspense>
+  );
+}
+
+function ClientDetailPageInner() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const fbPending = searchParams.get("fbPending");
+
+  const [fbPages, setFbPages] = useState<{ id: string; name: string }[]>([]);
+  const [fbConnecting, setFbConnecting] = useState(false);
+  const [fbError, setFbError] = useState<string | null>(null);
+  const [fbConnected, setFbConnected] = useState(false);
+
+  useEffect(() => {
+    if (!fbPending) return;
+    fetch(`/api/lead-qual/oauth/facebook/pending/${fbPending}`)
+      .then((r) => r.json())
+      .then((body) => {
+        if (body.pages) setFbPages(body.pages);
+        else setFbError(body.error || "Could not load Facebook Pages");
+      });
+  }, [fbPending]);
+
+  async function handleChoosePage(pageId: string) {
+    setFbConnecting(true);
+    setFbError(null);
+    const res = await fetch("/api/lead-qual/oauth/facebook/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pendingId: fbPending, clientId: id, pageId }),
+    });
+    const body = await res.json();
+    setFbConnecting(false);
+    if (!res.ok) {
+      setFbError(body.error);
+      return;
+    }
+    setFbPages([]);
+    setFbConnected(true);
+  }
 
   const [description, setDescription] = useState("");
   const [services, setServices] = useState("");
@@ -162,6 +205,36 @@ export default function ClientDetailPage() {
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
       <Topbar title="Client Config" subtitle="Edit business info + test the AI qualifier before going live" />
+
+      {fbPages.length > 0 && (
+        <div style={{ margin: "20px 28px 0", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
+            Which Facebook Page should send leads to this client?
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {fbPages.map((page) => (
+              <button
+                key={page.id}
+                onClick={() => handleChoosePage(page.id)}
+                disabled={fbConnecting}
+                style={{ background: "#fff", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                {page.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {fbError && (
+        <div style={{ margin: "20px 28px 0", background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: "10px 14px", fontSize: 13, borderRadius: 8 }}>
+          {fbError}
+        </div>
+      )}
+      {fbConnected && (
+        <div style={{ margin: "20px 28px 0", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", padding: "10px 14px", fontSize: 13, borderRadius: 8 }}>
+          Facebook Page connected — Messenger leads for this page will now flow into this client&apos;s AI qualifier.
+        </div>
+      )}
 
       <div style={{ padding: "20px 28px 60px", display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
         {/* Config editor */}

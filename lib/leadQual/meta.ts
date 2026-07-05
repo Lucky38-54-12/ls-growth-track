@@ -37,7 +37,23 @@ export async function resolveChannelByPageId(pageId: string): Promise<ResolvedCh
   };
 }
 
+// Subscribes this app to the Page's webhook fields via the Graph API —
+// this is the step that previously had to be clicked manually in the Meta
+// developer console ("Add Subscriptions") for every new client.
+async function subscribeWebhookForPage(pageId: string, pageAccessToken: string): Promise<void> {
+  const res = await fetch(
+    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins&access_token=${encodeURIComponent(pageAccessToken)}`,
+    { method: "POST" }
+  );
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Webhook subscription failed: ${res.status} ${body}`);
+  }
+}
+
 export async function connectMessengerPage(clientId: string, pageId: string, pageAccessToken: string): Promise<void> {
+  await subscribeWebhookForPage(pageId, pageAccessToken);
+
   const sb = createSupabaseClient();
   const { error } = await sb.from("lq_channels").upsert(
     {
