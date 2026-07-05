@@ -10,18 +10,53 @@ function realName(name: string | null | undefined): string {
   return trimmed && trimmed.toLowerCase() !== "there" ? trimmed : "";
 }
 
-// Models sometimes wrap JSON in ```json fences despite instructions not to —
-// strip those, then fall back to grabbing the first {...} block, before
-// giving up and letting the caller's catch handle a genuinely bad response.
+// The model reliably slips an em/en dash into cold outreach copy no matter
+// how the "no dashes" rule is worded — it's a stylistic habit that prompt
+// wording alone hasn't fixed after repeated attempts. Enforce it
+// deterministically instead of relying on compliance: convert dash-joined
+// clauses into comma-joined ones so the rule can never actually fail.
+function stripDashes(text: string): string {
+  return text
+    .replace(/\s*[—–]\s*/g, ", ")
+    .replace(/,\s*,/g, ",")
+    .replace(/,(\s*[.!?])/g, "$1");
+}
+
+// Models sometimes wrap JSON in ```json fences, or (despite explicit
+// instructions not to) write out a full reasoning narration before the JSON
+// object — try increasingly permissive extraction strategies before giving
+// up and letting the caller's catch handle a genuinely bad response.
 function parseJsonResponse<T>(text: string): T {
   const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  try {
-    return JSON.parse(stripped);
-  } catch {
-    const match = stripped.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-    throw new Error(`Could not parse AI response as JSON: ${text.slice(0, 200)}`);
+
+  const attempts = [
+    () => JSON.parse(stripped),
+    // Greedy first-{ to last-} — works when the JSON is the only braces present.
+    () => {
+      const m = stripped.match(/\{[\s\S]*\}/);
+      if (!m) throw new Error("no braces found");
+      return JSON.parse(m[0]);
+    },
+    // Last-{ to its matching last-} — works when narration before the JSON
+    // happens to contain stray braces the greedy match would over-capture.
+    () => {
+      const start = stripped.lastIndexOf("{");
+      const end = stripped.lastIndexOf("}");
+      if (start === -1 || end === -1 || end < start) throw new Error("no trailing object found");
+      return JSON.parse(stripped.slice(start, end + 1));
+    },
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      return attempt();
+    } catch {
+      continue;
+    }
   }
+
+  if (process.env.DEBUG_AI_PARSE) console.error("RAW AI RESPONSE:\n", text);
+  throw new Error(`Could not parse AI response as JSON: ${text.slice(0, 200)}`);
 }
 
 export interface PersonalizedEmailInput {
@@ -43,10 +78,14 @@ const SYSTEM_PROMPT = `You write cold outreach and follow-up emails for Lucky fr
 
 THE PITCH IN ONE SENTENCE: LS Growth gets trade businesses more booked jobs. Not leads — booked, paid jobs. That is the only outcome that matters in these emails.
 
-Key proof points (use exactly what's stated — never add a location, timeframe, or detail that isn't written here):
+Key proof points — use EXACTLY the sentence given, word for word, changing only how it connects to the rest of your sentence. Do not add a "before" state, a location, a timeframe, or any other flourish around it — this has been a repeated mistake, watch for it specifically:
+- GOOD: "Cooper Electrical got $80k in booked jobs within 2 months."
+- BAD: "Cooper Electrical went from quiet to $80k in booked jobs within 2 months" (invents a "before" state)
+- BAD: "Cooper Electrical, another Wellington business, got $80k..." (invents a location)
+- BAD: "Cooper Electrical got $80k in booked jobs within 2 months without adding stress to the owner" (invents a detail about how it happened)
 - This year alone LS Growth has generated over $300,000 worth of booked work for trade businesses across NZ
 - Queenstown Cleaning: 30 booked paying jobs in the first month at under $11 per lead
-- Cooper Electrical: $80k in booked jobs within 2 months (no location is specified for Cooper Electrical — never call them "another Wellington business" or attach any city/region to them, even if the lead you're writing to is in that city)
+- Cooper Electrical: $80k in booked jobs within 2 months (no location, no "before" state, no mechanism — just this number)
 
 CRITICAL — SELL THE OUTCOME, NOT THE PROCESS:
 - Never describe how LS Growth works. No "we built a system", no "automated SMS", no "AI voice call", no "30-second response", no "follow-up sequence", no "Meta ads", no "done-for-you system", no "lead gen system"
@@ -60,6 +99,7 @@ MAKE IT SPECIFIC TO THEIR ACTUAL BUSINESS:
 - Match the specificity level of what you were actually given — if the research only says something vague like "residential or commercial electrical project" or "fault-finding to new builds", do NOT upgrade that into a specific invented list like "switchboard upgrades, EV charger installs". Only name a specific job type if it is close to verbatim in the research. When in doubt, quote closer to the source rather than sounding more specific than you actually know
 - When using a proof point, pick the one that fits their trade closest. If no exact match, use the $300k figure which applies broadly
 - Never use generic phrases like "more work" or "more jobs" alone — name the type of job where you know it
+- If the personalization hook or research names one clear, concrete observation (e.g. "not active on Facebook like your competitors", "no website"), that specific observation IS the angle for this email — use it directly, don't soften it into something vaguer like "a gap between people finding you and jobs getting booked". A vague paraphrase of a specific fact defeats the purpose of having the fact
 
 SUBJECT LINE
 - Short, lowercase preferred, specific to this business or their problem
@@ -159,7 +199,7 @@ ${input.callNotes}`;
     throw new Error("AI response missing subject or body_html");
   }
 
-  return { subject: parsed.subject, bodyHtml: parsed.body_html };
+  return { subject: stripDashes(parsed.subject), bodyHtml: stripDashes(parsed.body_html) };
 }
 
 export interface CampaignStepEmailInput {
@@ -236,7 +276,7 @@ This email's purpose: ${STEP_GUIDANCE[input.step]}`;
   // specific claims (job types, coverage area) against reality and defensively
   // flags anything specific as possibly invented, rejecting emails that were
   // actually grounded in real website content.
-  return { subject: parsed.subject, bodyHtml: parsed.body_html, websiteSnippet };
+  return { subject: stripDashes(parsed.subject), bodyHtml: stripDashes(parsed.body_html), websiteSnippet };
 }
 
 export interface EmailQualityInput {
@@ -272,9 +312,9 @@ Check the email against every item below. Be strict: this email will go out with
 These proof points are fixed, real, company-wide facts — always legitimate to use even if they don't appear in this specific lead's notes/research, so never flag one of these as invented:
 - "This year alone LS Growth has generated over $300,000 worth of booked work for trade businesses across NZ"
 - Queenstown Cleaning: 30 booked paying jobs in the first month at under $11 per lead
-- Cooper Electrical: $80k in booked jobs within 2 months
+- Cooper Electrical: $80k in booked jobs within 2 months (no location or "before" state is part of this fact)
 "Trade business" in these proof points is used loosely to mean any local service business Lucky's leads run (cleaners, sparkies, builders, plumbers, etc.) — don't flag that wording as a category mismatch.
-Check 13 (nothing invented) is about facts specific to THIS lead's business — a made-up detail about them, their team, their location, something they supposedly said. It is NOT about the three proof points above, which are always fair game.
+Check 13 (nothing invented) is about facts specific to THIS lead's business — a made-up detail about them, their team, their location, something they supposedly said. It is NOT about the three proof points above, which are always fair game to cite — BUT if the email adds narrative flourish on top of a proof point that isn't part of the fixed fact (e.g. "Cooper Electrical went from quiet to $80k" — "quiet" is not part of the given fact, or attaching a city to Cooper Electrical), that added detail IS a check 13 fail, same as an invented detail about the lead's own business.
 
 MECHANICAL CHECKS (objective, no judgment call):
 1. No dash or em dash anywhere, in the subject or the body
@@ -293,16 +333,15 @@ JUDGMENT CHECKS (read it like the business owner would):
 12. Sounds like a person texting, not a brand — no corporate phrasing
 13. Nothing invented — no fact, name, or detail that isn't in the notes/research/website given below. This is the most important check: if the email confidently states something specific that wasn't given to you, that is always a judgment fail, no exceptions.
 
-Work through all 13 checks silently first. Then respond with ONLY a JSON object, no markdown fences, no other text:
-{"mechanical_fails": ["..."], "judgment_flags": ["..."], "reasoning": "one or two sentences on the overall call"}
+Your entire response must be a single JSON object and nothing else — no checklist walkthrough, no numbered notes, no "Let me work through this", no text before or after it. The first character of your response must be "{". Do all 13 checks in your head; none of that thinking appears in the output, only the final result:
+{"verdict": "approved" or "rejected", "mechanical_fails": ["..."], "judgment_flags": ["..."], "reasoning": "one or two sentences on the overall call"}
 
-mechanical_fails and judgment_flags are arrays of short strings — but ONLY for checks that GENUINELY FAIL. This is the single most important rule in this prompt: the caller treats ANY entry in either array as a reject, no matter what the text of that entry says. So:
-- A check that passes gets NO entry at all — not even a positive note. Do not write an entry just to say a check passes.
-- Never think out loud inside an array entry ("wait, re-checking...", "actually this passes", "let me re-evaluate"). If your own entry text concludes a check passes, that means the entry should not exist — delete it, don't include it.
-- Do all your back-and-forth reasoning before you write the JSON. The arrays are the final verdict on each check, not a transcript of how you got there.
-- Both arrays empty means approved. This should be the normal, common outcome for a well-written email — don't pad the arrays out of caution.
+"verdict" is the single source of truth — the caller uses ONLY this field to decide approved vs rejected, nothing else. Make your final decision on verdict deliberately, as the very last thing you decide, after all your thinking is done.
 
-Do not include a "verdict" field, the caller derives it from whether either array is non-empty.`;
+mechanical_fails and judgment_flags are supporting detail for a human glancing at a held email, not the decision itself:
+- Only include an entry for a check that actually fails. Don't add an entry just to note a check passed, and don't leave stray "wait, reconsidering" or "actually this passes" narration in an entry — if your own text ends up concluding a check passes, that check doesn't belong in the array at all, whether or not you also flip verdict for it.
+- It's possible (and fine) for both arrays to be empty while verdict is still "rejected" if the real issue doesn't cleanly map to one of the 13 numbered checks — reasoning should explain why in that case.
+- Both arrays empty and verdict "approved" should be the normal, common outcome for a well-written email — don't pad the arrays out of caution.`;
 
 export async function checkEmailQuality(input: EmailQualityInput): Promise<EmailQualityVerdict> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -344,22 +383,25 @@ ${input.bodyHtml}`;
   const block = msg.content[0];
   if (block.type !== "text") throw new Error("Unexpected response from AI");
 
-  const parsed = parseJsonResponse<{ mechanical_fails?: string[]; judgment_flags?: string[]; reasoning?: string }>(block.text);
+  const parsed = parseJsonResponse<{ verdict?: string; mechanical_fails?: string[]; judgment_flags?: string[]; reasoning?: string }>(block.text);
 
   // Despite explicit instructions, the model sometimes narrates its own
-  // back-and-forth inside an array entry and ends up concluding the check
-  // actually passes ("wait, re-checking... actually this passes") — but any
-  // non-empty entry still counts as a reject downstream, regardless of what
-  // its text says. Strip out entries that are self-negating before deriving
-  // the verdict, as a backstop for when the model still does this.
-  const isSelfNegating = (s: string) =>
-    /\b(actually (passes|fine|no issue)|this (actually )?passes|no issue(?: here)?[.,]?\s*$|disregard|false alarm|no issue, this passes)\b/i.test(s);
-
-  const mechanicalFails = (parsed.mechanical_fails || []).filter((s) => !isSelfNegating(s));
-  const judgmentFlags = (parsed.judgment_flags || []).filter((s) => !isSelfNegating(s));
+  // back-and-forth inside an array entry ("wait, re-checking... actually
+  // this passes") in ways too varied to reliably pattern-match — so the
+  // verdict is no longer derived from array emptiness at all. The model
+  // states verdict explicitly as its final, deliberate decision, and that's
+  // the only thing the caller trusts. If it's ever missing or malformed
+  // (old cached response, model slip), fall back to the array-emptiness
+  // heuristic rather than silently approving something.
+  const mechanicalFails = parsed.mechanical_fails || [];
+  const judgmentFlags = parsed.judgment_flags || [];
+  const verdict: "approved" | "rejected" =
+    parsed.verdict === "approved" || parsed.verdict === "rejected"
+      ? parsed.verdict
+      : mechanicalFails.length === 0 && judgmentFlags.length === 0 ? "approved" : "rejected";
 
   return {
-    verdict: mechanicalFails.length === 0 && judgmentFlags.length === 0 ? "approved" : "rejected",
+    verdict,
     mechanicalFails,
     judgmentFlags,
     reasoning: parsed.reasoning || "",
