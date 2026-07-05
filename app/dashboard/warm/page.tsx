@@ -20,8 +20,8 @@ export default async function EmailTrackingPage() {
 
   const [{ data: sends }, leads, { data: events }] = await Promise.all([
     sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
-    fetchAllRows<{ lead_id: string; company: string; contact_name: string; email: string; status: string }>(
-      (from, to) => sb.from("leads").select("lead_id,company,contact_name,email,status").range(from, to)
+    fetchAllRows<{ lead_id: string; company: string; contact_name: string; email: string; status: string; campaign_id: string | null }>(
+      (from, to) => sb.from("leads").select("lead_id,company,contact_name,email,status,campaign_id").range(from, to)
     ),
     sb.from("email_events").select("*"),
   ]);
@@ -38,16 +38,22 @@ export default async function EmailTrackingPage() {
     }
   }
 
-  const rows: SendRow[] = ((sends || []) as EmailSend[]).map((s) => {
-    const lead = leadById.get(s.lead_id);
-    return {
-      ...s,
-      company: lead?.company || "(deleted lead)",
-      contact_name: lead?.contact_name || "",
-      email: lead?.email || "",
-      status: lead?.status || "",
-    };
-  });
+  // Campaign emails (sent via Resend on outreach@lsgrowth.agency) have their
+  // own dedicated tracking page — this page is personal-Gmail/cold-call
+  // sends only, so leads that have been activated onto a campaign are
+  // excluded here rather than mixed in.
+  const rows: SendRow[] = ((sends || []) as EmailSend[])
+    .filter((s) => !leadById.get(s.lead_id)?.campaign_id)
+    .map((s) => {
+      const lead = leadById.get(s.lead_id);
+      return {
+        ...s,
+        company: lead?.company || "(deleted lead)",
+        contact_name: lead?.contact_name || "",
+        email: lead?.email || "",
+        status: lead?.status || "",
+      };
+    });
 
   const totalSent = rows.length;
   const totalOpened = rows.filter((r) => (engagement[r.lead_id]?.opens || 0) > 0).length;
@@ -56,7 +62,7 @@ export default async function EmailTrackingPage() {
 
   return (
     <div>
-      <Topbar title="EMAIL TRACKING" subtitle="Every email sent, and who's opening or clicking" />
+      <Topbar title="EMAIL TRACKING" subtitle="Personal Gmail / cold-call sends only — campaign emails are tracked separately" />
 
       <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
