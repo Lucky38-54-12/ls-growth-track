@@ -9,6 +9,9 @@ import Topbar from "@/components/Topbar";
 import MeetingReminderButton from "@/components/MeetingReminderButton";
 import RevenueGoalCard from "@/components/RevenueGoalCard";
 import DailyNotes from "@/components/DailyNotes";
+import CheckRepliesButton from "@/components/CheckRepliesButton";
+import FlashMessage from "@/app/dashboard/FlashMessage";
+import { Suspense } from "react";
 
 export const revalidate = 0;
 
@@ -83,18 +86,22 @@ export default async function TodayPage() {
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
 
+        <Suspense fallback={null}><FlashMessage /></Suspense>
+
         {/* Needs Attention — replies waiting for a human touchpoint + AI-held emails */}
         {needsAttentionCount === 0 ? (
           <div className="surface-card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 10, background: "#f0fdf4", borderColor: "#bbf7d0" }}>
             <MessageCircleHeart style={{ width: 15, height: 15, color: "#16a34a", flexShrink: 0 }} />
             <span style={{ fontSize: 12.5, fontWeight: 700, color: "#166534" }}>All caught up — no replies waiting and nothing held for review.</span>
+            <div style={{ marginLeft: "auto" }}><CheckRepliesButton /></div>
           </div>
         ) : (
           <div className="surface-card" style={{ overflow: "hidden", borderColor: "#fecdd3" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #fecdd3", background: "#fff1f2" }}>
               <ShieldAlert style={{ width: 15, height: 15, color: "#be123c" }} />
               <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#be123c" }}>Needs Your Attention</span>
-              <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "#be123c" }}>{needsAttentionCount}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#be123c" }}>{needsAttentionCount}</span>
+              <div style={{ marginLeft: "auto" }}><CheckRepliesButton /></div>
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {repliedLeads.map(lead => (
