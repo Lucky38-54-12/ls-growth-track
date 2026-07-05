@@ -1,5 +1,6 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { defaultRules } from "@/lib/leadQual/qualification";
+import { fetchWebsiteSnippet } from "@/lib/website";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -46,13 +47,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     .limit(1)
     .maybeSingle();
 
+  const businessInfo = { ...(body.business_info || {}) };
+  const websiteUrl = typeof businessInfo.website_url === "string" ? businessInfo.website_url.trim() : "";
+  if (websiteUrl) {
+    // Fetched once here at save time, not per AI turn — same pattern as the
+    // cold-email generator: cheap to store, expensive to re-fetch on every
+    // qualifying message.
+    businessInfo.website_content = await fetchWebsiteSnippet(websiteUrl).catch(() => "");
+  } else {
+    delete businessInfo.website_content;
+  }
+
   const { data, error } = await sb
     .from("lq_client_configs")
     .insert({
       client_id: id,
       version: (latest?.version || 0) + 1,
       status: "published",
-      business_info: body.business_info || {},
+      business_info: businessInfo,
       services: body.services || [],
       service_areas: body.service_areas || [],
       faqs: body.faqs || [],

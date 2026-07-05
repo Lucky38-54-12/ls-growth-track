@@ -8,6 +8,8 @@ export interface ClientConfigData {
   faqs: { question: string; answer: string }[];
   responseCommitment: string;
   proofPoint?: string;
+  websiteContent?: string;
+  extraContext?: string;
 }
 
 export interface QualifyingTurnResult {
@@ -42,6 +44,7 @@ ${config.proofPoint ? `Proof point you can mention if it fits naturally: ${confi
 
 Frequently asked questions you can answer directly:
 ${faqBlock}
+${config.websiteContent ? `\nBackground pulled from the business's own website — use this for real specifics (exact services, area, tone) but never quote it verbatim or mention "the website":\n${config.websiteContent}\n` : ""}${config.extraContext ? `\nAdditional context from the business owner:\n${config.extraContext}\n` : ""}
 
 YOUR JOB: have a warm, human, natural conversation with a lead who messaged in about a job — not an interrogation. Find out:
 - job_type: what kind of job/service they need

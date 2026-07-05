@@ -41,6 +41,8 @@ export default function ClientDetailPage() {
   const [serviceAreas, setServiceAreas] = useState("");
   const [responseCommitment, setResponseCommitment] = useState("");
   const [proofPoint, setProofPoint] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [extraContext, setExtraContext] = useState("");
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [rulesJson, setRulesJson] = useState("[]");
   const [saving, setSaving] = useState(false);
@@ -74,6 +76,8 @@ export default function ClientDetailPage() {
         setDescription(config.business_info?.description || "");
         setResponseCommitment(config.business_info?.response_commitment || "");
         setProofPoint(config.business_info?.proof_point || "");
+        setWebsiteUrl(config.business_info?.website_url || "");
+        setExtraContext(config.business_info?.extra_context || "");
         setServices((config.services || []).join(", "));
         setServiceAreas((config.service_areas || []).join(", "));
         setFaqs(config.faqs?.length ? config.faqs : [{ question: "", answer: "" }]);
@@ -103,7 +107,13 @@ export default function ClientDetailPage() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        business_info: { description, response_commitment: responseCommitment, proof_point: proofPoint },
+        business_info: {
+          description,
+          response_commitment: responseCommitment,
+          proof_point: proofPoint,
+          website_url: websiteUrl,
+          extra_context: extraContext,
+        },
         services: services.split(",").map((s) => s.trim()).filter(Boolean),
         service_areas: serviceAreas.split(",").map((s) => s.trim()).filter(Boolean),
         faqs: faqs.filter((f) => f.question.trim() || f.answer.trim()),
@@ -163,6 +173,27 @@ export default function ClientDetailPage() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="e.g. residential and commercial electrician based in Auckland"
               rows={2}
+              style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8, fontFamily: "inherit" }}
+            />
+
+            <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, margin: "14px 0 6px" }}>
+              WEBSITE URL (pulled in automatically as context for the AI)
+            </p>
+            <input
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              placeholder="https://theirbusiness.co.nz"
+              style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }}
+            />
+
+            <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, margin: "14px 0 6px" }}>
+              ADDITIONAL CONTEXT (anything else the AI should know — promos, policies, quirks)
+            </p>
+            <textarea
+              value={extraContext}
+              onChange={(e) => setExtraContext(e.target.value)}
+              placeholder="e.g. we don't do jobs under $200, currently booked out 2 weeks for anything outside Queenstown CBD"
+              rows={3}
               style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8, fontFamily: "inherit" }}
             />
 

@@ -42,6 +42,8 @@ async function loadClientConfig(clientId: string): Promise<{ config: ClientConfi
     faqs: (configRow?.faqs as { question: string; answer: string }[]) || [],
     responseCommitment: (businessInfo.response_commitment as string) || "shortly",
     proofPoint: businessInfo.proof_point as string | undefined,
+    websiteContent: businessInfo.website_content as string | undefined,
+    extraContext: businessInfo.extra_context as string | undefined,
   };
   const rules: Rule[] = (configRow?.qualification_rules as Rule[]) || defaultRules();
 
