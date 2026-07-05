@@ -293,10 +293,16 @@ JUDGMENT CHECKS (read it like the business owner would):
 12. Sounds like a person texting, not a brand — no corporate phrasing
 13. Nothing invented — no fact, name, or detail that isn't in the notes/research/website given below. This is the most important check: if the email confidently states something specific that wasn't given to you, that is always a judgment fail, no exceptions.
 
-Respond with ONLY a JSON object, no markdown fences, no other text:
+Work through all 13 checks silently first. Then respond with ONLY a JSON object, no markdown fences, no other text:
 {"mechanical_fails": ["..."], "judgment_flags": ["..."], "reasoning": "one or two sentences on the overall call"}
 
-mechanical_fails and judgment_flags are arrays of short strings naming exactly which numbered check failed and why, in your own words. Empty arrays if everything passes. Do not include a "verdict" field, the caller derives it from whether either array is non-empty.`;
+mechanical_fails and judgment_flags are arrays of short strings — but ONLY for checks that GENUINELY FAIL. This is the single most important rule in this prompt: the caller treats ANY entry in either array as a reject, no matter what the text of that entry says. So:
+- A check that passes gets NO entry at all — not even a positive note. Do not write an entry just to say a check passes.
+- Never think out loud inside an array entry ("wait, re-checking...", "actually this passes", "let me re-evaluate"). If your own entry text concludes a check passes, that means the entry should not exist — delete it, don't include it.
+- Do all your back-and-forth reasoning before you write the JSON. The arrays are the final verdict on each check, not a transcript of how you got there.
+- Both arrays empty means approved. This should be the normal, common outcome for a well-written email — don't pad the arrays out of caution.
+
+Do not include a "verdict" field, the caller derives it from whether either array is non-empty.`;
 
 export async function checkEmailQuality(input: EmailQualityInput): Promise<EmailQualityVerdict> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -340,8 +346,17 @@ ${input.bodyHtml}`;
 
   const parsed = parseJsonResponse<{ mechanical_fails?: string[]; judgment_flags?: string[]; reasoning?: string }>(block.text);
 
-  const mechanicalFails = parsed.mechanical_fails || [];
-  const judgmentFlags = parsed.judgment_flags || [];
+  // Despite explicit instructions, the model sometimes narrates its own
+  // back-and-forth inside an array entry and ends up concluding the check
+  // actually passes ("wait, re-checking... actually this passes") — but any
+  // non-empty entry still counts as a reject downstream, regardless of what
+  // its text says. Strip out entries that are self-negating before deriving
+  // the verdict, as a backstop for when the model still does this.
+  const isSelfNegating = (s: string) =>
+    /\b(actually (passes|fine|no issue)|this (actually )?passes|no issue(?: here)?[.,]?\s*$|disregard|false alarm|no issue, this passes)\b/i.test(s);
+
+  const mechanicalFails = (parsed.mechanical_fails || []).filter((s) => !isSelfNegating(s));
+  const judgmentFlags = (parsed.judgment_flags || []).filter((s) => !isSelfNegating(s));
 
   return {
     verdict: mechanicalFails.length === 0 && judgmentFlags.length === 0 ? "approved" : "rejected",
