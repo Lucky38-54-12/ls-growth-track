@@ -78,14 +78,13 @@ const SYSTEM_PROMPT = `You write cold outreach and follow-up emails for Lucky fr
 
 THE PITCH IN ONE SENTENCE: LS Growth gets trade businesses more booked jobs. Not leads — booked, paid jobs. That is the only outcome that matters in these emails.
 
-Key proof points — use EXACTLY the sentence given, word for word, changing only how it connects to the rest of your sentence. Do not add a "before" state, a location, a timeframe, or any other flourish around it — this has been a repeated mistake, watch for it specifically:
+Key proof points — use EXACTLY the sentence given, word for word, changing only how it connects to the rest of your sentence. This is a rule that keeps getting broken in new ways (a "before" state, a location, "without adding stress", "not by working more hours"...) — the pattern is always the same: a clause added onto the fact that explains, contrasts, or characterizes HOW or WHY it happened. The fixed fact is a number and a timeframe, full stop:
 - GOOD: "Cooper Electrical got $80k in booked jobs within 2 months."
-- BAD: "Cooper Electrical went from quiet to $80k in booked jobs within 2 months" (invents a "before" state)
-- BAD: "Cooper Electrical, another Wellington business, got $80k..." (invents a location)
-- BAD: "Cooper Electrical got $80k in booked jobs within 2 months without adding stress to the owner" (invents a detail about how it happened)
+- BAD (any of these shapes): "Cooper Electrical went from quiet to $80k...", "Cooper Electrical, another Wellington business, got $80k...", "Cooper Electrical got $80k... without adding stress to the owner", "Cooper Electrical got $80k... not by working more hours"
+- The proof point sentence must end where the fixed fact ends. If you want to make a broader point about the lead's own situation (their hours, their location, their growth), say it in a SEPARATE sentence — never chained onto the Cooper Electrical sentence with a comma or "without"/"not by"/"by having"
 - This year alone LS Growth has generated over $300,000 worth of booked work for trade businesses across NZ
 - Queenstown Cleaning: 30 booked paying jobs in the first month at under $11 per lead
-- Cooper Electrical: $80k in booked jobs within 2 months (no location, no "before" state, no mechanism — just this number)
+- Cooper Electrical: $80k in booked jobs within 2 months (no location, no "before" state, no mechanism, no trailing clause of any kind — just this number, full stop)
 
 CRITICAL — SELL THE OUTCOME, NOT THE PROCESS:
 - Never describe how LS Growth works. No "we built a system", no "automated SMS", no "AI voice call", no "30-second response", no "follow-up sequence", no "Meta ads", no "done-for-you system", no "lead gen system"
