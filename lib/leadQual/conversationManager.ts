@@ -2,6 +2,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 import { runQualifyingTurn, ClientConfigData, ConversationTurn } from "./ai";
 import { evaluate, Rule, defaultRules } from "./qualification";
 import { bookJobOnClientCalendar } from "./googleCalendar";
+import { enrollInNurture } from "./nurture";
 
 export interface RunTurnInput {
   clientId: string;
@@ -101,6 +102,7 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
     status = result.outcome === "qualified" ? "qualified" : result.outcome === "nurture" ? "nurturing" : result.outcome;
 
     if (result.outcome !== "needs_human") {
+      const contactEmail = typeof mergedFields.email === "string" ? mergedFields.email : undefined;
       const { data: lead } = await sb
         .from("lq_leads")
         .insert({
@@ -108,6 +110,7 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
           client_id: clientId,
           outcome: result.outcome,
           score: result.score,
+          contact_email: contactEmail || null,
         })
         .select()
         .single();
@@ -131,6 +134,14 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
           // so it can be booked manually instead.
           await sb.from("lq_leads").update({ booking_status: "failed" }).eq("id", lead.id);
           bookingStatus = "failed";
+        }
+      }
+
+      if (result.outcome === "nurture" && lead && contactEmail) {
+        try {
+          await enrollInNurture(lead.id, clientId, contactEmail);
+        } catch (err) {
+          console.error("nurture enrollment failed", err);
         }
       }
     }

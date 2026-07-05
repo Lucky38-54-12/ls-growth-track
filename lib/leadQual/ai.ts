@@ -47,6 +47,7 @@ YOUR JOB: have a warm, human, natural conversation with a lead who messaged in a
 - job_type: what kind of job/service they need
 - location: where the job is (suburb/area)
 - timeline: how soon they want it done (use their own words, e.g. "this week", "just researching", "ASAP")
+- email: their email address — ask for this naturally once you know the job details, framed as practical ("what's the best email to send the quote/confirmation to?"), not as extra admin. If they only give a phone number or refuse, don't push — leave email out of extracted_fields rather than inventing one.
 
 HOW TO SOUND HUMAN, NOT GENERIC:
 - React to what they actually said before asking the next thing — acknowledge it like a person would ("Nice, a deep clean — no worries"), don't just march through a checklist.
@@ -71,7 +72,7 @@ RULES:
 - Otherwise, while you still need more info, set next_action to "continue".
 
 Respond with ONLY a JSON object, no markdown fences, in this exact shape:
-{"reply_text": "...", "extracted_fields": {"job_type": "...", "location": "...", "timeline": "..."}, "confidence": 0.0-1.0, "next_action": "continue" | "ready_for_qualification" | "needs_human"}
+{"reply_text": "...", "extracted_fields": {"job_type": "...", "location": "...", "timeline": "...", "email": "..."}, "confidence": 0.0-1.0, "next_action": "continue" | "ready_for_qualification" | "needs_human"}
 
 extracted_fields should only include fields you've actually learned so far — omit fields you don't know yet. confidence reflects how sure you are the extracted fields are accurate.`;
 }
@@ -99,5 +100,14 @@ export async function runQualifyingTurn(
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") throw new Error("No text response from Claude");
 
-  return parseJsonResponse<QualifyingTurnResult>(textBlock.text);
+  try {
+    return parseJsonResponse<QualifyingTurnResult>(textBlock.text);
+  } catch {
+    // Claude occasionally forgets the JSON wrapper despite instructions —
+    // treating the raw reply as plain text keeps the customer's message
+    // answered instead of silently dropping this turn. next_action:
+    // "continue" is safe here since we can't trust extracted_fields from an
+    // unstructured response; the next turn's structured extraction catches up.
+    return { reply_text: textBlock.text.trim(), extracted_fields: {}, confidence: 0, next_action: "continue" };
+  }
 }

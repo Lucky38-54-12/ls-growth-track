@@ -37,10 +37,14 @@ function passes(rule: Rule, extracted: Record<string, unknown>): boolean {
       return value !== undefined && value !== null && String(value).trim() !== "";
     case "equals":
       return ruleValue(value) === ruleValue(rule.value);
+    // Substring match, not exact equality — these fields come from an LLM's
+    // freeform paraphrase of what the lead said (e.g. "just researching" one
+    // turn, "just researching for now" the next), so exact-match silently
+    // stops catching it the moment the wording drifts even slightly.
     case "one_of":
-      return rule.values.some((v) => ruleValue(v) === ruleValue(value));
+      return rule.values.some((v) => ruleValue(value).includes(ruleValue(v)));
     case "not_one_of":
-      return !rule.values.some((v) => ruleValue(v) === ruleValue(value));
+      return !rule.values.some((v) => ruleValue(value).includes(ruleValue(v)));
     case "numeric_min": {
       const n = Number(value);
       return !Number.isNaN(n) && n >= rule.min;

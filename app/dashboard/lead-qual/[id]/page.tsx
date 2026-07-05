@@ -17,6 +17,22 @@ interface ChatMessage {
   content: string;
 }
 
+interface Lead {
+  id: string;
+  outcome: string;
+  score: number | null;
+  booking_status: string | null;
+  contact_email: string | null;
+  created_at: string;
+  lq_conversations: { extracted_fields: Record<string, unknown> } | null;
+}
+
+const OUTCOME_STYLE: Record<string, { bg: string; color: string; label: string }> = {
+  qualified: { bg: "#f0fdf4", color: "#15803d", label: "Interested — qualified" },
+  nurture: { bg: "#fffbeb", color: "#b45309", label: "Interested — not ready yet" },
+  disqualified: { bg: "#fef2f2", color: "#b91c1c", label: "Not interested" },
+};
+
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
 
@@ -38,6 +54,19 @@ export default function ClientDetailPage() {
   const [lastResult, setLastResult] = useState<{ status: string; outcome?: string; bookingStatus?: string; extractedFields: Record<string, unknown> } | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(true);
+
+  function loadLeads() {
+    setLeadsLoading(true);
+    fetch(`/api/lead-qual/clients/${id}/leads`)
+      .then((r) => r.json())
+      .then(({ leads }) => {
+        setLeads(leads || []);
+        setLeadsLoading(false);
+      });
+  }
+
   useEffect(() => {
     fetch(`/api/lead-qual/clients/${id}/config`)
       .then((r) => r.json())
@@ -51,6 +80,7 @@ export default function ClientDetailPage() {
         setRulesJson(JSON.stringify(config.qualification_rules || [], null, 2));
         setLoading(false);
       });
+    loadLeads();
   }, [id]);
 
   useEffect(() => {
@@ -108,6 +138,7 @@ export default function ClientDetailPage() {
     setConversationId(body.conversationId);
     setMessages((m) => [...m, { role: "assistant", content: body.reply }]);
     setLastResult({ status: body.status, outcome: body.outcome, bookingStatus: body.bookingStatus, extractedFields: body.extractedFields });
+    if (body.outcome) loadLeads();
   }
 
   function resetChat() {
@@ -269,6 +300,40 @@ export default function ClientDetailPage() {
             </div>
           )}
         </div>
+      </div>
+
+      <div style={{ padding: "0 28px 60px" }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: L.text, marginBottom: 10 }}>Leads</h2>
+        {leadsLoading ? (
+          <p style={{ fontSize: 13, color: L.dimmed }}>Loading…</p>
+        ) : leads.length === 0 ? (
+          <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 24, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
+            No leads yet — they'll show up here as conversations get qualified.
+          </div>
+        ) : (
+          <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, overflow: "hidden" }}>
+            {leads.map((lead) => {
+              const style = OUTCOME_STYLE[lead.outcome] || { bg: "#f1f5f9", color: L.muted, label: lead.outcome };
+              const fields = lead.lq_conversations?.extracted_fields || {};
+              return (
+                <div key={lead.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${L.border}`, gap: 12, flexWrap: "wrap" }}>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: L.text }}>
+                      {String(fields.job_type || "Job type unknown")} — {String(fields.location || "location unknown")}
+                    </p>
+                    <p style={{ fontSize: 11.5, color: L.muted }}>
+                      {lead.contact_email || "no email captured"} · {new Date(lead.created_at).toLocaleString()}
+                      {lead.outcome === "qualified" && lead.booking_status && ` · booking: ${lead.booking_status}`}
+                    </p>
+                  </div>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: style.color, background: style.bg, padding: "4px 10px", borderRadius: 20, flexShrink: 0 }}>
+                    {style.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
