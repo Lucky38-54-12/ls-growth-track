@@ -339,6 +339,8 @@ Your entire response must be a single JSON object and nothing else — no checkl
 
 mechanical_fails and judgment_flags are supporting detail for a human glancing at a held email, not the decision itself:
 - Only include an entry for a check that actually fails. Don't add an entry just to note a check passed, and don't leave stray "wait, reconsidering" or "actually this passes" narration in an entry — if your own text ends up concluding a check passes, that check doesn't belong in the array at all, whether or not you also flip verdict for it.
+- An entry is a single flat sentence stating what failed and the exact text that failed it — never a transcript of you deciding. Banned in entry text, no exceptions: "wait", "actually", "re-checking", "re-reading", "let me", "hold on", "so this passes", "this passes" — if you notice yourself about to write any of those words, that means the check passed: stop, do not add an entry, do not describe the hesitation.
+- Good entry: "Check 1: em dash in subject line ('more jobs — without more admin')." Bad entry (never do this): "Check 1: em dash used... wait, re-checking, actually that's just a hyphen, so this passes."
 - It's possible (and fine) for both arrays to be empty while verdict is still "rejected" if the real issue doesn't cleanly map to one of the 13 numbered checks — reasoning should explain why in that case.
 - Both arrays empty and verdict "approved" should be the normal, common outcome for a well-written email — don't pad the arrays out of caution.`;
 
@@ -375,6 +377,7 @@ ${input.bodyHtml}`;
   const msg = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
+    temperature: 0,
     system,
     messages: [{ role: "user", content: userPrompt }],
   });
