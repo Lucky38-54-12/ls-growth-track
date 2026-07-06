@@ -96,7 +96,7 @@ function LeadQualPageInner() {
           <input
             type="text"
             required
-            placeholder="Client name"
+            placeholder="Business name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             style={{ flex: "1 1 160px", padding: "8px 12px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }}
