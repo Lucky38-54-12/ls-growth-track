@@ -91,6 +91,8 @@ function ClientDetailPageInner() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [autofilling, setAutofilling] = useState(false);
+  const [autofillError, setAutofillError] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -168,6 +170,27 @@ function ClientDetailPageInner() {
     setSaving(false);
   }
 
+  // Drafts description/services/service_areas/faqs/extra_context from the
+  // client's connected Facebook Page and drops them into the form fields for
+  // review — nothing is saved until the human clicks "Save config" below.
+  async function handleAutofill() {
+    setAutofilling(true);
+    setAutofillError(null);
+    const res = await fetch(`/api/lead-qual/clients/${id}/autofill`, { method: "POST" });
+    const body = await res.json();
+    setAutofilling(false);
+    if (!res.ok) {
+      setAutofillError(body.error);
+      return;
+    }
+    const draft = body.draft;
+    setDescription(draft.description || "");
+    setServices((draft.services || []).join(", "));
+    setServiceAreas((draft.service_areas || []).join(", "));
+    setFaqs(draft.faqs?.length ? draft.faqs : [{ question: "", answer: "" }]);
+    setExtraContext(draft.extra_context || "");
+  }
+
   async function handleSendChat(e: React.FormEvent) {
     e.preventDefault();
     if (!chatInput.trim() || chatBusy) return;
@@ -240,6 +263,22 @@ function ClientDetailPageInner() {
         {/* Config editor */}
         <div style={{ flex: "1 1 380px", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <p style={{ fontSize: 12.5, color: L.muted }}>
+                No website? Draft this from their connected Facebook Page instead.
+              </p>
+              <button
+                onClick={handleAutofill}
+                disabled={autofilling}
+                style={{
+                  flexShrink: 0, background: autofilling ? L.dimmed : "var(--red)", color: "#fff", border: "none",
+                  padding: "7px 14px", fontSize: 12.5, fontWeight: 700, borderRadius: 8, cursor: autofilling ? "default" : "pointer",
+                }}
+              >
+                {autofilling ? "Drafting…" : "Autofill from Facebook"}
+              </button>
+            </div>
+            {autofillError && <p style={{ color: "#b91c1c", fontSize: 12.5, marginBottom: 14 }}>{autofillError}</p>}
             <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, marginBottom: 6 }}>BUSINESS DESCRIPTION</p>
             <textarea
               value={description}
