@@ -218,6 +218,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
         contactName: parsed.contact_name,
         notes: [callNotes, existingLeadNotes].filter(Boolean).join("\n---\n"),
         requireCtaPlaceholder: false,
+        meetingAlreadyBooked: parsed.call_type === "MEETING_BOOKED",
       });
       const sb = createSupabaseClient();
       await sb.from("email_checks").insert({

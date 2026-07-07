@@ -3,8 +3,9 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { coldEmailDraft } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
-import { Lead } from "@/lib/types";
+import { Lead, EmailCheck } from "@/lib/types";
 import Link from "next/link";
+import { ShieldAlert } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -37,6 +38,7 @@ export default function ColdCallPage() {
   const [quality, setQuality] = useState<{ verdict: "approved" | "rejected"; mechanicalFails: string[]; judgmentFlags: string[]; reasoning: string } | null>(null);
 
   const [recentlyEmailed, setRecentlyEmailed] = useState<Lead[]>([]);
+  const [heldChecks, setHeldChecks] = useState<EmailCheck[]>([]);
 
   useEffect(() => {
     fetch("/api/leads")
@@ -48,6 +50,10 @@ export default function ColdCallPage() {
           .sort((a, b) => (b.last_followup || "").localeCompare(a.last_followup || ""));
         setRecentlyEmailed(emailed);
       })
+      .catch(() => {});
+    fetch("/api/cold-call/held")
+      .then(res => res.json())
+      .then((data: EmailCheck[]) => { if (Array.isArray(data)) setHeldChecks(data); })
       .catch(() => {});
   }, []);
 
@@ -171,6 +177,31 @@ export default function ColdCallPage() {
   return (
     <div>
       <Topbar title="COLD CALL" subtitle="Paste your notes, generate a follow-up email, and send it now" />
+
+      {heldChecks.length > 0 && (
+        <div style={{ maxWidth: 1080, margin: "24px auto 0", padding: "0 28px" }}>
+          <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: "1px solid #fecdd3" }}>
+              <ShieldAlert style={{ width: 15, height: 15, color: "#be123c" }} />
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#be123c" }}>Held for review</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#be123c" }}>{heldChecks.length}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {heldChecks.map(check => (
+                <div key={check.id} style={{ padding: "12px 18px", borderBottom: "1px solid #fecdd3" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{check.lead_id.replace(/^cold-call-/, "").replace(/-/g, " ")}</div>
+                  <div style={{ fontSize: 11.5, color: "#9f1239", marginTop: 2 }}>
+                    {check.mechanical_fails?.[0] || check.judgment_flags?.[0] || check.reasoning || "Flagged by AI check"}
+                  </div>
+                  <div style={{ fontSize: 11, color: L.muted, marginTop: 4 }}>
+                    Paste the same call notes above and generate again — the fix is already in the generator.
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
         <div>

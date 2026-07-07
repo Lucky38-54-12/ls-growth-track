@@ -292,6 +292,15 @@ export interface EmailQualityInput {
   // link, booking page, or nothing for a "not ready yet" email) — so that
   // check doesn't apply there.
   requireCtaPlaceholder?: boolean;
+  // A MEETING_BOOKED cold-call follow-up (see STEP 3 case A in
+  // app/api/generate-email/route.ts) has a fixed structure with no CTA at
+  // all — the meeting is already booked, so the email just confirms the
+  // [MEETING LINK] (in its own paragraph, not last) and closes with a fixed
+  // logistics line ("Shouldn't take more than 20-30 minutes..."). Checks 3
+  // and 6 as written assume every email ends with CTA-then-closing, which
+  // doesn't apply here and was flagging every meeting-confirmation email as
+  // held for a structure problem that isn't actually one.
+  meetingAlreadyBooked?: boolean;
 }
 
 export interface EmailQualityVerdict {
@@ -318,11 +327,11 @@ Check 13 (nothing invented) is about facts specific to THIS lead's business — 
 MECHANICAL CHECKS (objective, no judgment call):
 1. No dash or em dash anywhere, in the subject or the body
 2. The first <p> in the body is a greeting only: "Hey [Name]," if a real name was given, otherwise "Hi," — never "Hey there,"
-3. The LAST <p> (before the sign-off) is a one-sentence closing line, e.g. "Looking forward to hearing from you." — the second-to-last <p> is the CTA line (check 6), and the closing line always comes after it
+3. {{STRUCTURE_CHECK}}
 4. Contains none of: "hope this finds you well", "just checking in", "touching base", "circling back", "I wanted to reach out", "I'd love to connect", "don't hesitate to reach out"
 5. Contains none of: "automated SMS", "AI voice call", "30-second response", "follow-up sequence", "Meta ads", "done-for-you system", "our system", "our platform", "our process", "we built"
 6. {{CTA_CHECK}}
-7. Length in range: initial email 4-6 sentences, follow-ups 2-4 sentences
+7. {{LENGTH_CHECK}}
 
 JUDGMENT CHECKS (read it like the business owner would):
 8. Opening paragraph is about THEM, not "I" or Lucky
@@ -350,10 +359,18 @@ export async function checkEmailQuality(input: EmailQualityInput): Promise<Email
 
   const client = new Anthropic({ apiKey });
 
-  const ctaCheck = input.requireCtaPlaceholder === false
+  const ctaCheck = input.meetingAlreadyBooked
+    ? "Not applicable — a meeting is already booked for this lead, so there is no separate call to action. Never fail this check for a missing CTA link on a meeting-confirmation email."
+    : input.requireCtaPlaceholder === false
     ? "The second-to-last <p> is a real call to action (a real link or a clear next step), not a passive close"
     : "The second-to-last <p> is a real call to action containing {{CTA_LINK}}, not a passive close";
-  const system = QUALITY_CHECK_SYSTEM_PROMPT.replace("{{CTA_CHECK}}", ctaCheck);
+  const structureCheck = input.meetingAlreadyBooked
+    ? `A meeting is already booked, so there is no CTA to sequence. Instead: somewhere in the body there is a paragraph containing exactly "[MEETING LINK]" and nothing else, and the fixed logistics line (e.g. "Shouldn't take more than 20-30 minutes. If anything comes up and you need to shift the time, just flick me a text.") appears once the body is otherwise done. It's fine, and common, for one short natural closing line (e.g. "Looking forward to our chat.") to come immediately after that logistics line as the true LAST <p> — that's not a structure failure, just a warmer close. Only fail this check if something substantive (a new topic, another CTA, an unrelated paragraph) comes after the logistics line, not for a one-line closing.`
+    : `The LAST <p> (before the sign-off) is a one-sentence closing line, e.g. "Looking forward to hearing from you." — the second-to-last <p> is the CTA line (check 6), and the closing line always comes after it`;
+  const lengthCheck = input.meetingAlreadyBooked
+    ? `Not applicable — this is a fixed-format meeting confirmation (greeting, meeting time + link, one paragraph on their specific situation, then the fixed logistics line), not a length-flexible follow-up. Never fail this check for a meeting-confirmation email's length.`
+    : "Length in range: initial email 4-6 sentences, follow-ups 2-4 sentences";
+  const system = QUALITY_CHECK_SYSTEM_PROMPT.replace("{{CTA_CHECK}}", ctaCheck).replace("{{STRUCTURE_CHECK}}", structureCheck).replace("{{LENGTH_CHECK}}", lengthCheck);
 
   const knownInfo = [
     realName(input.contactName) ? `- Contact name given: ${realName(input.contactName)}` : "- No contact name was given",

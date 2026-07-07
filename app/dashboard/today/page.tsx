@@ -34,7 +34,9 @@ export default async function TodayPage() {
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
     sb.from("revenue_clients").select("*").order("added_at", { ascending: false }),
     sb.from("revenue_goal").select("*").eq("id", 1).maybeSingle(),
-    sb.from("email_checks").select("*").eq("verdict", "rejected").eq("sent", false).order("created_at", { ascending: false }).limit(20),
+    // cold_call_followup holds live on the Cold Call page instead (that's
+    // where they're generated and reviewed), not in this global panel.
+    sb.from("email_checks").select("*").eq("verdict", "rejected").eq("sent", false).neq("step", "cold_call_followup").order("created_at", { ascending: false }).limit(20),
   ]);
 
   const allLeads = leads;
