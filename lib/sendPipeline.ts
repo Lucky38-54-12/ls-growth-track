@@ -119,7 +119,12 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   });
   if (check.verdict === "rejected") return { sent: false, held: true };
 
-  await sendPersonalizedEmail(lead, subject, bodyHtml, step);
+  // Appended after the quality check (same pattern as the cold-call path in
+  // app/api/generate-email/route.ts) so the AI-written email is judged on its
+  // own content, and every send still links back to the main site alongside
+  // the booking CTA rather than only ever showing the internal app domain.
+  const websiteLinkBlock = `<p>You can see more on how it works here: <a href="https://lsgrowth.agency">lsgrowth.agency</a></p>`;
+  await sendPersonalizedEmail(lead, subject, bodyHtml + websiteLinkBlock, step);
 
   const today = new Date().toISOString().split("T")[0];
   const update: Record<string, unknown> = { status: STEP_NEW_STATUS[step] };
