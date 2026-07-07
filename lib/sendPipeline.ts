@@ -1,7 +1,7 @@
 import { createSupabaseClient } from "./supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "./leads";
 import { sendPersonalizedEmail } from "./email";
-import { generateCampaignStepEmail, generatePersonalizationHook, checkEmailQuality } from "./ai";
+import { generateCampaignStepEmail, reviseCampaignStepEmail, generatePersonalizationHook, checkEmailQuality } from "./ai";
 import { Lead } from "./types";
 
 type SupabaseClient = ReturnType<typeof createSupabaseClient>;
@@ -49,7 +49,8 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     .select("subject")
     .eq("lead_id", lead.lead_id)
     .order("sent_at", { ascending: true });
-  const { subject, bodyHtml, websiteSnippet } = await generateCampaignStepEmail({
+
+  const generatorInput = {
     company: lead.company,
     contactName: lead.contact_name,
     trade: lead.trade,
@@ -59,7 +60,34 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     personalizationHook: lead.personalization_hook,
     step,
     priorSubjects: (priorSends || []).map((s) => s.subject as string),
-  });
+  };
+
+  // If the last attempt at this exact step was held by the quality checker,
+  // feed that draft and the exact rejection reasons back in so the retry
+  // fixes the actual problem instead of blindly re-rolling with no better
+  // odds than the first try.
+  const { data: lastCheck } = await sb
+    .from("email_checks")
+    .select("*")
+    .eq("lead_id", lead.lead_id)
+    .eq("step", step)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { subject, bodyHtml, websiteSnippet } =
+    lastCheck && lastCheck.verdict === "rejected" && !lastCheck.sent
+      ? await reviseCampaignStepEmail({
+          ...generatorInput,
+          priorSubject: lastCheck.subject,
+          priorBodyHtml: lastCheck.body_html,
+          rejection: {
+            mechanicalFails: lastCheck.mechanical_fails || [],
+            judgmentFlags: lastCheck.judgment_flags || [],
+            reasoning: lastCheck.reasoning || "",
+          },
+        })
+      : await generateCampaignStepEmail(generatorInput);
 
   // AI-generated emails go out with nobody reading them first, so every one
   // gets checked against the rulebook before it sends. A rejected email is

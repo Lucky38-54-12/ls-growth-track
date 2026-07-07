@@ -278,6 +278,73 @@ This email's purpose: ${STEP_GUIDANCE[input.step]}`;
   return { subject: stripDashes(parsed.subject), bodyHtml: stripDashes(parsed.body_html), websiteSnippet };
 }
 
+export interface ReviseCampaignStepEmailInput extends CampaignStepEmailInput {
+  priorSubject: string;
+  priorBodyHtml: string;
+  rejection: { mechanicalFails: string[]; judgmentFlags: string[]; reasoning: string };
+}
+
+// Used when a lead's last attempt at this step was held by the quality
+// checker — feeds the exact rejected draft and the exact reasons back in, so
+// the model fixes the specific problem instead of a blind reroll that has no
+// better odds than the first attempt.
+export async function reviseCampaignStepEmail(input: ReviseCampaignStepEmailInput): Promise<PersonalizedEmail & { websiteSnippet: string }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+
+  const client = new Anthropic({ apiKey });
+
+  const websiteSnippet = input.website?.trim() ? await fetchWebsiteSnippet(input.website.trim()) : "";
+
+  const hasRealInfo = !!(input.notes?.trim() || input.personalizationHook?.trim() || websiteSnippet);
+  const knownInfoBlock = hasRealInfo
+    ? `\nWhat's actually known about this business (use this to make the email specific and prove you looked them up — don't just repeat it verbatim):
+${input.personalizationHook?.trim() ? `- ${input.personalizationHook.trim()}\n` : ""}${input.notes?.trim() ? `- Notes: ${input.notes.trim()}\n` : ""}${websiteSnippet ? `- Real text scraped from their website:\n${websiteSnippet}\n` : input.website?.trim() ? `- Website: ${input.website.trim()} (could not fetch content — do not guess what's on it)\n` : ""}
+Only name specific job types (e.g. "switchboard upgrades", "heat pump installs") if they're actually confirmed above, in the notes, or the scraped website text. If the trade's specific services aren't confirmed anywhere, describe their work in general trade terms instead (e.g. "the jobs you do", "your workload") rather than inventing a plausible-sounding list — an invented service is an automatic reject.`
+    : `\nNothing specific is known about this business yet beyond their company name, trade, and location.`;
+
+  const rejectionBlock = [
+    input.rejection.mechanicalFails.length ? `Mechanical fails:\n${input.rejection.mechanicalFails.map((f) => `- ${f}`).join("\n")}` : "",
+    input.rejection.judgmentFlags.length ? `Judgment flags:\n${input.rejection.judgmentFlags.map((f) => `- ${f}`).join("\n")}` : "",
+    input.rejection.reasoning ? `Reasoning: ${input.rejection.reasoning}` : "",
+  ].filter(Boolean).join("\n\n");
+
+  const userPrompt = `Business: ${input.company}
+Contact name: ${realName(input.contactName) || "unknown"}
+Trade: ${input.trade || "unknown"}
+Location: ${input.location || "unknown"}
+${knownInfoBlock}
+
+This email's purpose: ${STEP_GUIDANCE[input.step]}
+
+This exact email was already generated and rejected by the quality checker. Fix ONLY the specific problems listed below — keep everything else about the email (angle, structure, proof point, length) the same wherever it isn't part of the problem. Do not rewrite from scratch unless the fails genuinely require it.
+
+Rejected subject: ${input.priorSubject}
+Rejected body:
+${input.priorBodyHtml}
+
+Why it was rejected:
+${rejectionBlock}`;
+
+  const msg = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+
+  const block = msg.content[0];
+  if (block.type !== "text") throw new Error("Unexpected response from AI");
+
+  const parsed = parseJsonResponse<{ subject?: string; body_html?: string }>(block.text);
+
+  if (!parsed.subject || !parsed.body_html) {
+    throw new Error("AI response missing subject or body_html");
+  }
+
+  return { subject: stripDashes(parsed.subject), bodyHtml: stripDashes(parsed.body_html), websiteSnippet };
+}
+
 export interface EmailQualityInput {
   subject: string;
   bodyHtml: string;
