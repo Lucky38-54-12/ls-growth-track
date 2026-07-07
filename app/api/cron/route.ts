@@ -14,17 +14,21 @@ export async function GET(req: NextRequest) {
   const leads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to));
 
   const today = new Date().toISOString().split("T")[0];
-  let sent = 0, failed = 0, held = 0;
+  let sent = 0, held = 0;
+  const errors: { lead_id: string; message: string }[] = [];
 
   for (const lead of leads) {
     try {
       const result = await sendNextStepFor(lead, sb);
       if (result.sent) sent++;
       else if (result.held) held++;
-    } catch {
-      failed++;
+    } catch (err) {
+      errors.push({
+        lead_id: lead.lead_id,
+        message: err instanceof Error ? err.message : "unknown error",
+      });
     }
   }
 
-  return NextResponse.json({ sent, failed, held, date: today });
+  return NextResponse.json({ sent, failed: errors.length, held, errors, date: today });
 }
