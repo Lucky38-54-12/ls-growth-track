@@ -596,3 +596,93 @@ Meeting time: ${input.meetingTime}`;
 
   return { subject: parsed.subject, bodyHtml: parsed.bodyHtml };
 }
+
+export interface MeetingTouchpointInput {
+  company: string;
+  contactName: string;
+  meetingTime: string;
+}
+
+async function runMeetingEmailPrompt(systemPrompt: string, userPrompt: string): Promise<PersonalizedEmail> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+
+  const client = new Anthropic({ apiKey });
+
+  const msg = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+
+  const block = msg.content[0];
+  if (block.type !== "text") throw new Error("Unexpected response from AI");
+
+  const jsonMatch = block.text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error(`Could not find JSON in AI response: ${block.text.slice(0, 200)}`);
+
+  let parsed: { subject?: string; bodyHtml?: string };
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch {
+    throw new Error(`Could not parse AI response as JSON: ${block.text.slice(0, 200)}`);
+  }
+
+  if (!parsed.subject || !parsed.bodyHtml) {
+    throw new Error("AI response missing subject or bodyHtml");
+  }
+
+  return { subject: parsed.subject, bodyHtml: parsed.bodyHtml };
+}
+
+const VALUE_TOUCHPOINT_SYSTEM_PROMPT = `You are writing a short "value" touchpoint email on behalf of Lucky from LS Growth Agency, which runs Meta ad campaigns for trade businesses (cleaners, builders, plumbers, etc) to generate leads.
+
+This lead has ALREADY booked a call with Lucky for later this week. This email is NOT a reminder about the call logistics, it's sent a few days beforehand purely to stay top of mind and give them one genuinely useful, specific tip about generating or converting leads for their trade, so the call doesn't feel like the first contact in a week.
+
+Write a short, casual email:
+- Address them by name at the start (e.g. "Hey Mike,")
+- Give ONE concrete, specific, useful tip related to getting more leads or booking more jobs (e.g. speed to lead, follow-up cadence, review requests, seasonal demand), make it feel like genuine advice, not a pitch
+- Briefly mention the upcoming call ahead of time (day/time), so they're reminded it's coming, but keep this to one line
+- No invented case studies, stats, or client names
+- 2-3 short paragraphs max
+- No dashes or em dashes anywhere
+- No sign-off (added separately)
+- HTML: only <p> and <a> tags, nothing else
+
+Also write a short subject line (4-7 words) that's about the tip, not "reminder" or "upcoming call".
+
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"subject": "...", "bodyHtml": "..."}`;
+
+export async function generateValueTouchpointEmail(input: MeetingTouchpointInput): Promise<PersonalizedEmail> {
+  const userPrompt = `Company: ${input.company}
+Contact name: ${realName(input.contactName) || "unknown"}
+Meeting time: ${input.meetingTime}`;
+  return runMeetingEmailPrompt(VALUE_TOUCHPOINT_SYSTEM_PROMPT, userPrompt);
+}
+
+const MEETING_DAY_REMINDER_SYSTEM_PROMPT = `You are writing a short "meeting today" reminder email on behalf of Lucky from LS Growth Agency, which runs Meta ad campaigns for trade businesses (cleaners, builders, plumbers, etc) to generate leads.
+
+This lead has a call booked with Lucky for later today. Write a short, casual reminder email, sent this morning:
+- Address them by name at the start (e.g. "Hey Mike,")
+- Remind them the call is today and confirm the time
+- Include a paragraph containing exactly "[MEETING LINK]" and nothing else, on its own line with no other text
+- One light line about what the call covers (their lead flow, how LS Growth works)
+- Offer to shift the time by text if something's come up
+- 2-3 short paragraphs max
+- No dashes or em dashes anywhere
+- No sign-off (added separately)
+- HTML: only <p> and <a> tags, nothing else
+
+Also write a short subject line (4-7 words) referencing today's call.
+
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"subject": "...", "bodyHtml": "..."}`;
+
+export async function generateMeetingDayReminderEmail(input: MeetingTouchpointInput): Promise<PersonalizedEmail> {
+  const userPrompt = `Company: ${input.company}
+Contact name: ${realName(input.contactName) || "unknown"}
+Meeting time: ${input.meetingTime}`;
+  return runMeetingEmailPrompt(MEETING_DAY_REMINDER_SYSTEM_PROMPT, userPrompt);
+}

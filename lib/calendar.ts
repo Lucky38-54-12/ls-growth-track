@@ -215,16 +215,22 @@ export function fillMeetingLink(bodyHtml: string, hangoutLink: string): string {
     .replace(/\{\{MEETING_LINK\}\}/g, "");
 }
 
+// Whole calendar days between today and startISO (in timeZone), e.g. 0 for
+// today, 7 for a week out. Negative once the meeting has passed.
+export function daysUntilMeeting(startISO: string, timeZone = "Pacific/Auckland"): number {
+  const start = new Date(startISO);
+  const now = new Date();
+  const dateKeyFmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+  const startDay = new Date(dateKeyFmt.format(start));
+  const today = new Date(dateKeyFmt.format(now));
+  return Math.round((startDay.getTime() - today.getTime()) / 86400000);
+}
+
 // Describes a meeting time relative to today, e.g. "today at 3:30pm",
 // "tomorrow at 10am", "Wednesday at 3:30pm".
 export function describeMeetingTime(startISO: string, timeZone = "Pacific/Auckland"): string {
   const start = new Date(startISO);
-  const now = new Date();
-
-  const dateKeyFmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
-  const startDay = new Date(dateKeyFmt.format(start));
-  const today = new Date(dateKeyFmt.format(now));
-  const dayDiff = Math.round((startDay.getTime() - today.getTime()) / 86400000);
+  const dayDiff = daysUntilMeeting(startISO, timeZone);
 
   let dayLabel: string;
   if (dayDiff === 0) dayLabel = "today";
