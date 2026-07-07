@@ -1,6 +1,7 @@
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { Lead, Campaign, EmailSend, EmailEvent, EmailCheck, EngagementSummary } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
+import { stillHeld } from "@/lib/leads";
 import Topbar from "@/components/Topbar";
 import Link from "next/link";
 
@@ -50,7 +51,7 @@ export default async function CampaignTrackingPage() {
   ]);
 
   const checks = (allChecks || []).filter((c: EmailCheck) => leadIds.has(c.lead_id));
-  const heldChecks = checks.filter((c) => c.verdict === "rejected");
+  const heldChecks = stillHeld(checks.filter((c) => c.verdict === "rejected"), sends || []);
 
   const engagement: Record<string, EngagementSummary> = {};
   for (const ev of (events || []) as EmailEvent[]) {

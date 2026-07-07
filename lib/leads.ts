@@ -181,6 +181,20 @@ export function pickNextRegion(existingLeads: { trade: string; location: string 
   return best;
 }
 
+// A rejected email_checks row is never deleted, and the pipeline retries
+// automatically on its next run (see sendPipeline.ts) — so a lead that got
+// rejected a few times before an eventual approved send still has all those
+// old rejections sitting in the table. Without this filter, every dashboard
+// "Needs Your Attention" / "Held For Review" view would keep showing a lead
+// as held forever, even after it was successfully emailed for that step.
+export function stillHeld<C extends { lead_id: string; step: string }>(
+  checks: C[],
+  sends: { lead_id: string; step: string }[]
+): C[] {
+  const sentStepKeys = new Set(sends.map((s) => `${s.lead_id}::${s.step}`));
+  return checks.filter((c) => !sentStepKeys.has(`${c.lead_id}::${c.step}`));
+}
+
 export function groupBySegment(items: { trade: string; location: string }[]): Segment[] {
   const map = new Map<string, Segment>();
   for (const item of items) {

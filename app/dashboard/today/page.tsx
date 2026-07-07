@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Calendar, Video, ArrowUpRight, MessageCircleHeart, Inbox, ShieldAlert } from "lucide-react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calendar";
-import { nextStepFor } from "@/lib/leads";
+import { nextStepFor, stillHeld } from "@/lib/leads";
 import { formatDateTime } from "@/lib/format";
 import { Lead, EmailEvent, EmailSend, RevenueClient, RevenueGoal, EmailCheck } from "@/lib/types";
 import Topbar from "@/components/Topbar";
@@ -42,7 +42,7 @@ export default async function TodayPage() {
   const allEvents = (events || []) as EmailEvent[];
   const allRevenueClients = (revenueClients || []) as RevenueClient[];
   const monthlyGoal = Number((revenueGoal as RevenueGoal | null)?.monthly_goal ?? 3000);
-  const heldEmails = (heldChecks || []) as EmailCheck[];
+  const heldEmails = stillHeld((heldChecks || []) as EmailCheck[], allSends);
 
   // Next 7 days of calendar events, for the calendar overview panel.
   let upcomingEvents: CalendarEvent[] = [];

@@ -1,11 +1,11 @@
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { Lead, EmailEvent, EngagementSummary, Campaign, EmailCheck } from "@/lib/types";
+import { Lead, EmailEvent, EmailSend, EngagementSummary, Campaign, EmailCheck } from "@/lib/types";
 import Topbar from "@/components/Topbar";
 import ActivateCampaignButton from "@/components/ActivateCampaignButton";
 import CampaignPreviewButton from "@/components/CampaignPreviewButton";
 import SendButton from "@/components/SendButton";
 import { SegmentSection } from "@/components/LeadTable";
-import { nextStepFor } from "@/lib/leads";
+import { nextStepFor, stillHeld } from "@/lib/leads";
 import { notFound } from "next/navigation";
 import { AlertTriangle, CheckCircle } from "lucide-react";
 
@@ -31,10 +31,11 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
   );
   const memberIds = memberLinks.map((m) => m.lead_id);
 
-  const [{ data: leads }, { data: events }, { data: checks }] = await Promise.all([
+  const [{ data: leads }, { data: events }, { data: checks }, { data: sends }] = await Promise.all([
     memberIds.length ? sb.from("leads").select("*").in("lead_id", memberIds) : Promise.resolve({ data: [] as Lead[] }),
     sb.from("email_events").select("*"),
     memberIds.length ? sb.from("email_checks").select("*").in("lead_id", memberIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] as EmailCheck[] }),
+    memberIds.length ? sb.from("email_sends").select("*").in("lead_id", memberIds) : Promise.resolve({ data: [] as EmailSend[] }),
   ]);
 
   const members = (leads || []) as Lead[];
@@ -43,11 +44,12 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
 
   // --- AI check health for this campaign only ---
   const allChecks = (checks || []) as EmailCheck[];
-  const heldForReview = allChecks.filter((c) => c.verdict === "rejected").slice(0, 30);
+  const allSends = (sends || []) as EmailSend[];
+  const heldForReview = stillHeld(allChecks.filter((c) => c.verdict === "rejected"), allSends).slice(0, 30);
   const lastCheckAt = allChecks[0]?.created_at || null;
   const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
   const checksToday = allChecks.filter((c) => new Date(c.created_at) >= startOfToday);
-  const heldToday = checksToday.filter((c) => c.verdict === "rejected").length;
+  const heldToday = stillHeld(checksToday.filter((c) => c.verdict === "rejected"), allSends).length;
   const approvedToday = checksToday.filter((c) => c.verdict === "approved").length;
   const hoursSinceLastCheck = lastCheckAt ? (Date.now() - new Date(lastCheckAt).getTime()) / 3_600_000 : null;
   const gateStale = hoursSinceLastCheck !== null && hoursSinceLastCheck > 36;

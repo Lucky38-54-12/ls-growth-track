@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { fetchWebsiteSnippet } from "@/lib/website";
-import { checkEmailQuality } from "@/lib/ai";
+import { checkEmailQuality, stripDashes } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -192,8 +192,14 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       return NextResponse.json({ error: "Unexpected response shape." }, { status: 502 });
     }
 
+    // The model reliably slips an em/en dash into this copy no matter how the
+    // "no dashes" rule is worded in the prompt above (same issue documented in
+    // lib/ai.ts) — strip deterministically rather than relying on compliance.
+    const subject = stripDashes(parsed.subject);
+    const bodyHtml = stripDashes(parsed.bodyHtml);
+
     const caseStudyBlock = `<p>If you want to see some case studies, here's a link to our website:</p><p><a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>`;
-    const finalBodyHtml = parsed.bodyHtml + caseStudyBlock;
+    const finalBodyHtml = bodyHtml + caseStudyBlock;
 
     // Same quality gate as the automated campaign sends — this path is
     // already human-reviewed (Lucky sees the preview before clicking Save &
@@ -206,8 +212,8 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     let quality: { verdict: "approved" | "rejected"; mechanicalFails: string[]; judgmentFlags: string[]; reasoning: string } | null = null;
     try {
       quality = await checkEmailQuality({
-        subject: parsed.subject,
-        bodyHtml: parsed.bodyHtml,
+        subject,
+        bodyHtml,
         step: "cold_call_followup",
         contactName: parsed.contact_name,
         notes: [callNotes, existingLeadNotes].filter(Boolean).join("\n---\n"),
@@ -217,7 +223,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       await sb.from("email_checks").insert({
         lead_id: existingLeadId || `cold-call-${(parsed.company || parsed.email || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
         step: "cold_call_followup",
-        subject: parsed.subject,
+        subject,
         body_html: finalBodyHtml,
         verdict: quality.verdict,
         mechanical_fails: quality.mechanicalFails,
@@ -237,7 +243,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       trade: parsed.trade || "",
       location: parsed.location || "",
       meetingDateTime: parsed.meeting_datetime || "",
-      subject: parsed.subject,
+      subject,
       bodyHtml: finalBodyHtml,
       quality,
     });

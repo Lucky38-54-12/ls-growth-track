@@ -15,7 +15,7 @@ function realName(name: string | null | undefined): string {
 // wording alone hasn't fixed after repeated attempts. Enforce it
 // deterministically instead of relying on compliance: convert dash-joined
 // clauses into comma-joined ones so the rule can never actually fail.
-function stripDashes(text: string): string {
+export function stripDashes(text: string): string {
   return text
     .replace(/\s*[—–]\s*/g, ", ")
     .replace(/,\s*,/g, ",")

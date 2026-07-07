@@ -1,6 +1,7 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { searchInboxByFrom, fetchMessageDetail } from "@/lib/gmail";
 import { Lead } from "@/lib/types";
+import { stripDashes } from "@/lib/ai";
 
 export async function generateCallFollowupEmail(
   lead: Lead,
@@ -94,5 +95,8 @@ Respond ONLY with valid JSON, no markdown:
   if (!match) return null;
 
   const parsed = JSON.parse(match[0]);
-  return { subject: parsed.subject || "", bodyHtml: parsed.bodyHtml || "" };
+  // Same em/en dash habit documented in lib/ai.ts — prompt wording alone
+  // doesn't reliably stop it, so strip deterministically before this ever
+  // reaches a send.
+  return { subject: stripDashes(parsed.subject || ""), bodyHtml: stripDashes(parsed.bodyHtml || "") };
 }
