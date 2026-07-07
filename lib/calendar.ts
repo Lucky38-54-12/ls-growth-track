@@ -199,6 +199,18 @@ export async function listTodaysEvents(timeZone = "Pacific/Auckland"): Promise<C
   return listCalendarEvents(startISO, endISO);
 }
 
+const MEETING_LINK_PATTERN = /https?:\/\/[^\s"'<>]*?(meet\.google\.com|zoom\.us|calendly\.com)[^\s"'<>]*/i;
+const TIME_OF_DAY_PATTERN = /\b\d{1,2}(:\d{2})?\s*(am|pm)\b/i;
+
+// True if a piece of email copy both links to a meeting (Meet/Zoom/Calendly)
+// and mentions a time of day, i.e. it reads as confirming an actual booked
+// call rather than just floating the idea of one. Used to auto-flip a lead's
+// status to booked when a manual reply from the inbox confirms a meeting,
+// since that path has no explicit "book" action like the Cold Call page does.
+export function detectsMeetingBooking(text: string): boolean {
+  return MEETING_LINK_PATTERN.test(text) && TIME_OF_DAY_PATTERN.test(text);
+}
+
 // Fills in a Meet link wherever an email body references it, supporting both
 // the AI-generated "[MEETING LINK]" placeholder (own paragraph, becomes a link
 // or is removed if there's no link) and the manually-typed "{{MEETING_LINK}}"

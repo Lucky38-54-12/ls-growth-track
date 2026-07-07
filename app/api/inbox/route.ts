@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchMailbox, fetchMessageDetail, archiveMessage, trashMessage, markAsUnread, SPECIAL_FOLDERS, MailAccount } from "@/lib/gmail";
 import { sendFreeformEmail } from "@/lib/email";
+import { detectsMeetingBooking } from "@/lib/calendar";
+import { createSupabaseClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +43,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing to, subject, or body" }, { status: 400 });
     }
     await sendFreeformEmail(to, subject, body, inReplyTo, references, parseAccount(account));
+
+    // A reply that both links to a meeting and mentions a time almost
+    // certainly just confirmed a booked call — flip the lead's status so it
+    // shows up as booked without relying on Lucky to remember to do it
+    // manually (the Cold Call and calendar-sync paths already do this).
+    if (detectsMeetingBooking(body)) {
+      const sb = createSupabaseClient();
+      const { data: lead } = await sb.from("leads").select("lead_id, source, status, date_contacted").eq("email", to.toLowerCase()).maybeSingle();
+      if (lead && lead.status !== "booked" && lead.status !== "meeting_booked") {
+        const today = new Date().toISOString().split("T")[0];
+        await sb.from("leads").update({
+          status: lead.source === "cold_call" ? "meeting_booked" : "booked",
+          date_contacted: lead.date_contacted || today,
+        }).eq("lead_id", lead.lead_id);
+      }
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Send failed" }, { status: 500 });
