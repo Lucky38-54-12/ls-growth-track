@@ -124,9 +124,10 @@ BODY
 - Reference their specific situation: trade, location, what they said on the call
 - Use a real proof point with numbers — specific beats vague every time
 - Write like a person, not a sales tool
+- body_html has exactly this many <p> tags, no more: greeting, opening, proof point/body (1-2 paragraphs), closing. There is no CTA paragraph — do not write a sentence anywhere proposing a call, a chat, "15 minutes", booking, or asking if they're interested. The pitch paragraph ends on the proof point or the outcome, full stop, then the very next <p> is the closing line
 
 CLOSING (MANDATORY — the LAST <p> in body_html, before the signature)
-- One short, natural closing line — nothing else in that paragraph. This is the last thing you write.
+- One short, natural closing line — nothing else in that paragraph. This is the last thing you write, and the paragraph immediately before it is the proof point/pitch, never a CTA.
 - Match the tone: for initial and follow-up emails use "Looking forward to hearing from you." or "Happy to jump on a call whenever works." For breakup emails use "Wishing you all the best either way." Never use "Hope to hear from you soon" or "Don't hesitate to reach out"
 - The signature (Cheers, Lucky, LS Growth) is added separately — do NOT include it in body_html
 - Do NOT write a call-to-action sentence, a booking link, {{CTA_LINK}}, or a link to the main website yourself — a fixed block with a case-studies link and a booking link is appended automatically right after your closing line, so writing your own duplicates it
@@ -151,6 +152,7 @@ NEVER USE
 - Any mention of the process: automated SMS, AI voice call, 30-second response, follow-up sequence, Meta ads, done-for-you system
 - Skipping the greeting — every email MUST open with "Hey [Name]," or "Hi,"
 - Skipping the closing line — every email MUST end with a one-sentence close before the signature is added
+- Writing your own call-to-action sentence anywhere ("worth a call", "15 minutes", "let's chat", "interested?") — there is no CTA paragraph in body_html, the closing line follows directly after the pitch/proof point
 
 Signs off as: Lucky, LS Growth
 
