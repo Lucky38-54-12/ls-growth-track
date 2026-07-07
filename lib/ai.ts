@@ -209,6 +209,13 @@ export interface CampaignStepEmailInput {
   personalizationHook?: string | null;
   step: "initial" | "followup1" | "followup2" | "followup3" | "followup4" | "checkin";
   priorSubjects: string[];
+  learnings?: string | null;
+}
+
+function learningsBlock(learnings: string | null | undefined): string {
+  return learnings?.trim()
+    ? `\n\nGuidance from past send performance (real opens/clicks/replies on previous emails) — apply where it genuinely fits this business, don't force it in:\n${learnings.trim()}`
+    : "";
 }
 
 const STEP_GUIDANCE: Record<CampaignStepEmailInput["step"], string> = {
@@ -250,7 +257,7 @@ Location: ${input.location || "unknown"}
 ${knownInfoBlock}
 ${priorSubjectsBlock}
 
-This email's purpose: ${STEP_GUIDANCE[input.step]}`;
+This email's purpose: ${STEP_GUIDANCE[input.step]}${learningsBlock(input.learnings)}`;
 
   const msg = await client.messages.create({
     model: "claude-sonnet-4-6",
@@ -313,7 +320,7 @@ Trade: ${input.trade || "unknown"}
 Location: ${input.location || "unknown"}
 ${knownInfoBlock}
 
-This email's purpose: ${STEP_GUIDANCE[input.step]}
+This email's purpose: ${STEP_GUIDANCE[input.step]}${learningsBlock(input.learnings)}
 
 This exact email was already generated and rejected by the quality checker. Fix ONLY the specific problems listed below — keep everything else about the email (angle, structure, proof point, length) the same wherever it isn't part of the problem. Do not rewrite from scratch unless the fails genuinely require it.
 

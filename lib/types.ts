@@ -78,6 +78,7 @@ export interface EmailEvent {
   id: number;
   lead_id: string;
   event_type: "open" | "click";
+  step: string | null;
   url: string | null;
   user_agent: string | null;
   ip: string | null;

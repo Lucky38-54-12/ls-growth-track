@@ -55,9 +55,13 @@ async function sendBulkMail(opts: { to: string; subject: string; html: string; t
   if (error) throw new Error(error.message);
 }
 
-function buildLinks(leadId: string) {
-  const pixel = `<img src="${APP_URL}/api/open?id=${encodeURIComponent(leadId)}" width="1" height="1" alt="" style="display:block;border:0" />`;
-  const ctaLink = `${APP_URL}/api/click?id=${encodeURIComponent(leadId)}&url=${encodeURIComponent(BOOKING_URL)}`;
+// step is threaded into both tracking URLs so an open/click can be joined
+// back to the exact email_sends row (lead_id, step) it came from, not just
+// the lead as a whole — see generateEmailLearnings in lib/emailLearning.ts.
+function buildLinks(leadId: string, step: string) {
+  const stepParam = `&step=${encodeURIComponent(step)}`;
+  const pixel = `<img src="${APP_URL}/api/open?id=${encodeURIComponent(leadId)}${stepParam}" width="1" height="1" alt="" style="display:block;border:0" />`;
+  const ctaLink = `${APP_URL}/api/click?id=${encodeURIComponent(leadId)}${stepParam}&url=${encodeURIComponent(BOOKING_URL)}`;
   return { pixel, ctaLink };
 }
 
@@ -65,10 +69,10 @@ function buildLinks(leadId: string) {
 // URLs instead of the {{CTA_LINK}} placeholder, so those clicks never hit
 // /api/click and never get logged. Rewrite every link to go through the
 // tracker, preserving the real destination as a query param.
-function wrapLinksForTracking(html: string, leadId: string): string {
+function wrapLinksForTracking(html: string, leadId: string, step: string): string {
   return html.replace(/href="(https?:\/\/[^"]+)"/g, (match, url: string) => {
     if (url.includes("/api/click")) return match;
-    return `href="${APP_URL}/api/click?id=${encodeURIComponent(leadId)}&url=${encodeURIComponent(url)}"`;
+    return `href="${APP_URL}/api/click?id=${encodeURIComponent(leadId)}&step=${encodeURIComponent(step)}&url=${encodeURIComponent(url)}"`;
   });
 }
 
@@ -80,7 +84,7 @@ async function logSend(leadId: string, step: string, subject: string, bodyHtml: 
 }
 
 export async function sendOutreachEmail(lead: Lead, step: Exclude<EmailStep, "checkin">) {
-  const { pixel, ctaLink } = buildLinks(lead.lead_id);
+  const { pixel, ctaLink } = buildLinks(lead.lead_id, step);
   const { subject, html, text } = renderTemplate(step, {
     company: lead.company,
     contact_name: lead.contact_name || "there",
@@ -137,8 +141,8 @@ ${bodyHtml}
 }
 
 export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string, step: string = "custom") {
-  const { pixel, ctaLink } = buildLinks(lead.lead_id);
-  const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id);
+  const { pixel, ctaLink } = buildLinks(lead.lead_id, step);
+  const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
   <p>Cheers,<br>Lucky<br>LS Growth</p>

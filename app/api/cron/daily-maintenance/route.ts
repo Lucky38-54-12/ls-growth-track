@@ -4,6 +4,7 @@ import { checkForReplies } from "@/lib/campaignReplies";
 import { syncAllTrackedSheets } from "@/lib/sheetSync";
 import { getHealthSnapshot } from "@/lib/leads";
 import { syncCalendarBookings, sendMeetingTouchpoints } from "@/lib/calendarSync";
+import { generateEmailLearnings } from "@/lib/emailLearning";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,12 @@ export async function GET(req: NextRequest) {
     results.health = await getHealthSnapshot(sb);
   } catch (e) {
     results.health = { error: e instanceof Error ? e.message : "health check failed" };
+  }
+
+  try {
+    results.emailLearnings = await generateEmailLearnings(sb);
+  } catch (e) {
+    results.emailLearnings = { error: e instanceof Error ? e.message : "email learning failed" };
   }
 
   return NextResponse.json(results);

@@ -61,6 +61,13 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
     .order("sent_at", { ascending: false })
     .limit(200);
 
+  const { data: latestLearnings } = await sb
+    .from("email_learnings")
+    .select("guidance, based_on_sends, generated_at")
+    .order("generated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   const leadById = new Map(leads.map((l) => [l.lead_id, l]));
   const campaignById = new Map(campaigns.map((c) => [c.id, c]));
   const countByStep = new Map(counts);
@@ -76,6 +83,15 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
       <Topbar title="AUTOMATIONS" subtitle="Every fully-automated email currently firing on its own — no human clicks send" />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {latestLearnings && (
+          <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "14px 16px" }}>
+            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 8 }}>
+              What's Working — learned from {latestLearnings.based_on_sends} sent emails, updated {new Date(latestLearnings.generated_at).toLocaleDateString()}
+            </p>
+            <p style={{ fontSize: 13, color: L.text, whiteSpace: "pre-line", lineHeight: 1.6 }}>{latestLearnings.guidance}</p>
+          </div>
+        )}
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
           {[
             { label: "Meeting Confirmation", step: "meeting_confirmation" },

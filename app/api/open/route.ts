@@ -31,13 +31,14 @@ function isBot(ua: string | null): boolean {
 
 export async function GET(req: NextRequest) {
   const leadId = req.nextUrl.searchParams.get("id");
+  const step = req.nextUrl.searchParams.get("step");
   if (leadId) {
     const userAgent = req.headers.get("user-agent");
     if (!isBot(userAgent)) {
       try {
         const sb = createSupabaseClient();
         const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
-        await sb.from("email_events").insert({ lead_id: leadId, event_type: "open", user_agent: userAgent, ip });
+        await sb.from("email_events").insert({ lead_id: leadId, event_type: "open", step, user_agent: userAgent, ip });
       } catch {}
     }
   }

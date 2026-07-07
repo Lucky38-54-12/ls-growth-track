@@ -50,6 +50,16 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     .eq("lead_id", lead.lead_id)
     .order("sent_at", { ascending: true });
 
+  // Most recent synthesized "what's working" guidance from generateEmailLearnings
+  // (lib/emailLearning.ts) — regenerated daily from real open/click/reply data,
+  // so every generation call adapts as performance data comes in.
+  const { data: latestLearnings } = await sb
+    .from("email_learnings")
+    .select("guidance")
+    .order("generated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   const generatorInput = {
     company: lead.company,
     contactName: lead.contact_name,
@@ -60,6 +70,7 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     personalizationHook: lead.personalization_hook,
     step,
     priorSubjects: (priorSends || []).map((s) => s.subject as string),
+    learnings: latestLearnings?.guidance,
   };
 
   // If the last attempt at this exact step was held by the quality checker,
