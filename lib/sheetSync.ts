@@ -189,3 +189,46 @@ export async function syncLeadsFromSheet(opts: {
     detectedLocation: location || undefined,
   };
 }
+
+export interface TrackedSheetSyncResult {
+  sheetId: string;
+  error?: string;
+  [key: string]: unknown;
+}
+
+// Shared by the daily cron route and the on-demand Slack "resync" action so
+// the two never drift out of sync with each other again (same rationale as
+// sendNextStepFor in sendPipeline.ts).
+export async function syncAllTrackedSheets(
+  sb: ReturnType<typeof createSupabaseClient>
+): Promise<TrackedSheetSyncResult[]> {
+  const { data: sheets, error } = await sb.from("tracked_sheets").select("*").eq("active", true);
+  if (error) throw new Error(error.message);
+
+  const results: TrackedSheetSyncResult[] = [];
+  for (const sheet of sheets || []) {
+    try {
+      const result = await syncLeadsFromSheet({
+        sheetId: sheet.sheet_id,
+        tradeDefault: sheet.trade_default || "",
+        locationDefault: sheet.location_default || "",
+        personalize: sheet.personalize,
+        sendFresh: sheet.send_fresh,
+      });
+      await sb.from("tracked_sheets").update({
+        last_synced_at: new Date().toISOString(),
+        last_result: `Imported ${result.imported}, sent ${result.personalizedSent + result.freshSent}`,
+      }).eq("id", sheet.id);
+      results.push({ sheetId: sheet.sheet_id, ...result });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Sync failed";
+      await sb.from("tracked_sheets").update({
+        last_synced_at: new Date().toISOString(),
+        last_result: `Error: ${message}`,
+      }).eq("id", sheet.id);
+      results.push({ sheetId: sheet.sheet_id, error: message });
+    }
+  }
+
+  return results;
+}

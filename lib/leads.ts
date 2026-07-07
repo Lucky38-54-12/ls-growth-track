@@ -1,4 +1,5 @@
-import { Lead, LeadStatus } from "./types";
+import { Lead, LeadStatus, EmailCheck, EmailSend, TrackedSheet } from "./types";
+import { createSupabaseClient } from "./supabase";
 
 // Timing is measured from date_contacted (the initial email send date)
 const DAYS_FOLLOWUP_1 = 3;   // Day 3:  short follow-up
@@ -193,6 +194,53 @@ export function stillHeld<C extends { lead_id: string; step: string }>(
 ): C[] {
   const sentStepKeys = new Set(sends.map((s) => `${s.lead_id}::${s.step}`));
   return checks.filter((c) => !sentStepKeys.has(`${c.lead_id}::${c.step}`));
+}
+
+export interface HealthSnapshot {
+  stuck_held_emails: number;
+  stuck_over_24h: number;
+  stuck_examples: { lead_id: string; step: string; created_at: string; reasoning: string | null }[];
+  stale_sheet_syncs: { sheet_id: string; last_synced_at: string | null }[];
+}
+
+// Shared by the daily cron health-check route and the on-demand Slack
+// "health_check" action so the two never drift out of sync with each other.
+export async function getHealthSnapshot(
+  sb: ReturnType<typeof createSupabaseClient>
+): Promise<HealthSnapshot> {
+  const [{ data: checks }, { data: sends }, { data: sheets }] = await Promise.all([
+    sb.from("email_checks").select("*").order("created_at", { ascending: false }),
+    sb.from("email_sends").select("*"),
+    sb.from("tracked_sheets").select("*").eq("active", true),
+  ]);
+
+  const allChecks = (checks || []) as EmailCheck[];
+  const allSends = (sends || []) as EmailSend[];
+  const rejected = allChecks.filter((c) => c.verdict === "rejected");
+  const stuck = stillHeld(rejected, allSends);
+
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const stuckOverADay = stuck.filter((c) => new Date(c.created_at).getTime() < oneDayAgo);
+
+  const staleSheets = ((sheets || []) as TrackedSheet[]).filter((s) => {
+    if (!s.last_synced_at) return true;
+    return Date.now() - new Date(s.last_synced_at).getTime() > 2 * 24 * 60 * 60 * 1000;
+  });
+
+  return {
+    stuck_held_emails: stuck.length,
+    stuck_over_24h: stuckOverADay.length,
+    stuck_examples: stuckOverADay.slice(0, 5).map((c) => ({
+      lead_id: c.lead_id,
+      step: c.step,
+      created_at: c.created_at,
+      reasoning: c.reasoning,
+    })),
+    stale_sheet_syncs: staleSheets.map((s) => ({
+      sheet_id: s.sheet_id,
+      last_synced_at: s.last_synced_at,
+    })),
+  };
 }
 
 export function groupBySegment(items: { trade: string; location: string }[]): Segment[] {
