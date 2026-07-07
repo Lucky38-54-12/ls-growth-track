@@ -85,7 +85,7 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
       });
 
       const finalBody = fillMeetingLink(bodyHtml, booking.hangoutLink);
-      await sendPersonalizedEmail(lead, subject, finalBody);
+      await sendPersonalizedEmail(lead, subject, finalBody, "meeting_confirmation");
 
       const today = new Date().toISOString().split("T")[0];
       await sb.from("leads").update({ status: "booked", date_contacted: lead.date_contacted || today }).eq("lead_id", lead.lead_id);
