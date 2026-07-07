@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Users, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone, Mailbox, Settings, ClipboardList, Bot, BarChart3, Zap,
+  LayoutDashboard, Users, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone, Mailbox, Settings, ClipboardList, Bot, BarChart3, Zap, Rows3,
 } from "lucide-react";
 
 const NAV = [
   { href: "/dashboard/today", label: "Today", icon: Sun },
   { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
+  { href: "/dashboard/email-pipeline", label: "Email Pipeline", icon: Rows3 },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/lead-qual", label: "Lead Qual", icon: Bot },
   { href: "/dashboard/campaigns", label: "Campaigns", icon: Megaphone },

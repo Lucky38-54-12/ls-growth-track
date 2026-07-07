@@ -1,11 +1,12 @@
 "use client";
-import { Bell, Search, X, LayoutDashboard, Users, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone, Mailbox, ClipboardList, Bot } from "lucide-react";
+import { Bell, Search, X, LayoutDashboard, Users, FileText, Upload, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, ListChecks, Megaphone, Mailbox, ClipboardList, Bot, Rows3 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 const SEARCH_ITEMS = [
   { label: "Today", href: "/dashboard/today", icon: Sun },
   { label: "Pipeline", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Email Pipeline", href: "/dashboard/email-pipeline", icon: Rows3 },
   { label: "Contacts", href: "/dashboard/contacts", icon: Users },
   { label: "Lead Qual", href: "/dashboard/lead-qual", icon: Bot },
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
