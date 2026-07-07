@@ -125,21 +125,16 @@ BODY
 - Use a real proof point with numbers — specific beats vague every time
 - Write like a person, not a sales tool
 
-CALL TO ACTION (MANDATORY — the second-to-last <p> in body_html)
-- Direct and specific: "worth a 15 min call this week?" not "feel free to reach out anytime"
-- {{CTA_LINK}} must always be the href of a real <a> tag with short natural anchor text (e.g. "grab a time here", "book a call") — NEVER print {{CTA_LINK}} as visible text in the sentence. Right: Worth a 15 min call this week? <a href="{{CTA_LINK}}">Grab a time here</a>. Wrong: Grab a time here: {{CTA_LINK}} (this leaks the raw tracking URL to the recipient)
-
-CLOSING (MANDATORY — the LAST <p> in body_html, after the CTA, before the signature)
-- One short, natural closing line — nothing else in that paragraph
+CLOSING (MANDATORY — the LAST <p> in body_html, before the signature)
+- One short, natural closing line — nothing else in that paragraph. This is the last thing you write.
 - Match the tone: for initial and follow-up emails use "Looking forward to hearing from you." or "Happy to jump on a call whenever works." For breakup emails use "Wishing you all the best either way." Never use "Hope to hear from you soon" or "Don't hesitate to reach out"
 - The signature (Cheers, Lucky, LS Growth) is added separately — do NOT include it in body_html
-- Do NOT add a link to the main LS Growth website yourself — that's appended automatically after your closing line, don't duplicate it
+- Do NOT write a call-to-action sentence, a booking link, {{CTA_LINK}}, or a link to the main website yourself — a fixed block with a case-studies link and a booking link is appended automatically right after your closing line, so writing your own duplicates it
 
 Example structure (order matters):
 <p>Hey Dave,</p>
 <p>[opening about them]</p>
 <p>[proof point / body]</p>
-<p>Worth a 15 min call this week? <a href="{{CTA_LINK}}">Grab a time here</a>.</p>
 <p>Looking forward to hearing from you.</p>
 
 LENGTH
@@ -431,10 +426,12 @@ export async function checkEmailQuality(input: EmailQualityInput): Promise<Email
     ? "Not applicable — a meeting is already booked for this lead, so there is no separate call to action. Never fail this check for a missing CTA link on a meeting-confirmation email."
     : input.requireCtaPlaceholder === false
     ? "The second-to-last <p> is a real call to action (a real link or a clear next step), not a passive close"
-    : `The second-to-last <p> has {{CTA_LINK}} as the href of a real <a> tag with short anchor text (e.g. "grab a time here") — fail this check if {{CTA_LINK}} appears as visible text in the sentence instead of inside href="...", since that leaks the raw tracking URL to the recipient instead of showing a clean link`;
+    : `Not applicable — a fixed block with a case-studies link and a booking link is appended automatically after this content, the AI-written part you're checking should NOT contain {{CTA_LINK}}, a booking link, or a link to the main website at all. Never fail this check (or flag it as a missing CTA) just because the content you're given ends after the closing line with no link in it — that's correct.`;
   const structureCheck = input.meetingAlreadyBooked
     ? `A meeting is already booked, so there is no CTA to sequence. Instead: somewhere in the body there is a paragraph containing exactly "[MEETING LINK]" and nothing else, and the fixed logistics line (e.g. "Shouldn't take more than 20-30 minutes. If anything comes up and you need to shift the time, just flick me a text.") appears once the body is otherwise done. It's fine, and common, for one short natural closing line (e.g. "Looking forward to our chat.") to come immediately after that logistics line as the true LAST <p> — that's not a structure failure, just a warmer close. Only fail this check if something substantive (a new topic, another CTA, an unrelated paragraph) comes after the logistics line, not for a one-line closing.`
-    : `The LAST <p> (before the sign-off) is a one-sentence closing line, e.g. "Looking forward to hearing from you." — the second-to-last <p> is the CTA line (check 6), and the closing line always comes after it`;
+    : input.requireCtaPlaceholder === false
+    ? `The LAST <p> (before the sign-off) is a one-sentence closing line, e.g. "Looking forward to hearing from you." — the second-to-last <p> is the CTA line (check 6), and the closing line always comes after it`
+    : `The LAST <p> (before the sign-off) is a one-sentence closing line, e.g. "Looking forward to hearing from you." This email should NOT contain a CTA paragraph at all — the booking and case-studies links are appended automatically after this content, so the closing line is correctly the very last thing in what you're checking.`;
   const lengthCheck = input.meetingAlreadyBooked
     ? `Not applicable — this is a fixed-format meeting confirmation (greeting, meeting time + link, one paragraph on their specific situation, then the fixed logistics line), not a length-flexible follow-up. Never fail this check for a meeting-confirmation email's length.`
     : "Length in range: initial email 4-6 sentences, follow-ups 2-4 sentences";

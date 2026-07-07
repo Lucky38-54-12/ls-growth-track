@@ -119,12 +119,16 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   });
   if (check.verdict === "rejected") return { sent: false, held: true };
 
-  // Appended after the quality check (same pattern as the cold-call path in
-  // app/api/generate-email/route.ts) so the AI-written email is judged on its
-  // own content, and every send still links back to the main site alongside
-  // the booking CTA rather than only ever showing the internal app domain.
-  const websiteLinkBlock = `<p>You can see more on how it works here: <a href="https://lsgrowth.agency">lsgrowth.agency</a></p>`;
-  await sendPersonalizedEmail(lead, subject, bodyHtml + websiteLinkBlock, step);
+  // The CTA used to be written by the AI itself ({{CTA_LINK}} woven into a
+  // sentence) — that was the source of repeated bugs (dashes, the raw
+  // tracking URL leaking as visible text, wrong paragraph order). Appended
+  // deterministically instead, same as the cold-call path's case-study
+  // block in app/api/generate-email/route.ts, so it's byte-for-byte
+  // identical and correct on every send. Checked against bodyHtml (the
+  // AI-written part only) above, not this — same reasoning as the cold-call
+  // route: this fixed block isn't something the quality gate needs to judge.
+  const ctaBlock = `<p>Here are some case studies if you want to take a look: <a href="https://lsgrowth.agency">lsgrowth.agency</a></p><p>If you want to book a time, you can do that below: <a href="{{CTA_LINK}}">grab a time here</a>.</p>`;
+  await sendPersonalizedEmail(lead, subject, bodyHtml + ctaBlock, step);
 
   const today = new Date().toISOString().split("T")[0];
   const update: Record<string, unknown> = { status: STEP_NEW_STATUS[step] };
