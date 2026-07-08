@@ -19,10 +19,9 @@ export async function POST(req: NextRequest) {
 
   const { data: existingLead } = await sb.from("leads").select("*").eq("email", (body.email as string).toLowerCase()).maybeSingle();
   if (existingLead) {
-    if (body.source && body.source !== existingLead.source) {
-      const { data: updated } = await sb.from("leads").update({ source: body.source }).eq("lead_id", existingLead.lead_id).select().single();
-      return NextResponse.json({ lead: updated || existingLead, emailError: null });
-    }
+    // source is set once at creation and never changed by a later POST —
+    // otherwise cold-calling an email that was originally imported as
+    // email_outreach silently reclassifies it into the Cold Call pipeline.
     return NextResponse.json({ lead: existingLead, emailError: null });
   }
 
