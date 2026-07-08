@@ -15,6 +15,12 @@ type SupabaseClient = ReturnType<typeof createSupabaseClient>;
 export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{ sent: boolean; held?: boolean }> {
   if (!lead.campaign_id) return { sent: false };
 
+  // A campaign sitting in "draft" (never activated) or "paused" must not
+  // send — the dashboard shows that status specifically so it reads as safe
+  // to review before anything goes out, so this has to actually be true.
+  const { data: campaign } = await sb.from("campaigns").select("status").eq("id", lead.campaign_id).maybeSingle();
+  if (!campaign || campaign.status !== "active") return { sent: false };
+
   const step = nextStepFor(lead);
   if (!step) return { sent: false };
 

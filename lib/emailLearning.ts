@@ -31,15 +31,25 @@ export async function generateEmailLearnings(sb: SupabaseClient): Promise<{ skip
   const [sends, events, leads] = await Promise.all([
     fetchAllRows<EmailSend>((from, to) => sb.from("email_sends").select("*").range(from, to)),
     fetchAllRows<EmailEvent>((from, to) => sb.from("email_events").select("*").range(from, to)),
-    fetchAllRows<{ lead_id: string; status: string }>((from, to) => sb.from("leads").select("lead_id, status").range(from, to)),
+    fetchAllRows<{ lead_id: string; status: string; email: string; company: string }>((from, to) => sb.from("leads").select("lead_id, status, email, company").range(from, to)),
   ]);
 
   const leadStatusById = new Map(leads.map((l) => [l.lead_id, l.status]));
 
+  // Self-tests (sent to Lucky's own inbox to sanity-check copy before real
+  // sends) get labeled "(TEST EMAIL, ignore)" in the company name by
+  // convention — his own opens on those would otherwise masquerade as real
+  // prospect engagement and skew the guidance toward whatever he happened to
+  // click while testing, not what actually lands with a cold prospect.
+  const ownAddress = (process.env.GMAIL_USER || "").toLowerCase();
+  const testLeadIds = new Set(
+    leads.filter((l) => l.company?.toLowerCase().includes("test email") || (ownAddress && l.email?.toLowerCase() === ownAddress)).map((l) => l.lead_id)
+  );
+
   // Only sends whose step was actually recorded on their tracking links
   // (see lib/email.ts buildLinks) can be joined back to specific engagement —
   // older sends predate the step-tagged tracking URLs and are excluded here.
-  const qualifying = sends.filter((s) => s.step);
+  const qualifying = sends.filter((s) => s.step && !testLeadIds.has(s.lead_id));
 
   if (qualifying.length < MIN_SENDS) {
     return { skipped: true, reason: `only ${qualifying.length} step-tagged sends so far, need at least ${MIN_SENDS}` };
