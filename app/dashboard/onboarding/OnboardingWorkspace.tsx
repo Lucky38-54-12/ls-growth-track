@@ -10,12 +10,15 @@ const PLACEHOLDER_HTML = "<p><em>Paste your notes and generate a recap to previe
 type OnboardingClient = {
   id: string; name: string; company: string;
   email: string | null; completed_steps: string[]; created_at: string;
+  decision_status: "ready" | "thinking";
 };
 
 const TOTAL_STEPS = 10;
 
 export default function OnboardingWorkspace({ clients }: { clients: OnboardingClient[] }) {
   const router = useRouter();
+  const readyClients = clients.filter(c => c.decision_status !== "thinking");
+  const thinkingClients = clients.filter(c => c.decision_status === "thinking");
 
   // --- Proposal section ---
   const [generatingDoc, setGeneratingDoc] = useState(false);
@@ -36,6 +39,7 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [previewVersion, setPreviewVersion] = useState(0);
+  const [decisionStatus, setDecisionStatus] = useState<"ready" | "thinking">("ready");
 
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -95,13 +99,13 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
       const res = await fetch("/api/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, company, email, phone, subject, bodyHtml: finalBody }),
+        body: JSON.stringify({ name, company, email, phone, subject, bodyHtml: finalBody, decisionStatus }),
       });
       const data = await res.json();
       if (data.error) { setError(data.error); return; }
       setCallNotes(""); setGenerated(false);
       setName(""); setCompany(""); setEmail(""); setPhone("");
-      setSubject(""); setBodyHtml("");
+      setSubject(""); setBodyHtml(""); setDecisionStatus("ready");
       setPreviewVersion(v => v + 1);
       router.refresh();
     } catch { setError("Something went wrong. Try again."); }
@@ -153,6 +157,25 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
                 </div>
                 <div><label>Email</label><input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="sarah@example.com" /></div>
                 <div><label>Phone</label><input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+64 21 000 000" /></div>
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", marginBottom: 8 }}>Where are they at?</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setDecisionStatus("ready")}
+                    style={{ flex: 1, padding: "9px 14px", background: decisionStatus === "ready" ? "var(--red)" : "#f8fafc", color: decisionStatus === "ready" ? "#fff" : L.text, border: `1px solid ${decisionStatus === "ready" ? "var(--red)" : L.border}`, borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Ready to move forward
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDecisionStatus("thinking")}
+                    style={{ flex: 1, padding: "9px 14px", background: decisionStatus === "thinking" ? "var(--red)" : "#f8fafc", color: decisionStatus === "thinking" ? "#fff" : L.text, border: `1px solid ${decisionStatus === "thinking" ? "var(--red)" : L.border}`, borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Still deciding
+                  </button>
+                </div>
               </div>
               <div style={{ display: "flex", gap: 12 }}>
                 <button
@@ -225,17 +248,17 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
         </div>
       </div>
 
-      {/* Client list */}
-      <div style={{ maxWidth: 1080, margin: "0 auto 40px", padding: "0 28px" }}>
+      {/* Client lists */}
+      <div style={{ maxWidth: 1080, margin: "0 auto 40px", padding: "0 28px", display: "flex", flexDirection: "column", gap: 20 }}>
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 16 }}>
-            Clients in onboarding — {clients.length}
+            Ready to onboard — {readyClients.length}
           </div>
-          {clients.length === 0 ? (
-            <p style={{ fontSize: 13, color: L.dimmed }}>No clients yet — generate a recap above to add your first one.</p>
+          {readyClients.length === 0 ? (
+            <p style={{ fontSize: 13, color: L.dimmed }}>No clients here yet.</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {clients.map(client => {
+              {readyClients.map(client => {
                 const done = client.completed_steps?.length || 0;
                 const pct = Math.round((done / TOTAL_STEPS) * 100);
                 const complete = done === TOTAL_STEPS;
@@ -260,6 +283,27 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
                   </Link>
                 );
               })}
+            </div>
+          )}
+        </div>
+
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
+          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 16 }}>
+            Still deciding — {thinkingClients.length}
+          </div>
+          {thinkingClients.length === 0 ? (
+            <p style={{ fontSize: 13, color: L.dimmed }}>No one on the fence right now.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {thinkingClients.map(client => (
+                <Link key={client.id} href={`/dashboard/onboarding/${client.id}`} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 4px", textDecoration: "none", borderBottom: `1px solid ${L.border}` }} className="row-hover">
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{client.company}</span>
+                    <span style={{ fontSize: 12, color: L.muted }}>{client.name}</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: L.dimmed, flexShrink: 0 }}>{new Date(client.created_at).toLocaleDateString("en-NZ", { day: "numeric", month: "short" })}</span>
+                </Link>
+              ))}
             </div>
           )}
         </div>

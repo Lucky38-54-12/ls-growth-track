@@ -17,11 +17,14 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const sb = createSupabaseClient();
   const body = await req.json();
-  const { name, company, email, phone, subject, bodyHtml } = body;
+  const { name, company, email, phone, subject, bodyHtml, decisionStatus } = body;
 
   const { data, error } = await sb
     .from("onboarding_clients")
-    .insert({ name, company, email: email || null, phone: phone || null })
+    .insert({
+      name, company, email: email || null, phone: phone || null,
+      decision_status: decisionStatus === "thinking" ? "thinking" : "ready",
+    })
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

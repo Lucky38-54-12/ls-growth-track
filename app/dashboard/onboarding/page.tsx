@@ -22,7 +22,7 @@ export default async function OnboardingPage() {
   const sb = createSupabaseClient();
   const { data: clients } = await sb
     .from("onboarding_clients")
-    .select("id, name, company, email, completed_steps, created_at")
+    .select("id, name, company, email, completed_steps, created_at, decision_status")
     .order("created_at", { ascending: false });
 
   return (
