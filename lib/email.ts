@@ -18,7 +18,11 @@ const BOOKING_URL = process.env.BOOKING_URL || "https://lsgrowth.agency/book";
 // dedicated Zoho outreach mailbox via Reply-To, kept separate from Lucky's
 // personal Gmail. Manual, low-volume sends (meeting reminders, inbox
 // replies/compose) stay on whichever account the Inbox page is viewing.
-const BULK_FROM = "Lucky from LS Growth <outreach@lsgrowth.agency>";
+// "Lucky from LS Growth" reads as a company broadcast, not a person - one of
+// the signals Gmail's classifier weighs when deciding Primary vs Promotions.
+// A plain personal name costs nothing (the from address and domain, which
+// are what actually carry SPF/DKIM auth, are unchanged) and is a safer bet.
+const BULK_FROM = "Lucky <outreach@lsgrowth.agency>";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 function getTransport() {
