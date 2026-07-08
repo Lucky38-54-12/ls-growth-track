@@ -5,6 +5,7 @@ import { syncAllTrackedSheets } from "@/lib/sheetSync";
 import { getHealthSnapshot } from "@/lib/leads";
 import { syncCalendarBookings, sendMeetingTouchpoints } from "@/lib/calendarSync";
 import { generateEmailLearnings } from "@/lib/emailLearning";
+import { dispatchDueNurtureEmails } from "@/lib/leadQual/nurtureEmail";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,12 @@ export async function GET(req: NextRequest) {
     results.emailLearnings = await generateEmailLearnings(sb);
   } catch (e) {
     results.emailLearnings = { error: e instanceof Error ? e.message : "email learning failed" };
+  }
+
+  try {
+    results.leadQualNurture = await dispatchDueNurtureEmails();
+  } catch (e) {
+    results.leadQualNurture = { error: e instanceof Error ? e.message : "lead-qual nurture dispatch failed" };
   }
 
   return NextResponse.json(results);
