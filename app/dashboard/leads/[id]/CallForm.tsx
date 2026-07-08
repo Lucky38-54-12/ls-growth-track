@@ -22,13 +22,15 @@ export default function CallForm({ lead, events, sends }: { lead: Lead; events: 
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [status, setStatus] = useState("");
+  const [followUpAt, setFollowUpAt] = useState(lead.follow_up_at || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!callNotes.trim() && !(subject.trim() && bodyHtml.trim()) && !status && !meetingDateTime) {
-      setError("Add call notes, an email to send, a status change, or a meeting time first.");
+    const followUpChanged = followUpAt !== (lead.follow_up_at || "");
+    if (!callNotes.trim() && !(subject.trim() && bodyHtml.trim()) && !status && !meetingDateTime && !followUpChanged) {
+      setError("Add call notes, an email to send, a status change, a meeting time, or a reminder date first.");
       return;
     }
     setLoading(true);
@@ -37,7 +39,11 @@ export default function CallForm({ lead, events, sends }: { lead: Lead; events: 
     const res = await fetch(`/api/leads/${lead.lead_id}/followup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ callNotes, subject, bodyHtml, status, meetingDateTime: meetingDateTime || undefined }),
+      body: JSON.stringify({
+        callNotes, subject, bodyHtml, status,
+        meetingDateTime: meetingDateTime || undefined,
+        followUpAt: followUpChanged ? followUpAt : undefined,
+      }),
     });
     const data = await res.json();
     setLoading(false);
@@ -50,6 +56,7 @@ export default function CallForm({ lead, events, sends }: { lead: Lead; events: 
     if (data.sent) parts.push(`Follow-up email auto-sent to ${lead.company}.`);
     if (data.sendError) parts.push(`Email failed to send — ${data.sendError}`);
     if (status) parts.push(`Status updated to ${status}.`);
+    if (followUpChanged) parts.push(followUpAt ? `Reminder set for ${followUpAt}.` : "Reminder cleared.");
     router.push(`/dashboard?flash=${encodeURIComponent(parts.join(" ") || "Saved.")}`);
   }
 
@@ -108,6 +115,19 @@ export default function CallForm({ lead, events, sends }: { lead: Lead; events: 
                 </option>
               ))}
             </select>
+          </div>
+
+          <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
+            <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Remind me</div>
+            <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
+              e.g. "booked out until September" — pick a date and this lead shows up on Today from then on until you clear it or log another call.
+            </p>
+            <input type="date" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} style={{ maxWidth: 200 }} />
+            {followUpAt && (
+              <button type="button" onClick={() => setFollowUpAt("")} style={{
+                marginLeft: 10, fontSize: 12, fontWeight: 700, color: L.muted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline",
+              }}>Clear</button>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: 12 }}>

@@ -9,12 +9,13 @@ import { generateCallFollowupEmail } from "@/lib/generateCallEmail";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
-  const { callNotes, subject, bodyHtml, status, meetingDateTime } = body as {
+  const { callNotes, subject, bodyHtml, status, meetingDateTime, followUpAt } = body as {
     callNotes?: string;
     subject?: string;
     bodyHtml?: string;
     status?: string;
     meetingDateTime?: string;
+    followUpAt?: string;
   };
 
   const sb = createSupabaseClient();
@@ -90,6 +91,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   if (status && status !== lead.status) {
     updates.status = status;
+  }
+
+  if (followUpAt !== undefined) {
+    updates.follow_up_at = followUpAt || null;
   }
 
   if (Object.keys(updates).length) {

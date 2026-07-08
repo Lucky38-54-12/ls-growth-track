@@ -41,6 +41,7 @@ export interface Lead {
   personalization_hook: string | null;
   phone: string | null;
   campaign_id: string | null;
+  follow_up_at: string | null;
 }
 
 export type CampaignStatus = "draft" | "active" | "paused" | "completed";

@@ -71,6 +71,13 @@ export default async function TodayPage() {
   const heldByLeadId = new Map(allLeads.map(l => [l.lead_id, l]));
   const needsAttentionCount = repliedLeads.length + heldEmails.length;
 
+  // Leads explicitly snoozed to a future date (e.g. "booked out until
+  // September") via the Remind Me field on the lead page — surfaces here
+  // once that date arrives instead of the note just sitting there forever.
+  const followUpsDue = allLeads
+    .filter(l => l.follow_up_at && l.follow_up_at <= today)
+    .sort((a, b) => (a.follow_up_at || "").localeCompare(b.follow_up_at || ""));
+
   function dayLabel(ts: string): string {
     const key = dateKeyFmt.format(new Date(ts));
     const todayStr = today;
@@ -141,6 +148,33 @@ export default async function TodayPage() {
                   </Link>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Follow-ups due — leads snoozed to today or earlier */}
+        {followUpsDue.length > 0 && (
+          <div className="surface-card" style={{ overflow: "hidden", borderColor: "#fde68a" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #fde68a", background: "#fffbeb" }}>
+              <Calendar style={{ width: 15, height: 15, color: "#b45309" }} />
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309" }}>Follow-ups Due</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#b45309" }}>{followUpsDue.length}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {followUpsDue.map(lead => (
+                <Link key={`followup-${lead.lead_id}`} href={`/dashboard/leads/${lead.lead_id}`} className="row-hover" style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none",
+                }}>
+                  <Calendar style={{ width: 14, height: 14, color: "#b45309", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : lead.company}
+                    </p>
+                    <p style={{ fontSize: 11.5, color: L.dimmed }}>{lead.company} — due {lead.follow_up_at}</p>
+                  </div>
+                  <ArrowUpRight style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
+                </Link>
+              ))}
             </div>
           </div>
         )}
