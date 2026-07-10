@@ -6,6 +6,7 @@ import { sendPersonalizedEmail, sendGmailFollowup } from "@/lib/email";
 import { createBooking, fillMeetingLink } from "@/lib/calendar";
 import { Lead } from "@/lib/types";
 import { generateCallFollowupEmail } from "@/lib/generateCallEmail";
+import { statusTimestampUpdates } from "@/lib/leads";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
@@ -96,6 +97,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (followUpAt !== undefined) {
     updates.follow_up_at = followUpAt || null;
   }
+
+  if (typeof updates.status === "string") Object.assign(updates, statusTimestampUpdates(updates.status));
 
   if (Object.keys(updates).length) {
     await sb.from("leads").update(updates).eq("lead_id", params.id);

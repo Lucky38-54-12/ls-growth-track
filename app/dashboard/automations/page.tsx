@@ -85,8 +85,11 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 12 }}>
         {latestLearnings && (
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "14px 16px" }}>
-            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 8 }}>
+            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 4 }}>
               What's Working — learned from {latestLearnings.based_on_sends} sent emails, updated {new Date(latestLearnings.generated_at).toLocaleDateString()}
+            </p>
+            <p style={{ fontSize: 11.5, color: "#166534", fontWeight: 700, marginBottom: 8 }}>
+              Live — this exact guidance is passed into every AI email generated from here on, not just shown for reference.
             </p>
             <p style={{ fontSize: 13, color: L.text, whiteSpace: "pre-line", lineHeight: 1.6 }}>{latestLearnings.guidance}</p>
           </div>

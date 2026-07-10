@@ -2,6 +2,7 @@ import { createSupabaseClient } from "./supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "./leads";
 import { sendPersonalizedEmail } from "./email";
 import { generateCampaignStepEmail, reviseCampaignStepEmail, generatePersonalizationHook, checkEmailQuality } from "./ai";
+import { notifySlack } from "./slackNotify";
 import { Lead } from "./types";
 
 type SupabaseClient = ReturnType<typeof createSupabaseClient>;
@@ -139,7 +140,14 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     reasoning: check.reasoning,
     sent: check.verdict === "approved",
   });
-  if (check.verdict === "rejected") return { sent: false, held: true };
+  if (check.verdict === "rejected") {
+    await notifySlack(
+      `🛑 Held email for *${lead.company}* (${step}) — quality check rejected it.\n` +
+      `Reason: ${check.reasoning || check.mechanicalFails?.[0] || check.judgmentFlags?.[0] || "no reason given"}\n` +
+      `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${lead.lead_id}`
+    );
+    return { sent: false, held: true };
+  }
 
   // The CTA used to be written by the AI itself ({{CTA_LINK}} woven into a
   // sentence) — that was the source of repeated bugs (dashes, the raw

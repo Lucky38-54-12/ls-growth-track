@@ -1,5 +1,6 @@
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { fetchMailboxSince } from "@/lib/gmail";
+import { statusTimestampUpdates } from "@/lib/leads";
 
 // Same "genuine reply" heuristic as /api/leads/from-inbox (Gmail cold-call
 // replies) — a real back-and-forth has "Re:" in the subject and isn't a
@@ -46,7 +47,7 @@ export async function checkForReplies(): Promise<{ repliedUpdated: number; scann
   if (repliedLeadIds.size) {
     const { error, count } = await sb
       .from("leads")
-      .update({ status: "replied" }, { count: "exact" })
+      .update({ status: "replied", ...statusTimestampUpdates("replied") }, { count: "exact" })
       .in("lead_id", Array.from(repliedLeadIds));
     if (error) throw new Error(error.message);
     repliedUpdated = count || repliedLeadIds.size;

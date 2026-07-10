@@ -40,5 +40,24 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: statusError.message }, { status: 500 });
   }
 
+  // Onboarding clients aren't linked to leads by ID (see the onboarding recap
+  // sync in app/api/onboarding/route.ts, which matches the same way) — email
+  // is the only bridge between the two systems, so auto-tick campaign_launched
+  // for any onboarding client whose email matches a lead this campaign just activated.
+  if (memberIds.length > 0) {
+    const { data: activatedLeads } = await sb.from("leads").select("email").in("lead_id", memberIds);
+    const activatedEmails = new Set((activatedLeads || []).map((l) => l.email?.toLowerCase()).filter(Boolean));
+    if (activatedEmails.size > 0) {
+      const { data: clients } = await sb.from("onboarding_clients").select("id, email, completed_steps");
+      for (const client of clients || []) {
+        if (!client.email || !activatedEmails.has(client.email.toLowerCase())) continue;
+        if ((client.completed_steps || []).includes("campaign_launched")) continue;
+        await sb.from("onboarding_clients")
+          .update({ completed_steps: [...(client.completed_steps || []), "campaign_launched"] })
+          .eq("id", client.id);
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true, activatedLeads: memberIds.length });
 }

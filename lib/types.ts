@@ -42,6 +42,10 @@ export interface Lead {
   phone: string | null;
   campaign_id: string | null;
   follow_up_at: string | null;
+  replied_at: string | null;
+  replied_stale_notified: boolean;
+  proposal_sent_at: string | null;
+  proposal_followup_sent: boolean;
 }
 
 export type CampaignStatus = "draft" | "active" | "paused" | "completed";

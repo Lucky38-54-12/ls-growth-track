@@ -6,6 +6,9 @@ import { getHealthSnapshot } from "@/lib/leads";
 import { syncCalendarBookings, sendMeetingTouchpoints } from "@/lib/calendarSync";
 import { generateEmailLearnings } from "@/lib/emailLearning";
 import { dispatchDueNurtureEmails } from "@/lib/leadQual/nurtureEmail";
+import { escalateStaleReplies } from "@/lib/staleReplies";
+import { sendDueProposalFollowups } from "@/lib/proposalFollowup";
+import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +67,24 @@ export async function GET(req: NextRequest) {
     results.leadQualNurture = await dispatchDueNurtureEmails();
   } catch (e) {
     results.leadQualNurture = { error: e instanceof Error ? e.message : "lead-qual nurture dispatch failed" };
+  }
+
+  try {
+    results.staleReplies = await escalateStaleReplies();
+  } catch (e) {
+    results.staleReplies = { error: e instanceof Error ? e.message : "stale reply escalation failed" };
+  }
+
+  try {
+    results.proposalFollowups = await sendDueProposalFollowups();
+  } catch (e) {
+    results.proposalFollowups = { error: e instanceof Error ? e.message : "proposal follow-up dispatch failed" };
+  }
+
+  try {
+    results.weeklyDigest = await sendWeeklyDigestIfDue(sb);
+  } catch (e) {
+    results.weeklyDigest = { error: e instanceof Error ? e.message : "weekly digest failed" };
   }
 
   return NextResponse.json(results);

@@ -1,5 +1,6 @@
 import { createSupabaseClient } from "./supabase";
 import { sendNextStepFor } from "./sendPipeline";
+import { statusTimestampUpdates } from "./leads";
 import { Lead } from "./types";
 
 type SupabaseClient = ReturnType<typeof createSupabaseClient>;
@@ -24,7 +25,7 @@ export async function markLeadReplied(leadRef: string): Promise<string> {
     return `${lead.company} (${lead.lead_id}) is already marked "${lead.status}" — no change made.`;
   }
 
-  const { error } = await sb.from("leads").update({ status: "replied" }).eq("lead_id", lead.lead_id);
+  const { error } = await sb.from("leads").update({ status: "replied", ...statusTimestampUpdates("replied") }).eq("lead_id", lead.lead_id);
   if (error) return `Failed to update ${lead.lead_id}: ${error.message}`;
   return `Marked ${lead.company} (${lead.lead_id}) as replied — no further campaign emails will go out to them.`;
 }

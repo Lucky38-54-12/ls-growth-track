@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { fetchMailboxSince } from "@/lib/gmail";
-import { generateLeadId } from "@/lib/leads";
+import { generateLeadId, statusTimestampUpdates } from "@/lib/leads";
 import { Lead } from "@/lib/types";
 
 // Inboxes are full of newsletters, app notifications, and account alerts —
@@ -59,7 +59,7 @@ export async function POST() {
   if (repliedLeadIds.size) {
     const { error, count } = await sb
       .from("leads")
-      .update({ status: "replied" }, { count: "exact" })
+      .update({ status: "replied", ...statusTimestampUpdates("replied") }, { count: "exact" })
       .in("lead_id", Array.from(repliedLeadIds));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     repliedUpdated = count || repliedLeadIds.size;

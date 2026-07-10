@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { sendFreeformEmail } from "@/lib/email";
+import { statusTimestampUpdates } from "@/lib/leads";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
     const { data: lead } = await sb.from("leads").select("lead_id, notes").ilike("email", email).maybeSingle();
     if (lead) {
       const pipelineStatus = decisionStatus === "thinking" ? "thinking_about_it" : "proposal_sent";
-      const updates: Record<string, unknown> = { status: pipelineStatus };
+      const updates: Record<string, unknown> = { status: pipelineStatus, ...statusTimestampUpdates(pipelineStatus) };
       if (callNotes?.trim()) {
         const today = new Date().toISOString().split("T")[0];
         const entry = `[${today} onboarding recap] ${callNotes.trim()}`;

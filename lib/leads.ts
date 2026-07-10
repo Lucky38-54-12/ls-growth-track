@@ -1,6 +1,17 @@
 import { Lead, LeadStatus, EmailCheck, EmailSend, TrackedSheet } from "./types";
 import { createSupabaseClient } from "./supabase";
 
+// Every write site that can flip a lead's status to "replied" or
+// "proposal_sent" (drag-and-drop, call follow-up, reply detection, onboarding
+// recap sync) should merge this into its update object — without a captured
+// timestamp, the stale-reply escalation and proposal-followup automations
+// have no way to know how long a lead has been sitting there.
+export function statusTimestampUpdates(newStatus: string): Record<string, unknown> {
+  if (newStatus === "replied") return { replied_at: new Date().toISOString(), replied_stale_notified: false };
+  if (newStatus === "proposal_sent") return { proposal_sent_at: new Date().toISOString(), proposal_followup_sent: false };
+  return {};
+}
+
 // Timing is measured from date_contacted (the initial email send date)
 const DAYS_FOLLOWUP_1 = 3;   // Day 3:  short follow-up
 const DAYS_FOLLOWUP_2 = 7;   // Day 7:  social proof / case study
