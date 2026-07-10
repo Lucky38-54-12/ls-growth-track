@@ -31,15 +31,6 @@ export type EmailStep = "initial" | "followup1" | "followup2" | "followup3" | "f
 // wants AI check-ins to continue until they book, not a hard stop at day 21.
 const DAYS_CAMPAIGN_CHECKIN = 30;
 
-// Cold-call leads that were never added to a campaign never enter the
-// templated email sequence (see the early-out below) — they get a one-off
-// manual email from the Cold Call page instead. Everything else (campaign
-// members and un-campaigned email_outreach leads alike) is fair game for
-// the Email Pipeline board.
-export function isInEmailSequence(lead: Lead): boolean {
-  return !(lead.source === "cold_call" && !lead.campaign_id);
-}
-
 export function nextStepFor(lead: Lead): EmailStep | null {
   const { status, date_contacted, last_followup, reply_category, campaign_id } = lead;
 

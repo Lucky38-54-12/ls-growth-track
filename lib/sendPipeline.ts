@@ -21,6 +21,11 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   const { data: campaign } = await sb.from("campaigns").select("status").eq("id", lead.campaign_id).maybeSingle();
   if (!campaign || campaign.status !== "active") return { sent: false };
 
+  // Manual hold on cleaning-trade leads per Lucky's explicit instruction
+  // (2026-07-10) after Wellington cleaning companies got emailed by mistake
+  // — remove this block once he says it's OK to resume.
+  if (lead.trade?.toLowerCase().includes("clean")) return { sent: false };
+
   const step = nextStepFor(lead);
   if (!step) return { sent: false };
 
