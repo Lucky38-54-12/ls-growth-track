@@ -118,11 +118,18 @@ export async function sendFreeformEmail(
 }
 
 export async function sendGmailFollowup(lead: Lead, subject: string, bodyHtml: string, step: string = "custom") {
+  // Never had open/click tracking wired in at all (unlike sendPersonalizedEmail
+  // below) — every cold-call email showed 0% opens/clicks on Email Tracking
+  // regardless of what actually happened, since there was no pixel and no
+  // link rewriting to record anything against.
+  const { pixel, ctaLink } = buildLinks(lead.lead_id, step);
+  const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
-${bodyHtml}
+${filledBody}
   <p>Cheers,<br>Lucky<br>LS Growth</p>
+  ${pixel}
 </div>`;
-  const text = htmlToText(bodyHtml);
+  const text = htmlToText(filledBody);
   const transport = getTransport();
   await transport.sendMail({ from: FROM, to: lead.email, subject, html, text });
   await logSend(lead.lead_id, step, subject, html);
