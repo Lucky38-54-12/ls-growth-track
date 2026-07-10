@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { nextStepFor } from "@/lib/leads";
+import { nextStepFor, isInEmailSequence } from "@/lib/leads";
 import { Lead, EmailEvent, EngagementSummary, Campaign } from "@/lib/types";
 import Topbar from "@/components/Topbar";
 import EmailPipelineBoard, { EmailColumn } from "@/components/EmailPipelineBoard";
@@ -36,10 +36,12 @@ export default async function EmailPipelinePage({
   ]);
 
   // This board is the email/campaign counterpart to the cold-call Pipeline
-  // (/dashboard) — that board is cold-call only (see its own comment), so
-  // campaign leads (the ones sendNextStepFor in lib/sendPipeline.ts actually
-  // sends to) never had a Kanban view of their own until now.
-  const emailLeads = leads.filter((l) => !!l.campaign_id);
+  // (/dashboard) — that board is cold-call only (see its own comment). It
+  // shows every lead actually moving through the templated email sequence
+  // (campaign members and un-campaigned email_outreach leads alike), not
+  // just campaign leads — cold-call leads that never joined a campaign are
+  // excluded since they never enter this sequence (see isInEmailSequence).
+  const emailLeads = leads.filter(isInEmailSequence);
   const campaignById = new Map(campaigns.map((c) => [c.id, c]));
 
   const engagement: Record<string, EngagementSummary> = {};

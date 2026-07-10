@@ -1,24 +1,13 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 const PLACEHOLDER_HTML = "<p><em>Paste your notes and generate a recap to preview it here.</em></p>";
 
-type OnboardingClient = {
-  id: string; name: string; company: string;
-  email: string | null; completed_steps: string[]; created_at: string;
-  decision_status: "ready" | "thinking";
-};
-
-const TOTAL_STEPS = 10;
-
-export default function OnboardingWorkspace({ clients }: { clients: OnboardingClient[] }) {
+export default function OnboardingWorkspace() {
   const router = useRouter();
-  const readyClients = clients.filter(c => c.decision_status !== "thinking");
-  const thinkingClients = clients.filter(c => c.decision_status === "thinking");
 
   // --- Proposal section ---
   const [generatingDoc, setGeneratingDoc] = useState(false);
@@ -40,6 +29,8 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
   const [bodyHtml, setBodyHtml] = useState("");
   const [previewVersion, setPreviewVersion] = useState(0);
   const [decisionStatus, setDecisionStatus] = useState<"ready" | "thinking">("ready");
+  const [showDecisionModal, setShowDecisionModal] = useState(false);
+  const [syncNote, setSyncNote] = useState("");
 
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -70,8 +61,19 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
     finally { setGeneratingDoc(false); }
   }
 
-  async function handleGenerate() {
+  function handleGenerateClick() {
     if (!callNotes.trim()) { setError("Paste your call notes first."); return; }
+    setError(""); setSyncNote("");
+    setShowDecisionModal(true);
+  }
+
+  async function handleDecisionPicked(choice: "ready" | "thinking") {
+    setShowDecisionModal(false);
+    setDecisionStatus(choice);
+    await handleGenerate(choice);
+  }
+
+  async function handleGenerate(choice: "ready" | "thinking" = decisionStatus) {
     setGenerating(true); setError("");
     try {
       const res = await fetch("/api/onboarding/generate-recap", {
@@ -86,6 +88,9 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
       setSubject(data.subject || ""); setBodyHtml(data.bodyHtml || "");
       setGenerated(true);
       setPreviewVersion(v => v + 1);
+      // Ready to onboard means a proposal is coming next regardless — generate
+      // it straight away instead of making that a second manual step.
+      if (choice === "ready") handleGenerateDoc();
     } catch { setError("Something went wrong. Try again."); }
     finally { setGenerating(false); }
   }
@@ -94,19 +99,24 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
     syncBody();
     const finalBody = bodyRef.current?.innerHTML || bodyHtml;
     if (!company.trim()) { setError("Company name is required."); return; }
-    setSending(true); setError("");
+    setSending(true); setError(""); setSyncNote("");
     try {
       const res = await fetch("/api/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, company, email, phone, subject, bodyHtml: finalBody, decisionStatus }),
+        body: JSON.stringify({ name, company, email, phone, subject, bodyHtml: finalBody, decisionStatus, callNotes }),
       });
       const data = await res.json();
       if (data.error) { setError(data.error); return; }
+      setSyncNote(
+        data.leadSynced
+          ? `Pipeline updated — moved to "${decisionStatus === "thinking" ? "Thinking About It" : "Proposal Sent"}" with the recap added as a note.`
+          : "No matching lead found in the pipeline — onboarding client saved on its own."
+      );
       setCallNotes(""); setGenerated(false);
       setName(""); setCompany(""); setEmail(""); setPhone("");
       setSubject(""); setBodyHtml(""); setDecisionStatus("ready");
-      setPreviewVersion(v => v + 1);
+      setDocUrl(""); setPreviewVersion(v => v + 1);
       router.refresh();
     } catch { setError("Something went wrong. Try again."); }
     finally { setSending(false); }
@@ -120,6 +130,7 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
         {/* LEFT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, fontSize: 13 }}>{error}</div>}
+          {syncNote && <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", padding: "10px 16px", borderRadius: 0, fontSize: 13 }}>{syncNote}</div>}
 
           {/* Section 1 — Meeting recap */}
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24 }}>
@@ -136,7 +147,7 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
             />
             <button
               type="button"
-              onClick={handleGenerate}
+              onClick={handleGenerateClick}
               disabled={generating}
               className="btn-lift"
               style={{ padding: "10px 20px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
@@ -144,6 +155,43 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
               {generating ? "Generating…" : "Generate recap email"}
             </button>
           </div>
+
+          {showDecisionModal && (
+            <div
+              style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
+              onClick={() => setShowDecisionModal(false)}
+            >
+              <div
+                style={{ background: L.surface, borderRadius: 8, width: "100%", maxWidth: 420, margin: "0 16px", padding: 24, boxShadow: "0 20px 48px rgba(15,23,42,0.2)" }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Where are they at?</div>
+                <p style={{ fontSize: 13, color: L.muted, marginBottom: 18 }}>
+                  This decides what gets generated and how their pipeline card updates.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleDecisionPicked("ready")}
+                    className="btn-lift"
+                    style={{ padding: "12px 16px", background: "var(--red)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13.5, fontWeight: 700, cursor: "pointer", textAlign: "left" }}
+                  >
+                    Ready to move forward
+                    <div style={{ fontWeight: 500, fontSize: 12, opacity: 0.9, marginTop: 2 }}>Generates recap + proposal, moves them to Proposal Sent</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDecisionPicked("thinking")}
+                    className="btn-lift"
+                    style={{ padding: "12px 16px", background: "#f8fafc", color: L.text, border: `1px solid ${L.border}`, borderRadius: 0, fontSize: 13.5, fontWeight: 700, cursor: "pointer", textAlign: "left" }}
+                  >
+                    Still deciding
+                    <div style={{ fontWeight: 500, fontSize: 12, color: L.muted, marginTop: 2 }}>Generates recap only, moves them to Thinking About It</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Extracted details — shown after generate */}
           {generated && (
@@ -245,67 +293,6 @@ export default function OnboardingWorkspace({ clients }: { clients: OnboardingCl
               <p>Cheers,<br />Lucky<br />LS Growth</p>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Client lists */}
-      <div style={{ maxWidth: 1080, margin: "0 auto 40px", padding: "0 28px", display: "flex", flexDirection: "column", gap: 20 }}>
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
-          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 16 }}>
-            Ready to onboard — {readyClients.length}
-          </div>
-          {readyClients.length === 0 ? (
-            <p style={{ fontSize: 13, color: L.dimmed }}>No clients here yet.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {readyClients.map(client => {
-                const done = client.completed_steps?.length || 0;
-                const pct = Math.round((done / TOTAL_STEPS) * 100);
-                const complete = done === TOTAL_STEPS;
-                return (
-                  <Link key={client.id} href={`/dashboard/onboarding/${client.id}`} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 4px", textDecoration: "none", borderBottom: `1px solid ${L.border}` }} className="row-hover">
-                    <div style={{ width: 28, height: 28, borderRadius: 0, background: complete ? "#dcfce7" : "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {complete
-                        ? <CheckCircle2 style={{ width: 15, height: 15, color: "#16a34a" }} />
-                        : <Circle style={{ width: 15, height: 15, color: L.dimmed }} />}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{client.company}</span>
-                        <span style={{ fontSize: 12, color: L.muted }}>{client.name}</span>
-                      </div>
-                      <div style={{ marginTop: 5, height: 4, background: "#f1f5f9", borderRadius: 2, overflow: "hidden", maxWidth: 200 }}>
-                        <div style={{ height: "100%", width: `${pct}%`, background: complete ? "#16a34a" : "var(--red)", borderRadius: 2 }} />
-                      </div>
-                    </div>
-                    <span style={{ fontSize: 11, color: L.dimmed, flexShrink: 0 }}>{done}/{TOTAL_STEPS} steps · {pct}%</span>
-                    <span style={{ fontSize: 11, color: L.dimmed, flexShrink: 0 }}>{new Date(client.created_at).toLocaleDateString("en-NZ", { day: "numeric", month: "short" })}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
-          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 16 }}>
-            Still deciding — {thinkingClients.length}
-          </div>
-          {thinkingClients.length === 0 ? (
-            <p style={{ fontSize: 13, color: L.dimmed }}>No one on the fence right now.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {thinkingClients.map(client => (
-                <Link key={client.id} href={`/dashboard/onboarding/${client.id}`} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 4px", textDecoration: "none", borderBottom: `1px solid ${L.border}` }} className="row-hover">
-                  <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{client.company}</span>
-                    <span style={{ fontSize: 12, color: L.muted }}>{client.name}</span>
-                  </div>
-                  <span style={{ fontSize: 11, color: L.dimmed, flexShrink: 0 }}>{new Date(client.created_at).toLocaleDateString("en-NZ", { day: "numeric", month: "short" })}</span>
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>

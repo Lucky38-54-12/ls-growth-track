@@ -67,7 +67,9 @@ export default async function TodayPage() {
 
   // Leads that replied and are sitting untouched — this is the human-touchpoint queue.
   // Once you move a lead off "replied" in the pipeline it naturally drops out of this list.
-  const repliedLeads = pipelineLeads.filter(l => l.status === "replied");
+  // Email-outreach replies already surface in the Email Pipeline's own Replied
+  // column, so only cold-call replies belong in this cross-pipeline panel.
+  const repliedLeads = pipelineLeads.filter(l => l.status === "replied" && l.source === "cold_call");
   const heldByLeadId = new Map(allLeads.map(l => [l.lead_id, l]));
   const needsAttentionCount = repliedLeads.length + heldEmails.length;
 

@@ -1,4 +1,3 @@
-import { createSupabaseClient } from "@/lib/supabase";
 import Topbar from "@/components/Topbar";
 import OnboardingWorkspace from "./OnboardingWorkspace";
 
@@ -18,17 +17,11 @@ export const ONBOARDING_STEPS = [
 ];
 
 
-export default async function OnboardingPage() {
-  const sb = createSupabaseClient();
-  const { data: clients } = await sb
-    .from("onboarding_clients")
-    .select("id, name, company, email, completed_steps, created_at, decision_status")
-    .order("created_at", { ascending: false });
-
+export default function OnboardingPage() {
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
       <Topbar title="CLIENT ONBOARDING" subtitle="Paste your Read.ai notes, send a recap, generate a proposal" />
-      <OnboardingWorkspace clients={clients || []} />
+      <OnboardingWorkspace />
     </div>
   );
 }

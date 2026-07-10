@@ -17,7 +17,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const sb = createSupabaseClient();
   const body = await req.json();
-  const { name, company, email, phone, subject, bodyHtml, decisionStatus } = body;
+  const { name, company, email, phone, subject, bodyHtml, decisionStatus, callNotes } = body;
 
   const { data, error } = await sb
     .from("onboarding_clients")
@@ -41,5 +41,25 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ...data, sent, sendError });
+  // A recap almost always covers a lead that's already sitting in the
+  // cold-call/email pipeline — mirror the decision there so the board
+  // doesn't go stale once onboarding takes over, and drop the recap into
+  // the lead's notes so it shows up on its pipeline card.
+  let leadSynced = false;
+  if (email) {
+    const { data: lead } = await sb.from("leads").select("lead_id, notes").ilike("email", email).maybeSingle();
+    if (lead) {
+      const pipelineStatus = decisionStatus === "thinking" ? "thinking_about_it" : "proposal_sent";
+      const updates: Record<string, unknown> = { status: pipelineStatus };
+      if (callNotes?.trim()) {
+        const today = new Date().toISOString().split("T")[0];
+        const entry = `[${today} onboarding recap] ${callNotes.trim()}`;
+        updates.notes = lead.notes?.trim() ? `${lead.notes}\n${entry}` : entry;
+      }
+      const { error: updateError } = await sb.from("leads").update(updates).eq("lead_id", lead.lead_id);
+      leadSynced = !updateError;
+    }
+  }
+
+  return NextResponse.json({ ...data, sent, sendError, leadSynced });
 }

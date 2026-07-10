@@ -20,8 +20,8 @@ export default async function EmailTrackingPage() {
 
   const [{ data: sends }, leads, { data: events }] = await Promise.all([
     sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
-    fetchAllRows<{ lead_id: string; company: string; contact_name: string; email: string; status: string; campaign_id: string | null }>(
-      (from, to) => sb.from("leads").select("lead_id,company,contact_name,email,status,campaign_id").range(from, to)
+    fetchAllRows<{ lead_id: string; company: string; contact_name: string; email: string; status: string; campaign_id: string | null; source: string }>(
+      (from, to) => sb.from("leads").select("lead_id,company,contact_name,email,status,campaign_id,source").range(from, to)
     ),
     sb.from("email_events").select("*"),
   ]);
@@ -39,11 +39,10 @@ export default async function EmailTrackingPage() {
   }
 
   // Campaign emails (sent via Resend on outreach@lsgrowth.agency) have their
-  // own dedicated tracking page — this page is personal-Gmail/cold-call
-  // sends only, so leads that have been activated onto a campaign are
-  // excluded here rather than mixed in.
+  // own dedicated tracking page, and email-outreach leads belong on the
+  // Email Pipeline — this page is personal-Gmail/cold-call sends only.
   const rows: SendRow[] = ((sends || []) as EmailSend[])
-    .filter((s) => !leadById.get(s.lead_id)?.campaign_id)
+    .filter((s) => leadById.get(s.lead_id)?.source === "cold_call")
     .map((s) => {
       const lead = leadById.get(s.lead_id);
       return {
