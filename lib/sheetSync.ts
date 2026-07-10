@@ -1,6 +1,6 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { generateLeadId } from "./leads";
-import { sendOutreachEmail, sendPersonalizedEmail } from "./email";
+import { sendPersonalizedEmail } from "./email";
 import { generatePersonalizedEmail, generateCampaignStepEmail, generatePersonalizationHook } from "./ai";
 import { readLeadSheet, hasCallInfo, formatCallNotes, getSheetTitle, parseCampaignFromTitle } from "./sheets";
 import { Lead } from "./types";

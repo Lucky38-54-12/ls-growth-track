@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { generateLeadId } from "@/lib/leads";
-import { sendOutreachEmail } from "@/lib/email";
 import { Lead } from "@/lib/types";
 
 export async function GET() {
@@ -48,19 +47,10 @@ export async function POST(req: NextRequest) {
   const { data, error } = await sb.from("leads").insert(lead).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  if (body.sendInitialEmail === false) {
-    return NextResponse.json({ lead: data, emailError: null });
-  }
-
-  let emailError: string | null = null;
-  try {
-    await sendOutreachEmail(data as Lead, "initial");
-    await sb.from("leads").update({ status: "contacted", date_contacted: today }).eq("lead_id", leadId);
-    data.status = "contacted";
-    data.date_contacted = today;
-  } catch (err: unknown) {
-    emailError = err instanceof Error ? err.message : String(err);
-  }
+  // No auto-send on creation — every outgoing email must be AI-generated and
+  // gated by an active campaign (lib/sendPipeline.ts), never the old static
+  // template. A newly created lead just sits until it's added to a campaign.
+  const emailError: string | null = null;
 
   return NextResponse.json({ lead: data, emailError });
 }

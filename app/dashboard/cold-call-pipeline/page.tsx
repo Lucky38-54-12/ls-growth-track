@@ -37,7 +37,7 @@ export default async function ColdCallPipelinePage() {
 
       <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px" }}>
         {queueCount > 0 && (
-          <Link href="/dashboard/call-queue" className="card-hover" style={{
+          <Link href="/dashboard/cold-call" className="card-hover" style={{
             display: "flex", alignItems: "center", gap: 12,
             background: "#fef2f2", border: "1px solid #fecaca", padding: "12px 16px", textDecoration: "none", marginBottom: 16,
           }}>
@@ -45,7 +45,7 @@ export default async function ColdCallPipelinePage() {
               <Phone style={{ width: 15, height: 15, color: "var(--red)" }} />
             </div>
             <span style={{ fontSize: 13, fontWeight: 800, color: "var(--red)" }}>
-              {queueCount} prospect{queueCount !== 1 ? "s" : ""} waiting in the Call Queue
+              {queueCount} prospect{queueCount !== 1 ? "s" : ""} not called yet
             </span>
           </Link>
         )}
@@ -56,7 +56,7 @@ export default async function ColdCallPipelinePage() {
           </div>
           {calledLeads.length === 0 ? (
             <p style={{ color: L.muted, fontSize: 13 }}>
-              No cold-call leads yet — work through the <Link href="/dashboard/call-queue" style={{ color: "var(--red)" }}>Call Queue</Link> to add some.
+              No cold-call leads yet — run the <Link href="/dashboard/scraper" style={{ color: "var(--red)" }}>Scraper</Link> to add some.
             </p>
           ) : (
             <table style={{ borderCollapse: "collapse", width: "100%" }}>

@@ -106,7 +106,7 @@ export default async function DashboardPage({
         <PipelineStats allLeads={pipelineLeads} />
 
         {callQueueLeads.length > 0 && (
-          <Link href="/dashboard/call-queue" className="card-hover" style={{
+          <Link href="/dashboard/cold-call" className="card-hover" style={{
             display: "flex", alignItems: "center", gap: 12,
             background: "#fef2f2", border: "1px solid #fecaca", padding: "12px 16px", textDecoration: "none",
           }}>
@@ -114,7 +114,7 @@ export default async function DashboardPage({
               <Phone style={{ width: 15, height: 15, color: "var(--red)" }} />
             </div>
             <span style={{ fontSize: 13, fontWeight: 800, color: "var(--red)" }}>
-              {callQueueLeads.length} prospect{callQueueLeads.length !== 1 ? "s" : ""} waiting in the Call Queue
+              {callQueueLeads.length} prospect{callQueueLeads.length !== 1 ? "s" : ""} not called yet
             </span>
           </Link>
         )}
@@ -146,7 +146,7 @@ export default async function DashboardPage({
         {/* Kanban board */}
         {pipelineLeads.length === 0 ? (
           <div className="surface-card" style={{ padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
-            No cold-call leads yet — work through the <Link href="/dashboard/call-queue" style={{ color: "var(--red)", fontWeight: 700 }}>Call Queue</Link> to add some.
+            No cold-call leads yet — run the <Link href="/dashboard/scraper" style={{ color: "var(--red)", fontWeight: 700 }}>Scraper</Link> to add some.
           </div>
         ) : (
           <PipelineBoard sections={sections} columns={columns} engagement={engagement} activeSource="cold_call" />

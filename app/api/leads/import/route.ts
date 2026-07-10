@@ -2,18 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { generateLeadId, nextStepFor, STEP_NEW_STATUS } from "@/lib/leads";
-import { sendOutreachEmail } from "@/lib/email";
+import { generateLeadId } from "@/lib/leads";
 import { generatePersonalizationHook } from "@/lib/ai";
 import { Lead } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { rows, tradeDefault, locationDefault, sendNow } = body as {
+  const { rows, tradeDefault, locationDefault } = body as {
     rows: string[];
     tradeDefault: string;
     locationDefault: string;
-    sendNow: boolean;
   };
 
   const sb = createSupabaseClient();
@@ -94,9 +92,10 @@ export async function POST(req: NextRequest) {
   const leads = inserted as Lead[];
 
   // Generate a research-based personalization hook for each new lead so the
-  // outreach email references something real instead of a generic merge field.
-  // Best-effort: if the AI call fails for a lead, it just falls back to the
-  // generic line in the template (handled in lib/templates.ts).
+  // AI-generated outreach email (lib/sendPipeline.ts, once the lead is added
+  // to a campaign) references something real instead of a generic opener.
+  // Best-effort: if the AI call fails for a lead, it just leaves the hook
+  // null and the generator falls back to its own generic-info handling.
   for (const lead of leads) {
     try {
       const { hook, contactName } = await generatePersonalizationHook({
@@ -119,25 +118,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let sent = 0;
-  if (sendNow) {
-    for (const lead of leads) {
-      const step = nextStepFor(lead);
-      if (!step || step === "checkin") continue;
-      try {
-        await sendOutreachEmail(lead, step);
-        const update: Record<string, unknown> = { status: STEP_NEW_STATUS[step] };
-        if (step === "initial") update.date_contacted = today;
-        else { update.last_followup = today; update.followup_count = 1; }
-        await sb.from("leads").update(update).eq("lead_id", lead.lead_id);
-        sent++;
-      } catch {}
-    }
-  }
+  // No auto-send on import — every outgoing email must be AI-generated and
+  // gated by an active campaign (lib/sendPipeline.ts), never the old static
+  // template. Imported leads just sit until they're added to a campaign.
+  const sent = 0;
 
-  // Email-outreach leads are assumed to already have an email out (sent here,
-  // or sent through whatever produced this CSV) — they belong on the
-  // "Contacted" stage of the pipeline, never "New Lead".
+  // Email-outreach leads are assumed to already have an email out (sent
+  // through whatever produced this CSV) — they belong on the "Contacted"
+  // stage of the pipeline, never "New Lead".
   const stillUncontacted = leads.filter((l) => l.status === "not_contacted");
   if (stillUncontacted.length) {
     await sb.from("leads").update({ status: "contacted", date_contacted: today }).in(

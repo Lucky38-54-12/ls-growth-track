@@ -1,9 +1,8 @@
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
 import { Lead } from "./types";
-import { EmailStep } from "./leads";
 import { MailAccount } from "./gmail";
-import { renderTemplate, htmlToText } from "./templates";
+import { htmlToText } from "./templates";
 import { createSupabaseClient } from "./supabase";
 
 const FROM = `Lucky <${process.env.GMAIL_USER}>`;
@@ -85,21 +84,6 @@ async function logSend(leadId: string, step: string, subject: string, bodyHtml: 
     const sb = createSupabaseClient();
     await sb.from("email_sends").insert({ lead_id: leadId, step, subject, body_html: bodyHtml });
   } catch {}
-}
-
-export async function sendOutreachEmail(lead: Lead, step: Exclude<EmailStep, "checkin">) {
-  const { pixel, ctaLink } = buildLinks(lead.lead_id, step);
-  const { subject, html, text } = renderTemplate(step, {
-    company: lead.company,
-    contact_name: lead.contact_name || "there",
-    trade: lead.trade,
-    location: lead.location,
-    cta_link: ctaLink,
-    pixel,
-    personalization: lead.personalization_hook || undefined,
-  });
-  await sendBulkMail({ to: lead.email, subject, html, text });
-  await logSend(lead.lead_id, step, subject, html);
 }
 
 export async function sendReminderEmail(to: string, subject: string, body: string) {
