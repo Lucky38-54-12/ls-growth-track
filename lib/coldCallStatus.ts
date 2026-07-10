@@ -19,6 +19,9 @@ export const COLD_CALL_STATUS_LABELS: Record<string, string> = {
   not_interested: "Not interested",
   bounced: "Bounced",
   sequence_complete: "Sequence complete",
+  discovery_done: "Discovery Done",
+  onboarding: "Onboarding",
+  ready_to_launch: "Ready to Launch",
 };
 
 export const COLD_CALL_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -34,4 +37,7 @@ export const COLD_CALL_STATUS_COLORS: Record<string, { bg: string; text: string 
   closed: { bg: "#dcfce7", text: "#14532d" },
   no_close: { bg: "#fee2e2", text: "#991b1b" },
   thinking_about_it: { bg: "#fef9c3", text: "#854d0e" },
+  discovery_done: { bg: "#dbeafe", text: "#1e40af" },
+  onboarding: { bg: "#e0e7ff", text: "#3730a3" },
+  ready_to_launch: { bg: "#dcfce7", text: "#166534" },
 };
