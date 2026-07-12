@@ -1,5 +1,18 @@
 export type EmailStep = "initial" | "followup1" | "followup2" | "followup3" | "followup4";
 
+// The HTML stored in email_sends.body_html is the exact email that went out,
+// tracking pixel and /api/click-wrapped links included. Viewing it anywhere
+// in the dashboard (Campaign Tracking, lead detail, Automations) renders it
+// live via dangerouslySetInnerHTML, which re-fires the pixel — and, if the
+// preview's CTA link gets clicked, a click — attributing Lucky's own preview
+// views to the recipient. Strip the pixel and unwrap tracking links before
+// ever rendering stored email bodies for internal viewing.
+export function stripTrackingForDisplay(html: string): string {
+  return html
+    .replace(/<img src="[^"]*\/api\/open\?[^"]*"[^>]*\/>/g, "")
+    .replace(/href="[^"]*\/api\/click\?[^"]*[?&]url=([^"&]+)[^"]*"/g, (_match, encodedUrl: string) => `href="${decodeURIComponent(encodedUrl)}"`);
+}
+
 interface TemplateData {
   company: string;
   contact_name: string;

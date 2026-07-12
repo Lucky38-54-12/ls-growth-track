@@ -2,6 +2,7 @@ import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { Lead, Campaign, EmailSend, EmailEvent, EmailCheck, EngagementSummary } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
 import { stillHeld } from "@/lib/leads";
+import { stripTrackingForDisplay } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
 import Link from "next/link";
 
@@ -207,7 +208,7 @@ export default async function CampaignTrackingPage() {
                             </summary>
                             <div
                               style={{ padding: "14px 18px", borderTop: `1px solid ${L.border}`, background: "#fafafa", fontFamily: "Arial,Helvetica,sans-serif", fontSize: 14, color: L.text, lineHeight: 1.5 }}
-                              dangerouslySetInnerHTML={{ __html: send.body_html }}
+                              dangerouslySetInnerHTML={{ __html: stripTrackingForDisplay(send.body_html) }}
                             />
                           </details>
                         ))}

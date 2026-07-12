@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { EmailEvent, EmailSend, Lead } from "@/lib/types";
 import { deviceFromUserAgent, formatDateTime } from "@/lib/format";
+import { stripTrackingForDisplay } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
@@ -166,7 +167,7 @@ export default function CallForm({ lead, events, sends }: { lead: Lead; events: 
                   </summary>
                   <div
                     style={{ padding: "12px 16px", borderTop: `1px solid ${L.border}`, fontFamily: "Arial,Helvetica,sans-serif", fontSize: 14, color: L.text, lineHeight: 1.5 }}
-                    dangerouslySetInnerHTML={{ __html: s.body_html }}
+                    dangerouslySetInnerHTML={{ __html: stripTrackingForDisplay(s.body_html) }}
                   />
                 </details>
               ))}

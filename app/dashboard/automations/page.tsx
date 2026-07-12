@@ -1,6 +1,7 @@
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { Lead, Campaign, EmailSend } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
+import { stripTrackingForDisplay } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
 
 export const revalidate = 0;
@@ -166,7 +167,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
                     </summary>
                     <div
                       style={{ padding: "14px 18px", borderTop: `1px solid ${L.border}`, background: "#fafafa", fontFamily: "Arial,Helvetica,sans-serif", fontSize: 14, color: L.text, lineHeight: 1.5 }}
-                      dangerouslySetInnerHTML={{ __html: row.body_html }}
+                      dangerouslySetInnerHTML={{ __html: stripTrackingForDisplay(row.body_html) }}
                     />
                   </details>
                 );
