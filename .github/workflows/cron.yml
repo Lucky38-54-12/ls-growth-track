@@ -1,0 +1,30 @@
+name: Daily outreach cron
+
+# Vercel's own Cron Jobs feature never registered these routes (confirmed
+# via Observability > Cron Jobs showing zero invocations), so GitHub Actions
+# triggers them instead — same endpoints, same CRON_SECRET auth, just a
+# different, verifiable scheduler.
+on:
+  schedule:
+    - cron: "0 20 * * *"  # 8am NZT — campaign sends
+    - cron: "0 21 * * *"  # 9am NZT — daily maintenance
+  workflow_dispatch: {}    # lets you trigger a run manually from the Actions tab
+
+jobs:
+  campaign-send:
+    if: github.event.schedule == '0 20 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron
+        run: |
+          curl -sf -X GET "https://app.lsgrowth.agency/api/cron" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  daily-maintenance:
+    if: github.event.schedule == '0 21 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/daily-maintenance
+        run: |
+          curl -sf -X GET "https://app.lsgrowth.agency/api/cron/daily-maintenance" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
