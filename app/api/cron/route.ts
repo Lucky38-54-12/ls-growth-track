@@ -9,7 +9,12 @@ import { Lead } from "@/lib/types";
 // one left off, instead of Vercel silently killing the whole batch mid-loop
 // with no result ever recorded for the leads still in flight.
 export const maxDuration = 60;
-const TIME_BUDGET_MS = 50_000;
+// The budget check only runs *before* starting a lead, not during — and a
+// single lead (AI draft + AI quality check + Resend send) has taken up to
+// ~30s in practice. 50s left too little headroom and got killed by Vercel's
+// hard 60s ceiling mid-lead (confirmed via a real timeout in production).
+// 25s leaves room for one more worst-case lead to finish under the ceiling.
+const TIME_BUDGET_MS = 25_000;
 
 // Called by GitHub Actions daily at 8am NZT (20:00 UTC) — see
 // .github/workflows/cron.yml. Vercel's own Cron Jobs never actually
