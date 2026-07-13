@@ -837,27 +837,18 @@ Meeting time: ${input.meetingTime}`;
   return runMeetingEmailPrompt(VALUE_TOUCHPOINT_SYSTEM_PROMPT, userPrompt);
 }
 
-const MEETING_DAY_REMINDER_SYSTEM_PROMPT = `You are writing a short "meeting today" reminder email on behalf of Lucky from LS Growth Agency, which runs Meta ad campaigns for trade businesses (cleaners, builders, plumbers, etc) to generate leads.
-
-This lead has a call booked with Lucky for later today. Write a short, casual reminder email, sent this morning:
-- Address them by name at the start (e.g. "Hey Mike,")
-- Remind them the call is today and confirm the time
-- Include a paragraph containing exactly "[MEETING LINK]" and nothing else, on its own line with no other text
-- One light line about what the call covers (their lead flow, how LS Growth works)
-- Offer to shift the time by text if something's come up
-- 2-3 short paragraphs max
-- No dashes or em dashes anywhere
-- No sign-off (added separately)
-- HTML: only <p> and <a> tags, nothing else
-
-Also write a short subject line (4-7 words) referencing today's call.
-
-Respond with ONLY a JSON object, no markdown fences, no other text:
-{"subject": "...", "bodyHtml": "..."}`;
-
+// This used to be AI-generated (see git history) but a same-day reminder
+// doesn't need to be "anything crazy" — a fixed, simple template every time
+// is exactly what was asked for, and it's faster and cheaper than an AI call
+// for something this mechanical. Kept as a plain function (not
+// runMeetingEmailPrompt) since there's no generation step at all.
 export async function generateMeetingDayReminderEmail(input: MeetingTouchpointInput): Promise<PersonalizedEmail> {
-  const userPrompt = `Company: ${input.company}
-Contact name: ${realName(input.contactName) || "unknown"}
-Meeting time: ${input.meetingTime}`;
-  return runMeetingEmailPrompt(MEETING_DAY_REMINDER_SYSTEM_PROMPT, userPrompt);
+  const name = realName(input.contactName) || "there";
+  const subject = `Quick reminder — our meeting today at ${input.meetingTime}`;
+  const bodyHtml = [
+    `<p>Hey ${name},</p>`,
+    `<p>Just a reminder we have our meeting today at ${input.meetingTime}. Looking forward to chatting!</p>`,
+    `<p>You can join here: [MEETING LINK]</p>`,
+  ].join("\n");
+  return { subject, bodyHtml };
 }
