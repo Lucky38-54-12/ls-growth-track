@@ -1,0 +1,43 @@
+name: Send pipeline smoke test
+
+# Catches a regression in the send pipeline within seconds of a deploy
+# instead of a human finding it live (as happened twice on 2026-07-13: the
+# "not a fit" bug and the {{CTA_LINK}} false-positive both reached real
+# leads before anyone noticed). Runs the actual generate -> quality-check ->
+# common-sense-check pipeline against synthetic leads that never touch real
+# data or send a real email — see app/api/cron/smoke-test/route.ts.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lib/ai.ts"
+      - "lib/sendPipeline.ts"
+      - "lib/email.ts"
+      - "app/api/cron/**"
+  workflow_dispatch: {}
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      # Vercel's GitHub integration auto-deploys on push, but there's no
+      # webhook wired up to know exactly when it finishes — a fixed wait is
+      # simpler than polling the Vercel API for deployment status here.
+      - name: Wait for auto-deploy to finish
+        run: sleep 90
+
+      - name: Call /api/cron/smoke-test
+        # No -f here on purpose: the route returns HTTP 500 on a failed
+        # check, and the JSON body (which check failed and why) is exactly
+        # what's needed on that path — -f would suppress the body.
+        run: |
+          curl -s -X GET "https://app.lsgrowth.agency/api/cron/smoke-test" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" | tee smoke-test-result.json
+
+      - name: Fail the job if any check failed
+        run: |
+          if [ "$(jq -r '.passed' smoke-test-result.json)" != "true" ]; then
+            echo "::error::Smoke test failed — see output above"
+            jq '.results[] | select(.pass == false)' smoke-test-result.json
+            exit 1
+          fi
