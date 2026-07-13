@@ -105,8 +105,10 @@ SUBJECT LINE
 - Must look like it came from a real person, not a campaign
 - If a real contact name is known, work it into the subject naturally (e.g. "quick one Dave", "work been quiet lately Dave")
 - No dashes or em dashes in the subject line, same rule as the body
-- Good: "the jobs slipping through", "quick one Dave", "Wellington cleaners, 30 days in"
-- Bad: "Grow your business", "More leads for [Company]", "Exciting opportunity"
+- BANNED SHAPE — never write a subject as "[Location] [trade]s + generic phrase" (e.g. "Wellington electricians on Facebook", "Wellington electricians leaving jobs on the table", "Wellington cleaners, 30 days in"). This exact shape has already been sent, nearly word-for-word, to multiple unrelated businesses in the same campaign — it reads as a mail-merge template with the trade swapped in, not a real person writing to this specific business, which is the one thing this email must never look like.
+- When there's no specific research to draw from (see "Nothing specific is known" case below), anchor the subject on the company's actual name or a plain, personal-sounding line instead of a generic industry-wide phrase — "quick one for [Company]", "quick one", "the jobs slipping through" — never restate their trade + location as the hook, that's not specific to them, it's specific to their category
+- Good: "the jobs slipping through", "quick one Dave", "switchboard upgrades and EV chargers" (only if those are their actual confirmed job types)
+- Bad: "Grow your business", "More leads for [Company]", "Exciting opportunity", "Wellington electricians on Facebook", "Wellington cleaners, 30 days in"
 
 GREETING (MANDATORY — never skip this)
 - The very first <p> in body_html MUST be the greeting, nothing else in that paragraph
@@ -256,7 +258,7 @@ export async function generateCampaignStepEmail(input: CampaignStepEmailInput): 
     ? `\nWhat's actually known about this business (use this to make the email specific and prove you looked them up — don't just repeat it verbatim):
 ${input.personalizationHook?.trim() ? `- ${input.personalizationHook.trim()}\n` : ""}${input.notes?.trim() ? `- Notes: ${input.notes.trim()}\n` : ""}${websiteSnippet ? `- Real text scraped from their website:\n${websiteSnippet}\n` : input.website?.trim() ? `- Website: ${input.website.trim()} (could not fetch content — do not guess what's on it)\n` : ""}
 Only name specific job types (e.g. "switchboard upgrades", "heat pump installs") if they're actually confirmed above, in the notes, or the scraped website text. If the trade's specific services aren't confirmed anywhere, describe their work in general trade terms instead (e.g. "the jobs you do", "your workload") rather than inventing a plausible-sounding list — an invented service is an automatic reject.`
-    : `\nNothing specific is known about this business yet beyond their company name, trade, and location. Do NOT open with a generic industry statement like "When a homeowner needs a plumber..." or "Most trade businesses...". Do NOT invent details about them. Instead: open with Hi, (no name), introduce what LS Growth does for their trade in one sentence, drop one real proof point with numbers, then a direct CTA. Short, honest, no fluff.`;
+    : `\nNothing specific is known about this business yet beyond their company name, trade, and location. Do NOT open with a generic industry statement like "When a homeowner needs a plumber..." or "Most trade businesses...". Do NOT invent details about them. Instead: open with Hi, (no name), introduce what LS Growth does for their trade in one sentence, drop one real proof point with numbers, then a direct CTA. Short, honest, no fluff. The subject line especially must not fall back on "[Location] [trade]s" — anchor it on their company name instead (e.g. "quick one for ${input.company}") since that's the only thing that's actually specific to them here.`;
 
   const userPrompt = `Business: ${input.company}
 Contact name: ${realName(input.contactName) || "unknown"}
