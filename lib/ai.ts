@@ -585,22 +585,25 @@ const PERSONALIZATION_SYSTEM_PROMPT = `You research a business for Lucky from LS
 
 You'll be given a business's name, trade, location, and what's known about their online presence — sometimes including real scraped text from their actual website. Your job:
 
+0. If no website text and no notes were given below, use the web_search tool before writing anything — search for the business by name plus location (and trade if the name alone is ambiguous) to find their actual Facebook page, Google Business/Maps listing, or any other real public presence. Do this before falling back to a generic "no website" line — a found Facebook page or listing is always better than nothing, and "genuinely nothing findable at all" should be rare once you've actually searched, not the default. If multiple businesses share a similar name, use the location and trade to confirm you found the right one — do not use anything from a business you're not confident is this one.
+
 1. Write exactly ONE short sentence that replaces a generic line like "I came across {company} and wanted to see if something similar could work for a {trade} business in {location}":
    - If real website text is provided, reference something TRUE and SPECIFIC from it (a service they offer, area they cover, something distinctive) — this is by far the best source, prefer it over anything else
-   - Otherwise if they have no website: point out that's costing them search traffic to competitors who do have one
+   - Otherwise if your search found a real Facebook page, Google listing, or other online presence, reference something TRUE and SPECIFIC from that instead (what it says they do, reviews mentioning specific work, their coverage area) — same bar as website text, only use what you actually found
+   - Otherwise if you searched and found nothing but confirmed they have no real online presence: point out that's costing them search traffic to competitors who do have one
    - Otherwise if they have a Facebook page but no website: note the mismatch (decent social presence, but missing from Google searches)
    - Otherwise if they have both a website and Facebook with no scraped text: just note you came across their business while looking at {trade} companies in {location}, naturally
    - If real notes are provided (e.g. from a call), reference the most specific detail from them instead
-   - Never invent a detail that isn't actually given to you
+   - Never invent a detail that isn't actually given to you or actually found via search — an unverified guess is worse than the generic fallback line
    - Sound like a real person noticed something, not a sales tool — casual, no corporate phrases, no dashes or em dashes
    - No greeting, sign-off, or call to action — just the one sentence
 
 2. Try to find the owner's first name using these sources in order of priority:
-   a. If the scraped website text clearly names a real person as the owner, founder, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a bio with a name) — extract their first name
+   a. If the scraped website text or search results clearly name a real person as the owner, founder, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a bio with a name) — extract their first name
    b. If the business name itself is person-named (e.g. "Mike's Electrical", "Sarah's Cleaning", "Dave Johnson Plumbing", "Tom & Sons Builders") — extract that first name
    c. Otherwise return null — never guess or invent a name that isn't clearly there
 
-Respond with ONLY a JSON object, no markdown fences, no other text: {"sentence": "...", "contact_name": "John" or null}`;
+After any searching is done, respond with ONLY a JSON object as your final message, no markdown fences, no other text: {"sentence": "...", "contact_name": "John" or null}`;
 
 export async function generatePersonalizationHook(input: PersonalizationHookInput): Promise<{ hook: string; contactName: string | null }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -609,6 +612,7 @@ export async function generatePersonalizationHook(input: PersonalizationHookInpu
   const client = new Anthropic({ apiKey });
 
   const websiteSnippet = input.website ? await fetchWebsiteSnippet(input.website) : "";
+  const canSearch = !websiteSnippet && !input.notes?.trim();
 
   const userPrompt = `Business: ${input.company}
 Trade: ${input.trade || "unknown"}
@@ -616,19 +620,24 @@ Location: ${input.location || "unknown"}
 Website: ${input.website || "none found"}
 Facebook: ${input.facebook || "none found"}
 Notes: ${input.notes || "none"}
-${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` : ""}`;
+${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` : ""}
+${canSearch ? "\nNo website text or notes are available — search the web for this business before writing the sentence (see step 0)." : ""}`;
 
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 300,
+    max_tokens: 1024,
     system: PERSONALIZATION_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
+    ...(canSearch ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 } as const] } : {}),
   });
 
-  const block = msg.content[0];
-  if (block.type !== "text") throw new Error("Unexpected response from AI");
+  // With web search enabled, content can interleave search-related blocks
+  // with text — the final JSON is written as the last text block, not
+  // necessarily content[0], so every text block needs to be joined in order.
+  const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  if (!text) throw new Error("Unexpected response from AI");
 
-  const parsed = parseJsonResponse<{ sentence?: string; contact_name?: string | null }>(block.text);
+  const parsed = parseJsonResponse<{ sentence?: string; contact_name?: string | null }>(text);
   if (!parsed.sentence) throw new Error("AI response missing sentence");
 
   return { hook: validateHook(parsed.sentence), contactName: parsed.contact_name?.trim() || null };

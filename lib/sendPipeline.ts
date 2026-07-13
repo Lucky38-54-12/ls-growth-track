@@ -34,7 +34,13 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   // that arrive any other way (scraper, manual entry) reach send-time with
   // no personalization_hook. Best-effort enrich here so every campaign
   // lead gets a real, researched email instead of the generic fallback.
-  if (!lead.personalization_hook && (lead.website || lead.facebook)) {
+  // No longer gated on website/facebook already being on file — leads with
+  // neither used to skip enrichment entirely and go straight to the generic
+  // template, which is exactly what produced the "Wellington electricians on
+  // Facebook" mail-merge subjects sent to 5 different businesses today.
+  // generatePersonalizationHook now web-searches for the business itself
+  // when nothing is on file, so every lead gets a real research attempt.
+  if (!lead.personalization_hook) {
     try {
       const { hook, contactName } = await generatePersonalizationHook({
         company: lead.company,
