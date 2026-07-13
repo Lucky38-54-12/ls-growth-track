@@ -6,7 +6,6 @@ import { nextStepFor, stillHeld } from "@/lib/leads";
 import { formatDateTime } from "@/lib/format";
 import { Lead, EmailEvent, EmailSend, RevenueClient, RevenueGoal, EmailCheck } from "@/lib/types";
 import Topbar from "@/components/Topbar";
-import MeetingReminderButton from "@/components/MeetingReminderButton";
 import RevenueGoalCard from "@/components/RevenueGoalCard";
 import DailyNotes from "@/components/DailyNotes";
 import CheckRepliesButton from "@/components/CheckRepliesButton";
@@ -227,17 +226,14 @@ export default async function TodayPage() {
                   }
 
                   const timeStr = ev.allDay ? "today" : timeFmt.format(new Date(ev.startISO)).replace(" ", "").toLowerCase();
-                  const firstName = (attendeeName || "").split(" ")[0] || "there";
                   const subLine = [attendeeName, lead?.company].filter(Boolean).join(" · ");
-                  const reminderBody = [
-                    `Hey ${firstName},`,
-                    "",
-                    `Just a reminder we have our meeting today at ${timeStr}. Looking forward to chatting!`,
-                    "",
-                    ...(ev.hangoutLink ? [`You can join here: ${ev.hangoutLink}`, ""] : []),
-                    "Cheers,",
-                    "Lucky",
-                  ].join("\n");
+                  // Meeting reminders are fully automated now (sendMeetingTouchpoints
+                  // in lib/calendarSync.ts sends one on the day, off the same
+                  // calendar data this card reads) — a manual "remind" button here
+                  // was redundant. Shows sent-email count instead so it's obvious
+                  // at a glance whether this lead's been through the sequence
+                  // before the meeting, not just a bare link to go check.
+                  const sentCount = lead ? allSends.filter(s => s.lead_id === lead!.lead_id).length : 0;
                   return (
                     <div key={ev.eventId}>
                     {showDivider && (
@@ -256,12 +252,13 @@ export default async function TodayPage() {
                           <p style={{ fontSize: 11.5, color: L.dimmed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subLine}</p>
                         )}
                       </div>
-                      {attendeeEmail && (
-                        <MeetingReminderButton
-                          to={attendeeEmail}
-                          defaultSubject={`Quick reminder — our meeting today at ${timeStr}`}
-                          defaultBody={reminderBody}
-                        />
+                      {lead && (
+                        <Link href={`/dashboard/leads/${lead.lead_id}`} className="pill-hover" style={{
+                          display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", fontSize: 11.5, fontWeight: 700,
+                          color: L.muted, border: `1px solid ${L.border}`, textDecoration: "none", flexShrink: 0,
+                        }}>
+                          {sentCount} email{sentCount !== 1 ? "s" : ""} sent
+                        </Link>
                       )}
                       {ev.hangoutLink && (
                         <a href={ev.hangoutLink} target="_blank" rel="noopener noreferrer" className="pill-hover" style={{
