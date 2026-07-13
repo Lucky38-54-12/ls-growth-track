@@ -1,6 +1,6 @@
 import { createSupabaseClient } from "./supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "./leads";
-import { sendPersonalizedEmail } from "./email";
+import { sendPersonalizedEmail, buildFinalEmailHtml } from "./email";
 import { generateCampaignStepEmail, reviseCampaignStepEmail, generatePersonalizationHook, checkEmailQuality, checkCommonSense } from "./ai";
 import { notifySlack } from "./slackNotify";
 import { Lead } from "./types";
@@ -187,15 +187,23 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   const ctaBlock = `<p>Here are some case studies if you want to take a look: <a href="https://lsgrowth.agency">lsgrowth.agency</a></p><p>If you want to book a time, you can do that below: <a href="{{CTA_LINK}}">grab a time here</a>.</p>`;
   const fullBodyHtml = bodyHtml + ctaBlock;
 
-  // Last line of defense, checking the actual assembled email (CTA block
-  // included) rather than just the AI-written part — a fresh, independent
-  // "would a real person actually send this" read, deliberately not another
-  // pass through checkEmailQuality's checklist. This is what would have
-  // caught the "not a fit" emails even if the generator/checklist fixes
-  // above somehow didn't: a body explaining why a business shouldn't be
-  // emailed, immediately followed by "grab a time here" to book a call, is
-  // exactly the kind of self-contradiction a holistic read catches instantly.
-  const commonSense = await checkCommonSense({ subject, bodyHtml: fullBodyHtml, company: lead.company });
+  // Last line of defense, checking the actual final HTML (real tracking
+  // link filled in, not the raw {{CTA_LINK}} placeholder) rather than just
+  // the AI-written part — a fresh, independent "would a real person
+  // actually send this" read, deliberately not another pass through
+  // checkEmailQuality's checklist. Checking against buildFinalEmailHtml's
+  // output (not fullBodyHtml directly) matters: an earlier version checked
+  // the pre-substitution draft and the common-sense model correctly flagged
+  // the still-literal "{{CTA_LINK}}" text as something a recipient would
+  // see as broken — a real bug, just aimed at the wrong content, since that
+  // placeholder is normal before send-time substitution and never actually
+  // reaches an inbox. This is still what would have caught the "not a fit"
+  // emails even if the generator/checklist fixes above somehow didn't: a
+  // body explaining why a business shouldn't be emailed, immediately
+  // followed by "grab a time here" to book a call, is exactly the kind of
+  // self-contradiction a holistic read catches instantly.
+  const { html: finalHtml } = buildFinalEmailHtml(lead, fullBodyHtml, step);
+  const commonSense = await checkCommonSense({ subject, bodyHtml: finalHtml, company: lead.company });
   if (!commonSense.ok) {
     await sb.from("email_checks").insert({
       lead_id: lead.lead_id,

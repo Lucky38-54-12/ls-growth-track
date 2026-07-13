@@ -135,7 +135,15 @@ ${filledBody}
   await logSend(lead.lead_id, step, subject, html);
 }
 
-export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string, step: string = "custom") {
+// Turns the AI-written bodyHtml + deterministic CTA block into the exact
+// HTML that actually goes out — {{CTA_LINK}} filled in, links rewritten
+// through the click tracker, signature and pixel appended. Exported so
+// callers that need to evaluate the real final content (e.g. sendPipeline's
+// common-sense check) see the same thing the recipient will, not a draft
+// with an unresolved {{CTA_LINK}} placeholder still sitting in it — that
+// placeholder is normal at the AI/quality-check stage but reads as a broken
+// email to anything checking it after this point.
+export function buildFinalEmailHtml(lead: Lead, bodyHtml: string, step: string): { html: string; text: string } {
   const { pixel, ctaLink } = buildLinks(lead.lead_id, step);
   const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
@@ -143,7 +151,11 @@ ${filledBody}
   <p>Cheers,<br>Lucky<br>LS Growth</p>
   ${pixel}
 </div>`;
-  const text = htmlToText(filledBody);
+  return { html, text: htmlToText(filledBody) };
+}
+
+export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string, step: string = "custom") {
+  const { html, text } = buildFinalEmailHtml(lead, bodyHtml, step);
   await sendBulkMail({ to: lead.email, subject, html, text });
   await logSend(lead.lead_id, step, subject, html);
 }
