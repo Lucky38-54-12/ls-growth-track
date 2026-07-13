@@ -176,7 +176,9 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
 
       // Window (not an exact day match) so a missed cron run doesn't skip
       // the email entirely; the sent_at flag keeps it to a single send.
-      if (!row.value_email_sent_at && daysUntil >= 4 && daysUntil <= 7) {
+      // Centered on 3 days out, not a week — close enough to the meeting
+      // that the tip actually feels tied to it, not a random touchpoint.
+      if (!row.value_email_sent_at && daysUntil >= 2 && daysUntil <= 3) {
         const { subject, bodyHtml } = await generateValueTouchpointEmail({
           company: lead.company,
           contactName: lead.contact_name,
