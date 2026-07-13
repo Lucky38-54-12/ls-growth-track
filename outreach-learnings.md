@@ -52,6 +52,11 @@ Similar open rates, wildly different click-through. This isn't really a subject-
 
 **Next specific test queued (do not run yet)**: Once click-through data comes in on the new personalization approach and shows real lift (or doesn't), the next single-variable test is the CTA itself — every email currently uses the identical deterministic block ("case studies link" + "grab a time here"), untested against any alternative. Hold this test until clicks are past ~15-20 post-fix, so a CTA change doesn't get confounded with the personalization fix already in flight.
 
+### 2026-07-13 — Added per-link click breakdown
+**Changed**: Campaign Tracking (`/dashboard/campaign-tracking`) now has a "Link Performance" panel showing unique clickers and total clicks per distinct destination URL (case studies vs book-a-time vs anything else), instead of one collapsed "clicked" count. The underlying data already existed (`/api/click` has always stored the real destination per click event) — this was a reporting gap, not a data gap.
+
+**Why this matters for the CTA test above**: once that test runs, "clicked case studies" vs "clicked book a time" will be the actual signal to read — a lift in case-studies clicks with no change in booking clicks means curiosity went up but the ask didn't land, which is a very different conclusion than an overall click-rate number would show.
+
 ---
 
 ## Template for future entries

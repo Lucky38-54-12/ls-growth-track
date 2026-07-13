@@ -17,6 +17,23 @@ const STATUS_BADGE: Record<string, { bg: string; fg: string; label: string }> = 
   completed: { bg: "#e2e8f0", fg: "#64748b", label: "Completed" },
 };
 
+// /api/click stores the real destination on every click event (see
+// app/api/click/route.ts), so which specific link someone clicked has
+// always been recoverable — it just never surfaced anywhere. Distinguishing
+// "clicked to read case studies" from "clicked to book a time" is a real
+// intent signal worth showing separately, not collapsing into one generic
+// "clicked" count.
+function labelForUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.pathname.replace(/\/$/, "").endsWith("/book")) return "Book a time";
+    if (u.hostname.replace(/^www\./, "") === "lsgrowth.agency" && (u.pathname === "/" || u.pathname === "")) return "Case studies (lsgrowth.agency)";
+    return url.length > 60 ? url.slice(0, 57) + "…" : url;
+  } catch {
+    return url;
+  }
+}
+
 interface SendRow extends EmailSend {
   company: string;
   contact_name: string;
@@ -55,14 +72,25 @@ export default async function CampaignTrackingPage() {
   const heldChecks = stillHeld(checks.filter((c) => c.verdict === "rejected"), sends || []);
 
   const engagement: Record<string, EngagementSummary> = {};
+  const clicksByUrl = new Map<string, { clicks: number; leadIds: Set<string> }>();
   for (const ev of (events || []) as EmailEvent[]) {
     if (!engagement[ev.lead_id]) engagement[ev.lead_id] = { opens: 0, clicks: 0, last_event_at: null };
     if (ev.event_type === "open") engagement[ev.lead_id].opens++;
-    if (ev.event_type === "click") engagement[ev.lead_id].clicks++;
+    if (ev.event_type === "click") {
+      engagement[ev.lead_id].clicks++;
+      const url = ev.url || "(unknown link)";
+      if (!clicksByUrl.has(url)) clicksByUrl.set(url, { clicks: 0, leadIds: new Set() });
+      const entry = clicksByUrl.get(url)!;
+      entry.clicks++;
+      entry.leadIds.add(ev.lead_id);
+    }
     if (!engagement[ev.lead_id].last_event_at || ev.created_at > engagement[ev.lead_id].last_event_at!) {
       engagement[ev.lead_id].last_event_at = ev.created_at;
     }
   }
+  const linkPerformance = Array.from(clicksByUrl.entries())
+    .map(([url, { clicks, leadIds }]) => ({ url, label: labelForUrl(url), clicks, uniqueClickers: leadIds.size }))
+    .sort((a, b) => b.clicks - a.clicks);
 
   const rows: SendRow[] = ((sends || []) as EmailSend[]).map((s) => {
     const lead = leadById.get(s.lead_id);
@@ -156,6 +184,34 @@ export default async function CampaignTrackingPage() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflow: "hidden" }}>
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${L.border}`, fontSize: 11, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Link Performance — which link people actually click
+          </div>
+          {linkPerformance.length === 0 ? (
+            <div style={{ padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>No clicks recorded yet.</div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#f8fafc" }}>
+                  {["Link", "Unique Clickers", "Total Clicks"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontSize: 10, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {linkPerformance.map(({ url, label, clicks, uniqueClickers }, i) => (
+                  <tr key={url} style={{ borderBottom: i === linkPerformance.length - 1 ? "none" : `1px solid ${L.border}` }} className="row-hover">
+                    <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text, fontWeight: 600 }} title={url}>{label}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text }}>{uniqueClickers}</td>
+                    <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text }}>{clicks}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
