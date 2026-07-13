@@ -156,6 +156,11 @@ NEVER USE
 
 Signs off as: Lucky, LS Growth
 
+NOT A FIT — DO NOT WRITE A "SORRY, NOT A FIT" EMAIL:
+LS Growth's proof points and pitch only make sense for small trade/service businesses whose pipeline comes from Facebook/word-of-mouth/day-to-day residential or small-commercial jobs (electricians, plumbers, cleaners, builders, landscapers, etc). If the business given to you is clearly the wrong fit — a large corporate, a national utility or retailer, a wholesaler/distributor, a firm whose work visibly comes from tenders or developer relationships rather than day-to-day bookings, or anything obviously outside a small local trade business — do NOT write an email telling them they're not a fit. That is never a real outreach email; it is you refusing the task, and refusing must never look like a sent email. Instead respond with exactly this JSON shape and nothing else:
+{"not_a_fit": true, "reason": "one sentence on why this business doesn't fit LS Growth's ICP"}
+When in doubt and the business is a normal small/local trade business, write the email as normal — this escape hatch is only for the clear, obvious cases (a company like Meridian Energy or a 150-person tender-based contractor), not for ordinary businesses that are merely hard to research.
+
 Respond with ONLY a JSON object, no markdown fences, no other text:
 {"subject": "...", "body_html": "..."}
 
@@ -227,7 +232,10 @@ const STEP_GUIDANCE: Record<CampaignStepEmailInput["step"], string> = {
   checkin: "Long gap since last touch — acknowledge it briefly without being awkward. Mention something seasonally relevant to their specific job types (summer demand for heat pumps, end-of-year switchboard upgrades, spring cleaning rush, etc.). One sentence on the outcome LS Growth gets for businesses like theirs. Direct CTA. 3 sentences. No mention of the sequence or process.",
 };
 
-export async function generateCampaignStepEmail(input: CampaignStepEmailInput): Promise<PersonalizedEmail & { websiteSnippet: string }> {
+export type NotAFitResult = { notAFit: true; reason: string; websiteSnippet: string };
+export type CampaignStepEmailResult = (PersonalizedEmail & { notAFit?: false; websiteSnippet: string }) | NotAFitResult;
+
+export async function generateCampaignStepEmail(input: CampaignStepEmailInput): Promise<CampaignStepEmailResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
 
@@ -269,7 +277,11 @@ This email's purpose: ${STEP_GUIDANCE[input.step]}${learningsBlock(input.learnin
   const block = msg.content[0];
   if (block.type !== "text") throw new Error("Unexpected response from AI");
 
-  const parsed = parseJsonResponse<{ subject?: string; body_html?: string }>(block.text);
+  const parsed = parseJsonResponse<{ subject?: string; body_html?: string; not_a_fit?: boolean; reason?: string }>(block.text);
+
+  if (parsed.not_a_fit) {
+    return { notAFit: true, reason: parsed.reason || "AI flagged this lead as not a fit for LS Growth's ICP.", websiteSnippet };
+  }
 
   if (!parsed.subject || !parsed.body_html) {
     throw new Error("AI response missing subject or body_html");
@@ -293,7 +305,7 @@ export interface ReviseCampaignStepEmailInput extends CampaignStepEmailInput {
 // checker — feeds the exact rejected draft and the exact reasons back in, so
 // the model fixes the specific problem instead of a blind reroll that has no
 // better odds than the first attempt.
-export async function reviseCampaignStepEmail(input: ReviseCampaignStepEmailInput): Promise<PersonalizedEmail & { websiteSnippet: string }> {
+export async function reviseCampaignStepEmail(input: ReviseCampaignStepEmailInput): Promise<CampaignStepEmailResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
 
@@ -341,7 +353,11 @@ ${rejectionBlock}`;
   const block = msg.content[0];
   if (block.type !== "text") throw new Error("Unexpected response from AI");
 
-  const parsed = parseJsonResponse<{ subject?: string; body_html?: string }>(block.text);
+  const parsed = parseJsonResponse<{ subject?: string; body_html?: string; not_a_fit?: boolean; reason?: string }>(block.text);
+
+  if (parsed.not_a_fit) {
+    return { notAFit: true, reason: parsed.reason || "AI flagged this lead as not a fit for LS Growth's ICP.", websiteSnippet };
+  }
 
   if (!parsed.subject || !parsed.body_html) {
     throw new Error("AI response missing subject or body_html");
@@ -412,6 +428,7 @@ JUDGMENT CHECKS (read it like the business owner would):
 11. If a proof point is used, it actually fits their trade
 12. Sounds like a person texting, not a brand — no corporate phrasing
 13. Nothing invented — no fact, name, or detail that isn't in the notes/research/website given below. This is the most important check: if the email confidently states something specific that wasn't given to you, that is always a judgment fail, no exceptions.
+14. This must be a real pitch, never a declination. Automatic reject if the email discusses whether the lead is a fit for LS Growth, recommends skipping/not sending, says sending it would hurt credibility, or is otherwise addressed to a reviewer deciding whether to send rather than to the lead being pitched. A real generation bug already produced and sent emails like this (subject "not a fit", body explaining why the business shouldn't be emailed) — this check exists specifically to catch that failure mode before it reaches a real inbox again.
 
 Your entire response must be a single JSON object and nothing else — no checklist walkthrough, no numbered notes, no "Let me work through this", no text before or after it. The first character of your response must be "{". Do all 13 checks in your head; none of that thinking appears in the output, only the final result:
 {"verdict": "approved" or "rejected", "mechanical_fails": ["..."], "judgment_flags": ["..."], "reasoning": "one or two sentences on the overall call"}

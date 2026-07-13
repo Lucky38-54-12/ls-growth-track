@@ -46,12 +46,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       // the quality check for a step doesn't need to block the next step's
       // generation — kick it off and only await all of them at the end, so
       // this doesn't turn 5 sequential AI calls into 10 and risk the 60s cap.
-      const steps: { step: string; day: string; subject?: string; bodyHtml?: string; error?: string }[] = [];
+      const steps: { step: string; day: string; subject?: string; bodyHtml?: string; error?: string; notAFit?: boolean }[] = [];
       const checkPromises: Promise<void>[] = [];
       const priorSubjects: string[] = [];
       for (const { step, day } of STEPS) {
         try {
-          const { subject, bodyHtml, websiteSnippet } = await generateCampaignStepEmail({
+          const generated = await generateCampaignStepEmail({
             company: lead.company,
             contactName: lead.contact_name,
             trade: lead.trade,
@@ -62,6 +62,11 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
             step,
             priorSubjects,
           });
+          if (generated.notAFit) {
+            steps.push({ step, day, notAFit: true, error: generated.reason });
+            break; // every later step would hit the same ICP verdict
+          }
+          const { subject, bodyHtml, websiteSnippet } = generated;
           const previewHtml = `${bodyHtml}<p>Cheers,<br>Lucky<br>LS Growth</p>`;
           const stepResult: { step: string; day: string; subject: string; bodyHtml: string; quality?: unknown; qualityError?: string } = { step, day, subject, bodyHtml: previewHtml };
           steps.push(stepResult);

@@ -13,7 +13,7 @@ type SupabaseClient = ReturnType<typeof createSupabaseClient>;
 // Only campaign leads send here — the old static-template sequence
 // (Email Outreach page) is retired, Lucky doesn't want template emails going
 // out. Leads without a campaign_id just sit until they're added to one.
-export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{ sent: boolean; held?: boolean }> {
+export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{ sent: boolean; held?: boolean; notAFit?: boolean }> {
   if (!lead.campaign_id) return { sent: false };
 
   // A campaign sitting in "draft" (never activated) or "paused" must not
@@ -98,7 +98,7 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     .limit(1)
     .maybeSingle();
 
-  const { subject, bodyHtml, websiteSnippet } =
+  const generated =
     lastCheck && lastCheck.verdict === "rejected" && !lastCheck.sent
       ? await reviseCampaignStepEmail({
           ...generatorInput,
@@ -111,6 +111,27 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
           },
         })
       : await generateCampaignStepEmail(generatorInput);
+
+  // The AI's only way to refuse a lead it judges is a bad ICP fit (a national
+  // utility, a wholesaler, a tender-based contractor) — without this, it used
+  // to write that refusal AS the email itself ("not a fit", explaining why
+  // sending would hurt credibility) and that content sailed through the
+  // quality gate and actually sent, three times, before this existed. A
+  // refusal here is permanent, not a daily retry: retrying would just get the
+  // same "not a fit" verdict again tomorrow, burning an AI call for nothing.
+  if (generated.notAFit) {
+    await sb.from("leads").update({
+      status: "not_interested",
+      notes: `${lead.notes ? lead.notes + "\n" : ""}[${new Date().toISOString().split("T")[0]}] Auto-excluded from campaign, AI judged not a fit: ${generated.reason}`,
+    }).eq("lead_id", lead.lead_id);
+    await notifySlack(
+      `🚫 Auto-excluded *${lead.company}* from campaign, not a fit for LS Growth's ICP.\n` +
+      `Reason: ${generated.reason}\n` +
+      `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${lead.lead_id}`
+    );
+    return { sent: false, notAFit: true };
+  }
+  const { subject, bodyHtml, websiteSnippet } = generated;
 
   // AI-generated emails go out with nobody reading them first, so every one
   // gets checked against the rulebook before it sends. A rejected email is

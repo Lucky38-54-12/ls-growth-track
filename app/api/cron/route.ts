@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   const leads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to));
 
   const today = new Date().toISOString().split("T")[0];
-  let sent = 0, held = 0, processed = 0;
+  let sent = 0, held = 0, notAFit = 0, processed = 0;
   const errors: { lead_id: string; message: string }[] = [];
   let ranOutOfTime = false;
 
@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
       const result = await sendNextStepFor(lead, sb);
       if (result.sent) sent++;
       else if (result.held) held++;
+      else if (result.notAFit) notAFit++;
     } catch (err) {
       errors.push({
         lead_id: lead.lead_id,
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    sent, failed: errors.length, held, errors, date: today,
+    sent, failed: errors.length, held, notAFit, errors, date: today,
     processed, totalLeads: leads.length, ranOutOfTime,
   });
 }

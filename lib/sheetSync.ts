@@ -163,7 +163,7 @@ export async function syncLeadsFromSheet(opts: {
         await sb.from("leads").update(update).eq("lead_id", lead.lead_id);
         personalizedSent++;
       } else if (!called && sendFresh && lead.status === "not_contacted") {
-        const { subject: freshSubject, bodyHtml: freshBody } = await generateCampaignStepEmail({
+        const generated = await generateCampaignStepEmail({
           company: lead.company,
           contactName: lead.contact_name,
           trade: lead.trade,
@@ -174,9 +174,17 @@ export async function syncLeadsFromSheet(opts: {
           step: "initial",
           priorSubjects: [],
         });
-        await sendPersonalizedEmail(lead, freshSubject, freshBody, "initial");
-        await sb.from("leads").update({ status: "contacted", date_contacted: today }).eq("lead_id", lead.lead_id);
-        freshSent++;
+        if (generated.notAFit) {
+          await sb.from("leads").update({
+            status: "not_interested",
+            notes: `${lead.notes ? lead.notes + "\n" : ""}Auto-excluded from campaign, AI judged not a fit: ${generated.reason}`,
+          }).eq("lead_id", lead.lead_id);
+          skipped++;
+        } else {
+          await sendPersonalizedEmail(lead, generated.subject, generated.bodyHtml, "initial");
+          await sb.from("leads").update({ status: "contacted", date_contacted: today }).eq("lead_id", lead.lead_id);
+          freshSent++;
+        }
       }
     } catch (e) {
       errors.push(`${lead.company}: ${e instanceof Error ? e.message : "send failed"}`);
