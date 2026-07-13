@@ -7,7 +7,10 @@ import { Lead } from "@/lib/types";
 
 export async function POST(req: Request) {
   const sb = createSupabaseClient();
-  const leads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to));
+  // See app/api/cron/route.ts for why this needs an explicit order — without
+  // it, paginated fetches of a table under concurrent writes aren't
+  // guaranteed stable across requests.
+  const leads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("lead_id", { ascending: true }).range(from, to));
 
   let leadIds: string[] | null = null;
   try {

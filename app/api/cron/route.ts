@@ -28,7 +28,15 @@ export async function GET(req: NextRequest) {
 
   const startedAt = Date.now();
   const sb = createSupabaseClient();
-  const leads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to));
+  // Explicit order is required, not cosmetic: fetchAllRows pages this in
+  // 1000-row chunks via .range(), and without ORDER BY, Postgres doesn't
+  // guarantee the same row lands on the same page across separate requests
+  // (row updates mid-day can shift physical scan order) — confirmed via a
+  // real run where a due lead got skipped entirely because it landed on a
+  // different page than the previous run. Sorting by lead_id makes paging
+  // deterministic across runs, so a lead that's due either gets reached or
+  // doesn't based on the time budget, never based on incidental row order.
+  const leads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("lead_id", { ascending: true }).range(from, to));
 
   const today = new Date().toISOString().split("T")[0];
   let sent = 0, held = 0, notAFit = 0, processed = 0;
