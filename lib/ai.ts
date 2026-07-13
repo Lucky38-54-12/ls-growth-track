@@ -518,6 +518,58 @@ ${input.bodyHtml}`;
   };
 }
 
+// A second, independent opinion after checkEmailQuality approves — not
+// another pass through the same 13/14-item checklist (which already missed
+// 4 real emails whose entire content was the AI explaining why it shouldn't
+// send to that lead, one of which literally said "sending this is likely to
+// damage credibility" and still got approved and sent). This asks a
+// completely different question with a fresh, un-checklisted prompt: would
+// an ordinary person reading this once, cold, think "wait, this doesn't make
+// sense to send"? Deliberately loose and holistic instead of itemized, so it
+// isn't blind to the same failure shapes as the structured gate.
+const COMMON_SENSE_SYSTEM_PROMPT = `You are the very last human-judgment check before this email goes out to a real business owner with nobody else reading it first. A structured quality checklist already approved it — your job isn't to re-run that checklist, it's to read the email once, the way a busy, slightly suspicious business owner would when it lands in their inbox, and catch anything a checklist could miss.
+
+Flag it if any of this is true:
+- It reads like a note written ABOUT the recipient for someone else to review, not a message TO them (e.g. it discusses whether they're a good fit, recommends skipping them, evaluates whether sending is a good idea, or refers to them in a way a real cold email never would)
+- It says or implies anything that would confuse, offend, or make the recipient think "did I get this by mistake?"
+- It contains a claim, tone, or logic that's actually broken or self-contradictory, not just imperfect style
+- Your honest gut reaction is "a real person would never actually hit send on this"
+
+Do NOT flag normal cold-outreach imperfections: a proof point that feels a bit salesy, a slightly generic opener, anything that's just not your personal writing style. This is a coarse safety net for genuine mistakes, not a rewrite request — only flag something you're confident a real recipient would immediately notice as wrong.
+
+Respond with ONLY a JSON object, no other text:
+{"ok": true or false, "reason": "one sentence, only if ok is false"}`;
+
+export interface CommonSenseInput {
+  subject: string;
+  bodyHtml: string;
+  company: string;
+}
+
+export async function checkCommonSense(input: CommonSenseInput): Promise<{ ok: boolean; reason?: string }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+
+  const client = new Anthropic({ apiKey });
+
+  const msg = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 300,
+    temperature: 0,
+    system: COMMON_SENSE_SYSTEM_PROMPT,
+    messages: [{
+      role: "user",
+      content: `This email is addressed to: ${input.company}\n\nSubject: ${input.subject}\n\nBody (HTML):\n${input.bodyHtml}`,
+    }],
+  });
+
+  const block = msg.content[0];
+  if (block.type !== "text") throw new Error("Unexpected response from AI");
+
+  const parsed = parseJsonResponse<{ ok?: boolean; reason?: string }>(block.text);
+  return { ok: parsed.ok !== false, reason: parsed.reason };
+}
+
 export interface PersonalizationHookInput {
   company: string;
   trade: string;

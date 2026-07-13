@@ -1,7 +1,7 @@
 import { createSupabaseClient } from "./supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "./leads";
 import { sendPersonalizedEmail } from "./email";
-import { generateCampaignStepEmail, reviseCampaignStepEmail, generatePersonalizationHook, checkEmailQuality } from "./ai";
+import { generateCampaignStepEmail, reviseCampaignStepEmail, generatePersonalizationHook, checkEmailQuality, checkCommonSense } from "./ai";
 import { notifySlack } from "./slackNotify";
 import { Lead } from "./types";
 
@@ -179,7 +179,38 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   // AI-written part only) above, not this — same reasoning as the cold-call
   // route: this fixed block isn't something the quality gate needs to judge.
   const ctaBlock = `<p>Here are some case studies if you want to take a look: <a href="https://lsgrowth.agency">lsgrowth.agency</a></p><p>If you want to book a time, you can do that below: <a href="{{CTA_LINK}}">grab a time here</a>.</p>`;
-  await sendPersonalizedEmail(lead, subject, bodyHtml + ctaBlock, step);
+  const fullBodyHtml = bodyHtml + ctaBlock;
+
+  // Last line of defense, checking the actual assembled email (CTA block
+  // included) rather than just the AI-written part — a fresh, independent
+  // "would a real person actually send this" read, deliberately not another
+  // pass through checkEmailQuality's checklist. This is what would have
+  // caught the "not a fit" emails even if the generator/checklist fixes
+  // above somehow didn't: a body explaining why a business shouldn't be
+  // emailed, immediately followed by "grab a time here" to book a call, is
+  // exactly the kind of self-contradiction a holistic read catches instantly.
+  const commonSense = await checkCommonSense({ subject, bodyHtml: fullBodyHtml, company: lead.company });
+  if (!commonSense.ok) {
+    await sb.from("email_checks").insert({
+      lead_id: lead.lead_id,
+      step,
+      subject,
+      body_html: fullBodyHtml,
+      verdict: "rejected",
+      mechanical_fails: [],
+      judgment_flags: [],
+      reasoning: `Common-sense check: ${commonSense.reason || "flagged, no reason given"}`,
+      sent: false,
+    });
+    await notifySlack(
+      `🛑 Held email for *${lead.company}* (${step}) — failed the common-sense check.\n` +
+      `Reason: ${commonSense.reason || "no reason given"}\n` +
+      `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${lead.lead_id}`
+    );
+    return { sent: false, held: true };
+  }
+
+  await sendPersonalizedEmail(lead, subject, fullBodyHtml, step);
 
   const today = new Date().toISOString().split("T")[0];
   const update: Record<string, unknown> = { status: STEP_NEW_STATUS[step] };
