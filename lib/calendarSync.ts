@@ -17,14 +17,28 @@ export interface CalendarSyncResult {
   errors: string[];
 }
 
+const MEETING_TITLE_PATTERN = /^(?:meet|meeting|call|catch[\s-]?up|chat|coffee)\s+with\s+(.+)$/i;
+
 function companyFromSummary(summary: string): string {
-  const m = summary.match(/^(?:meet|meeting|call|catch[\s-]?up|chat|coffee)\s+with\s+(.+)$/i);
+  const m = summary.match(MEETING_TITLE_PATTERN);
   return (m ? m[1] : summary).trim();
 }
 
-async function findOrCreateLead(sb: ReturnType<typeof createSupabaseClient>, booking: CalendarBooking): Promise<Lead> {
+// listUpcomingBookings pulls every event on the primary Google Calendar with
+// a non-self attendee — no filtering for business relevance at all, so a
+// personal appointment (a massage booking, dinner with a friend) reads as a
+// "booking" exactly like a real cold-call prospect and gets turned into a
+// fake lead cluttering the Cold Call pipeline. Confirmed live: "Book a
+// massage. between Lucky and Savithry Thangaraju" and "Lucky Singh and
+// Lucky" both became real "booked" leads in the pipeline. Only auto-create a
+// brand new lead when the event title actually looks like a business
+// meeting ("meet/call/chat/coffee with X") — anything else just gets
+// skipped rather than silently turned into a fake lead.
+async function findOrCreateLead(sb: ReturnType<typeof createSupabaseClient>, booking: CalendarBooking): Promise<Lead | null> {
   const { data: existing } = await sb.from("leads").select("*").eq("email", booking.attendeeEmail).maybeSingle();
   if (existing) return existing as Lead;
+
+  if (!MEETING_TITLE_PATTERN.test(booking.summary)) return null;
 
   const company = companyFromSummary(booking.summary) || booking.attendeeEmail;
   const contactName = booking.attendeeName || company;
@@ -81,6 +95,16 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
 
     try {
       const lead = await findOrCreateLead(sb, booking);
+      if (!lead) {
+        // Not a recognizable business meeting and not an existing lead —
+        // record it as seen so it's not re-evaluated every day, but don't
+        // create a fake lead or send anything for it.
+        await sb.from("calendar_bookings").insert({
+          event_id: booking.eventId, lead_id: null, start_iso: booking.startISO, hangout_link: booking.hangoutLink,
+        });
+        skipped++;
+        continue;
+      }
       const meetingTime = describeMeetingTime(booking.startISO);
 
       const { subject, bodyHtml } = await generateMeetingConfirmationEmail({
