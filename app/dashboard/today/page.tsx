@@ -5,6 +5,7 @@ import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calenda
 import { nextStepFor, stillHeld } from "@/lib/leads";
 import { formatDateTime } from "@/lib/format";
 import { Lead, EmailEvent, EmailSend, RevenueClient, RevenueGoal, EmailCheck } from "@/lib/types";
+import { stripTrackingForDisplay } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
 import RevenueGoalCard from "@/components/RevenueGoalCard";
 import DailyNotes from "@/components/DailyNotes";
@@ -233,16 +234,11 @@ export default async function TodayPage() {
                   // was redundant. Shows sent-email count instead so it's obvious
                   // at a glance whether this lead's been through the sequence
                   // before the meeting, not just a bare link to go check.
-                  const sentCount = lead ? allSends.filter(s => s.lead_id === lead!.lead_id).length : 0;
-                  return (
-                    <div key={ev.eventId}>
-                    {showDivider && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 18px", background: "#f8fafc", borderBottom: `1px solid ${L.border}` }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>{day}</span>
-                        <div style={{ flex: 1, height: 1, background: L.border }} />
-                      </div>
-                    )}
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}` }}>
+                  const leadSends = lead ? allSends.filter(s => s.lead_id === lead!.lead_id).sort((a, b) => a.sent_at.localeCompare(b.sent_at)) : [];
+                  const sentCount = leadSends.length;
+
+                  const rowInner = (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px" }}>
                       <div style={{ width: 56, flexShrink: 0, fontSize: 13, fontWeight: 800, color: L.text }}>{timeStr}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -253,12 +249,21 @@ export default async function TodayPage() {
                         )}
                       </div>
                       {lead && (
-                        <Link href={`/dashboard/leads/${lead.lead_id}`} className="pill-hover" style={{
-                          display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", fontSize: 11.5, fontWeight: 700,
-                          color: L.muted, border: `1px solid ${L.border}`, textDecoration: "none", flexShrink: 0,
-                        }}>
-                          {sentCount} email{sentCount !== 1 ? "s" : ""} sent
-                        </Link>
+                        sentCount > 0 ? (
+                          <span className="pill-hover" style={{
+                            display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", fontSize: 11.5, fontWeight: 700,
+                            color: L.muted, border: `1px solid ${L.border}`, flexShrink: 0, cursor: "pointer",
+                          }}>
+                            {sentCount} email{sentCount !== 1 ? "s" : ""} sent
+                          </span>
+                        ) : (
+                          <span style={{
+                            display: "flex", alignItems: "center", padding: "5px 10px", fontSize: 11.5, fontWeight: 700,
+                            color: L.dimmed, border: `1px solid ${L.border}`, flexShrink: 0,
+                          }}>
+                            No emails sent yet
+                          </span>
+                        )
                       )}
                       {ev.hangoutLink && (
                         <a href={ev.hangoutLink} target="_blank" rel="noopener noreferrer" className="pill-hover" style={{
@@ -276,6 +281,38 @@ export default async function TodayPage() {
                         </Link>
                       )}
                     </div>
+                  );
+
+                  return (
+                    <div key={ev.eventId}>
+                    {showDivider && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 18px", background: "#f8fafc", borderBottom: `1px solid ${L.border}` }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>{day}</span>
+                        <div style={{ flex: 1, height: 1, background: L.border }} />
+                      </div>
+                    )}
+                    {sentCount > 0 ? (
+                      <details style={{ borderBottom: `1px solid ${L.border}` }}>
+                        <summary style={{ listStyle: "none", cursor: "pointer" }}>{rowInner}</summary>
+                        <div style={{ background: "#f8fafc", borderTop: `1px solid ${L.border}`, padding: "4px 18px 12px 74px", display: "flex", flexDirection: "column", gap: 8 }}>
+                          {leadSends.map(send => (
+                            <details key={send.id} style={{ background: L.surface, border: `1px solid ${L.border}` }}>
+                              <summary style={{ padding: "8px 12px", cursor: "pointer", fontSize: 12.5, display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 6px", background: "#f1f5f9", color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{send.step}</span>
+                                <span style={{ fontWeight: 600, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{send.subject}</span>
+                                <span style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed, whiteSpace: "nowrap" }}>{formatDateTime(send.sent_at)}</span>
+                              </summary>
+                              <div
+                                style={{ padding: "12px 14px", borderTop: `1px solid ${L.border}`, background: "#fafafa", fontFamily: "Arial,Helvetica,sans-serif", fontSize: 13, color: L.text, lineHeight: 1.5 }}
+                                dangerouslySetInnerHTML={{ __html: stripTrackingForDisplay(send.body_html) }}
+                              />
+                            </details>
+                          ))}
+                        </div>
+                      </details>
+                    ) : (
+                      <div style={{ borderBottom: `1px solid ${L.border}` }}>{rowInner}</div>
+                    )}
                     </div>
                   );
                 })}
