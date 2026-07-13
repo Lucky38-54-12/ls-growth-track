@@ -1,7 +1,12 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { generateLeadId } from "./leads";
 import { generateMeetingConfirmationEmail, generateValueTouchpointEmail, generateMeetingDayReminderEmail } from "./ai";
-import { sendPersonalizedEmail } from "./email";
+// Meeting logistics (confirmation, pre-call value email, day-of reminder)
+// go through Lucky's personal Gmail, not outreach@lsgrowth.agency — these
+// are one-to-one conversations with someone who already booked a real call,
+// not cold outreach, and mixing them into the same Resend/outreach mailbox
+// as the campaign sequence would make that inbox messy for no reason.
+import { sendGmailFollowup } from "./email";
 import { listUpcomingBookings, describeMeetingTime, daysUntilMeeting, fillMeetingLink, CalendarBooking } from "./calendar";
 import { Lead } from "./types";
 
@@ -85,7 +90,7 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
       });
 
       const finalBody = fillMeetingLink(bodyHtml, booking.hangoutLink);
-      await sendPersonalizedEmail(lead, subject, finalBody, "meeting_confirmation");
+      await sendGmailFollowup(lead, subject, finalBody, "meeting_confirmation");
 
       const today = new Date().toISOString().split("T")[0];
       await sb.from("leads").update({ status: "booked", date_contacted: lead.date_contacted || today }).eq("lead_id", lead.lead_id);
@@ -153,7 +158,7 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           contactName: lead.contact_name,
           meetingTime,
         });
-        await sendPersonalizedEmail(lead as Lead, subject, bodyHtml, "meeting_value_touchpoint");
+        await sendGmailFollowup(lead as Lead, subject, bodyHtml, "meeting_value_touchpoint");
         await sb.from("calendar_bookings").update({ value_email_sent_at: new Date().toISOString() }).eq("event_id", row.event_id);
         valueSent++;
       }
@@ -165,7 +170,7 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           meetingTime,
         });
         const finalBody = fillMeetingLink(bodyHtml, row.hangout_link || "");
-        await sendPersonalizedEmail(lead as Lead, subject, finalBody, "meeting_day_reminder");
+        await sendGmailFollowup(lead as Lead, subject, finalBody, "meeting_day_reminder");
         await sb.from("calendar_bookings").update({ reminder_email_sent_at: new Date().toISOString() }).eq("event_id", row.event_id);
         reminderSent++;
       }
