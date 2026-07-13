@@ -486,7 +486,11 @@ ${input.bodyHtml}`;
 
   const msg = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 1024,
+    // 1024 was too tight — a real production response got cut off mid-string
+    // (multiple long judgment_flags entries plus reasoning exceeded it),
+    // which breaks JSON parsing and the lead just errors out instead of
+    // getting a real verdict. Doubled for headroom.
+    max_tokens: 2048,
     temperature: 0,
     system,
     messages: [{ role: "user", content: userPrompt }],
