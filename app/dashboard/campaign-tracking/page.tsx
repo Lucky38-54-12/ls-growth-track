@@ -79,6 +79,7 @@ export default async function CampaignTrackingPage() {
   const totalClicked = rows.filter((r) => (engagement[r.lead_id]?.clicks || 0) > 0).length;
   const totalReplied = leads.filter((l) => l.status === "replied" || l.status === "booked").length;
   const totalBooked = leads.filter((l) => l.status === "booked").length;
+  const totalUnsubscribed = leads.filter((l) => !!l.unsubscribed_at).length;
   const openRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0;
 
   const perCampaign = campaigns.map((c) => {
@@ -89,8 +90,9 @@ export default async function CampaignTrackingPage() {
     const clicked = memberSends.filter((r) => (engagement[r.lead_id]?.clicks || 0) > 0).length;
     const replied = members.filter((l) => l.status === "replied" || l.status === "booked").length;
     const booked = members.filter((l) => l.status === "booked").length;
+    const unsubscribed = members.filter((l) => !!l.unsubscribed_at).length;
     const held = heldChecks.filter((c) => memberIds.includes(c.lead_id)).length;
-    return { campaign: c, leadCount: memberIds.length, sent: memberSends.length, opened, clicked, replied, booked, held };
+    return { campaign: c, leadCount: memberIds.length, sent: memberSends.length, opened, clicked, replied, booked, unsubscribed, held };
   });
 
   return (
@@ -98,13 +100,14 @@ export default async function CampaignTrackingPage() {
       <Topbar title="CAMPAIGN TRACKING" subtitle="Outreach campaign emails only — sent via outreach@lsgrowth.agency, separate from Lucky's personal Gmail" />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10 }}>
           {[
             { label: "Sent", value: totalSent },
             { label: "Opened", value: `${totalOpened} (${openRate}%)` },
             { label: "Clicked", value: totalClicked },
             { label: "Replied", value: totalReplied },
             { label: "Booked", value: totalBooked },
+            { label: "Unsubscribed", value: totalUnsubscribed },
             { label: "Held For Review", value: heldChecks.length },
           ].map((c) => (
             <div key={c.label} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "14px 16px" }}>
@@ -124,13 +127,13 @@ export default async function CampaignTrackingPage() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
-                  {["Campaign", "Status", "Leads", "Sent", "Opened", "Clicked", "Replied", "Booked", "Held"].map((h) => (
+                  {["Campaign", "Status", "Leads", "Sent", "Opened", "Clicked", "Replied", "Booked", "Unsubscribed", "Held"].map((h) => (
                     <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontSize: 10, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {perCampaign.map(({ campaign, leadCount, sent, opened, clicked, replied, booked, held }, i) => {
+                {perCampaign.map(({ campaign, leadCount, sent, opened, clicked, replied, booked, unsubscribed, held }, i) => {
                   const badge = STATUS_BADGE[campaign.status] || STATUS_BADGE.draft;
                   return (
                     <tr key={campaign.id} style={{ borderBottom: i === perCampaign.length - 1 ? "none" : `1px solid ${L.border}` }} className="row-hover">
@@ -148,6 +151,7 @@ export default async function CampaignTrackingPage() {
                       <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text }}>{clicked}</td>
                       <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text }}>{replied}</td>
                       <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text }}>{booked}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 12.5, color: L.text }}>{unsubscribed}</td>
                       <td style={{ padding: "10px 14px", fontSize: 12.5, color: held > 0 ? "var(--red)" : L.text, fontWeight: held > 0 ? 700 : 400 }}>{held}</td>
                     </tr>
                   );

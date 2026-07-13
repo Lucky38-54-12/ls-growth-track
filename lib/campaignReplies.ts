@@ -95,7 +95,10 @@ export async function checkForReplies(): Promise<{ repliedUpdated: number; unsub
   if (unsubscribeLeadIds.size) {
     const { error, count } = await sb
       .from("leads")
-      .update({ status: "not_interested", ...statusTimestampUpdates("replied") }, { count: "exact" })
+      .update(
+        { status: "not_interested", unsubscribed_at: new Date().toISOString(), ...statusTimestampUpdates("replied") },
+        { count: "exact" }
+      )
       .in("lead_id", Array.from(unsubscribeLeadIds));
     if (error) throw new Error(error.message);
     unsubscribed = count || unsubscribeLeadIds.size;
