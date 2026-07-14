@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles, Clock } from "lucide-react";
+import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles, Clock, Search } from "lucide-react";
 import FollowUpModal from "@/components/FollowUpModal";
 import { Lead, EngagementSummary } from "@/lib/types";
 import { nextStepFor } from "@/lib/leads";
@@ -39,10 +39,11 @@ function groupByStatus(leads: Lead[], columns: Column[], activeSource: string): 
 }
 
 function LeadCard({
-  lead, engagement, expanded, onToggle, onDragStart, onFollowUp,
+  lead, engagement, expanded, onToggle, onDragStart, onFollowUp, onLeadUpdated,
 }: {
   lead: Lead; engagement: Record<string, EngagementSummary>; expanded: boolean;
   onToggle: () => void; onDragStart: (e: React.DragEvent) => void; onFollowUp: (id: string) => void;
+  onLeadUpdated: (lead: Lead) => void;
 }) {
   const ev = engagement[lead.lead_id];
   const isDue = nextStepFor(lead) !== null;
@@ -54,6 +55,26 @@ function LeadCard({
   const [showAllNotes, setShowAllNotes] = useState(false);
   const [noteSummary, setNoteSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [findingDetails, setFindingDetails] = useState(false);
+  const [findResult, setFindResult] = useState<string | null>(null);
+  const missingDetails = !lead.phone || !lead.email || !lead.website || !lead.contact_name || lead.contact_name === "there";
+
+  async function handleFindDetails(e: React.MouseEvent) {
+    e.stopPropagation();
+    setFindingDetails(true);
+    setFindResult(null);
+    try {
+      const res = await fetch(`/api/leads/${lead.lead_id}/find-details`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setFindResult(data.error || "Couldn't find anything."); return; }
+      onLeadUpdated(data.lead);
+      setFindResult(data.found.length ? `Found ${data.found.join(", ")}.` : "Nothing new found.");
+    } catch {
+      setFindResult("Couldn't find anything, try again.");
+    } finally {
+      setFindingDetails(false);
+    }
+  }
 
   useEffect(() => {
     if (!expanded || noteSummary || summaryLoading || !latestNote) return;
@@ -116,7 +137,7 @@ function LeadCard({
               )}
             </div>
           )}
-          {lead.contact_name && (
+          {lead.contact_name && lead.contact_name !== "there" && (
             <div style={{ fontSize: 12, color: L.text, fontWeight: 600 }}>{lead.contact_name}</div>
           )}
           {lead.email && (
@@ -167,6 +188,22 @@ function LeadCard({
               )}
             </div>
           )}
+          {missingDetails && (
+            <button
+              onClick={handleFindDetails}
+              disabled={findingDetails}
+              style={{
+                display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700,
+                color: "#1e40af", background: "#dbeafe", border: "none", padding: "6px 10px",
+                cursor: findingDetails ? "default" : "pointer", marginTop: 4, width: "100%", justifyContent: "center",
+              }}
+            >
+              <Search style={{ width: 11, height: 11 }} /> {findingDetails ? "Searching…" : "Find contact details"}
+            </button>
+          )}
+          {findResult && (
+            <div style={{ fontSize: 11, color: L.muted, textAlign: "center" }}>{findResult}</div>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); onFollowUp(lead.lead_id); }}
             style={{
@@ -189,11 +226,11 @@ function LeadCard({
 }
 
 function KanbanColumn({
-  col, leads, engagement, expandedId, onToggle, onDragStart, onFollowUp, onDrop, dropDisabled, isDragOver, onDragOverColumn, onDragLeaveColumn,
+  col, leads, engagement, expandedId, onToggle, onDragStart, onFollowUp, onLeadUpdated, onDrop, dropDisabled, isDragOver, onDragOverColumn, onDragLeaveColumn,
 }: {
   col: Column; leads: Lead[]; engagement: Record<string, EngagementSummary>;
   expandedId: string | null; onToggle: (id: string) => void; onDragStart: (lead: Lead) => (e: React.DragEvent) => void;
-  onFollowUp: (id: string) => void;
+  onFollowUp: (id: string) => void; onLeadUpdated: (lead: Lead) => void;
   onDrop: () => void; dropDisabled: boolean; isDragOver: boolean;
   onDragOverColumn: () => void; onDragLeaveColumn: () => void;
 }) {
@@ -229,6 +266,7 @@ function KanbanColumn({
               onToggle={() => onToggle(lead.lead_id)}
               onDragStart={onDragStart(lead)}
               onFollowUp={onFollowUp}
+              onLeadUpdated={onLeadUpdated}
             />
           ))
         )}
@@ -254,6 +292,13 @@ export default function PipelineBoard({
 
   function toggle(id: string) {
     setExpandedId(prev => (prev === id ? null : id));
+  }
+
+  function handleLeadUpdated(updated: Lead) {
+    setSections(prev => prev.map(s => ({
+      ...s,
+      leads: s.leads.map(l => (l.lead_id === updated.lead_id ? updated : l)),
+    })));
   }
 
   function dragStart(lead: Lead) {
@@ -333,6 +378,7 @@ export default function PipelineBoard({
                     onToggle={toggle}
                     onDragStart={dragStart}
                     onFollowUp={(id) => setFollowUpId(id)}
+                    onLeadUpdated={handleLeadUpdated}
                     dropDisabled={false}
                     isDragOver={dragOverKey === dropKey}
                     onDragOverColumn={() => setDragOverKey(dropKey)}

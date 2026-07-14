@@ -661,6 +661,70 @@ function validateHook(text: string): string {
   return text;
 }
 
+export interface LeadDetailsInput {
+  company: string;
+  trade: string;
+  location: string;
+  website: string | null;
+  facebook: string | null;
+  notes: string | null;
+}
+
+export interface LeadDetailsResult {
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  facebook: string | null;
+  contactName: string | null;
+}
+
+const LEAD_DETAILS_SYSTEM_PROMPT = `You find real contact details for a trade business for Lucky, who runs LS Growth, a lead generation agency in NZ. He's about to call this business and wants their actual phone number, email, website and owner's name if any of it is missing.
+
+You'll be given the business name, trade, location, and whatever is already known. Use the web_search tool to search for the business by name plus location (add the trade if the name is ambiguous) and find their real Google Business listing, website, or Facebook page.
+
+Only report details you actually found from a source you're confident is this specific business, not a similarly-named one elsewhere. If multiple businesses share a name, use location and trade to confirm before reporting anything from that source. Never invent or guess a phone number, email, or name, an unfound field must be null, not a guess.
+
+Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
+{"phone": "" or null, "email": "" or null, "website": "" or null, "facebook": "" or null, "contactName": "" or null}`;
+
+export async function findLeadContactDetails(input: LeadDetailsInput): Promise<LeadDetailsResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+
+  const client = new Anthropic({ apiKey });
+
+  const userPrompt = `Business: ${input.company}
+Trade: ${input.trade || "unknown"}
+Location: ${input.location || "unknown"}
+Already known — website: ${input.website || "none"}, facebook: ${input.facebook || "none"}
+Notes on file: ${input.notes || "none"}
+
+Search for this business and find whichever of phone, email, website, facebook, and owner's first name are still missing above.`;
+
+  const msg = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    system: LEAD_DETAILS_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userPrompt }],
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 } as const],
+  });
+
+  // With web search enabled, content interleaves search blocks with text —
+  // the final JSON is the last text block, not necessarily content[0].
+  const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  if (!text) throw new Error("Unexpected response from AI");
+
+  const parsed = parseJsonResponse<Partial<LeadDetailsResult>>(text);
+
+  return {
+    phone: parsed.phone?.trim() || null,
+    email: parsed.email?.trim() || null,
+    website: parsed.website?.trim() || null,
+    facebook: parsed.facebook?.trim() || null,
+    contactName: parsed.contactName?.trim() || null,
+  };
+}
+
 export interface ColdCallPrepInput {
   company: string;
   trade: string;
