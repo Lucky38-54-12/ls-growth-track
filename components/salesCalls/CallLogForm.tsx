@@ -121,7 +121,7 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
         <>
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24, marginBottom: 20 }}>
             <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Confirm the details</div>
-            <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>Pulled from the summary. Fix anything that's wrong before saving.</p>
+            <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>Pulled from the summary. Fix anything that's wrong before saving. "Went well" and "your take" below are a first guess, they're worth rewriting in your own words, this is what actually shapes your next script.</p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -171,7 +171,8 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
               </div>
 
               <div>
-                <label>Work ons</label>
+                <label>Your take: where did you muck up or what would you change</label>
+                <p style={{ fontSize: 12, color: L.muted, margin: "0 0 6px" }}>Be honest here. This is what the script review reads first when deciding what to add to the objection cheat sheet or fix.</p>
                 <textarea rows={2} value={fields.work_ons} onChange={(e) => update("work_ons", e.target.value)} style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical" }} />
               </div>
             </div>

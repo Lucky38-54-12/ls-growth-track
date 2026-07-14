@@ -93,16 +93,16 @@ export interface ScriptReview {
   new_content: string;
 }
 
-const SCRIPT_REVIEW_SYSTEM_PROMPT = `You help Lucky keep his master sales script up to date. Lucky sells ad services (Meta ads, lead generation) to trade businesses. You will be given his current master script and the full details of a call he just logged.
+const SCRIPT_REVIEW_SYSTEM_PROMPT = `You help Lucky keep his master sales script up to date. Lucky sells ad services (Meta ads, lead generation) to trade businesses. You will be given his current master script and the full details of a call he just logged, including his own honest reflection on the call in his words (went_well and work_ons). Treat his own reflection as the primary signal, it's him telling you where he mucked up or what actually landed, weigh it above your own read of the raw transcript.
 
 Your job is to check the call against the script and decide if the script needs updating:
-- Did any part of the script fail or get skipped on this call?
-- Did the prospect raise an objection the script does not cover?
-- Did Lucky say something that worked well that should be added to the script?
+- Did Lucky say in his own reflection that he mucked up, skipped something, or froze on something the script should have covered him for?
+- Did the prospect raise an objection that isn't in the "Objection cheat sheet" section? If so the fix is almost always adding a new entry to that section, not touching anything else.
+- Did Lucky say something worked well that should be captured so he repeats it?
 
 If nothing in this call actually justifies a change, say so plainly and propose no edits. Do not invent changes just to have something to propose. Most single calls should not require a script change.
 
-If changes are worth making, propose specific edits as before and after pairs. Each edit should be a small, targeted change to one part of the script, not a rewrite of the whole thing. Give a one sentence reason for each edit.
+If changes are worth making, propose specific edits as before and after pairs. Each edit should be additive and targeted to the smallest relevant part of the script, either a new entry in the objection cheat sheet, a tightened line in the section where Lucky said he mucked up, or (only if nothing in the current structure fits) a new section. Never rewrite the whole script. Give a one sentence reason for each edit that references what Lucky actually said happened.
 
 ${WRITING_RULES}
 
