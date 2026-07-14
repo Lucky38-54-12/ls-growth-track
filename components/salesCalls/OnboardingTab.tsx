@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import PipelineBoard from "@/components/PipelineBoard";
-import OnboardingWorkspace from "./OnboardingWorkspace";
 import { Lead, EngagementSummary, OnboardingClient } from "@/lib/types";
 import { ONBOARDING_PIPELINE_COLUMNS } from "@/lib/onboardingSteps";
 
@@ -31,7 +30,7 @@ export default function OnboardingTab({ pipelineLeads, engagement, clients }: Pr
         </div>
         {clients.length === 0 ? (
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
-            No clients yet. Generate a recap below once someone's ready to move forward.
+            No clients yet. Log a call on the Log a Call tab, then send a recap from there once someone's ready to move forward.
           </div>
         ) : (
           <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
@@ -65,8 +64,6 @@ export default function OnboardingTab({ pipelineLeads, engagement, clients }: Pr
           </div>
         )}
       </div>
-
-      <OnboardingWorkspace />
     </div>
   );
 }

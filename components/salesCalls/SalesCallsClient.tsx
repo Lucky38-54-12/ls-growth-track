@@ -58,7 +58,8 @@ export default function SalesCallsClient({
     setPatterns(computePatterns(nextCalls));
     if (proposal) setPendingProposals((p) => [proposal, ...p]);
     setBackupResult(backupUrl ? `Backed up. Sheet: ${backupUrl}` : "");
-    setTab(proposal ? "script" : "history");
+    // Stay on Log a Call — the recap and agreement actions live right here
+    // now, switching away would hide them the moment they'd be useful.
   }
 
   function handleCallUpdated(updated: SalesCall) {
