@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { SalesCall } from "@/lib/types";
-import { reviewScriptAgainstCall, callToParsed } from "@/lib/salesCallsAi";
+import { parseCallSummary, reviewScriptAgainstCall, callToParsed } from "@/lib/salesCallsAi";
 import { runSalesCallsBackup } from "@/lib/salesCallsBackupSync";
 
 export const dynamic = "force-dynamic";
@@ -16,22 +16,38 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const sb = createSupabaseClient();
   const body = await req.json();
+  const rawSummary = body.raw_summary;
+  const yourTake = body.your_take || "";
 
-  if (!body.raw_summary || !String(body.raw_summary).trim()) {
-    return NextResponse.json({ error: "Missing the raw call summary." }, { status: 400 });
+  if (!rawSummary || !String(rawSummary).trim()) {
+    return NextResponse.json({ error: "Paste the call summary first." }, { status: 400 });
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY is not configured." }, { status: 500 });
   }
 
+  let parsed;
+  try {
+    parsed = await parseCallSummary(rawSummary);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Couldn't read that call: ${message}` }, { status: 502 });
+  }
+
+  // Everything else comes off the transcript automatically. work_ons is the
+  // one thing Lucky types himself, his own honest read of where he mucked
+  // up, verbatim, in his own words rather than an AI guess.
   const call = {
-    call_date: body.call_date || new Date().toISOString().split("T")[0],
-    prospect_name: body.prospect_name || "",
-    business_name: body.business_name || "",
-    outcome: body.outcome || "undecided",
-    main_objection: body.main_objection || "",
-    next_step_booked: !!body.next_step_booked,
-    next_step_detail: body.next_step_detail || "",
-    went_well: body.went_well || "",
-    work_ons: body.work_ons || "",
-    raw_summary: body.raw_summary,
+    call_date: parsed.call_date,
+    prospect_name: parsed.prospect_name,
+    business_name: parsed.business_name,
+    outcome: parsed.outcome,
+    main_objection: parsed.main_objection,
+    next_step_booked: parsed.next_step_booked,
+    next_step_detail: parsed.next_step_detail,
+    went_well: parsed.went_well,
+    work_ons: yourTake,
+    raw_summary: rawSummary,
   };
 
   const { data, error } = await sb.from("sales_calls").insert(call).select().single();

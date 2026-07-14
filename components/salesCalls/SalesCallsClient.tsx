@@ -54,6 +54,13 @@ export default function SalesCallsClient({
     setTab(proposal ? "script" : "history");
   }
 
+  function handleCallUpdated(updated: SalesCall) {
+    const nextCalls = calls.map((c) => (c.id === updated.id ? updated : c));
+    setCalls(nextCalls);
+    setStats(computeStats(nextCalls));
+    setPatterns(computePatterns(nextCalls));
+  }
+
   async function handleBackup() {
     setBackingUp(true);
     setBackupResult("");
@@ -119,7 +126,7 @@ export default function SalesCallsClient({
       )}
 
       {tab === "log" && <CallLogForm onSaved={handleCallSaved} />}
-      {tab === "history" && <CallList calls={calls} />}
+      {tab === "history" && <CallList calls={calls} onUpdated={handleCallUpdated} />}
       {tab === "script" && (
         <MasterScriptPanel
           currentVersion={currentVersion}
