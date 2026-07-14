@@ -212,12 +212,13 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24, marginTop: 20 }}>
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Recap &amp; next steps</div>
           <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
-            Uses the notes you just pasted, no need to paste them again. Send a recap to the prospect, and if they're happy to move forward, generate the agreement.
+            Uses the notes you just pasted, no need to paste them again.
           </p>
 
           {recapError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 14px", marginBottom: 14, fontSize: 13 }}>{recapError}</div>}
+          {docError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 14px", marginBottom: 14, fontSize: 13 }}>{docError}</div>}
 
-          {!recapGenerated ? (
+          <div style={{ display: "flex", gap: 10, marginBottom: recapGenerated || docUrl ? 20 : 0, flexWrap: "wrap" }}>
             <button
               type="button"
               onClick={handleGenerateRecap}
@@ -227,8 +228,24 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
             >
               {generatingRecap ? "Generating…" : "Generate recap email"}
             </button>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+            <button
+              type="button"
+              onClick={handleGenerateDoc}
+              disabled={generatingDoc}
+              className="btn-lift"
+              style={{ padding: "10px 20px", background: generatingDoc ? "#fca5a5" : "#fff", color: L.text, border: `1px solid ${L.border}`, fontSize: 13, fontWeight: 700, cursor: generatingDoc ? "default" : "pointer" }}
+            >
+              {generatingDoc ? "Creating doc…" : "Generate agreement"}
+            </button>
+            {docUrl && (
+              <a href={docUrl} target="_blank" rel="noopener noreferrer" className="btn-lift" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+                <ExternalLink style={{ width: 13, height: 13 }} /> Open agreement in Google Docs
+              </a>
+            )}
+          </div>
+
+          {recapGenerated && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start", paddingTop: 20, borderTop: `1px solid ${L.border}` }}>
               <div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
                   <div><label>Contact name</label><input value={recapName} onChange={(e) => setRecapName(e.target.value)} /></div>
@@ -246,7 +263,7 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
                 </div>
 
                 {recapSentNote ? (
-                  <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", padding: "10px 14px", fontSize: 13, marginBottom: 10 }}>
+                  <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", padding: "10px 14px", fontSize: 13 }}>
                     {recapSentNote}
                     {onboardingClientId && (
                       <div style={{ marginTop: 6 }}>
@@ -265,29 +282,6 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
                     {sendingRecap ? "Sending…" : recapEmail ? "Add client & send recap" : "Add client"}
                   </button>
                 )}
-
-                <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${L.border}` }}>
-                  <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
-                    Happy to move forward? Generate the agreement straight from the same notes.
-                  </p>
-                  {docError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 14px", marginBottom: 12, fontSize: 13 }}>{docError}</div>}
-                  {docUrl && (
-                    <a href={docUrl} target="_blank" rel="noopener noreferrer" className="btn-lift" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", fontSize: 13, fontWeight: 700, textDecoration: "none", marginBottom: 12 }}>
-                      <ExternalLink style={{ width: 13, height: 13 }} /> Open agreement in Google Docs
-                    </a>
-                  )}
-                  <div>
-                    <button
-                      type="button"
-                      onClick={handleGenerateDoc}
-                      disabled={generatingDoc}
-                      className="btn-lift"
-                      style={{ padding: "10px 20px", background: generatingDoc ? "#fca5a5" : "#fff", color: generatingDoc ? "#fff" : L.text, border: `1px solid ${L.border}`, fontSize: 13, fontWeight: 700, cursor: generatingDoc ? "default" : "pointer" }}
-                    >
-                      {generatingDoc ? "Creating doc…" : "Generate agreement"}
-                    </button>
-                  </div>
-                </div>
               </div>
 
               <div style={{ position: "sticky", top: 20 }}>
