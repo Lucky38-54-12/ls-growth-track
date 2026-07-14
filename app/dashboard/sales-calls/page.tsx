@@ -1,5 +1,5 @@
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { SalesCall, ScriptVersion, ScriptProposal, Lead, EmailEvent, EngagementSummary, OnboardingClient } from "@/lib/types";
+import { SalesCall, ScriptVersion, ScriptProposal, Lead, EmailEvent, EngagementSummary, OnboardingClient, PatternTracker } from "@/lib/types";
 import { computeStats, computePatterns } from "@/lib/salesCallsStats";
 import { ONBOARDING_PIPELINE_STATUSES } from "@/lib/onboardingSteps";
 import Topbar from "@/components/Topbar";
@@ -10,13 +10,14 @@ export const revalidate = 0;
 export default async function SalesCallsPage() {
   const sb = createSupabaseClient();
 
-  const [calls, { data: versions }, { data: pendingProposals }, allLeads, { data: events }, { data: onboardingClients }] = await Promise.all([
+  const [calls, { data: versions }, { data: pendingProposals }, allLeads, { data: events }, { data: onboardingClients }, { data: scriptPatterns }] = await Promise.all([
     fetchAllRows<SalesCall>((from, to) => sb.from("sales_calls").select("*").order("created_at", { ascending: false }).range(from, to)),
     sb.from("sales_script_versions").select("*").order("version", { ascending: false }),
     sb.from("sales_script_proposals").select("*").eq("status", "pending").order("created_at", { ascending: false }),
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
     sb.from("onboarding_clients").select("*").order("created_at", { ascending: false }),
+    sb.from("sales_pattern_tracker").select("*").order("created_at", { ascending: false }),
   ]);
 
   const allVersions = (versions || []) as ScriptVersion[];
@@ -48,6 +49,7 @@ export default async function SalesCallsPage() {
         pipelineLeads={pipelineLeads}
         engagement={engagement}
         onboardingClients={(onboardingClients || []) as OnboardingClient[]}
+        scriptPatterns={(scriptPatterns || []) as PatternTracker[]}
       />
     </div>
   );

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { SalesCall } from "@/lib/types";
-import { parseCallSummary, reviewScriptAgainstCall, callToParsed } from "@/lib/salesCallsAi";
+import { SalesCall, PatternTracker } from "@/lib/types";
+import { parseCallSummary, runStandingScriptReview, StandingReviewCallRef } from "@/lib/salesCallsAi";
+import { applyStandingReview, patternsForPrompt } from "@/lib/salesCallsPatterns";
 import { runSalesCallsBackup } from "@/lib/salesCallsBackupSync";
 
 export const dynamic = "force-dynamic";
@@ -53,24 +54,35 @@ export async function POST(req: NextRequest) {
   const { data, error } = await sb.from("sales_calls").insert(call).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Review against the current master script right after logging — advisory
-  // only, a failure here should never block the call save that already
-  // succeeded above.
+  // Standing review, runs after every call, permanently: reads every logged
+  // call (not just this one) plus the open/closed pattern list, ranks
+  // recurring misses by frequency and cost, and only proposes a change for
+  // the highest priority one that isn't a one-off. Advisory only, a failure
+  // here should never block the call save that already succeeded above.
   let proposal = null;
   try {
     const { data: currentVersion } = await sb.from("sales_script_versions").select("*").eq("is_current", true).maybeSingle();
     if (currentVersion) {
-      const review = await reviewScriptAgainstCall(currentVersion.content, callToParsed(data as SalesCall));
-      const { data: inserted, error: proposalError } = await sb.from("sales_script_proposals").insert({
-        call_id: data.id,
-        based_on_version: currentVersion.version,
-        status: "pending",
-        needs_changes: review.needs_changes,
-        summary: review.summary,
-        diffs: review.diffs,
-        new_content: review.new_content,
-      }).select().single();
-      if (!proposalError) proposal = inserted;
+      const [allCalls, { data: existingPatterns }] = await Promise.all([
+        fetchAllRows<SalesCall>((from, to) => sb.from("sales_calls").select("*").order("call_date", { ascending: true }).range(from, to)),
+        sb.from("sales_pattern_tracker").select("*"),
+      ]);
+      const callRefs: StandingReviewCallRef[] = allCalls.map((c) => ({
+        id: c.id,
+        call_date: c.call_date,
+        outcome: c.outcome,
+        main_objection: c.main_objection,
+        next_step_booked: c.next_step_booked,
+        next_step_detail: c.next_step_detail,
+        went_well: c.went_well,
+        work_ons: c.work_ons,
+      }));
+      const review = await runStandingScriptReview(currentVersion.content, callRefs, patternsForPrompt((existingPatterns || []) as PatternTracker[]));
+      const { proposalId } = await applyStandingReview(sb, review, data.id);
+      if (proposalId) {
+        const { data: inserted } = await sb.from("sales_script_proposals").select("*").eq("id", proposalId).maybeSingle();
+        proposal = inserted;
+      }
     }
   } catch {
     // Script review is advisory — a logged call must never be lost because

@@ -1,20 +1,27 @@
 "use client";
 import { useState } from "react";
-import { ScriptVersion, ScriptProposal } from "@/lib/types";
-import { History, RotateCcw, Check, X } from "lucide-react";
+import { ScriptVersion, ScriptProposal, PatternTracker } from "@/lib/types";
+import { History, RotateCcw, Check, X, AlertTriangle } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
+
+const COST_COLORS: Record<string, { bg: string; text: string }> = {
+  high: { bg: "#fee2e2", text: "#991b1b" },
+  medium: { bg: "#fef9c3", text: "#854d0e" },
+  low: { bg: "#f1f5f9", text: "#64748b" },
+};
 
 interface Props {
   currentVersion: ScriptVersion | null;
   versions: ScriptVersion[];
   pendingProposals: ScriptProposal[];
+  patterns: PatternTracker[];
   onCurrentVersionChange: (v: ScriptVersion) => void;
   onVersionsChange: (v: ScriptVersion[]) => void;
   onProposalsChange: (p: ScriptProposal[]) => void;
 }
 
-export default function MasterScriptPanel({ currentVersion, versions, pendingProposals, onCurrentVersionChange, onVersionsChange, onProposalsChange }: Props) {
+export default function MasterScriptPanel({ currentVersion, versions, pendingProposals, patterns, onCurrentVersionChange, onVersionsChange, onProposalsChange }: Props) {
   const [showHistory, setShowHistory] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -68,9 +75,76 @@ export default function MasterScriptPanel({ currentVersion, versions, pendingPro
     }
   }
 
+  const openPatterns = patterns.filter((p) => p.status === "open").sort((a, b) => {
+    const costRank = { high: 0, medium: 1, low: 2 };
+    return costRank[a.cost] - costRank[b.cost] || b.occurrences - a.occurrences;
+  });
+  const closedPatterns = patterns.filter((p) => p.status === "closed");
+  const notLanding = openPatterns.filter((p) => p.fix_landing_status === "not_landing");
+
   return (
     <div>
       {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", marginBottom: 18, fontSize: 14 }}>{error}</div>}
+
+      {notLanding.length > 0 && (
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", padding: 20, marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <AlertTriangle style={{ width: 15, height: 15, color: "#991b1b" }} />
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#991b1b" }}>The fix isn't landing</div>
+          </div>
+          {notLanding.map((p) => (
+            <p key={p.id} style={{ fontSize: 13, color: "#991b1b", marginBottom: 6 }}>
+              {p.pattern_summary} It's happened again since the script was fixed for it. This is an execution problem under pressure, not a wording problem. Rewording the script again won't fix this, something different is needed, a mid-call checklist, a pre-call reminder, or a change to how the call opens rather than closes.
+            </p>
+          ))}
+        </div>
+      )}
+
+      {patterns.length > 0 && (
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24, marginBottom: 20 }}>
+          <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 14 }}>Recurring patterns</div>
+
+          {openPatterns.length === 0 && closedPatterns.length === 0 && (
+            <p style={{ fontSize: 13, color: L.dimmed }}>Nothing tracked yet.</p>
+          )}
+
+          {openPatterns.length > 0 && (
+            <div style={{ marginBottom: closedPatterns.length > 0 ? 18 : 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: L.muted, marginBottom: 8 }}>Open ({openPatterns.length})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {openPatterns.map((p) => (
+                  <div key={p.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: "#f8fafc", border: `1px solid ${L.border}` }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 20, background: COST_COLORS[p.cost].bg, color: COST_COLORS[p.cost].text, flexShrink: 0, marginTop: 1 }}>
+                      {p.cost}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: L.text }}>{p.pattern_summary}</div>
+                      <div style={{ fontSize: 11, color: L.dimmed, marginTop: 3 }}>
+                        {p.occurrences} call{p.occurrences === 1 ? "" : "s"}
+                        {p.fix_applied_at ? p.fix_landing_status === "not_landing" ? " · fix not landing" : " · fix applied, waiting on the next call to confirm" : " · no fix applied yet"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {closedPatterns.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: L.muted, marginBottom: 8 }}>Closed ({closedPatterns.length})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {closedPatterns.map((p) => (
+                  <div key={p.id} style={{ padding: "10px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                    <div style={{ fontSize: 13, color: "#15803d", textDecoration: "line-through" }}>{p.pattern_summary}</div>
+                    {p.closed_reason && <div style={{ fontSize: 11, color: "#166534", marginTop: 3 }}>{p.closed_reason}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {pendingProposals.length > 0 && (
         <div style={{ marginBottom: 20 }}>

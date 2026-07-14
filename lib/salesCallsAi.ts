@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { stripDashes, parseJsonResponse } from "./ai";
-import { CallOutcome, SalesCall, ScriptDiff } from "./types";
+import { CallOutcome, ScriptDiff } from "./types";
 
 const WRITING_RULES = `Writing rules, no exceptions:
 - Plain spoken New Zealand English. Write it the way Lucky would actually say it out loud on a call, never like written marketing copy.
@@ -83,61 +83,136 @@ export async function parseCallSummary(rawSummary: string): Promise<ParsedCall> 
 }
 
 // ---------------------------------------------------------------------------
-// 2. Review a logged call against the current master script
+// 2. Standing review: run the full pattern-tracking review across every
+// logged call, not just the one that just landed. This is the automated
+// version of the review Lucky asked to run after every call, permanently.
 // ---------------------------------------------------------------------------
 
-export interface ScriptReview {
+export interface StandingReviewCallRef {
+  id: string;
+  call_date: string;
+  outcome: CallOutcome;
+  main_objection: string;
+  next_step_booked: boolean;
+  next_step_detail: string;
+  went_well: string;
+  work_ons: string;
+}
+
+export interface StandingReviewPatternInput {
+  id: string;
+  pattern_summary: string;
+  status: "open" | "closed";
+  cost: "low" | "medium" | "high";
+  occurrences: number;
+  fix_applied_at: string | null;
+  fix_landing_status: "untested" | "holding" | "not_landing";
+}
+
+export interface RankedPattern {
+  matchesExistingPatternId: string | null;
+  summary: string;
+  cost: "low" | "medium" | "high";
+  callIds: string[];
+  status: "open" | "closed";
+  isRepeat: boolean;
+  closedReason: string;
+}
+
+export interface StandingReviewResult {
+  rankedPatterns: RankedPattern[];
   needs_changes: boolean;
   summary: string;
   diffs: ScriptDiff[];
   new_content: string;
+  fixesPatternSummary: string;
+  decisionsToSurface: string[];
+  fixNotLandingWarning: string;
 }
 
-const SCRIPT_REVIEW_SYSTEM_PROMPT = `You help Lucky keep his master sales script up to date. Lucky sells ad services (Meta ads, lead generation) to trade businesses. You will be given his current master script and the full details of a call he just logged, including his own honest reflection on the call in his words (went_well and work_ons). Treat his own reflection as the primary signal, it's him telling you where he mucked up or what actually landed, weigh it above your own read of the raw transcript.
+const STANDING_REVIEW_SYSTEM_PROMPT = `You review Lucky's master sales script against his real logged call data. Lucky sells ad services (Meta ads, lead generation) to trade businesses. This runs automatically after every call he logs, permanently, whether he asks for it or not.
 
-Your job is to check the call against the script and decide if the script needs updating:
-- Did Lucky say in his own reflection that he mucked up, skipped something, or froze on something the script should have covered him for?
-- Did the prospect raise an objection that isn't in the "Objection cheat sheet" section? If so the fix is almost always adding a new entry to that section, not touching anything else.
-- Did Lucky say something worked well that should be captured so he repeats it?
+Rules, follow exactly, do not soften any of this:
 
-If nothing in this call actually justifies a change, say so plainly and propose no edits. Do not invent changes just to have something to propose. Most single calls should not require a script change.
+1. Read every logged call given to you. Pull out recurring patterns: where in the call deals stall, which objections come up more than once, any point Lucky repeatedly struggles to explain or execute. Rank by how often they appear and how much they cost him, a miss that killed a close outranks a minor wording issue. A pattern needs at least two occurrences across different calls to count as a real pattern. Something that happened once is noise, not a pattern, note it but do not act on it yet.
 
-If changes are worth making, propose specific edits as before and after pairs. Each edit should be additive and targeted to the smallest relevant part of the script, either a new entry in the objection cheat sheet, a tightened line in the section where Lucky said he mucked up, or (only if nothing in the current structure fits) a new section. Never rewrite the whole script. Give a one sentence reason for each edit that references what Lucky actually said happened.
+2. For each pattern, check if the current script actually addresses it in a way that would change his behaviour on the call. Be strict. An instruction that exists but that a later call shows he still did not follow does NOT count as addressed. If he read the script and still made the mistake, the script did not catch him.
+
+3. You are given the existing tracked pattern list (open and closed, with occurrence counts and whether a fix has already been applied). For each one, check if it shows up again in the calls given to you:
+   - If it shows up again after a fix was already applied to the script (fix_applied_at is set), that is the headline. Say plainly this pattern has now happened more than once and the fix has not stopped it. Set fixNotLandingWarning to a direct plain sentence saying the fix is not landing and this looks like an execution problem under pressure, not a wording problem, then suggest something concrete and different, a mid-call checklist, a pre-call reminder, or a change to how he opens rather than how he closes. Do not just reword the script again for a pattern already flagged as not landing.
+   - If it shows up again but no fix has been applied yet, it is still open, just now with another occurrence, and this is your top priority pattern this run, ranked above anything new.
+   - If a pattern had a fix applied and none of the calls after that fix show it happening again, it can move to closed. Only close a pattern if there is at least one call logged after fix_applied_at that does not show the issue. Do not close a pattern just because a fix was made if no call has happened since.
+
+4. Only propose script changes that fix a ranked pattern (two or more occurrences). Prioritise the single highest cost recurring pattern first. Do not add new sections for a problem that appeared once. Do not touch parts of the script that are working. Propose at most one change per run unless multiple patterns are both severe and unaddressed, and if you propose more than one, still rank them and say which is most urgent.
+
+5. Anything Lucky struggles to execute under pressure should become something he can see and act on mid-call, a short checklist of concrete actions, not a paragraph of advice to remember. If an existing fix for a pattern is written as a paragraph and the pattern is about execution under pressure, sharpening it into a checklist counts as fixing it properly, reference the instruction fixing on instruction 5.
+
+6. If a real gap has no fix in the current script, propose one. If the script already handles a pattern well, say so in your summary and leave that part alone.
+
+Also flag anything the calls suggest Lucky should decide but has not, for example whether a guarantee number should flex by job size, or whether a different approach is needed for bigger or more intimidating prospects. Do not invent a decision for him, just surface it plainly in decisionsToSurface if the data actually points at one. Leave this empty if nothing genuinely comes up.
+
+For every entry in rankedPatterns, set matchesExistingPatternId to the id of the existing tracked pattern it matches if one was given to you, or null if this is a brand new pattern not seen before. Set isRepeat to true only if this pattern has now happened in more than one call (including calls from before this run). Include every pattern you found, even single occurrence ones and even ones you are not proposing a fix for, so a full list can be shown. Set closedReason only when status is closed, explaining in one sentence which later call proves it is fixed.
 
 ${WRITING_RULES}
 
-Respond with ONLY a JSON object, no markdown fences, no other text:
-{"needs_changes": false, "summary": "one or two sentences on your assessment", "diffs": [{"before": "exact text from the current script being replaced", "after": "the replacement text", "reason": "one sentence"}], "new_content": "the full script with the diffs applied, or empty string if needs_changes is false"}`;
+If needs_changes is true, also set fixesPatternSummary to the exact summary text (from rankedPatterns) of the single pattern these diffs address, so it can be linked up.
 
-export async function reviewScriptAgainstCall(scriptContent: string, call: ParsedCall & { raw_summary: string }): Promise<ScriptReview> {
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"rankedPatterns": [{"matchesExistingPatternId": null, "summary": "", "cost": "low", "callIds": [], "status": "open", "isRepeat": false, "closedReason": ""}], "needs_changes": false, "summary": "one or two sentences on your overall assessment this run", "diffs": [{"before": "exact text from the current script being replaced", "after": "the replacement text", "reason": "one sentence tying this to the specific calls it came from"}], "new_content": "the full script with the diffs applied, or empty string if needs_changes is false", "fixesPatternSummary": "", "decisionsToSurface": [], "fixNotLandingWarning": ""}`;
+
+export async function runStandingScriptReview(
+  scriptContent: string,
+  allCalls: StandingReviewCallRef[],
+  existingPatterns: StandingReviewPatternInput[]
+): Promise<StandingReviewResult> {
+  const callsBlock = allCalls
+    .map((c) => `Call ${c.id} (${c.call_date}):
+Outcome: ${c.outcome}
+Main objection: ${c.main_objection || "none"}
+Next step booked: ${c.next_step_booked ? c.next_step_detail : "no"}
+What went well: ${c.went_well || "none noted"}
+Work ons: ${c.work_ons || "none noted"}`)
+    .join("\n\n");
+
+  const patternsBlock = existingPatterns.length
+    ? existingPatterns
+        .map((p) => `- id ${p.id}: "${p.pattern_summary}" | status ${p.status} | cost ${p.cost} | occurrences ${p.occurrences} | fix applied at ${p.fix_applied_at || "no fix applied yet"} | fix landing status ${p.fix_landing_status}`)
+        .join("\n")
+    : "none tracked yet, this is the first run";
+
   const userPrompt = `Current master script:
 """
 ${scriptContent}
 """
 
-Call details:
-Outcome: ${call.outcome}
-Main objection: ${call.main_objection || "none"}
-Next step booked: ${call.next_step_booked ? call.next_step_detail : "no"}
-What went well: ${call.went_well || "none noted"}
-Work ons: ${call.work_ons || "none noted"}
+Every logged call, oldest first:
+${callsBlock}
 
-Raw notetaker summary of the call:
-"""
-${call.raw_summary}
-"""`;
+Existing tracked patterns from previous runs:
+${patternsBlock}`;
 
   const msg = await client().messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 2048,
-    system: SCRIPT_REVIEW_SYSTEM_PROMPT,
+    max_tokens: 4096,
+    system: STANDING_REVIEW_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
   });
 
   const block = msg.content[0];
   if (block.type !== "text") throw new Error("Unexpected response from AI");
 
-  const parsed = parseJsonResponse<Partial<ScriptReview>>(block.text);
+  const parsed = parseJsonResponse<Partial<StandingReviewResult>>(block.text);
+
+  const rankedPatterns: RankedPattern[] = (parsed.rankedPatterns || []).map((p) => ({
+    matchesExistingPatternId: p.matchesExistingPatternId || null,
+    summary: stripDashes(p.summary || ""),
+    cost: (["low", "medium", "high"].includes(p.cost as string) ? p.cost : "medium") as "low" | "medium" | "high",
+    callIds: p.callIds || [],
+    status: p.status === "closed" ? "closed" : "open",
+    isRepeat: !!p.isRepeat,
+    closedReason: stripDashes(p.closedReason || ""),
+  }));
+
   const diffs = (parsed.diffs || []).map((d) => ({
     before: d.before || "",
     after: stripDashes(d.after || ""),
@@ -145,10 +220,14 @@ ${call.raw_summary}
   }));
 
   return {
+    rankedPatterns,
     needs_changes: !!parsed.needs_changes && diffs.length > 0,
     summary: stripDashes(parsed.summary || ""),
     diffs,
     new_content: parsed.new_content ? stripDashes(parsed.new_content) : "",
+    fixesPatternSummary: parsed.fixesPatternSummary || "",
+    decisionsToSurface: (parsed.decisionsToSurface || []).map((s) => stripDashes(s)),
+    fixNotLandingWarning: stripDashes(parsed.fixNotLandingWarning || ""),
   };
 }
 
@@ -241,21 +320,3 @@ ${input.recentObjections.length ? input.recentObjections.map((o) => `- ${o}`).jo
   };
 }
 
-// ---------------------------------------------------------------------------
-// Helper shared by the review route: SalesCall row -> ParsedCall shape
-// ---------------------------------------------------------------------------
-
-export function callToParsed(call: SalesCall): ParsedCall & { raw_summary: string } {
-  return {
-    call_date: call.call_date,
-    prospect_name: call.prospect_name,
-    business_name: call.business_name,
-    outcome: call.outcome,
-    main_objection: call.main_objection,
-    next_step_booked: call.next_step_booked,
-    next_step_detail: call.next_step_detail,
-    went_well: call.went_well,
-    work_ons: call.work_ons,
-    raw_summary: call.raw_summary,
-  };
-}

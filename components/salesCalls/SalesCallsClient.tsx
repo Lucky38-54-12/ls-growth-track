@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { SalesCall, ScriptVersion, ScriptProposal, Lead, EngagementSummary, OnboardingClient } from "@/lib/types";
+import { SalesCall, ScriptVersion, ScriptProposal, Lead, EngagementSummary, OnboardingClient, PatternTracker } from "@/lib/types";
 import { computeStats, computePatterns, CallStats, CallPatterns } from "@/lib/salesCallsStats";
 import StatsBar from "./StatsBar";
 import CallLogForm from "./CallLogForm";
@@ -34,11 +34,12 @@ interface Props {
   pipelineLeads: Lead[];
   engagement: Record<string, EngagementSummary>;
   onboardingClients: OnboardingClient[];
+  scriptPatterns: PatternTracker[];
 }
 
 export default function SalesCallsClient({
   initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialStats, initialPatterns,
-  pipelineLeads, engagement, onboardingClients,
+  pipelineLeads, engagement, onboardingClients, scriptPatterns,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("log");
   const [calls, setCalls] = useState<SalesCall[]>(initialCalls);
@@ -138,6 +139,7 @@ export default function SalesCallsClient({
           currentVersion={currentVersion}
           versions={versions}
           pendingProposals={pendingProposals}
+          patterns={scriptPatterns}
           onCurrentVersionChange={setCurrentVersion}
           onVersionsChange={setVersions}
           onProposalsChange={setPendingProposals}

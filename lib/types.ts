@@ -204,6 +204,22 @@ export interface ScriptProposal {
   decided_at: string | null;
 }
 
+export interface PatternTracker {
+  id: string;
+  pattern_summary: string;
+  status: "open" | "closed";
+  cost: "low" | "medium" | "high";
+  call_ids: string[];
+  occurrences: number;
+  fix_proposal_id: string | null;
+  fix_applied_at: string | null;
+  fix_landing_status: "untested" | "holding" | "not_landing";
+  closed_at: string | null;
+  closed_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OnboardingClient {
   id: string;
   name: string;

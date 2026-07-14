@@ -48,5 +48,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .eq("id", params.id).select().single();
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
 
+  // If this proposal was raised to fix a tracked pattern, mark the fix as
+  // now live so the next standing review can tell whether it actually stuck.
+  await sb.from("sales_pattern_tracker")
+    .update({ fix_applied_at: new Date().toISOString(), fix_landing_status: "untested" })
+    .eq("fix_proposal_id", params.id);
+
   return NextResponse.json({ proposal: updatedProposal, version: newVersion });
 }
