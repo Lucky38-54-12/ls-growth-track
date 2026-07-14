@@ -157,9 +157,6 @@ ${call.raw_summary}
 // ---------------------------------------------------------------------------
 
 export interface CallPrepInput {
-  prospectName: string;
-  businessName: string;
-  industry: string;
   notes: string;
   masterScript: string;
   recentWorkOns: string[];
@@ -167,6 +164,8 @@ export interface CallPrepInput {
 }
 
 export interface CallPrepResult {
+  prospectName: string;
+  businessName: string;
   topWorkOns: string[];
   likelyObjections: string[];
   reminder: string;
@@ -175,18 +174,21 @@ export interface CallPrepResult {
 
 const CALL_PREP_SYSTEM_PROMPT = `You prepare Lucky for an upcoming sales call. Lucky sells ad services (Meta ads, lead generation) to trade businesses.
 
-You will be given his master sales script, details on the specific prospect he is about to call, a list of his own recurring work ons from recent calls, and a list of objections that have come up recently.
+You will be given his master sales script, a freeform blob of whatever Lucky knows about the prospect he's about to call (could be a name, business, industry, notes from booking, all mixed together in any order), a list of his own recurring work ons from recent calls, and a list of objections that have come up recently.
 
-Produce:
-1. topWorkOns: the top 3 recurring things Lucky should watch himself on this call, pulled from the recent work ons given to you. If fewer than 3 distinct themes exist, return fewer, do not pad with generic advice.
-2. likelyObjections: 2 to 4 objections this specific prospect is most likely to raise, based on their industry and the objections history given to you. If nothing in the history matches this industry well, use general trade business objections instead, but keep it grounded, do not invent something exotic.
-3. reminder: one short reminder line about locking a concrete next step before hanging up.
-4. tailoredScript: a version of the master script personalised for this specific prospect, using their name, business, industry and any notes given. Keep the same structure and flow as the master script but make it feel written for this exact call, not generic.
+First, read the freeform notes and work out the prospect's name, business name, and industry as best you can. If something isn't mentioned, leave it blank, do not guess or invent one.
+
+Then produce:
+1. prospectName, businessName: pulled from the notes.
+2. topWorkOns: the top 3 recurring things Lucky should watch himself on this call, pulled from the recent work ons given to you. If fewer than 3 distinct themes exist, return fewer, do not pad with generic advice.
+3. likelyObjections: 2 to 4 objections this specific prospect is most likely to raise, based on their industry and the objections history given to you. If nothing in the history matches this industry well, use general trade business objections instead, but keep it grounded, do not invent something exotic.
+4. reminder: one short reminder line about locking a concrete next step before hanging up.
+5. tailoredScript: a version of the master script personalised for this specific prospect, using whatever name, business, industry and notes you found. Keep the same structure and flow as the master script but make it feel written for this exact call, not generic.
 
 ${WRITING_RULES}
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
-{"topWorkOns": [], "likelyObjections": [], "reminder": "", "tailoredScript": ""}`;
+{"prospectName": "", "businessName": "", "topWorkOns": [], "likelyObjections": [], "reminder": "", "tailoredScript": ""}`;
 
 export async function generateCallPrep(input: CallPrepInput): Promise<CallPrepResult> {
   const userPrompt = `Master script:
@@ -194,10 +196,10 @@ export async function generateCallPrep(input: CallPrepInput): Promise<CallPrepRe
 ${input.masterScript}
 """
 
-Prospect: ${input.prospectName || "unknown name"}
-Business: ${input.businessName || "unknown business"}
-Industry: ${input.industry || "unknown industry"}
-Notes from booking: ${input.notes || "none"}
+What Lucky knows about this prospect, freeform:
+"""
+${input.notes || "nothing, this is a cold booking with no details"}
+"""
 
 Lucky's recent work ons (most recent first):
 ${input.recentWorkOns.length ? input.recentWorkOns.map((w) => `- ${w}`).join("\n") : "none logged yet"}
@@ -230,6 +232,8 @@ ${input.recentObjections.length ? input.recentObjections.map((o) => `- ${o}`).jo
   const parsed = parseJsonResponse<Partial<CallPrepResult>>(block.text);
 
   return {
+    prospectName: parsed.prospectName || "",
+    businessName: parsed.businessName || "",
     topWorkOns: (parsed.topWorkOns || []).map((s) => stripDashes(s)),
     likelyObjections: (parsed.likelyObjections || []).map((s) => stripDashes(s)),
     reminder: stripDashes(parsed.reminder || "Lock in a concrete next step before you hang up."),

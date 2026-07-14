@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { prospectName, businessName, industry, notes } = body;
+  const { notes } = body;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -25,9 +25,6 @@ export async function POST(req: NextRequest) {
 
   try {
     const prep = await generateCallPrep({
-      prospectName: prospectName || "",
-      businessName: businessName || "",
-      industry: industry || "",
       notes: notes || "",
       masterScript: currentVersion.content,
       recentWorkOns: recentWorkOnThemes(calls),
