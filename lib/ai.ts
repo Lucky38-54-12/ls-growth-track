@@ -26,7 +26,7 @@ export function stripDashes(text: string): string {
 // instructions not to) write out a full reasoning narration before the JSON
 // object — try increasingly permissive extraction strategies before giving
 // up and letting the caller's catch handle a genuinely bad response.
-function parseJsonResponse<T>(text: string): T {
+export function parseJsonResponse<T>(text: string): T {
   const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 
   const attempts = [

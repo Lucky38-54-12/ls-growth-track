@@ -144,3 +144,62 @@ export interface RevenueGoal {
   id: number;
   monthly_goal: number;
 }
+
+export type CallOutcome = "closed" | "follow_up" | "undecided" | "dead";
+
+export const CALL_OUTCOME_LABELS: Record<CallOutcome, string> = {
+  closed: "Closed",
+  follow_up: "Follow Up Booked",
+  undecided: "Undecided",
+  dead: "Dead",
+};
+
+export const CALL_OUTCOME_COLORS: Record<CallOutcome, { bg: string; text: string }> = {
+  closed:     { bg: "#dcfce7", text: "#15803d" },
+  follow_up:  { bg: "#dbeafe", text: "#1d4ed8" },
+  undecided:  { bg: "#fef9c3", text: "#854d0e" },
+  dead:       { bg: "#f1f5f9", text: "#64748b" },
+};
+
+export interface SalesCall {
+  id: string;
+  call_date: string;
+  prospect_name: string;
+  business_name: string;
+  outcome: CallOutcome;
+  main_objection: string;
+  next_step_booked: boolean;
+  next_step_detail: string;
+  went_well: string;
+  work_ons: string;
+  raw_summary: string;
+  created_at: string;
+}
+
+export interface ScriptVersion {
+  id: string;
+  version: number;
+  content: string;
+  changelog: string;
+  is_current: boolean;
+  created_at: string;
+}
+
+export interface ScriptDiff {
+  before: string;
+  after: string;
+  reason: string;
+}
+
+export interface ScriptProposal {
+  id: string;
+  call_id: string | null;
+  based_on_version: number;
+  status: "pending" | "approved" | "rejected";
+  needs_changes: boolean;
+  summary: string;
+  diffs: ScriptDiff[];
+  new_content: string;
+  created_at: string;
+  decided_at: string | null;
+}
