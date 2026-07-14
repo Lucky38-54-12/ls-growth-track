@@ -125,7 +125,7 @@ export default function OnboardingWorkspace() {
   return (
     <div>
       {/* Two-column workspace */}
-      <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+      <div style={{ maxWidth: 1080, margin: "0 auto 32px", padding: "0 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
 
         {/* LEFT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -235,9 +235,14 @@ export default function OnboardingWorkspace() {
                 >
                   {sending ? "Sending…" : email ? "Add client & send recap" : "Add client"}
                 </button>
-                <a href="/dashboard/onboarding" className="btn-lift" style={{ padding: "11px 20px", background: "#f8fafc", color: L.text, border: `1px solid ${L.border}`, borderRadius: 0, fontSize: 14, fontWeight: 700, display: "inline-flex", alignItems: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => { setGenerated(false); setCallNotes(""); setDocUrl(""); }}
+                  className="btn-lift"
+                  style={{ padding: "11px 20px", background: "#f8fafc", color: L.text, border: `1px solid ${L.border}`, borderRadius: 0, fontSize: 14, fontWeight: 700, display: "inline-flex", alignItems: "center", cursor: "pointer" }}
+                >
                   Cancel
-                </a>
+                </button>
               </div>
             </div>
           )}

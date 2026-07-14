@@ -1,8 +1,8 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { notFound } from "next/navigation";
 import Topbar from "@/components/Topbar";
-import { ONBOARDING_STEPS } from "../page";
-import OnboardingChecklist from "./OnboardingChecklist";
+import { ONBOARDING_STEPS } from "@/lib/onboardingSteps";
+import OnboardingChecklist from "@/components/salesCalls/OnboardingChecklist";
 
 export const revalidate = 0;
 

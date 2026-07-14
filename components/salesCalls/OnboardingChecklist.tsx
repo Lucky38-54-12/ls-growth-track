@@ -3,23 +3,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, Circle, ChevronLeft, Trash2, Save, Phone } from "lucide-react";
+import { OnboardingClient } from "@/lib/types";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
 type Step = { key: string; label: string };
-type Client = {
-  id: string; name: string; company: string;
-  email: string | null; phone: string | null;
-  completed_steps: string[]; notes: string; created_at: string;
-  decision_status: "ready" | "thinking";
-  follow_up_at: string | null;
-  services: string[] | null;
-  ads_manager_added: boolean;
-  ad_budget: string | null;
-  creatives_needed: string | null;
-};
 
-export default function OnboardingChecklist({ client, steps }: { client: Client; steps: Step[] }) {
+export default function OnboardingChecklist({ client, steps }: { client: OnboardingClient; steps: Step[] }) {
   const router = useRouter();
   const [decisionStatus, setDecisionStatus] = useState(client.decision_status);
   const [done, setDone] = useState<string[]>(client.completed_steps || []);
@@ -114,7 +104,7 @@ export default function OnboardingChecklist({ client, steps }: { client: Client;
     if (!confirm(`Remove ${client.company} from onboarding?`)) return;
     setDeleting(true);
     await fetch(`/api/onboarding/${client.id}`, { method: "DELETE" });
-    router.push("/dashboard/onboarding");
+    router.push("/dashboard/sales-calls");
     router.refresh();
   }
 
@@ -126,7 +116,7 @@ export default function OnboardingChecklist({ client, steps }: { client: Client;
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
       {/* Back */}
-      <Link href="/dashboard/onboarding" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: L.muted, textDecoration: "none", fontWeight: 600 }}>
+      <Link href="/dashboard/sales-calls" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: L.muted, textDecoration: "none", fontWeight: 600 }}>
         <ChevronLeft style={{ width: 14, height: 14 }} /> All clients
       </Link>
 

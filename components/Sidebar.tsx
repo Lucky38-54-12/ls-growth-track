@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Users, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, Megaphone, Mailbox, Settings, ClipboardList, Bot, BarChart3, Zap, Rows3, PhoneCall,
+  LayoutDashboard, Users, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, Megaphone, Mailbox, Settings, Bot, BarChart3, Zap, Rows3, PhoneCall,
 } from "lucide-react";
 
 const NAV = [
@@ -11,7 +11,7 @@ const NAV = [
   { href: "/dashboard/email-pipeline", label: "Email Pipeline", icon: Rows3 },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/lead-qual", label: "Lead Qual", icon: Bot },
-  { href: "/dashboard/sales-calls", label: "Sales Calls", icon: PhoneCall },
+  { href: "/dashboard/sales-calls", label: "Sales & Onboarding", icon: PhoneCall },
   { href: "/dashboard/campaigns", label: "Campaigns", icon: Megaphone },
   { href: "/dashboard/campaign-tracking", label: "Campaign Tracking", icon: BarChart3 },
   { href: "/dashboard/automations", label: "Automations", icon: Zap },
@@ -21,7 +21,6 @@ const NAV = [
   { href: "/dashboard/cold-call", label: "Cold Call", icon: Phone },
   { href: "/dashboard/scraper", label: "Scraper", icon: ScanSearch },
   { href: "/dashboard/warm", label: "Email Tracking", icon: MailOpen },
-  { href: "/dashboard/onboarding", label: "Onboarding", icon: ClipboardList },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

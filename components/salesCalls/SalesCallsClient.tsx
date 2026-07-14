@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { SalesCall, ScriptVersion, ScriptProposal } from "@/lib/types";
+import { SalesCall, ScriptVersion, ScriptProposal, Lead, EngagementSummary, OnboardingClient } from "@/lib/types";
 import { computeStats, computePatterns, CallStats, CallPatterns } from "@/lib/salesCallsStats";
 import StatsBar from "./StatsBar";
 import CallLogForm from "./CallLogForm";
@@ -8,6 +8,7 @@ import CallList from "./CallList";
 import MasterScriptPanel from "./MasterScriptPanel";
 import CallPrepPanel from "./CallPrepPanel";
 import PatternsPanel from "./PatternsPanel";
+import OnboardingTab from "./OnboardingTab";
 import { Download, Cloud } from "lucide-react";
 
 const L = { border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
@@ -18,6 +19,7 @@ const TABS = [
   { key: "script", label: "Master Script" },
   { key: "prep", label: "Call Prep" },
   { key: "patterns", label: "Patterns" },
+  { key: "onboarding", label: "Onboarding" },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
@@ -29,10 +31,14 @@ interface Props {
   initialPendingProposals: ScriptProposal[];
   initialStats: CallStats;
   initialPatterns: CallPatterns;
+  pipelineLeads: Lead[];
+  engagement: Record<string, EngagementSummary>;
+  onboardingClients: OnboardingClient[];
 }
 
 export default function SalesCallsClient({
   initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialStats, initialPatterns,
+  pipelineLeads, engagement, onboardingClients,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("log");
   const [calls, setCalls] = useState<SalesCall[]>(initialCalls);
@@ -139,6 +145,7 @@ export default function SalesCallsClient({
       )}
       {tab === "prep" && <CallPrepPanel />}
       {tab === "patterns" && <PatternsPanel patterns={patterns} />}
+      {tab === "onboarding" && <OnboardingTab pipelineLeads={pipelineLeads} engagement={engagement} clients={onboardingClients} />}
     </div>
   );
 }

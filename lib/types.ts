@@ -203,3 +203,20 @@ export interface ScriptProposal {
   created_at: string;
   decided_at: string | null;
 }
+
+export interface OnboardingClient {
+  id: string;
+  name: string;
+  company: string;
+  email: string | null;
+  phone: string | null;
+  completed_steps: string[];
+  notes: string;
+  created_at: string;
+  decision_status: "ready" | "thinking";
+  follow_up_at: string | null;
+  services: string[] | null;
+  ads_manager_added: boolean;
+  ad_budget: string | null;
+  creatives_needed: string | null;
+}

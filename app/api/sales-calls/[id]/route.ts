@@ -8,8 +8,7 @@ const EDITABLE_FIELDS = [
   "next_step_booked", "next_step_detail", "went_well", "work_ons",
 ] as const;
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
 
   const updates: Record<string, unknown> = {};
@@ -21,7 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const sb = createSupabaseClient();
-  const { data, error } = await sb.from("sales_calls").update(updates).eq("id", id).select().single();
+  const { data, error } = await sb.from("sales_calls").update(updates).eq("id", params.id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ call: data });
