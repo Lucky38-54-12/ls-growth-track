@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
-import { SalesCall } from "./types";
+import { SalesCall, ScriptVersion } from "./types";
 
 const LUCKY_EMAIL = "luckyspersonal38@gmail.com";
 
@@ -31,16 +31,27 @@ function toRow(c: SalesCall): string[] {
   ];
 }
 
+const SCRIPT_HEADER = ["Version", "Current", "Changelog", "Created At", "Content"];
+
+function toScriptRow(v: ScriptVersion): string[] {
+  return [String(v.version), v.is_current ? "Yes" : "No", v.changelog, v.created_at, v.content];
+}
+
 // Creates a fresh backup sheet each time it's called rather than updating one
 // in place — simplest way to guarantee the export always matches exactly what
 // was in Supabase at the moment of backup, with no partial-overwrite risk.
-export async function backupSalesCallsToDrive(calls: SalesCall[]): Promise<string> {
+export async function backupSalesCallsToDrive(calls: SalesCall[], scriptVersions: ScriptVersion[]): Promise<string> {
   const auth = getAuth();
   const sheets = google.sheets({ version: "v4", auth: auth as any });
   const drive = google.drive({ version: "v3", auth: auth as any });
 
   const title = `Sales Calls Backup ${new Date().toISOString().split("T")[0]}`;
-  const created = await sheets.spreadsheets.create({ requestBody: { properties: { title } } });
+  const created = await sheets.spreadsheets.create({
+    requestBody: {
+      properties: { title },
+      sheets: [{ properties: { title: "Calls" } }, { properties: { title: "Master Script Versions" } }],
+    },
+  });
   const spreadsheetId = created.data.spreadsheetId;
   if (!spreadsheetId) throw new Error("Failed to create spreadsheet — no ID returned.");
 
@@ -50,12 +61,17 @@ export async function backupSalesCallsToDrive(calls: SalesCall[]): Promise<strin
     sendNotificationEmail: false,
   });
 
-  const values = [HEADER, ...calls.map(toRow)];
-  await sheets.spreadsheets.values.update({
+  const callValues = [HEADER, ...calls.map(toRow)];
+  const scriptValues = [SCRIPT_HEADER, ...scriptVersions.map(toScriptRow)];
+  await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId,
-    range: "A1",
-    valueInputOption: "RAW",
-    requestBody: { values },
+    requestBody: {
+      valueInputOption: "RAW",
+      data: [
+        { range: "Calls!A1", values: callValues },
+        { range: "Master Script Versions!A1", values: scriptValues },
+      ],
+    },
   });
 
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
