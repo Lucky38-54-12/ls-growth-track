@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { SalesCall } from "@/lib/types";
 import { reviewScriptAgainstCall, callToParsed } from "@/lib/salesCallsAi";
+import { runSalesCallsBackup } from "@/lib/salesCallsBackupSync";
 
 export const dynamic = "force-dynamic";
 
@@ -60,5 +61,16 @@ export async function POST(req: NextRequest) {
     // the review step failed.
   }
 
-  return NextResponse.json({ call: data, proposal });
+  let backupUrl: string | null = null;
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    try {
+      const result = await runSalesCallsBackup();
+      backupUrl = result.url;
+    } catch {
+      // Backup is best-effort — a logged call must never be lost because the
+      // Drive push failed. The manual "Backup to Drive" button covers retry.
+    }
+  }
+
+  return NextResponse.json({ call: data, proposal, backupUrl });
 }

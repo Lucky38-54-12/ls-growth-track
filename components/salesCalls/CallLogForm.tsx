@@ -21,7 +21,7 @@ const EMPTY_FIELDS: ParsedFields = {
   main_objection: "", next_step_booked: false, next_step_detail: "", went_well: "", work_ons: "",
 };
 
-export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, proposal: ScriptProposal | null) => void }) {
+export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, proposal: ScriptProposal | null, backupUrl: string | null) => void }) {
   const [rawSummary, setRawSummary] = useState("");
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -76,7 +76,7 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
         setError(data.error || "Couldn't save this call. Try again.");
         return;
       }
-      onSaved(data.call, data.proposal);
+      onSaved(data.call, data.proposal, data.backupUrl || null);
       setRawSummary("");
       setParsed(null);
       setFields(EMPTY_FIELDS);

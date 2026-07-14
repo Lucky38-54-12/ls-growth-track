@@ -44,12 +44,13 @@ export default function SalesCallsClient({
   const [backingUp, setBackingUp] = useState(false);
   const [backupResult, setBackupResult] = useState("");
 
-  function handleCallSaved(call: SalesCall, proposal: ScriptProposal | null) {
+  function handleCallSaved(call: SalesCall, proposal: ScriptProposal | null, backupUrl: string | null) {
     const nextCalls = [call, ...calls];
     setCalls(nextCalls);
     setStats(computeStats(nextCalls));
     setPatterns(computePatterns(nextCalls));
     if (proposal) setPendingProposals((p) => [proposal, ...p]);
+    setBackupResult(backupUrl ? `Backed up. Sheet: ${backupUrl}` : "");
     setTab(proposal ? "script" : "history");
   }
 
@@ -106,7 +107,7 @@ export default function SalesCallsClient({
             className="btn-lift"
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "#fff", color: L.text, border: `1px solid ${L.border}`, fontSize: 12.5, fontWeight: 700, cursor: backingUp ? "default" : "pointer" }}
           >
-            <Cloud style={{ width: 13, height: 13 }} /> {backingUp ? "Backing up…" : "Backup to Drive"}
+            <Cloud style={{ width: 13, height: 13 }} /> {backingUp ? "Backing up…" : "Backup now"}
           </button>
         </div>
       </div>
