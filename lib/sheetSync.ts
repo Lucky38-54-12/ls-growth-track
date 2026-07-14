@@ -69,14 +69,12 @@ export async function syncLeadsFromSheet(opts: {
     if (!lead) {
       const leadId = generateLeadId(row.company || row.email, existingIds);
       existingIds.add(leadId);
-      // A row with real call info in the sheet was actually cold-called —
-      // source cold_call. A row with nothing that's about to get an
-      // automated campaign email via sendFresh below was never called at
-      // all, that's a straight email-outreach lead regardless of which
-      // sheet it came from. Tagging every sheet-synced lead cold_call
-      // unconditionally (the old behaviour) mislabelled every auto-sent
-      // lead as a cold call that never happened.
-      const source = called || !sendFresh ? "cold_call" : "email_outreach";
+      // cold_call is reserved for leads Lucky adds himself after actually
+      // calling them (the Cold Call page, POST /api/leads with
+      // source: "cold_call" set explicitly). Anything that comes in through
+      // a sheet sync is email outreach, full stop, even if the sheet has old
+      // call history in it — that history is real, but it isn't Lucky
+      // adding this lead to his cold-call pipeline today.
       const newLead = {
         lead_id: leadId,
         company: row.company || row.email,
@@ -90,7 +88,7 @@ export async function syncLeadsFromSheet(opts: {
         last_followup: null,
         followup_count: 0,
         notes: called ? `[Sheet] ${callNotes}` : "",
-        source,
+        source: "email_outreach",
         website: row.website || null,
         facebook: row.facebook || null,
         personalization_hook: null,
