@@ -205,12 +205,24 @@ ${input.recentWorkOns.length ? input.recentWorkOns.map((w) => `- ${w}`).join("\n
 Objections that have come up recently across all calls:
 ${input.recentObjections.length ? input.recentObjections.map((o) => `- ${o}`).join("\n") : "none logged yet"}`;
 
-  const msg = await client().messages.create({
-    model: "claude-sonnet-4-6",
+  // Fable 5: Anthropic's most capable model, used here since this is the one
+  // call that has to both synthesise a prospect's likely objections and write
+  // a full tailored script from it. Its safety classifiers occasionally
+  // false-positive on ordinary business content, so this ships with the
+  // recommended server-side fallback to Opus 4.8 rather than failing the
+  // whole prep on a refusal.
+  const msg = await client().beta.messages.create({
+    model: "claude-fable-5",
     max_tokens: 2048,
     system: CALL_PREP_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
+    betas: ["server-side-fallback-2026-06-01"],
+    fallbacks: [{ model: "claude-opus-4-8" }],
   });
+
+  if (msg.stop_reason === "refusal") {
+    throw new Error("Couldn't generate a prep for this one, try rephrasing the notes.");
+  }
 
   const block = msg.content[0];
   if (block.type !== "text") throw new Error("Unexpected response from AI");
