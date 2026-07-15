@@ -12,8 +12,6 @@ export default function ImportPage() {
   const [sheetId, setSheetId] = useState("");
   const [sheetTrade, setSheetTrade] = useState("");
   const [sheetLocation, setSheetLocation] = useState("");
-  const [personalize, setPersonalize] = useState(true);
-  const [sendFresh, setSendFresh] = useState(true);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState("");
@@ -42,8 +40,6 @@ export default function ImportPage() {
         sheetId: sheetId.trim(),
         tradeDefault: sheetTrade,
         locationDefault: sheetLocation,
-        personalize,
-        sendFresh,
       }),
     });
     const data = await res.json();
@@ -84,7 +80,8 @@ export default function ImportPage() {
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Auto-synced sheets</div>
           <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
             Every sheet below is checked once a day. New rows become leads automatically, and call notes
-            (Date Called / Outcome / Call Back / Notes columns) are picked up to personalize follow-ups.
+            (Date Called / Outcome / Call Back / Notes columns) get attached to the lead. Add leads to a
+            campaign to start sending — sheets no longer send emails on their own.
           </p>
 
           {loadingSheets && <p style={{ fontSize: 13, color: L.dimmed }}>Loading…</p>}
@@ -146,17 +143,6 @@ export default function ImportPage() {
                 <label>Default location <span style={{ fontWeight: 400, color: L.dimmed }}>(fallback)</span></label>
                 <input value={sheetLocation} onChange={(e) => setSheetLocation(e.target.value)} placeholder="e.g. Christchurch NZ" />
               </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 0 }}>
-                <input type="checkbox" checked={personalize} onChange={(e) => setPersonalize(e.target.checked)} style={{ width: "auto" }} />
-                <span style={{ fontWeight: 600, fontSize: 13 }}>AI-personalize follow-ups for leads with call notes</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 0 }}>
-                <input type="checkbox" checked={sendFresh} onChange={(e) => setSendFresh(e.target.checked)} style={{ width: "auto" }} />
-                <span style={{ fontWeight: 600, fontSize: 13 }}>Send fresh (initial) emails to new leads with no call notes yet</span>
-              </label>
             </div>
 
             <div>

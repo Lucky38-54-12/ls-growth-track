@@ -198,8 +198,6 @@ export async function GET(req: NextRequest) {
                   sheet_id: sheetId,
                   trade_default: trade,
                   location_default: `${region} NZ`,
-                  personalize: false,
-                  send_fresh: false,
                   active: true,
                 });
                 send({ type: "stdout", msg: `Created sheet "${sheetTitle}" in the Email Outreach folder and registered it for daily sync.\n` });

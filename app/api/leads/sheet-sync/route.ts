@@ -5,12 +5,10 @@ import { syncLeadsFromSheet } from "@/lib/sheetSync";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { sheetId, tradeDefault, locationDefault, personalize, sendFresh } = body as {
+  const { sheetId, tradeDefault, locationDefault } = body as {
     sheetId: string;
     tradeDefault: string;
     locationDefault: string;
-    personalize: boolean;
-    sendFresh: boolean;
   };
 
   if (!sheetId?.trim()) {
@@ -18,7 +16,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await syncLeadsFromSheet({ sheetId, tradeDefault, locationDefault, personalize, sendFresh });
+    const result = await syncLeadsFromSheet({ sheetId, tradeDefault, locationDefault });
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Could not sync sheet" }, { status: 400 });

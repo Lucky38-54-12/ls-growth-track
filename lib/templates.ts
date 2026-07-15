@@ -1,3 +1,5 @@
+import { PERL_FALLBACK_LINE, SSP_LINE } from "./proofPoints";
+
 export type EmailStep = "initial" | "followup1" | "followup2" | "followup3" | "followup4";
 
 // The HTML stored in email_sends.body_html is the exact email that went out,
@@ -54,14 +56,14 @@ export function htmlToText(html: string) {
 type StepTemplate = { subject: string; html: string };
 type TemplateSet = Record<EmailStep, StepTemplate>;
 
-// The stats these used to cite for "Queenstown Cleaning" (57 leads, 30
-// booked jobs, $7-$11/lead, 19 enquiries in week one) were removed 2026-07-15
-// as unverified proof points, same purge as "Cooper Electrical" in the main
-// campaign system — flagged for Lucky: these templates now have no proof
-// point at all and need a real, verified number if he wants to keep using
-// this fallback path (INDUSTRY_TEMPLATES is still reachable via
-// coldEmailDraft's "Insert cold email template" button on the Cold Call
-// page).
+// lib/proofPoints.ts is the single source of truth for every verified case
+// study in the codebase (same file the main campaign system in
+// lib/emailTemplates.ts uses). It only covers electrical, so only
+// ELECTRICAL_TEMPLATES below cites a real proof point — every other trade's
+// fallback here is deliberately proof-free rather than inventing one, same
+// purge as "Cooper Electrical"/"Queenstown Cleaning" in the main system
+// (INDUSTRY_TEMPLATES is still reachable via coldEmailDraft's "Insert cold
+// email template" button on the Cold Call page).
 const CLEANING_TEMPLATES: TemplateSet = {
   // Day 0
   initial: {
@@ -129,11 +131,11 @@ const CLEANING_TEMPLATES: TemplateSet = {
 
 const PLUMBING_TEMPLATES: TemplateSet = {
   initial: {
-    subject: `How local plumbers are booking 40+ jobs per month with lead automation`,
+    subject: `A faster way for {{company}} to turn enquiries into booked jobs`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
   <p>Quick one. Most plumbing jobs get called out to 3-4 different companies before someone picks up the phone. If you're not responding within 30 minutes, the job's already gone.</p>
-  <p>We run a lead gen + fast response system for plumbers across NZ: every new enquiry gets contacted within 30 minutes, then we handle all the follow-up automatically. One client went from 15 jobs/month to 40+ booked jobs within 60 days.</p>
+  <p>We run a lead gen + fast response system for plumbers across NZ: every new enquiry gets contacted within 30 minutes, then we handle all the follow-up automatically.</p>
   <p>{{personalization}}</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd work for {{company}}?</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
@@ -141,7 +143,7 @@ const PLUMBING_TEMPLATES: TemplateSet = {
 </div>`,
   },
   followup1: {
-    subject: `Re: How local plumbers are booking 40+ jobs per month`,
+    subject: `Re: A faster way for {{company}} to turn enquiries into booked jobs`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
   <p>Just bumping this in case it got buried. The reality: if you're not the first call back on a plumbing job, you lose it. Our system handles that — every enquiry gets a callback within 30 minutes, guaranteed.</p>
@@ -151,12 +153,11 @@ const PLUMBING_TEMPLATES: TemplateSet = {
 </div>`,
   },
   followup2: {
-    subject: `25 booked jobs in 30 days — {{company}}`,
+    subject: `Worth a look — {{company}}`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
-  <p>One more example. Local plumbing business in Wellington was getting 12-15 calls a month but only booking 5-6 because responses were too slow. After we set up the auto-response system, they booked 25 jobs in the first 30 days.</p>
-  <p>Speed wins in plumbing. Be the first call back and you get the job.</p>
-  <p>If {{company}} wants to stop leaving jobs on the table, <a href="{{cta_link}}">grab 15 minutes</a> and I'll show you the numbers.</p>
+  <p>Speed wins in plumbing. Be the first call back and you get the job, most people lose jobs simply because they respond hours later, or not at all.</p>
+  <p>If {{company}} wants to stop leaving jobs on the table, <a href="{{cta_link}}">grab 15 minutes</a> and I'll walk you through it.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
   {{pixel}}
 </div>`,
@@ -186,11 +187,11 @@ const PLUMBING_TEMPLATES: TemplateSet = {
 
 const ELECTRICAL_TEMPLATES: TemplateSet = {
   initial: {
-    subject: `How sparkies are turning £15k+ in monthly revenue with lead automation`,
+    subject: `A faster way for {{company}} to turn enquiries into booked jobs`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
-  <p>Quick one. Electrical jobs get called out fast — but most get booked by whoever responds first. If you're not on the phone within 20 minutes, you've lost it.</p>
-  <p>We run lead gen + instant response for sparks across NZ: new jobs get a callback within 20 minutes, every time, and we handle all follow-up automatically. One client tripled their monthly revenue in 90 days.</p>
+  <p>Quick one. Electrical jobs get called out fast, but most get booked by whoever responds first. If you're not on the phone within 20 minutes, you've lost it.</p>
+  <p>We run lead gen + instant response for sparks across NZ: new jobs get a callback within 20 minutes, every time, and we handle all follow-up automatically. ${PERL_FALLBACK_LINE}</p>
   <p>{{personalization}}</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd work for {{company}}?</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
@@ -198,22 +199,21 @@ const ELECTRICAL_TEMPLATES: TemplateSet = {
 </div>`,
   },
   followup1: {
-    subject: `Re: How sparkies are turning £15k+ in monthly revenue`,
+    subject: `Re: A faster way for {{company}} to turn enquiries into booked jobs`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
-  <p>Just bumping this in case it got buried. In electrical work, speed = money. First callback wins the job. Our system handles that automatically — every new enquiry gets a response within 20 minutes.</p>
+  <p>Just bumping this in case it got buried. In electrical work, speed wins the job, first callback gets it. Our system handles that automatically, every new enquiry gets a response within 20 minutes.</p>
   <p>Happy to jump on a <a href="{{cta_link}}">quick 15 min call</a> and show you how it works for {{company}}.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
   {{pixel}}
 </div>`,
   },
   followup2: {
-    subject: `$18k in extra jobs booked — {{company}}`,
+    subject: `Worth a look — {{company}}`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
-  <p>One more example. Sparky in Auckland was getting 30-40 calls a month but only booking 12-15 because responses were too slow. After we set up the automation, they booked $18k worth of extra jobs in the first 60 days by just being faster on the phone.</p>
-  <p>Speed wins. Every day you're slow is lost revenue.</p>
-  <p>If {{company}} wants to stop leaving money on the table, <a href="{{cta_link}}">grab 15 minutes</a> and I'll walk you through it.</p>
+  <p>${SSP_LINE}</p>
+  <p>If {{company}} wants to stop leaving jobs on the table, <a href="{{cta_link}}">grab 15 minutes</a> and I'll walk you through it.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
   {{pixel}}
 </div>`,

@@ -96,8 +96,6 @@ export default function ScraperPage() {
           sheetId: sheetId.trim(),
           tradeDefault: query.trim(),
           locationDefault: "",
-          personalize: false,
-          sendFresh: false,
         }),
       });
       const data = await res.json();
@@ -117,8 +115,6 @@ export default function ScraperPage() {
           sheetId: sheetId.trim(),
           tradeDefault: data.detectedTrade || query.trim(),
           locationDefault: data.detectedLocation || "",
-          personalize: false,
-          sendFresh: false,
         }),
       });
       const trackData = await trackRes.json();

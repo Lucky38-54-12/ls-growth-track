@@ -125,8 +125,6 @@ export interface TrackedSheet {
   sheet_id: string;
   trade_default: string | null;
   location_default: string | null;
-  personalize: boolean;
-  send_fresh: boolean;
   active: boolean;
   created_at: string;
   last_synced_at: string | null;

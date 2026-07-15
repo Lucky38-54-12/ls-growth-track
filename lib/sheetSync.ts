@@ -4,13 +4,9 @@ import { generatePersonalizationHook } from "./ai";
 import { readLeadSheet, hasCallInfo, formatCallNotes, getSheetTitle, parseCampaignFromTitle } from "./sheets";
 import { Lead } from "./types";
 
-const TERMINAL_STATUSES = new Set(["replied", "booked", "not_interested", "bounced", "sequence_complete"]);
-
 export interface SheetSyncResult {
   imported: number;
   updated: number;
-  personalizedSent: number;
-  freshSent: number;
   skipped: number;
   errors: string[];
   detectedTrade?: string;
@@ -21,10 +17,8 @@ export async function syncLeadsFromSheet(opts: {
   sheetId: string;
   tradeDefault: string;
   locationDefault: string;
-  personalize: boolean;
-  sendFresh: boolean;
 }): Promise<SheetSyncResult> {
-  const { sheetId, tradeDefault, locationDefault, personalize, sendFresh } = opts;
+  const { sheetId, tradeDefault, locationDefault } = opts;
 
   const rows = await readLeadSheet(sheetId.trim());
   if (!rows.length) {
@@ -52,8 +46,6 @@ export async function syncLeadsFromSheet(opts: {
   const today = new Date().toISOString().split("T")[0];
   let imported = 0;
   let updated = 0;
-  let personalizedSent = 0;
-  let freshSent = 0;
   let skipped = 0;
   const errors: string[] = [];
 
@@ -145,28 +137,10 @@ export async function syncLeadsFromSheet(opts: {
         lead = { ...lead, ...patch };
       }
     }
-
-    if (TERMINAL_STATUSES.has(lead.status)) continue;
-
-    // Disabled 2026-07-15, same reasoning and same precedent as the already-
-    // disabled app/api/email/schedule/route.ts: this sent a freeform
-    // AI-authored email (personalize) or an "initial" campaign email
-    // (sendFresh) directly at sheet-import time, bypassing campaign
-    // status/campaign_id/lib/sendPipeline.ts entirely — the exact pattern
-    // Lucky already shut down once. It also used to call the now-removed
-    // generatePersonalizedEmail/generateCampaignStepEmail, which no longer
-    // exist now that the AI doesn't author email copy at all. Flagged in the
-    // rebuild summary — this needs your call on whether "personalize"/
-    // "sendFresh" should be retired from the sheet-sync UI or rebuilt some
-    // other way that still goes through an active campaign.
-    if ((called && personalize) || (!called && sendFresh && lead.status === "not_contacted")) {
-      skipped++;
-      errors.push(`${lead.company}: sheet-sync direct-send is disabled — add this lead to an active campaign instead (see lib/sendPipeline.ts).`);
-    }
   }
 
   return {
-    imported, updated, personalizedSent, freshSent, skipped, errors,
+    imported, updated, skipped, errors,
     detectedTrade: trade || undefined,
     detectedLocation: location || undefined,
   };
@@ -194,12 +168,10 @@ export async function syncAllTrackedSheets(
         sheetId: sheet.sheet_id,
         tradeDefault: sheet.trade_default || "",
         locationDefault: sheet.location_default || "",
-        personalize: sheet.personalize,
-        sendFresh: sheet.send_fresh,
       });
       await sb.from("tracked_sheets").update({
         last_synced_at: new Date().toISOString(),
-        last_result: `Imported ${result.imported}, sent ${result.personalizedSent + result.freshSent}`,
+        last_result: `Imported ${result.imported}`,
       }).eq("id", sheet.id);
       results.push({ sheetId: sheet.sheet_id, ...result });
     } catch (e) {

@@ -13,12 +13,10 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { sheetId, tradeDefault, locationDefault, personalize, sendFresh } = body as {
+  const { sheetId, tradeDefault, locationDefault } = body as {
     sheetId: string;
     tradeDefault?: string;
     locationDefault?: string;
-    personalize?: boolean;
-    sendFresh?: boolean;
   };
 
   if (!sheetId?.trim()) {
@@ -32,8 +30,6 @@ export async function POST(req: NextRequest) {
       sheet_id: sheetId.trim(),
       trade_default: tradeDefault || null,
       location_default: locationDefault || null,
-      personalize: personalize ?? true,
-      send_fresh: sendFresh ?? true,
     })
     .select()
     .single();
@@ -51,8 +47,6 @@ export async function POST(req: NextRequest) {
       sheetId: row.sheet_id,
       tradeDefault: row.trade_default || "",
       locationDefault: row.location_default || "",
-      personalize: row.personalize,
-      sendFresh: row.send_fresh,
     });
     await sb.from("tracked_sheets").update({
       last_synced_at: new Date().toISOString(),

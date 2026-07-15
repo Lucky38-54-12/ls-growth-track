@@ -55,8 +55,6 @@ export async function GET(req: NextRequest) {
         sheetId: file.id,
         tradeDefault: "",
         locationDefault: "",
-        personalize: false,
-        sendFresh: false,
       });
       results.push({ name: file.name, id: file.id, ...result });
     } catch (e) {
