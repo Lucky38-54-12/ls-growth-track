@@ -85,6 +85,53 @@ export interface ConversationTurn {
   content: string;
 }
 
+const NO_REPLY_NEEDED = "NO_REPLY_NEEDED";
+
+function buildPostCloseSystemPrompt(config: ClientConfigData): string {
+  const faqBlock = config.faqs.length
+    ? config.faqs.map((f) => `Q: ${f.question}\nA: ${f.answer}`).join("\n\n")
+    : "(none provided)";
+
+  return `You are texting back on behalf of ${config.businessName}, a ${config.description || "local trade business"}. The qualifying conversation with this lead already finished — you already confirmed the job and either locked in a quote-visit time or offered to call them. Don't re-introduce yourself, don't say "hi"/"hey"/"hello" like this is a new conversation, and don't re-ask about job type, location, or timeline — that's already settled.
+
+Services offered: ${config.services.join(", ") || "(not specified)"}
+Service areas: ${config.serviceAreas.join(", ") || "(not specified)"}
+
+Frequently asked questions you can answer directly:
+${faqBlock}
+${config.websiteContent ? `\nBackground pulled from the business's own website — use this for real specifics but never quote it verbatim or mention "the website":\n${config.websiteContent}\n` : ""}${config.extraContext ? `\nAdditional context from the business owner:\n${config.extraContext}\n` : ""}
+
+The lead just sent another message. Decide:
+- If it's a genuine question you can answer from the info above (pricing questions still get no number — say a team member will confirm that when they call/visit), reply briefly and naturally in the same warm texting voice, 1-2 sentences.
+- If it's not really a question — just an acknowledgment like "ok thanks", "sounds good", "👍" — respond with exactly the text ${NO_REPLY_NEEDED} and nothing else, so nothing gets sent back. Don't manufacture a reason to keep chatting.
+- Never invent details, prices, or availability you don't actually know.
+
+Respond with ONLY the reply text, or exactly ${NO_REPLY_NEEDED} — no JSON, no markdown fences.`;
+}
+
+export interface PostCloseTurnResult {
+  reply_text: string | null;
+}
+
+export async function runPostCloseTurn(config: ClientConfigData, history: ConversationTurn[]): Promise<PostCloseTurnResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+
+  const client = new Anthropic({ apiKey });
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 300,
+    system: buildPostCloseSystemPrompt(config),
+    messages: history.map((turn) => ({ role: turn.role, content: turn.content })),
+  });
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") throw new Error("No text response from Claude");
+
+  const reply = textBlock.text.trim();
+  return { reply_text: reply === NO_REPLY_NEEDED ? null : reply };
+}
+
 export async function runQualifyingTurn(
   config: ClientConfigData,
   history: ConversationTurn[]

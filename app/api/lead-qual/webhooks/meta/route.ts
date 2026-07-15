@@ -52,13 +52,19 @@ export async function POST(request: NextRequest) {
       if (!channel) continue; // page not connected to any client — nothing to do
 
       const sb = createSupabaseClient();
+      // Match this lead's most recent conversation regardless of status —
+      // otherwise a lead who messages again after being qualified/nurtured
+      // finds no "active" row and silently starts a brand new conversation
+      // with no history, causing the AI to re-greet and re-run qualification
+      // from scratch.
       const { data: existing } = await sb
         .from("lq_conversations")
         .select("id")
         .eq("client_id", channel.clientId)
         .eq("channel_id", channel.channelId)
-        .eq("status", "active")
         .contains("contact", { psid: event.sender.id })
+        .order("started_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       try {
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest) {
           contact: { psid: event.sender.id },
           metaMessageId: event.message?.mid,
         });
-        await sendMessengerReply(channel.pageAccessToken, event.sender.id, result.reply);
+        if (result.reply) await sendMessengerReply(channel.pageAccessToken, event.sender.id, result.reply);
       } catch (err) {
         console.error("lead-qual meta webhook turn failed", err);
       }

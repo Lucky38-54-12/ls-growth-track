@@ -1,5 +1,5 @@
 import { createSupabaseClient } from "@/lib/supabase";
-import { runQualifyingTurn, ClientConfigData, ConversationTurn } from "./ai";
+import { runQualifyingTurn, runPostCloseTurn, ClientConfigData, ConversationTurn } from "./ai";
 import { evaluate, Rule, defaultRules } from "./qualification";
 import { bookJobOnClientCalendar } from "./googleCalendar";
 import { enrollInNurture } from "./nurture";
@@ -15,7 +15,7 @@ export interface RunTurnInput {
 
 export interface RunTurnOutput {
   conversationId: string;
-  reply: string;
+  reply: string | null;
   status: string;
   outcome?: string;
   bookingStatus?: string;
@@ -81,6 +81,30 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
   const { config, rules } = await loadClientConfig(clientId);
+
+  // The qualifying flow (extraction + evaluate + lead creation + calendar
+  // booking) only ever runs once per conversation. A lead who messages again
+  // after being qualified/nurtured/disqualified gets a lightweight reply
+  // instead — re-running the full flow here would insert a second lq_leads
+  // row and book a duplicate calendar event for the same conversation.
+  const alreadyClosed = conversation.status !== "active";
+  if (alreadyClosed) {
+    const postClose = await runPostCloseTurn(config, history);
+    if (postClose.reply_text) {
+      await sb.from("lq_messages").insert({
+        conversation_id: conversation.id,
+        role: "assistant",
+        content: postClose.reply_text,
+      });
+    }
+    return {
+      conversationId: conversation.id,
+      reply: postClose.reply_text,
+      status: conversation.status,
+      extractedFields: conversation.extracted_fields as Record<string, unknown>,
+    };
+  }
+
   const turn = await runQualifyingTurn(config, history);
 
   const mergedFields = { ...(conversation.extracted_fields as Record<string, unknown>), ...turn.extracted_fields };

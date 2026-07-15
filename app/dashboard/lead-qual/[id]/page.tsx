@@ -212,7 +212,11 @@ function ClientDetailPageInner() {
       return;
     }
     setConversationId(body.conversationId);
-    setMessages((m) => [...m, { role: "assistant", content: body.reply }]);
+    if (body.reply) {
+      setMessages((m) => [...m, { role: "assistant", content: body.reply }]);
+    } else {
+      setMessages((m) => [...m, { role: "assistant", content: "(no reply — nothing worth responding to)" }]);
+    }
     setLastResult({ status: body.status, outcome: body.outcome, bookingStatus: body.bookingStatus, extractedFields: body.extractedFields });
     if (body.outcome) loadLeads();
   }
