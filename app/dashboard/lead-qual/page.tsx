@@ -156,9 +156,17 @@ function LeadQualPageInner() {
                   </Link>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {fbConnection ? (
-                      <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#15803d" }}>
-                        <MessageCircle style={{ width: 14, height: 14 }} />
-                        Facebook connected
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, color: "#15803d" }}>
+                          <MessageCircle style={{ width: 14, height: 14 }} />
+                          Facebook connected
+                        </span>
+                        <a
+                          href={`/api/lead-qual/oauth/facebook?clientId=${client.id}`}
+                          style={{ fontWeight: 600, color: L.muted, textDecoration: "underline" }}
+                        >
+                          Reconnect
+                        </a>
                       </span>
                     ) : (
                       <a
