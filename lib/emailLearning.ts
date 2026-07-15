@@ -82,10 +82,14 @@ export async function generateEmailLearnings(sb: SupabaseClient): Promise<{ skip
     max_tokens: 1024,
     system: `You analyze real cold-outreach email performance for Lucky at LS Growth (trade-business lead gen agency) and write a short, practical playbook for what to do differently in future emails.
 
-Rules:
+METRIC RULES — read carefully, this changed 2026-07-15:
+- Reply rate (replied or booked) is the ONLY outcome that should drive any recommendation. An open or a click is not a result — a lead who opens and never replies has not been persuaded of anything, so a pattern that only correlates with opens/clicks is not a real finding.
+- Opens and clicks may be mentioned as diagnostics (e.g. "this subject line got opened a lot but still didn't convert to a reply, so the opener/body is the likely problem, not the subject"), but never as the basis for a "this worked" conclusion on their own.
+- If there are too few replies to say anything meaningful about what drives them, say exactly that — do not fall back to open/click patterns dressed up as a substitute finding.
+
+Other rules:
 - Base every claim on the actual data given — never invent a pattern that isn't visibly supported by multiple examples.
 - With a small sample, say so explicitly rather than stating a weak pattern as if it were proven (e.g. "only one data point supports this, treat as a hunch not a rule").
-- Focus on concrete, actionable levers: subject line style/length/specificity, opening angle (question vs proof point vs direct observation), which proof point performed better, email length, tone.
 - Do not suggest anything that contradicts the existing hard rules already baked into email generation (no invented facts, no process talk, no dashes) — you're tuning angle and style within those constraints, not overriding them.
 - Output 3-6 short bullet points, plain text, no markdown headers, no preamble.`,
     messages: [

@@ -1,7 +1,7 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { searchInboxByFrom, fetchMessageDetail } from "@/lib/gmail";
 import { Lead } from "@/lib/types";
-import { stripDashes } from "@/lib/ai";
+import { stripDashes, withWritingStyle } from "@/lib/ai";
 
 export async function generateCallFollowupEmail(
   lead: Lead,
@@ -50,7 +50,7 @@ export async function generateCallFollowupEmail(
   const combinedNotes = [callNotes.trim(), lead.notes?.trim()].filter(Boolean).join("\n---\n");
   const notesBlock = combinedNotes ? `NOTES (most recent first):\n${combinedNotes}` : "";
 
-  const prompt = `You are writing a follow-up email for Lucky at LS Growth Agency. LS Growth gets trade businesses more booked jobs — specific jobs, real revenue, never describe the mechanism or process.
+  const prompt = withWritingStyle(`You are writing a follow-up email for Lucky at LS Growth Agency. LS Growth gets trade businesses more booked jobs — specific jobs, real revenue, never describe the mechanism or process.
 
 Today: ${today}
 This email follows a call that just happened. Use the call notes to write a post-call follow-up that reflects what was actually discussed.
@@ -80,7 +80,7 @@ Write a short follow-up email. Rules:
 - Subject: 4–6 words, real and specific, no "Following up"
 
 Respond ONLY with valid JSON, no markdown:
-{"subject": "", "bodyHtml": ""}`;
+{"subject": "", "bodyHtml": ""}`);
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",

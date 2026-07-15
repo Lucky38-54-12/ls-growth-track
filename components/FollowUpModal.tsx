@@ -26,7 +26,7 @@ export default function FollowUpModal({
   const [state, setState] = useState<"loading" | "ready" | "sending" | "sent" | "error">("loading");
   const [data, setData] = useState<FollowUpData | null>(null);
   const [subject, setSubject] = useState("");
-  const [bodyHtml, setBodyHtml] = useState("");
+  const [bodyText, setBodyText] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
@@ -36,7 +36,13 @@ export default function FollowUpModal({
         if (!r.ok) throw new Error(json.error || "Failed");
         setData(json);
         setSubject(json.subject);
-        setBodyHtml(json.bodyHtml);
+        setBodyText(
+          json.bodyHtml
+            .replace(/<\/p>\s*<p[^>]*>/gi, "\n\n")
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<[^>]+>/g, "")
+            .trim()
+        );
         setState("ready");
       })
       .catch((e) => {
@@ -49,6 +55,7 @@ export default function FollowUpModal({
     if (!data) return;
     setState("sending");
     try {
+      const bodyHtml = `<p>${bodyText.trim().replace(/\n\n+/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`;
       const res = await fetch("/api/inbox", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -127,8 +134,8 @@ export default function FollowUpModal({
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: L.muted, display: "block", marginBottom: 4 }}>EMAIL</label>
                 <textarea
-                  value={bodyHtml.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()}
-                  onChange={(e) => setBodyHtml(`<p>${e.target.value.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`)}
+                  value={bodyText}
+                  onChange={(e) => setBodyText(e.target.value)}
                   rows={8}
                   style={{ width: "100%", fontSize: 12.5, padding: "8px 10px", border: `1px solid ${L.border}`, outline: "none", color: L.text, resize: "vertical", lineHeight: 1.6, boxSizing: "border-box", fontFamily: "inherit" }}
                 />

@@ -4,10 +4,18 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { generateCampaignStepEmail, checkEmailQuality } from "@/lib/ai";
+import { extractLeadSlots, checkEmailQuality } from "@/lib/ai";
+import {
+  renderInitialEmail,
+  renderFollowup1Email,
+  renderFollowup2Email,
+  renderFollowup3Email,
+  renderFollowup4Email,
+} from "@/lib/emailTemplates";
 import { Lead } from "@/lib/types";
 
 const SAMPLE_LEADS = 2;
+const CASE_STUDIES_URL = "https://lsgrowth.agency";
 const STEPS: { step: "initial" | "followup1" | "followup2" | "followup3" | "followup4"; day: string }[] = [
   { step: "initial", day: "Day 0" },
   { step: "followup1", day: "Day 3" },
@@ -16,10 +24,13 @@ const STEPS: { step: "initial" | "followup1" | "followup2" | "followup3" | "foll
   { step: "followup4", day: "Day 21" },
 ];
 
-// Generates the FULL 5-email sequence (not just the first one) for a couple
-// of this campaign's leads — using the same AI call /api/cron makes once the
-// campaign goes live — so you can see exactly what the whole follow-up arc
-// looks like before activating, not just the opener.
+// Renders the FULL 5-email sequence (not just the opener) for a couple of
+// this campaign's leads, using the exact same fixed templates + slot
+// extraction lib/sendPipeline.ts uses once the campaign goes live — so you
+// can see exactly what the whole follow-up arc looks like before activating.
+// Only the `initial` step involves an AI call (extracting confirmed
+// services); every later step is the lead's own company name plus fixed
+// prose, same as the real pipeline.
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const sb = createSupabaseClient();
 
@@ -36,58 +47,57 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   const sample = (leads || []) as Lead[];
 
-  // Each lead's 5 steps must run sequentially (later steps reference earlier
-  // subjects for variety), but the leads themselves are independent — running
-  // them concurrently instead of one-after-another keeps total wall-clock
-  // under Vercel's 60s function cap instead of stacking all leads' calls.
   const previews = await Promise.all(
     sample.map(async (lead) => {
-      // Steps must generate sequentially (each references priorSubjects), but
-      // the quality check for a step doesn't need to block the next step's
-      // generation — kick it off and only await all of them at the end, so
-      // this doesn't turn 5 sequential AI calls into 10 and risk the 60s cap.
-      const steps: { step: string; day: string; subject?: string; bodyHtml?: string; error?: string; notAFit?: boolean }[] = [];
-      const checkPromises: Promise<void>[] = [];
-      const priorSubjects: string[] = [];
-      for (const { step, day } of STEPS) {
-        try {
-          const generated = await generateCampaignStepEmail({
-            company: lead.company,
-            contactName: lead.contact_name,
-            trade: lead.trade,
-            location: lead.location,
-            notes: lead.notes,
-            website: lead.website,
-            personalizationHook: lead.personalization_hook,
-            step,
-            priorSubjects,
-          });
-          if (generated.notAFit) {
-            steps.push({ step, day, notAFit: true, error: generated.reason });
-            break; // every later step would hit the same ICP verdict
-          }
-          const { subject, bodyHtml, websiteSnippet } = generated;
-          const previewHtml = `${bodyHtml}<p>Cheers,<br>Lucky<br>LS Growth</p>`;
-          const stepResult: { step: string; day: string; subject: string; bodyHtml: string; quality?: unknown; qualityError?: string } = { step, day, subject, bodyHtml: previewHtml };
-          steps.push(stepResult);
-          priorSubjects.push(subject);
-          checkPromises.push(
-            checkEmailQuality({
-              subject, bodyHtml, step,
-              contactName: lead.contact_name,
-              notes: lead.notes,
-              personalizationHook: lead.personalization_hook,
-              website: lead.website,
-              websiteSnippet,
-            }).then((q) => { stepResult.quality = q; }).catch((e) => {
-              stepResult.qualityError = e instanceof Error ? e.message : "Quality check failed";
-            })
-          );
-        } catch (e) {
-          steps.push({ step, day, error: e instanceof Error ? e.message : "Generation failed" });
+      const steps: { step: string; day: string; subject?: string; bodyHtml?: string; error?: string; notAFit?: boolean; quality?: unknown; qualityError?: string }[] = [];
+
+      let initialSubject = "";
+      try {
+        const extraction = await extractLeadSlots({
+          company: lead.company,
+          contactName: lead.contact_name,
+          trade: lead.trade,
+          location: lead.location,
+          notes: lead.notes,
+          website: lead.website,
+          facebook: lead.facebook,
+        });
+
+        if (extraction.notAFit) {
+          return { leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, steps: [{ step: "initial", day: "Day 0", notAFit: true, error: extraction.reason }] };
         }
+
+        const initial = renderInitialEmail({
+          variant: extraction.variant,
+          jobType: extraction.jobType,
+          matchedJobTypes: extraction.matchedJobTypes,
+          firstName: extraction.confirmedFirstName,
+        });
+        initialSubject = initial.subject;
+        const stepResult: { step: string; day: string; subject: string; bodyHtml: string; quality?: unknown; qualityError?: string } = { step: "initial", day: "Day 0", subject: initial.subject, bodyHtml: initial.bodyHtml };
+        steps.push(stepResult);
+        try {
+          stepResult.quality = await checkEmailQuality({
+            subject: initial.subject, bodyHtml: initial.bodyHtml, step: "initial",
+            contactName: lead.contact_name, notes: lead.notes, website: lead.website, fixedTemplateNoCta: true,
+          });
+        } catch (e) {
+          stepResult.qualityError = e instanceof Error ? e.message : "Quality check failed";
+        }
+      } catch (e) {
+        steps.push({ step: "initial", day: "Day 0", error: e instanceof Error ? e.message : "Extraction failed" });
+        return { leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, steps };
       }
-      await Promise.all(checkPromises);
+
+      const followup1 = renderFollowup1Email(initialSubject);
+      const followup2 = renderFollowup2Email();
+      const followup3 = renderFollowup3Email({ businessName: lead.company, caseStudiesLink: CASE_STUDIES_URL });
+      const followup4 = renderFollowup4Email();
+      steps.push({ step: "followup1", day: "Day 3", subject: followup1.subject, bodyHtml: followup1.bodyHtml });
+      steps.push({ step: "followup2", day: "Day 7", subject: followup2.subject, bodyHtml: followup2.bodyHtml });
+      steps.push({ step: "followup3", day: "Day 14", subject: followup3.subject, bodyHtml: followup3.bodyHtml });
+      steps.push({ step: "followup4", day: "Day 21", subject: followup4.subject, bodyHtml: followup4.bodyHtml });
+
       return { leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, steps };
     })
   );

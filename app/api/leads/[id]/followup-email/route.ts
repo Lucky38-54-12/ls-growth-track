@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { searchInboxByFrom, fetchMessageDetail, SPECIAL_FOLDERS } from "@/lib/gmail";
+import { stripDashes, withWritingStyle } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     ? `This email follows a call that just happened. Use the call notes to write a post-call follow-up that reflects what was actually discussed.`
     : `Write a re-engagement follow-up based on the history below.`;
 
-  const prompt = `You are writing a follow-up email for Lucky at LS Growth Agency. LS Growth gets trade businesses more booked jobs — specific jobs, real revenue, never describe the mechanism or process.
+  const prompt = withWritingStyle(`You are writing a follow-up email for Lucky at LS Growth Agency. LS Growth gets trade businesses more booked jobs — specific jobs, real revenue, never describe the mechanism or process.
 
 Today: ${today}
 ${context}
@@ -93,7 +94,7 @@ Write a short follow-up email. Rules:
 - Subject: 4–6 words, real and specific, no "Following up"
 
 Respond ONLY with valid JSON, no markdown:
-{"subject": "", "bodyHtml": "", "lastTouchSummary": "one sentence describing what the last touchpoint was"}`;
+{"subject": "", "bodyHtml": "", "lastTouchSummary": "one sentence describing what the last touchpoint was"}`);
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -109,8 +110,8 @@ Respond ONLY with valid JSON, no markdown:
 
   const parsed = JSON.parse(match[0]);
   return NextResponse.json({
-    subject: parsed.subject || "",
-    bodyHtml: parsed.bodyHtml || "",
+    subject: stripDashes(parsed.subject || ""),
+    bodyHtml: stripDashes(parsed.bodyHtml || ""),
     lastTouchSummary: parsed.lastTouchSummary || "",
     to: lead.email,
     contactName: lead.contact_name || "",

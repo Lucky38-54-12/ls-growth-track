@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 import { createSupabaseClient } from "@/lib/supabase";
-import { sendPersonalizedEmail, sendGmailFollowup } from "@/lib/email";
+import { sendGmailFollowup } from "@/lib/email";
 import { createBooking, fillMeetingLink } from "@/lib/calendar";
 import { Lead } from "@/lib/types";
 import { generateCallFollowupEmail } from "@/lib/generateCallEmail";
@@ -67,8 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (resolvedSubject && resolvedBody) {
     try {
       const finalBody = fillMeetingLink(resolvedBody, meetingLink);
-      const sendFn = lead.source === "cold_call" ? sendGmailFollowup : sendPersonalizedEmail;
-      await sendFn(lead as Lead, resolvedSubject, finalBody);
+      await sendGmailFollowup(lead as Lead, resolvedSubject, finalBody);
       sent = true;
       updates.last_followup = today;
       updates.followup_count = (lead.followup_count || 0) + 1;

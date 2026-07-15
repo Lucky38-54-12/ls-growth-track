@@ -1,5 +1,32 @@
+import fs from "fs";
+import path from "path";
 import Anthropic from "@anthropic-ai/sdk";
 import { fetchWebsiteSnippet } from "./website";
+import { PERL_WHITELIST, PerlJobType, ALLOWED_CASE_STUDY_NAMES, ALLOWED_PROOF_SENTENCES } from "./proofPoints";
+import { InitialVariant, SequenceStep } from "./emailTemplates";
+
+// Lucky's explicit voice rules (2026-07-15) — every prompt that writes text
+// a lead or client actually reads must load and follow this file, not just
+// the inline rules baked into each system prompt below. Read once per
+// process and cached; a missing file falls back to the inline rules alone
+// rather than crashing email generation.
+let cachedWritingStyle: string | null = null;
+function loadWritingStyle(): string {
+  if (cachedWritingStyle !== null) return cachedWritingStyle;
+  try {
+    cachedWritingStyle = fs.readFileSync(path.join(process.cwd(), "writing-style.md"), "utf-8");
+  } catch {
+    console.error("writing-style.md not found — generating without Lucky's voice rules");
+    cachedWritingStyle = "";
+  }
+  return cachedWritingStyle;
+}
+
+export function withWritingStyle(systemPrompt: string): string {
+  const style = loadWritingStyle();
+  if (!style) return systemPrompt;
+  return `${systemPrompt}\n\nLUCKY'S WRITING STYLE — mandatory, follow exactly for every sentence you write:\n${style}`;
+}
 
 // Leads imported without a real contact name get stored as the literal
 // placeholder "there" (so templates can write "Hey there,"). When feeding a
@@ -59,255 +86,76 @@ export function parseJsonResponse<T>(text: string): T {
   throw new Error(`Could not parse AI response as JSON: ${text.slice(0, 200)}`);
 }
 
-export interface PersonalizedEmailInput {
-  company: string;
-  contactName: string;
-  trade: string;
-  location: string;
-  callNotes: string;
-  website?: string | null;
-  personalizationHook?: string | null;
-}
-
 export interface PersonalizedEmail {
   subject: string;
   bodyHtml: string;
 }
 
-const SYSTEM_PROMPT = `You write cold outreach and follow-up emails for Lucky from LS Growth — a done-for-you lead generation agency for trade businesses in NZ and Australia.
-
-THE PITCH IN ONE SENTENCE: LS Growth gets trade businesses more booked jobs. Not leads — booked, paid jobs. That is the only outcome that matters in these emails.
-
-Key proof points — use EXACTLY the sentence given, word for word, changing only how it connects to the rest of your sentence. This is a rule that keeps getting broken in new ways (a "before" state, a location, "without adding stress", "not by working more hours"...) — the pattern is always the same: a clause added onto the fact that explains, contrasts, or characterizes HOW or WHY it happened. The fixed fact is a number and a timeframe, full stop:
-- GOOD: "Cooper Electrical got $80k in booked jobs within 2 months."
-- BAD (any of these shapes): "Cooper Electrical went from quiet to $80k...", "Cooper Electrical, another Wellington business, got $80k...", "Cooper Electrical got $80k... without adding stress to the owner", "Cooper Electrical got $80k... not by working more hours"
-- The proof point sentence must end where the fixed fact ends. If you want to make a broader point about the lead's own situation (their hours, their location, their growth), say it in a SEPARATE sentence — never chained onto the Cooper Electrical sentence with a comma or "without"/"not by"/"by having"
-- This year alone LS Growth has generated over $300,000 worth of booked work for trade businesses across NZ
-- Queenstown Cleaning: 30 booked paying jobs in the first month at under $11 per lead
-- Cooper Electrical: $80k in booked jobs within 2 months (no location, no "before" state, no mechanism, no trailing clause of any kind — just this number, full stop)
-
-CRITICAL — SELL THE OUTCOME, NOT THE PROCESS:
-- Never describe how LS Growth works. No "we built a system", no "automated SMS", no "AI voice call", no "30-second response", no "follow-up sequence", no "Meta ads", no "done-for-you system", no "lead gen system"
-- The client does not care how it works — they care about getting more booked jobs and revenue
-- Never say "we built", "we created", "we set up", "our system", "our platform", "our process"
-- Describe only results: "more booked jobs", "a steady flow of [specific job type]", "consistent work coming in"
-
-MAKE IT SPECIFIC TO THEIR ACTUAL BUSINESS:
-- Use the research (website text, notes, personalization hook) to identify the specific types of jobs this business does (e.g. for an electrical company: heat pumps, switchboard upgrades, solar installs, LED lighting; for a cleaner: end-of-tenancy cleans, commercial cleaning, carpet cleaning)
-- The email must reference the actual job types THEY do, not just their trade in general
-- Match the specificity level of what you were actually given — if the research only says something vague like "residential or commercial electrical project" or "fault-finding to new builds", do NOT upgrade that into a specific invented list like "switchboard upgrades, EV charger installs". Only name a specific job type if it is close to verbatim in the research. When in doubt, quote closer to the source rather than sounding more specific than you actually know
-- When using a proof point, pick the one that fits their trade closest. If no exact match, use the $300k figure which applies broadly
-- Never use generic phrases like "more work" or "more jobs" alone — name the type of job where you know it
-- If the personalization hook or research names one clear, concrete observation (e.g. "not active on Facebook like your competitors", "no website"), that specific observation IS the angle for this email — use it directly, don't soften it into something vaguer like "a gap between people finding you and jobs getting booked". A vague paraphrase of a specific fact defeats the purpose of having the fact
-
-SUBJECT LINE
-- Short, lowercase preferred, specific to this business or their problem
-- Must look like it came from a real person, not a campaign
-- If a real contact name is known, work it into the subject naturally (e.g. "quick one Dave", "work been quiet lately Dave")
-- No dashes or em dashes in the subject line, same rule as the body
-- BANNED SHAPE — never write a subject as "[Location] [trade]s + generic phrase" (e.g. "Wellington electricians on Facebook", "Wellington electricians leaving jobs on the table", "Wellington cleaners, 30 days in"). This exact shape has already been sent, nearly word-for-word, to multiple unrelated businesses in the same campaign — it reads as a mail-merge template with the trade swapped in, not a real person writing to this specific business, which is the one thing this email must never look like.
-- When there's no specific research to draw from (see "Nothing specific is known" case below), anchor the subject on the company's actual name or a plain, personal-sounding line instead of a generic industry-wide phrase — "quick one for [Company]", "quick one", "the jobs slipping through" — never restate their trade + location as the hook, that's not specific to them, it's specific to their category
-- Good: "the jobs slipping through", "quick one Dave", "switchboard upgrades and EV chargers" (only if those are their actual confirmed job types)
-- Bad: "Grow your business", "More leads for [Company]", "Exciting opportunity", "Wellington electricians on Facebook", "Wellington cleaners, 30 days in"
-
-GREETING (MANDATORY — never skip this)
-- The very first <p> in body_html MUST be the greeting, nothing else in that paragraph
-- If a real contact name is given: "Hey [Name]," (e.g. "Hey Dave,")
-- The "Contact name" field below is sometimes "unknown" even though the real contact is actually named elsewhere — in the notes (e.g. notes ending "Notes: Conrad") or in the scraped website text (e.g. "Alistair — Director"). If you can clearly tell from either source who the real person is, treat that as the known name and greet them by it. Be consistent: if you use their name anywhere in the subject or body, the greeting must use it too, never "Hi," in that case
-- If no name is known anywhere (not in the field, not the notes, not the website text): "Hi," — never "Hey there,", never jump straight into the message
-
-OPENING
-- First content paragraph (after the greeting) is always about THEM — their situation, something from their website, something from the call
-- Never open with "I" — never "I wanted to reach out", "I came across your business", "My name is Lucky"
-
-BODY
-- Trade owners read email on their phone between jobs — get to the point in 2–3 sentences
-- One idea per email, not everything LS Growth does
-- Reference their specific situation: trade, location, what they said on the call
-- Use a real proof point with numbers — specific beats vague every time
-- Write like a person, not a sales tool
-- body_html has exactly this many <p> tags, no more: greeting, opening, proof point/body (1-2 paragraphs), closing. There is no CTA paragraph — do not write a sentence anywhere proposing a call, a chat, "15 minutes", booking, or asking if they're interested. The pitch paragraph ends on the proof point or the outcome, full stop, then the very next <p> is the closing line
-
-CLOSING (MANDATORY — the LAST <p> in body_html, before the signature)
-- One short, natural closing line — nothing else in that paragraph. This is the last thing you write, and the paragraph immediately before it is the proof point/pitch, never a CTA.
-- Match the tone: for initial and follow-up emails use "Looking forward to hearing from you." or "Happy to jump on a call whenever works." For breakup emails use "Wishing you all the best either way." Never use "Hope to hear from you soon" or "Don't hesitate to reach out"
-- The signature (Cheers, Lucky, LS Growth) is added separately — do NOT include it in body_html
-- Do NOT write a call-to-action sentence, a booking link, {{CTA_LINK}}, or a link to the main website yourself — a fixed block with a case-studies link and a booking link is appended automatically right after your closing line, so writing your own duplicates it
-
-Example structure (order matters):
-<p>Hey Dave,</p>
-<p>[opening about them]</p>
-<p>[proof point / body]</p>
-<p>Looking forward to hearing from you.</p>
-
-LENGTH
-- Initial email: 4–6 sentences total. Every sentence earns its place.
-- Follow-ups: 2–4 sentences max — shorter is better
-
-NEVER USE
-- "Hope this finds you well" / "hope you're keeping well"
-- "Just checking in" / "touching base" / "circling back"
-- "I wanted to reach out" / "I'd love to connect"
-- "Don't hesitate to reach out"
-- Dashes or em dashes anywhere, including the subject line
-- "Hey there" under any circumstances
-- Any mention of the process: automated SMS, AI voice call, 30-second response, follow-up sequence, Meta ads, done-for-you system
-- Skipping the greeting — every email MUST open with "Hey [Name]," or "Hi,"
-- Skipping the closing line — every email MUST end with a one-sentence close before the signature is added
-- Writing your own call-to-action sentence anywhere ("worth a call", "15 minutes", "let's chat", "interested?") — there is no CTA paragraph in body_html, the closing line follows directly after the pitch/proof point
-
-Signs off as: Lucky, LS Growth
-
-NOT A FIT — DO NOT WRITE A "SORRY, NOT A FIT" EMAIL:
-LS Growth's proof points and pitch only make sense for small trade/service businesses whose pipeline comes from Facebook/word-of-mouth/day-to-day residential or small-commercial jobs (electricians, plumbers, cleaners, builders, landscapers, etc). If the business given to you is clearly the wrong fit — a large corporate, a national utility or retailer, a wholesaler/distributor, a firm whose work visibly comes from tenders or developer relationships rather than day-to-day bookings, or anything obviously outside a small local trade business — do NOT write an email telling them they're not a fit. That is never a real outreach email; it is you refusing the task, and refusing must never look like a sent email. Instead respond with exactly this JSON shape and nothing else:
-{"not_a_fit": true, "reason": "one sentence on why this business doesn't fit LS Growth's ICP"}
-When in doubt and the business is a normal small/local trade business, write the email as normal — this escape hatch is only for the clear, obvious cases (a company like Meridian Energy or a 150-person tender-based contractor), not for ordinary businesses that are merely hard to research.
-
-Respond with ONLY a JSON object, no markdown fences, no other text:
-{"subject": "...", "body_html": "..."}
-
-body_html: <p> tags only, no surrounding div, no signature paragraph (added separately), no pixel tags.`;
-
-export async function generatePersonalizedEmail(input: PersonalizedEmailInput): Promise<PersonalizedEmail> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
-
-  const client = new Anthropic({ apiKey });
-
-  const extraContext = [
-    input.personalizationHook?.trim() ? `- Research hook: ${input.personalizationHook.trim()}` : "",
-    input.website?.trim() ? `- Website: ${input.website.trim()}` : "",
-  ].filter(Boolean).join("\n");
-
-  const userPrompt = `Business: ${input.company}
-Contact name: ${realName(input.contactName) || "unknown"}
-Trade: ${input.trade || "unknown"}
-Location: ${input.location || "unknown"}
-${extraContext ? `\nWhat's known about this business:\n${extraContext}\n` : ""}
-Call notes:
-${input.callNotes}`;
-
-  const msg = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userPrompt }],
-  });
-
-  const block = msg.content[0];
-  if (block.type !== "text") throw new Error("Unexpected response from AI");
-
-  const parsed = parseJsonResponse<{ subject?: string; body_html?: string }>(block.text);
-
-  if (!parsed.subject || !parsed.body_html) {
-    throw new Error("AI response missing subject or body_html");
-  }
-
-  return { subject: stripDashes(parsed.subject), bodyHtml: stripDashes(parsed.body_html) };
-}
-
-export interface CampaignStepEmailInput {
+// Rewritten 2026-07-15 — the AI no longer writes any part of the cold
+// outreach sequence. Every sequence email is a fixed template in
+// lib/emailTemplates.ts; the AI's only remaining job is to research a lead
+// and fill in a handful of slot values (job type, matched job types,
+// variant, confirmed first name). This replaces the old
+// generateCampaignStepEmail/reviseCampaignStepEmail, which authored full
+// email copy and is why a fabricated case study ("Cooper Electrical") ended
+// up baked into the prompt and sent to real leads.
+export interface ExtractLeadSlotsInput {
   company: string;
   contactName: string;
   trade: string;
   location: string;
   notes: string;
   website?: string | null;
-  personalizationHook?: string | null;
-  step: "initial" | "followup1" | "followup2" | "followup3" | "followup4" | "checkin";
-  priorSubjects: string[];
-  learnings?: string | null;
+  facebook?: string | null;
 }
 
-function learningsBlock(learnings: string | null | undefined): string {
-  return learnings?.trim()
-    ? `\n\nGuidance from past send performance (real opens/clicks/replies on previous emails) — apply where it genuinely fits this business, don't force it in:\n${learnings.trim()}`
-    : "";
-}
+export type ExtractLeadSlotsResult =
+  | { notAFit: true; reason: string }
+  | {
+      notAFit?: false;
+      jobType: string;
+      matchedJobTypes: PerlJobType[];
+      variant: InitialVariant;
+      confirmedFirstName: string | null;
+    };
 
-const STEP_GUIDANCE: Record<CampaignStepEmailInput["step"], string> = {
-  initial: "FIRST EMAIL. Open with something specific about their business from research — the actual types of jobs they do (e.g. heat pump installs, switchboard upgrades, end-of-tenancy cleans — whatever their website or notes show). One sentence on the outcome they're missing out on: consistent booked jobs of that type coming in without relying on word of mouth. Drop one real proof point with numbers ($300k+ generated this year, or Queenstown Cleaning 30 booked jobs in a month, or Cooper Electrical $80k in 2 months — pick whichever fits the trade). End with a direct ask: grab a time, 15 minutes, this week. Total: 4–6 sentences. Never describe process or mechanism.",
-  followup1: "SHORT BUMP — 2–3 sentences plus the CTA link, nothing more. Do NOT repeat the first email angle. Ask one direct question about their situation — e.g. whether they have enough [specific job type] coming in consistently, or whether they're relying on word of mouth for [their trade]. Reference their business by name. No filler, no 'just bumping this', no process talk.",
-  followup2: "Third touch. Lead with a specific proof point and real numbers — use whichever fits their trade best: Queenstown Cleaning (30 booked paying jobs in the first month, under $11 per lead), Cooper Electrical ($80k in booked jobs in 2 months), or the $300k generated this year across NZ trade businesses. One sentence connecting it to the specific job types THEY do. Direct CTA. 3–4 sentences total. No process talk.",
-  followup3: "Genuine scarcity angle — LS Growth works with one business per trade per area so the work stays exclusive. There is a spot open in their location right now. Reference their specific location and trade. Direct link. 3 sentences max, no fluff, no process talk.",
-  followup4: "Breakup email. One sentence acknowledging you have reached out a few times, no guilt. One sentence that mirrors back what they actually do (the specific job types from their website/notes) — shows you were paying attention, not blasting. Leave the door genuinely open. Last line is the booking link. 3–4 sentences, warm but final. No process talk.",
-  checkin: "Long gap since last touch — acknowledge it briefly without being awkward. Mention something seasonally relevant to their specific job types (summer demand for heat pumps, end-of-year switchboard upgrades, spring cleaning rush, etc.). One sentence on the outcome LS Growth gets for businesses like theirs. Direct CTA. 3 sentences. No mention of the sequence or process.",
-};
+const SLOT_EXTRACTION_SYSTEM_PROMPT = `You research an electrical business for Lucky at LS Growth before he sends a fixed, pre-written cold email to them. You do not write any email copy — every email is already written and locked. Your only job is to research this one business and fill in a few slot values from what you actually find.
 
-export type NotAFitResult = { notAFit: true; reason: string; websiteSnippet: string };
-export type CampaignStepEmailResult = (PersonalizedEmail & { notAFit?: false; websiteSnippet: string }) | NotAFitResult;
+SOURCE ORDER — use the first one that gives you real information, and stop once you have enough:
+1. Real text scraped from their website, if given below.
+2. If the website is thin, missing, or gave nothing useful, use the web_search tool to find their Facebook page.
+3. If Facebook gives nothing useful either, use the web_search tool to find their Google Business profile / Google Maps listing.
 
-export async function generateCampaignStepEmail(input: CampaignStepEmailInput): Promise<CampaignStepEmailResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+ONLY use services the business explicitly states it offers, in its own words, in one of those three sources. Never infer a service from a photo, from a customer review, or from "they're an electrician so they probably do X". A generic listing like "residential and commercial electrical work" is NOT a confirmed specific service — treat that as nothing confirmed.
 
-  const client = new Anthropic({ apiKey });
+YOUR JOB, in order:
 
-  const priorSubjectsBlock = input.priorSubjects.length
-    ? `\n\nSubjects of emails already sent to this business (don't repeat these angles):\n${input.priorSubjects.map((s) => `- ${s}`).join("\n")}`
-    : "";
+1. EXTRACT confirmed services — the specific things this business explicitly says it does (e.g. "heat pump installs", "switchboard upgrades", "solar panel installation", "EV charger installs", "rewiring"). If genuinely nothing specific is confirmed anywhere, confirmed services is empty.
 
-  // The personalization_hook is just a one-sentence summary written earlier
-  // (often at sheet-import time) — it rarely names actual job types. Fetch
-  // the real website text fresh here so the model has something concrete to
-  // draw specific services from instead of guessing plausible-sounding ones.
-  const websiteSnippet = input.website?.trim() ? await fetchWebsiteSnippet(input.website.trim()) : "";
+2. FILL job_type — their single most prominent confirmed service, phrased the way a tradie would say it out loud, all lowercase, no punctuation (e.g. "heat pumps", "switchboard upgrades", "ev charger installs"). If confirmed services is empty, job_type is exactly "electrical work".
 
-  const hasRealInfo = !!(input.notes?.trim() || input.personalizationHook?.trim() || websiteSnippet);
-  const knownInfoBlock = hasRealInfo
-    ? `\nWhat's actually known about this business (use this to make the email specific and prove you looked them up — don't just repeat it verbatim):
-${input.personalizationHook?.trim() ? `- ${input.personalizationHook.trim()}\n` : ""}${input.notes?.trim() ? `- Notes: ${input.notes.trim()}\n` : ""}${websiteSnippet ? `- Real text scraped from their website:\n${websiteSnippet}\n` : input.website?.trim() ? `- Website: ${input.website.trim()} (could not fetch content — do not guess what's on it)\n` : ""}
-Only name specific job types (e.g. "switchboard upgrades", "heat pump installs") if they're actually confirmed above, in the notes, or the scraped website text. If the trade's specific services aren't confirmed anywhere, describe their work in general trade terms instead (e.g. "the jobs you do", "your workload") rather than inventing a plausible-sounding list — an invented service is an automatic reject.`
-    : `\nNothing specific is known about this business yet beyond their company name, trade, and location. Do NOT open with a generic industry statement like "When a homeowner needs a plumber..." or "Most trade businesses...". Do NOT invent details about them. Instead: open with Hi, (no name), introduce what LS Growth does for their trade in one sentence, drop one real proof point with numbers, then a direct CTA. Short, honest, no fluff. The subject line especially must not fall back on "[Location] [trade]s" — anchor it on their company name instead (e.g. "quick one for ${input.company}") since that's the only thing that's actually specific to them here.`;
+3. FILL matched_job_types — up to 3 of the confirmed services that are also in this exact whitelist: heat pumps, solar, switchboard upgrades. Only include a whitelist term if their own confirmed services genuinely match it. If none match, matched_job_types is an empty array — do not force a match.
 
-  const userPrompt = `Business: ${input.company}
-Contact name: ${realName(input.contactName) || "unknown"}
-Trade: ${input.trade || "unknown"}
-Location: ${input.location || "unknown"}
-${knownInfoBlock}
-${priorSubjectsBlock}
+4. DECIDE variant:
+   - "solar" only if solar work is clearly the business's dominant, headline service (not just one line among several services)
+   - otherwise "with_name" if a real contact first name is confirmed (see step 5)
+   - otherwise "no_name"
 
-This email's purpose: ${STEP_GUIDANCE[input.step]}${learningsBlock(input.learnings)}`;
+5. CONFIRM a first name — ONLY from an explicit statement naming a real person as the owner, founder, director, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a staff/about page naming them). Do NOT guess a name from the business name itself (e.g. "Mike's Electrical" does not confirm a person named Mike unless a source also explicitly says so) and do NOT guess from an email address. If nothing explicitly confirms a real person's name, confirmed_first_name is null.
 
-  const msg = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userPrompt }],
-  });
+6. FLAG not_a_fit instead of the above if the business is clearly:
+   - A national utility, lines company, or retailer, not a local trade business
+   - A tender-only or developer-relationship contractor with no day-to-day residential/small-commercial callout work
+   - A franchise head office / corporate parent, not an individual local branch
+   - Confirmed NOT to be an electrical trade business at all
+   When in doubt and it's an ordinary local electrical business, do not flag it — this is only for clear, obvious cases. You only see this one business's own research, so don't try to judge whether it's a duplicate branch of a franchise contacted elsewhere in the same campaign — only flag a franchise HEAD OFFICE itself if this business clearly is one.
 
-  const block = msg.content[0];
-  if (block.type !== "text") throw new Error("Unexpected response from AI");
+Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
+{"not_a_fit": true, "reason": "..."}
+or
+{"job_type": "...", "matched_job_types": ["..."], "variant": "solar" or "with_name" or "no_name", "confirmed_first_name": "John" or null}`;
 
-  const parsed = parseJsonResponse<{ subject?: string; body_html?: string; not_a_fit?: boolean; reason?: string }>(block.text);
-
-  if (parsed.not_a_fit) {
-    return { notAFit: true, reason: parsed.reason || "AI flagged this lead as not a fit for LS Growth's ICP.", websiteSnippet };
-  }
-
-  if (!parsed.subject || !parsed.body_html) {
-    throw new Error("AI response missing subject or body_html");
-  }
-
-  // Returned so the caller can pass the exact same scraped text into
-  // checkEmailQuality() — without it, the quality gate has no way to verify
-  // specific claims (job types, coverage area) against reality and defensively
-  // flags anything specific as possibly invented, rejecting emails that were
-  // actually grounded in real website content.
-  return { subject: stripDashes(parsed.subject), bodyHtml: stripDashes(parsed.body_html), websiteSnippet };
-}
-
-export interface ReviseCampaignStepEmailInput extends CampaignStepEmailInput {
-  priorSubject: string;
-  priorBodyHtml: string;
-  rejection: { mechanicalFails: string[]; judgmentFlags: string[]; reasoning: string };
-}
-
-// Used when a lead's last attempt at this step was held by the quality
-// checker — feeds the exact rejected draft and the exact reasons back in, so
-// the model fixes the specific problem instead of a blind reroll that has no
-// better odds than the first attempt.
-export async function reviseCampaignStepEmail(input: ReviseCampaignStepEmailInput): Promise<CampaignStepEmailResult> {
+export async function extractLeadSlots(input: ExtractLeadSlotsInput): Promise<ExtractLeadSlotsResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
 
@@ -315,63 +163,60 @@ export async function reviseCampaignStepEmail(input: ReviseCampaignStepEmailInpu
 
   const websiteSnippet = input.website?.trim() ? await fetchWebsiteSnippet(input.website.trim()) : "";
 
-  const hasRealInfo = !!(input.notes?.trim() || input.personalizationHook?.trim() || websiteSnippet);
-  const knownInfoBlock = hasRealInfo
-    ? `\nWhat's actually known about this business (use this to make the email specific and prove you looked them up — don't just repeat it verbatim):
-${input.personalizationHook?.trim() ? `- ${input.personalizationHook.trim()}\n` : ""}${input.notes?.trim() ? `- Notes: ${input.notes.trim()}\n` : ""}${websiteSnippet ? `- Real text scraped from their website:\n${websiteSnippet}\n` : input.website?.trim() ? `- Website: ${input.website.trim()} (could not fetch content — do not guess what's on it)\n` : ""}
-Only name specific job types (e.g. "switchboard upgrades", "heat pump installs") if they're actually confirmed above, in the notes, or the scraped website text. If the trade's specific services aren't confirmed anywhere, describe their work in general trade terms instead (e.g. "the jobs you do", "your workload") rather than inventing a plausible-sounding list — an invented service is an automatic reject.`
-    : `\nNothing specific is known about this business yet beyond their company name, trade, and location.`;
-
-  const rejectionBlock = [
-    input.rejection.mechanicalFails.length ? `Mechanical fails:\n${input.rejection.mechanicalFails.map((f) => `- ${f}`).join("\n")}` : "",
-    input.rejection.judgmentFlags.length ? `Judgment flags:\n${input.rejection.judgmentFlags.map((f) => `- ${f}`).join("\n")}` : "",
-    input.rejection.reasoning ? `Reasoning: ${input.rejection.reasoning}` : "",
-  ].filter(Boolean).join("\n\n");
-
   const userPrompt = `Business: ${input.company}
-Contact name: ${realName(input.contactName) || "unknown"}
 Trade: ${input.trade || "unknown"}
 Location: ${input.location || "unknown"}
-${knownInfoBlock}
-
-This email's purpose: ${STEP_GUIDANCE[input.step]}${learningsBlock(input.learnings)}
-
-This exact email was already generated and rejected by the quality checker. Fix ONLY the specific problems listed below — keep everything else about the email (angle, structure, proof point, length) the same wherever it isn't part of the problem. Do not rewrite from scratch unless the fails genuinely require it.
-
-Rejected subject: ${input.priorSubject}
-Rejected body:
-${input.priorBodyHtml}
-
-Why it was rejected:
-${rejectionBlock}`;
+Website: ${input.website || "none found"}
+Facebook: ${input.facebook || "none found"}
+Notes on file: ${input.notes || "none"}
+${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` : "\nNo website text available — use the web_search tool per the source order above."}`;
 
   const msg = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
+    system: SLOT_EXTRACTION_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 } as const],
   });
 
-  const block = msg.content[0];
-  if (block.type !== "text") throw new Error("Unexpected response from AI");
+  // With web search enabled, content can interleave search-related blocks
+  // with text — the final JSON is written as the last text block, not
+  // necessarily content[0].
+  const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  if (!text) throw new Error("Unexpected response from AI");
 
-  const parsed = parseJsonResponse<{ subject?: string; body_html?: string; not_a_fit?: boolean; reason?: string }>(block.text);
+  const parsed = parseJsonResponse<{
+    not_a_fit?: boolean;
+    reason?: string;
+    job_type?: string;
+    matched_job_types?: string[];
+    variant?: string;
+    confirmed_first_name?: string | null;
+  }>(text);
 
   if (parsed.not_a_fit) {
-    return { notAFit: true, reason: parsed.reason || "AI flagged this lead as not a fit for LS Growth's ICP.", websiteSnippet };
+    return { notAFit: true, reason: parsed.reason || "AI judged this business not a fit for LS Growth's ICP." };
   }
 
-  if (!parsed.subject || !parsed.body_html) {
-    throw new Error("AI response missing subject or body_html");
-  }
+  const jobType = (parsed.job_type || "electrical work").trim().toLowerCase();
+  const matchedJobTypes = (parsed.matched_job_types || []).filter(
+    (j): j is PerlJobType => (PERL_WHITELIST as readonly string[]).includes(j)
+  ).slice(0, 3);
+  const confirmedFirstName = parsed.confirmed_first_name?.trim() || null;
+  // A "with_name"/"solar" verdict with no actual confirmed name is a model
+  // slip, not a real signal — the templates for both variants require a
+  // name, so downgrade to "no_name" rather than rendering "Hey ," (missing
+  // name text) into a real email.
+  const rawVariant = parsed.variant === "solar" || parsed.variant === "with_name" || parsed.variant === "no_name" ? parsed.variant : "no_name";
+  const variant: InitialVariant = rawVariant !== "no_name" && !confirmedFirstName ? "no_name" : rawVariant;
 
-  return { subject: stripDashes(parsed.subject), bodyHtml: stripDashes(parsed.body_html), websiteSnippet };
+  return { jobType, matchedJobTypes, variant, confirmedFirstName };
 }
 
 export interface EmailQualityInput {
   subject: string;
   bodyHtml: string;
-  step: CampaignStepEmailInput["step"] | "cold_call_followup";
+  step: SequenceStep | "cold_call_followup";
   contactName?: string | null;
   notes?: string | null;
   personalizationHook?: string | null;
@@ -391,6 +236,15 @@ export interface EmailQualityInput {
   // doesn't apply here and was flagging every meeting-confirmation email as
   // held for a structure problem that isn't actually one.
   meetingAlreadyBooked?: boolean;
+  // The new fixed sequence templates (lib/emailTemplates.ts) end on a plain
+  // question ("Worth a conversation?") with no CTA link, no booking link,
+  // and no case-studies link anywhere — a deliberately different shape from
+  // the old "AI writes the pitch, a fixed CTA block gets appended after"
+  // structure the checks below were built around. Without this flag, checks
+  // 3/6/7 would fail every one of these on a missing CTA/wrong length, which
+  // isn't a real problem here — the whole body is a fixed, pre-approved
+  // template, so only the AI-filled fragments (job type, name) matter.
+  fixedTemplateNoCta?: boolean;
 }
 
 export interface EmailQualityVerdict {
@@ -407,21 +261,23 @@ const QUALITY_CHECK_SYSTEM_PROMPT = `You are the quality gate for Lucky's cold o
 
 Check the email against every item below. Be strict: this email will go out with nobody reading it if you approve it.
 
-These proof points are fixed, real, company-wide facts — always legitimate to use even if they don't appear in this specific lead's notes/research, so never flag one of these as invented:
-- "This year alone LS Growth has generated over $300,000 worth of booked work for trade businesses across NZ"
-- Queenstown Cleaning: 30 booked paying jobs in the first month at under $11 per lead
-- Cooper Electrical: $80k in booked jobs within 2 months (no location or "before" state is part of this fact)
-"Trade business" in these proof points is used loosely to mean any local service business Lucky's leads run (cleaners, sparkies, builders, plumbers, etc.) — don't flag that wording as a category mismatch.
-Check 13 (nothing invented) is about facts specific to THIS lead's business — a made-up detail about them, their team, their location, something they supposedly said. It is NOT about the three proof points above, which are always fair game to cite — BUT if the email adds narrative flourish on top of a proof point that isn't part of the fixed fact (e.g. "Cooper Electrical went from quiet to $80k" — "quiet" is not part of the given fact, or attaching a city to Cooper Electrical), that added detail IS a check 13 fail, same as an invented detail about the lead's own business.
+The ONLY case studies, client names, dollar figures, or numeric result claims allowed anywhere in the email are these exact sentences (a proof point may be split across a sentence boundary but every number/name in it must come from one of these):
+{{ALLOWED_PROOF_SENTENCES}}
+The only business/client names ever allowed to appear are: {{ALLOWED_CASE_STUDY_NAMES}}. Any other named business, or any dollar figure, percentage, or count of jobs/leads that isn't part of one of the sentences above (this includes an old, retired case study you might recall called "Cooper Electrical" or a "$300,000" or "Queenstown Cleaning" claim — those are NOT allowed here anymore, treat any appearance of them as invented) is always a fail, no exceptions.
+Check 13 (nothing invented) is about facts specific to THIS lead's business — a made-up detail about them, their team, their location, something they supposedly said. It is NOT about the proof sentences above, which are always fair game to cite verbatim — BUT any narrative flourish added on top of one of them (a "before" state, a location, an explanation of how/why it happened) that isn't literally part of the given sentence IS a check 13 fail, same as an invented detail about the lead's own business.
 
 MECHANICAL CHECKS (objective, no judgment call):
-1. No dash or em dash anywhere, in the subject or the body
+1. No dash of any kind anywhere, in the subject or the body — this includes plain hyphens used as punctuation, not just em/en dashes
 2. The first <p> in the body is a greeting only: "Hey [Name]," if a real name was given, otherwise "Hi," — never "Hey there,"
 3. {{STRUCTURE_CHECK}}
 4. Contains none of: "hope this finds you well", "just checking in", "touching base", "circling back", "I wanted to reach out", "I'd love to connect", "don't hesitate to reach out"
 5. Contains none of: "automated SMS", "AI voice call", "30-second response", "follow-up sequence", "Meta ads", "done-for-you system", "our system", "our platform", "our process", "we built"
 6. {{CTA_CHECK}}
 7. {{LENGTH_CHECK}}
+15. No exclamation mark anywhere, subject or body
+16. No named business or client anywhere other than {{ALLOWED_CASE_STUDY_NAMES}} — any other name (invented or real) is an automatic fail
+17. No dollar figure, percentage, or numeric result claim anywhere other than what's inside the allowed proof sentences listed above
+18. If the email contains the Perl Electrical proof line, every job type listed in it must be one of: heat pumps, solar, switchboard upgrades — any other job type named inside that specific sentence is a fail (job types named elsewhere in the email, outside that sentence, are fine)
 
 JUDGMENT CHECKS (read it like the business owner would):
 8. Opening paragraph is about THEM, not "I" or Lucky
@@ -429,10 +285,11 @@ JUDGMENT CHECKS (read it like the business owner would):
 10. Names the actual job type(s) they do, not a generic "more work" or "more jobs"
 11. If a proof point is used, it actually fits their trade
 12. Sounds like a person texting, not a brand — no corporate phrasing
-13. Nothing invented — no fact, name, or detail that isn't in the notes/research/website given below. This is the most important check: if the email confidently states something specific that wasn't given to you, that is always a judgment fail, no exceptions.
+13. Nothing invented — no fact, name, or detail that isn't in the notes/research/website given below (other than the allowed proof sentences, which are always fine to cite). This is one of the most important checks: if the email confidently states something specific that wasn't given to you, that is always a judgment fail, no exceptions.
 14. This must be a real pitch, never a declination. Automatic reject if the email discusses whether the lead is a fit for LS Growth, recommends skipping/not sending, says sending it would hurt credibility, or is otherwise addressed to a reviewer deciding whether to send rather than to the lead being pitched. A real generation bug already produced and sent emails like this (subject "not a fit", body explaining why the business shouldn't be emailed) — this check exists specifically to catch that failure mode before it reaches a real inbox again.
+19. Nothing about this email reads as a fabricated or unverifiable claim about LS Growth's own track record beyond the allowed proof sentences — if you're unsure whether a results claim is one of the allowed sentences or a close paraphrase of a retired one, treat it as a fail rather than letting it through.
 
-Your entire response must be a single JSON object and nothing else — no checklist walkthrough, no numbered notes, no "Let me work through this", no text before or after it. The first character of your response must be "{". Do all 13 checks in your head; none of that thinking appears in the output, only the final result:
+Your entire response must be a single JSON object and nothing else — no checklist walkthrough, no numbered notes, no "Let me work through this", no text before or after it. The first character of your response must be "{". Do all 19 checks in your head; none of that thinking appears in the output, only the final result:
 {"verdict": "approved" or "rejected", "mechanical_fails": ["..."], "judgment_flags": ["..."], "reasoning": "one or two sentences on the overall call"}
 
 "verdict" is the single source of truth — the caller uses ONLY this field to decide approved vs rejected, nothing else. Make your final decision on verdict deliberately, as the very last thing you decide, after all your thinking is done.
@@ -450,20 +307,31 @@ export async function checkEmailQuality(input: EmailQualityInput): Promise<Email
 
   const client = new Anthropic({ apiKey });
 
-  const ctaCheck = input.meetingAlreadyBooked
+  const ctaCheck = input.fixedTemplateNoCta
+    ? "Not applicable — this is a fixed, pre-approved template that deliberately ends on a plain question with no CTA link, booking link, or case-studies link anywhere in it. Never fail this check for a missing CTA here."
+    : input.meetingAlreadyBooked
     ? "Not applicable — a meeting is already booked for this lead, so there is no separate call to action. Never fail this check for a missing CTA link on a meeting-confirmation email."
     : input.requireCtaPlaceholder === false
     ? "The second-to-last <p> is a real call to action (a real link or a clear next step), not a passive close"
     : `Not applicable — a fixed block with a case-studies link and a booking link is appended automatically after this content, the AI-written part you're checking should NOT contain {{CTA_LINK}}, a booking link, or a link to the main website at all. Never fail this check (or flag it as a missing CTA) just because the content you're given ends after the closing line with no link in it — that's correct.`;
-  const structureCheck = input.meetingAlreadyBooked
+  const structureCheck = input.fixedTemplateNoCta
+    ? `This is a fixed, pre-approved template — do not evaluate its structure or paragraph order at all, that's already correct by construction. Only check whether the job type / matched job types / name filled into it (visible in the body) look like real, sane values, not something obviously wrong or invented.`
+    : input.meetingAlreadyBooked
     ? `A meeting is already booked, so there is no CTA to sequence. Instead: somewhere in the body there is a paragraph containing exactly "[MEETING LINK]" and nothing else, and the fixed logistics line (e.g. "Shouldn't take more than 20-30 minutes. If anything comes up and you need to shift the time, just flick me a text.") appears once the body is otherwise done. It's fine, and common, for one short natural closing line (e.g. "Looking forward to our chat.") to come immediately after that logistics line as the true LAST <p> — that's not a structure failure, just a warmer close. Only fail this check if something substantive (a new topic, another CTA, an unrelated paragraph) comes after the logistics line, not for a one-line closing.`
     : input.requireCtaPlaceholder === false
     ? `The LAST <p> (before the sign-off) is a one-sentence closing line, e.g. "Looking forward to hearing from you." — the second-to-last <p> is the CTA line (check 6), and the closing line always comes after it`
     : `The LAST <p> (before the sign-off) is a one-sentence closing line, e.g. "Looking forward to hearing from you." This email should NOT contain a CTA paragraph at all — the booking and case-studies links are appended automatically after this content, so the closing line is correctly the very last thing in what you're checking.`;
-  const lengthCheck = input.meetingAlreadyBooked
+  const lengthCheck = input.fixedTemplateNoCta
+    ? `Not applicable — this is a fixed-length pre-approved template, not AI-authored prose. Never fail this check here.`
+    : input.meetingAlreadyBooked
     ? `Not applicable — this is a fixed-format meeting confirmation (greeting, meeting time + link, one paragraph on their specific situation, then the fixed logistics line), not a length-flexible follow-up. Never fail this check for a meeting-confirmation email's length.`
     : "Length in range: initial email 4-6 sentences, follow-ups 2-4 sentences";
-  const system = QUALITY_CHECK_SYSTEM_PROMPT.replace("{{CTA_CHECK}}", ctaCheck).replace("{{STRUCTURE_CHECK}}", structureCheck).replace("{{LENGTH_CHECK}}", lengthCheck);
+  const system = QUALITY_CHECK_SYSTEM_PROMPT
+    .replace("{{CTA_CHECK}}", ctaCheck)
+    .replace("{{STRUCTURE_CHECK}}", structureCheck)
+    .replace("{{LENGTH_CHECK}}", lengthCheck)
+    .replace("{{ALLOWED_PROOF_SENTENCES}}", ALLOWED_PROOF_SENTENCES.map((s) => `- "${s}"`).join("\n"))
+    .replace(/\{\{ALLOWED_CASE_STUDY_NAMES\}\}/g, ALLOWED_CASE_STUDY_NAMES.join(" or "));
 
   const knownInfo = [
     realName(input.contactName) ? `- Contact name given: ${realName(input.contactName)}` : "- No contact name was given",
@@ -630,7 +498,7 @@ ${canSearch ? "\nNo website text or notes are available — search the web for t
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: PERSONALIZATION_SYSTEM_PROMPT,
+    system: withWritingStyle(PERSONALIZATION_SYSTEM_PROMPT),
     messages: [{ role: "user", content: userPrompt }],
     ...(canSearch ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 } as const] } : {}),
   });
@@ -812,7 +680,7 @@ Meeting time: ${input.meetingTime}`;
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: MEETING_SYSTEM_PROMPT,
+    system: withWritingStyle(MEETING_SYSTEM_PROMPT),
     messages: [{ role: "user", content: userPrompt }],
   });
 
@@ -851,7 +719,7 @@ async function runMeetingEmailPrompt(systemPrompt: string, userPrompt: string): 
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: systemPrompt,
+    system: withWritingStyle(systemPrompt),
     messages: [{ role: "user", content: userPrompt }],
   });
 

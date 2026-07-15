@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
   const prompt = `You are writing a follow-up email on behalf of Lucky from LS Growth Agency. Lucky just got off a cold call and has written up some notes on how it went. Your job is to turn those notes into a short, human-sounding email that sounds like Lucky actually wrote it.
 
-LS Growth Agency gets trade businesses more booked jobs. The pitch is always the outcome — specific booked jobs, real revenue — never the process or mechanism. Never say "we built a system", "automated SMS", "AI voice call", "Meta ads", "30-second response", "follow-up sequence", "done-for-you", or anything describing how it works. This year alone LS Growth has generated over $300,000 worth of booked work for trade businesses across NZ. Use the research and call notes to identify the specific job types this business does (heat pumps, switchboard upgrades, solar, end-of-tenancy cleans, etc.) and reference those by name instead of saying "trade business" or "more jobs" generically.
+LS Growth Agency gets trade businesses more booked jobs. The pitch is always the outcome — specific booked jobs, real revenue — never the process or mechanism. Never say "we built a system", "automated SMS", "AI voice call", "Meta ads", "30-second response", "follow-up sequence", "done-for-you", or anything describing how it works. Do not cite any specific dollar figure, client name, or case study — none are verified for this flow. Use the research and call notes to identify the specific job types this business does (heat pumps, switchboard upgrades, solar, end-of-tenancy cleans, etc.) and reference those by name instead of saying "trade business" or "more jobs" generically.
 
 Today's date: ${today}
 

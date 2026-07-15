@@ -54,13 +54,21 @@ export function htmlToText(html: string) {
 type StepTemplate = { subject: string; html: string };
 type TemplateSet = Record<EmailStep, StepTemplate>;
 
+// The stats these used to cite for "Queenstown Cleaning" (57 leads, 30
+// booked jobs, $7-$11/lead, 19 enquiries in week one) were removed 2026-07-15
+// as unverified proof points, same purge as "Cooper Electrical" in the main
+// campaign system — flagged for Lucky: these templates now have no proof
+// point at all and need a real, verified number if he wants to keep using
+// this fallback path (INDUSTRY_TEMPLATES is still reachable via
+// coldEmailDraft's "Insert cold email template" button on the Cold Call
+// page).
 const CLEANING_TEMPLATES: TemplateSet = {
-  // Day 0 — initial outreach with Queenstown Cleaning case study
+  // Day 0
   initial: {
-    subject: `How Queenstown Cleaning turned 57 leads into 30 booked jobs last month`,
+    subject: `A faster way for {{company}} to turn enquiries into booked jobs`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
-  <p>Quick one. In the last 30 days we generated 57 new window cleaning and house cleaning enquiries for Queenstown Cleaning, working out at around $7 to $11 per lead, and 30 of those have already turned into booked, paying jobs.</p>
+  <p>Quick one. Most {{trade}} businesses lose enquiries just because nobody gets back to them within the first hour, and by then they've already called someone else.</p>
   <p>{{personalization}}</p>
   <p>We run the whole lead gen process for {{trade}} businesses across NZ and Australia (ads, fast follow up, booking) so you get a steady stream of qualified jobs without chasing quotes or relying on word of mouth.</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
@@ -71,7 +79,7 @@ const CLEANING_TEMPLATES: TemplateSet = {
 
   // Day 3 — short follow-up
   followup1: {
-    subject: `Re: How Queenstown Cleaning turned 57 leads into 30 booked jobs last month`,
+    subject: `Re: A faster way for {{company}} to turn enquiries into booked jobs`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
   <p>Just bumping this up in case it got buried. The core idea is simple — most {{trade}} businesses lose enquiries just because nobody gets back within the hour. Our system responds in under 60 seconds and handles all the follow up automatically, so you're converting leads you'd otherwise lose.</p>
@@ -81,13 +89,12 @@ const CLEANING_TEMPLATES: TemplateSet = {
 </div>`,
   },
 
-  // Day 7 — social proof / case study
+  // Day 7
   followup2: {
-    subject: `8 booked jobs in week one — {{company}}`,
+    subject: `Worth a look — {{company}}`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
-  <p>Wanted to share one more example. In Queenstown Cleaning's first week running our system they got 19 new enquiries, and 8 of those turned into paid, booked jobs by the end of the week.</p>
-  <p>The reason it works is speed. New leads get a personalised text back within 60 seconds, before they've had a chance to call someone else. Most {{trade}} businesses respond hours later (or not at all) so the job's already gone by then.</p>
+  <p>The reason speed matters is simple. New leads get a personalised text back within 60 seconds, before they've had a chance to call someone else. Most {{trade}} businesses respond hours later (or not at all) so the job's already gone by then.</p>
   <p>If {{company}} wants a consistent flow of jobs without chasing quotes, worth a <a href="{{cta_link}}">quick 15 min look</a>.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
   {{pixel}}
@@ -241,7 +248,7 @@ const DEFAULT_TEMPLATES: TemplateSet = {
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
   <p>Quick one. Most {{trade}} businesses lose 70%+ of new enquiries simply because nobody gets back to them within the first hour, and by then they've already called someone else.</p>
-  <p>We run a lead gen + fast-follow-up system for trade businesses across NZ and Australia: new leads get a response in under 60 seconds, then the follow up sequence runs automatically. For one client, Cooper Electrical, that turned into $80k in booked jobs within about 2 months of starting.</p>
+  <p>We run a lead gen + fast-follow-up system for trade businesses across NZ and Australia: new leads get a response in under 60 seconds, then the follow up sequence runs automatically.</p>
   <p>{{personalization}}</p>
   <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
@@ -261,14 +268,13 @@ const DEFAULT_TEMPLATES: TemplateSet = {
 </div>`,
   },
 
-  // Day 7 — social proof
+  // Day 7
   followup2: {
-    subject: `$80k in booked jobs in 2 months — {{company}}`,
+    subject: `Worth a look — {{company}}`,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
   <p>Hey {{contact_name}},</p>
-  <p>Wanted to share a quick case study. Cooper Electrical started running our lead gen system 2 months ago. They'd been relying on referrals and were losing leads because responses were too slow. After we set up the automated follow-up, they closed $80k in new booked work in the first 2 months.</p>
   <p>The system contacts every new enquiry within 60 seconds, then follows up automatically until they book or say no. Nothing slips through.</p>
-  <p>If {{company}} wants something similar, <a href="{{cta_link}}">grab a quick 15 min call</a> and I'll walk you through the numbers.</p>
+  <p>If {{company}} wants something similar, <a href="{{cta_link}}">grab a quick 15 min call</a> and I'll walk you through it.</p>
   <p>Cheers,<br>Lucky<br>LS Growth</p>
   {{pixel}}
 </div>`,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateCampaignStepEmail, checkEmailQuality, checkCommonSense } from "@/lib/ai";
+import { extractLeadSlots, checkEmailQuality, checkCommonSense } from "@/lib/ai";
+import { renderInitialEmail } from "@/lib/emailTemplates";
 import { buildFinalEmailHtml } from "@/lib/email";
 import { notifySlack } from "@/lib/slackNotify";
 import { Lead } from "@/lib/types";
@@ -7,15 +8,18 @@ import { Lead } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Runs the actual send pipeline (generate -> quality check -> common-sense
-// check -> final HTML assembly) against synthetic leads that never touch the
-// database or send a real email, so a regression like today's two real bugs
-// (a literal "{{CTA_LINK}}" reaching the common-sense check because it ran
-// on pre-substitution content, or the AI writing a "not a fit" refusal as
-// the actual email) gets caught by CI within seconds of a deploy instead of
-// by a human watching real sends fail. Triggered by
+// Runs the actual send pipeline (extract slots -> render fixed template ->
+// quality check -> common-sense check -> final HTML assembly) against
+// synthetic leads that never touch the database or send a real email, so a
+// regression gets caught by CI within seconds of a deploy instead of by a
+// human watching real sends fail. Triggered by
 // .github/workflows/smoke-test.yml after any push touching the send
 // pipeline; can also be hit manually to sanity-check after a related change.
+//
+// Rewritten 2026-07-15 alongside the move to fixed templates — the checks
+// now validate slot extraction + template rendering instead of full AI
+// authorship, but the intent is the same: catch a broken pipeline before it
+// reaches a real lead.
 function fakeLead(overrides: Partial<Lead>): Lead {
   return {
     id: "00000000-0000-0000-0000-000000000000",
@@ -62,39 +66,40 @@ export async function GET(req: NextRequest) {
 
   const results: CheckResult[] = [];
 
-  // Case A: a normal, well-researched small trade business. Should generate
-  // real content, pass both gates, and assemble into final HTML with no
-  // leftover template syntax.
+  // Case A: a normal, well-researched small electrical business. Should
+  // extract real confirmed services, render a clean fixed template, and
+  // pass both gates with no leftover template syntax.
   try {
     const lead = fakeLead({
-      personalization_hook: "Noticed Smoke Test Co offers heat pump installs and switchboard upgrades across Wellington but isn't showing up on Facebook like some competitors.",
+      notes: "Offers heat pump installs and switchboard upgrades across Wellington.",
     });
-    const generated = await generateCampaignStepEmail({
+    const extraction = await extractLeadSlots({
       company: lead.company, contactName: lead.contact_name, trade: lead.trade, location: lead.location,
-      notes: lead.notes, website: lead.website, personalizationHook: lead.personalization_hook,
-      step: "initial", priorSubjects: [],
+      notes: lead.notes, website: lead.website, facebook: lead.facebook,
     });
 
-    if (generated.notAFit) {
-      results.push({ name: "normal-lead: should generate a real email", pass: false, detail: `Generator incorrectly refused a normal small trade business: ${generated.reason}` });
+    if (extraction.notAFit) {
+      results.push({ name: "normal-lead: should not flag a real small trade business as not-a-fit", pass: false, detail: `Extraction incorrectly refused a normal small trade business: ${extraction.reason}` });
     } else {
-      const ctaBlock = `<p>Here are some case studies if you want to take a look: <a href="https://lsgrowth.agency">lsgrowth.agency</a></p><p>If you want to book a time, you can do that below: <a href="{{CTA_LINK}}">grab a time here</a>.</p>`;
-      const { html: finalHtml } = buildFinalEmailHtml(lead, generated.bodyHtml + ctaBlock, "initial");
+      const { subject, bodyHtml } = renderInitialEmail({
+        variant: extraction.variant, jobType: extraction.jobType, matchedJobTypes: extraction.matchedJobTypes, firstName: extraction.confirmedFirstName,
+      });
+
+      const { html: finalHtml } = buildFinalEmailHtml(lead, bodyHtml, "initial");
 
       results.push({
-        name: "normal-lead: final HTML has no leftover {{CTA_LINK}}",
-        pass: !finalHtml.includes("{{CTA_LINK}}"),
-        detail: finalHtml.includes("{{CTA_LINK}}") ? "Found literal {{CTA_LINK}} in the assembled email — this is exactly the regression from 2026-07-13." : "clean",
+        name: "normal-lead: final HTML has no leftover template syntax",
+        pass: !finalHtml.includes("{{") && !finalHtml.includes("{job type}") && !finalHtml.includes("{matched job types}"),
+        detail: finalHtml.includes("{{") || finalHtml.includes("{job type}") ? "Found a literal, unfilled slot in the assembled email." : "clean",
       });
 
       const quality = await checkEmailQuality({
-        subject: generated.subject, bodyHtml: generated.bodyHtml, step: "initial",
-        contactName: lead.contact_name, notes: lead.notes, personalizationHook: lead.personalization_hook,
-        website: lead.website, websiteSnippet: generated.websiteSnippet,
+        subject, bodyHtml, step: "initial",
+        contactName: lead.contact_name, notes: lead.notes, website: lead.website, fixedTemplateNoCta: true,
       });
       results.push({ name: "normal-lead: quality gate runs without throwing", pass: true, detail: `verdict=${quality.verdict}` });
 
-      const commonSense = await checkCommonSense({ subject: generated.subject, bodyHtml: finalHtml, company: lead.company });
+      const commonSense = await checkCommonSense({ subject, bodyHtml: finalHtml, company: lead.company });
       results.push({
         name: "normal-lead: common-sense check approves real final HTML",
         pass: commonSense.ok,
@@ -106,22 +111,21 @@ export async function GET(req: NextRequest) {
   }
 
   // Case B: an obviously wrong-ICP business (a national utility). Should
-  // trigger the generator's not-a-fit escape hatch, not write a refusal as
-  // the actual email — this is the exact 2026-07-13 incident.
+  // trigger the extraction's not-a-fit flag rather than fabricating slot
+  // values for a business that should never be emailed at all.
   try {
     const lead = fakeLead({
       company: "National Power Grid Utility Ltd",
       notes: "New Zealand's largest national electricity generator and retailer, publicly listed, thousands of employees, pipeline driven by regulatory and wholesale contracts.",
     });
-    const generated = await generateCampaignStepEmail({
+    const extraction = await extractLeadSlots({
       company: lead.company, contactName: lead.contact_name, trade: lead.trade, location: lead.location,
-      notes: lead.notes, website: lead.website, personalizationHook: lead.personalization_hook,
-      step: "initial", priorSubjects: [],
+      notes: lead.notes, website: lead.website, facebook: lead.facebook,
     });
     results.push({
-      name: "bad-fit-lead: generator refuses instead of emailing the refusal",
-      pass: !!generated.notAFit,
-      detail: generated.notAFit ? `correctly refused: ${generated.reason}` : `Generator wrote a real email to an obviously wrong-ICP business instead of refusing — subject: "${!generated.notAFit ? generated.subject : ""}"`,
+      name: "bad-fit-lead: extraction flags not_a_fit instead of fabricating slots",
+      pass: extraction.notAFit === true,
+      detail: extraction.notAFit ? `correctly refused: ${extraction.reason}` : "Extraction produced real slot values for an obviously wrong-ICP business instead of flagging not_a_fit.",
     });
   } catch (e) {
     results.push({ name: "bad-fit-lead: pipeline runs without throwing", pass: false, detail: e instanceof Error ? e.message : String(e) });
