@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractLeadSlots, checkEmailQuality, checkCommonSense } from "@/lib/ai";
 import { renderInitialEmail } from "@/lib/emailTemplates";
+import { SSP_LINE, buildPerlLine } from "@/lib/proofPoints";
 import { buildFinalEmailHtml } from "@/lib/email";
 import { notifySlack } from "@/lib/slackNotify";
 import { Lead } from "@/lib/types";
@@ -96,8 +97,20 @@ export async function GET(req: NextRequest) {
       const quality = await checkEmailQuality({
         subject, bodyHtml, step: "initial",
         contactName: lead.contact_name, notes: lead.notes, website: lead.website, fixedTemplateNoCta: true,
+        researchEvidence: extraction.evidence,
+        fixedProofLine: extraction.variant === "solar" ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes),
       });
-      results.push({ name: "normal-lead: quality gate runs without throwing", pass: true, detail: `verdict=${quality.verdict}` });
+      // This used to assert pass: true unconditionally regardless of verdict
+      // — meaning the smoke test could never actually catch a quality gate
+      // that rejects every real email, which is exactly what happened
+      // (the greeting-check and proof-line bugs both shipped and only got
+      // caught by a real production test send, not this check). Asserting
+      // the real verdict is the whole point of this test existing.
+      results.push({
+        name: "normal-lead: quality gate approves a clean, well-researched email",
+        pass: quality.verdict === "approved",
+        detail: quality.verdict === "approved" ? "approved" : `rejected: ${quality.reasoning || quality.mechanicalFails?.[0] || quality.judgmentFlags?.[0] || "no reason given"}`,
+      });
 
       const commonSense = await checkCommonSense({ subject, bodyHtml: finalHtml, company: lead.company });
       results.push({

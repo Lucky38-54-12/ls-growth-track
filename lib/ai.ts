@@ -117,6 +117,15 @@ export type ExtractLeadSlotsResult =
       matchedJobTypes: PerlJobType[];
       variant: InitialVariant;
       confirmedFirstName: string | null;
+      // Where each confirmed value actually came from (e.g. "website About
+      // page names John Lovett as owner"). checkEmailQuality never sees the
+      // live research this extraction did — only lead.notes, which is
+      // usually empty for a freshly-imported lead — so without this, any
+      // genuinely-confirmed name or job type looks indistinguishable from an
+      // invented one and gets held every time. Passed through as
+      // researchEvidence so the quality gate has something real to check
+      // against instead of reflexively flagging real findings as invented.
+      evidence: string;
     };
 
 const SLOT_EXTRACTION_SYSTEM_PROMPT = `You research an electrical business for Lucky at LS Growth before he sends a fixed, pre-written cold email to them. You do not write any email copy — every email is already written and locked. Your only job is to research this one business and fill in a few slot values from what you actually find.
@@ -150,10 +159,12 @@ YOUR JOB, in order:
    - Confirmed NOT to be an electrical trade business at all
    When in doubt and it's an ordinary local electrical business, do not flag it — this is only for clear, obvious cases. You only see this one business's own research, so don't try to judge whether it's a duplicate branch of a franchise contacted elsewhere in the same campaign — only flag a franchise HEAD OFFICE itself if this business clearly is one.
 
+7. WRITE evidence — one or two short sentences citing exactly where job_type, matched_job_types, and confirmed_first_name (if any) came from (e.g. "Website About page lists heat pump installs and switchboard upgrades as services. Facebook post names John Lovett as owner."). This is read by a separate reviewer who cannot see your research, only this sentence — so it's the only way anything you confirmed can be told apart from something invented. If nothing beyond the generic fallback was confirmed, say so plainly (e.g. "Nothing specific confirmed anywhere, using generic fallback.").
+
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
 {"not_a_fit": true, "reason": "..."}
 or
-{"job_type": "...", "matched_job_types": ["..."], "variant": "solar" or "with_name" or "no_name", "confirmed_first_name": "John" or null}`;
+{"job_type": "...", "matched_job_types": ["..."], "variant": "solar" or "with_name" or "no_name", "confirmed_first_name": "John" or null, "evidence": "..."}`;
 
 export async function extractLeadSlots(input: ExtractLeadSlotsInput): Promise<ExtractLeadSlotsResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -192,6 +203,7 @@ ${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` 
     matched_job_types?: string[];
     variant?: string;
     confirmed_first_name?: string | null;
+    evidence?: string;
   }>(text);
 
   if (parsed.not_a_fit) {
@@ -209,8 +221,9 @@ ${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` 
   // name text) into a real email.
   const rawVariant = parsed.variant === "solar" || parsed.variant === "with_name" || parsed.variant === "no_name" ? parsed.variant : "no_name";
   const variant: InitialVariant = rawVariant !== "no_name" && !confirmedFirstName ? "no_name" : rawVariant;
+  const evidence = parsed.evidence?.trim() || "No evidence provided by the extraction step.";
 
-  return { jobType, matchedJobTypes, variant, confirmedFirstName };
+  return { jobType, matchedJobTypes, variant, confirmedFirstName, evidence };
 }
 
 export interface EmailQualityInput {
@@ -245,6 +258,20 @@ export interface EmailQualityInput {
   // isn't a real problem here — the whole body is a fixed, pre-approved
   // template, so only the AI-filled fragments (job type, name) matter.
   fixedTemplateNoCta?: boolean;
+  // What extractLeadSlots actually found and why it confirmed the job
+  // type/name filled into this fixed template — without this, checks 9/13
+  // have nothing to verify a genuinely-researched name or service against
+  // and reject it as invented every time. See extractLeadSlots' evidence field.
+  researchEvidence?: string | null;
+  // The exact proof-point sentence this specific render used (computed by
+  // the caller from the same matchedJobTypes the template was built from).
+  // ALLOWED_PROOF_SENTENCES only lists the all-three-services and
+  // zero-services forms of the Perl Electrical line; buildPerlLine also
+  // legitimately produces a 1-or-2-service subset for most real leads, which
+  // isn't literally any of those strings — passing the real one through
+  // lets the checker recognise it instead of flagging a correctly-built
+  // subset as an altered, unapproved claim.
+  fixedProofLine?: string | null;
 }
 
 export interface EmailQualityVerdict {
@@ -281,9 +308,9 @@ MECHANICAL CHECKS (objective, no judgment call):
 
 JUDGMENT CHECKS (read it like the business owner would):
 8. Opening paragraph is about THEM, not "I" or Lucky
-9. References at least one specific, real detail from the notes/research given below, not just "trade business in [location]"
-10. Names the actual job type(s) they do, not a generic "more work" or "more jobs"
-11. If a proof point is used, it actually fits their trade
+9. {{SPECIFICITY_CHECK}}
+10. {{JOB_TYPE_CHECK}}
+11. {{PROOF_FIT_CHECK}}
 12. Sounds like a person texting, not a brand — no corporate phrasing
 13. Nothing invented — no fact, name, or detail that isn't in the notes/research/website given below (other than the allowed proof sentences, which are always fine to cite). This is one of the most important checks: if the email confidently states something specific that wasn't given to you, that is always a judgment fail, no exceptions.
 14. This must be a real pitch, never a declination. Automatic reject if the email discusses whether the lead is a fit for LS Growth, recommends skipping/not sending, says sending it would hurt credibility, or is otherwise addressed to a reviewer deciding whether to send rather than to the lead being pitched. A real generation bug already produced and sent emails like this (subject "not a fit", body explaining why the business shouldn't be emailed) — this check exists specifically to catch that failure mode before it reaches a real inbox again.
@@ -307,6 +334,15 @@ export async function checkEmailQuality(input: EmailQualityInput): Promise<Email
 
   const client = new Anthropic({ apiKey });
 
+  const specificityCheck = input.fixedTemplateNoCta
+    ? `Not applicable in the usual sense — Lucky's fixed template body is deliberately generic, verbatim prose that works the same way for any lead; the only lead-specific detail is the subject line (job type) and, for the with_name/solar variants, the greeting name. Treat the subject line as satisfying this check on its own — never fail this just because the body itself doesn't restate the job type or another specific detail. Still fail this if the subject line's job type isn't actually a real, confirmed value per the research findings below.`
+    : `References at least one specific, real detail from the notes/research given below, not just "trade business in [location]"`;
+  const jobTypeCheck = input.fixedTemplateNoCta
+    ? `Not applicable in the usual sense — the job type only ever appears in the subject line for a fixed template (e.g. "heat pumps sitting on the table"), never restated inside the locked body prose. Check it there instead of the body, and never fail this for a fixed template just because the body's generic copy doesn't repeat it.`
+    : `Names the actual job type(s) they do, not a generic "more work" or "more jobs"`;
+  const proofFitCheck = input.fixedTemplateNoCta
+    ? `Not applicable — which proof sentence appears is chosen deterministically before this check ever runs (the exact matched services when the lead confirms any of heat pumps/solar/switchboard upgrades, or the general "everything from heat pumps to switchboard upgrades" fallback line specifically when nothing on that list was confirmed — see lib/proofPoints.ts). Never reject a fixed template for the fallback line supposedly not matching the lead's actual services; that mismatch is expected and already accounted for by design. Check 18 (job types named inside the Perl sentence itself) still applies as normal.`
+    : `If a proof point is used, it actually fits their trade`;
   const greetingCheck = input.fixedTemplateNoCta
     ? `Not applicable — this is a fixed, pre-approved template whose opening line is Lucky's own locked wording, which does not always start with a standalone greeting (the no-name variant opens straight into the pitch with no greeting at all, and the with-name variant blends "Hey [Name]," into the first sentence rather than giving it its own line). Never fail this check for a fixed template's greeting shape.`
     : input.meetingAlreadyBooked
@@ -333,14 +369,24 @@ export async function checkEmailQuality(input: EmailQualityInput): Promise<Email
     : "Length in range: initial email 4-6 sentences, follow-ups 2-4 sentences";
   const system = QUALITY_CHECK_SYSTEM_PROMPT
     .replace("{{GREETING_CHECK}}", greetingCheck)
+    .replace("{{SPECIFICITY_CHECK}}", specificityCheck)
+    .replace("{{JOB_TYPE_CHECK}}", jobTypeCheck)
+    .replace("{{PROOF_FIT_CHECK}}", proofFitCheck)
     .replace("{{CTA_CHECK}}", ctaCheck)
     .replace("{{STRUCTURE_CHECK}}", structureCheck)
     .replace("{{LENGTH_CHECK}}", lengthCheck)
-    .replace("{{ALLOWED_PROOF_SENTENCES}}", ALLOWED_PROOF_SENTENCES.map((s) => `- "${s}"`).join("\n"))
+    .replace(
+      "{{ALLOWED_PROOF_SENTENCES}}",
+      (input.fixedProofLine?.trim() && !(ALLOWED_PROOF_SENTENCES as readonly string[]).includes(input.fixedProofLine.trim())
+        ? [...ALLOWED_PROOF_SENTENCES, input.fixedProofLine.trim()]
+        : ALLOWED_PROOF_SENTENCES
+      ).map((s) => `- "${s}"`).join("\n")
+    )
     .replace(/\{\{ALLOWED_CASE_STUDY_NAMES\}\}/g, ALLOWED_CASE_STUDY_NAMES.join(" or "));
 
   const knownInfo = [
     realName(input.contactName) ? `- Contact name given: ${realName(input.contactName)}` : "- No contact name was given",
+    input.researchEvidence?.trim() ? `- Research findings used to fill this template's slots (trust this for check 9/13): ${input.researchEvidence.trim()}` : "",
     input.personalizationHook?.trim() ? `- Research hook: ${input.personalizationHook.trim()}` : "",
     input.notes?.trim() ? `- Call notes: ${input.notes.trim()}` : "",
     input.websiteSnippet?.trim()

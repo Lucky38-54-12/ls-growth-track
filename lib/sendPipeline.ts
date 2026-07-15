@@ -10,7 +10,7 @@ import {
   renderFollowup4Email,
   renderCheckinEmail,
 } from "./emailTemplates";
-import { ALLOWED_CASE_STUDY_NAMES } from "./proofPoints";
+import { ALLOWED_CASE_STUDY_NAMES, SSP_LINE, buildPerlLine } from "./proofPoints";
 import { notifySlack } from "./slackNotify";
 import { Lead } from "./types";
 
@@ -26,14 +26,17 @@ const CASE_STUDIES_URL = "https://lsgrowth.agency";
 // Cheap, deterministic and free — runs on every send (fixed template or
 // not), independent of the LLM-based checkEmailQuality gate below. Scoped to
 // only the parts that actually vary per lead (the subject line — built from
-// an AI-extracted job type or a past approved subject — and the recipient's
-// own business name), NOT the fixed template prose itself: followup2's
-// locked copy legitimately contains a hyphen ("follow-up problem", see
-// lib/emailTemplates.ts) that would otherwise self-reject every single send.
+// an AI-extracted job type or a past approved subject), NOT the fixed
+// template prose itself: followup2's locked copy legitimately contains a
+// hyphen ("follow-up problem", see lib/emailTemplates.ts) that would
+// otherwise self-reject every single send. The dash check deliberately
+// excludes the business's own name — a real company can legitimately have a
+// hyphen in its actual name (e.g. "Superheat Electrical and
+// Air-Conditioning"), and rejecting a lead forever over its own real name
+// isn't what the "no invented dashes" rule was ever meant to catch.
 function deterministicSafetyCheck(subject: string, bodyHtml: string, businessName: string): string | null {
-  const dynamicText = `${subject} ${businessName}`;
-  if (/[-‐‑‒–—−]/.test(dynamicText)) return `Contains a dash or hyphen in a lead-specific value (subject or business name): "${dynamicText}".`;
-  if (dynamicText.includes("!")) return "Contains an exclamation mark in a lead-specific value (subject or business name).";
+  if (/[-‐‑‒–—−]/.test(subject)) return `Contains a dash or hyphen in the subject line: "${subject}".`;
+  if (`${subject} ${businessName}`.includes("!")) return "Contains an exclamation mark in a lead-specific value (subject or business name).";
 
   for (const name of extractQuotedLikeNames(bodyHtml)) {
     if (name.toLowerCase() === businessName.trim().toLowerCase()) continue; // the recipient's own name is always allowed
@@ -78,6 +81,8 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
 
   let subject: string;
   let bodyHtml: string;
+  let researchEvidence: string | undefined;
+  let fixedProofLine: string | undefined;
   // Only the `initial` step has any AI-extracted content (job type, matched
   // job types, variant) — every later step is the lead's own company name
   // plus fixed prose, already covered by deterministicSafetyCheck above.
@@ -121,6 +126,13 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
       matchedJobTypes: extraction.matchedJobTypes,
       firstName: extraction.confirmedFirstName,
     }));
+    researchEvidence = extraction.evidence;
+    // The exact proof sentence this specific render used — solar variant
+    // always uses SSP_LINE (already in ALLOWED_PROOF_SENTENCES), every other
+    // variant uses buildPerlLine, which legitimately produces a 1-or-2
+    // service subset that isn't literally the fixed all-three-services form
+    // the checker's static whitelist recognises.
+    fixedProofLine = extraction.variant === "solar" ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes);
   } else if (step === "followup1") {
     // "re: {initial subject}" needs the exact subject actually sent, not a
     // recomputed guess — the initial's jobType/variant aren't stored
@@ -174,6 +186,8 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
       notes: lead.notes,
       website: lead.website,
       fixedTemplateNoCta: true,
+      researchEvidence,
+      fixedProofLine,
     });
     await sb.from("email_checks").insert({
       lead_id: lead.lead_id,

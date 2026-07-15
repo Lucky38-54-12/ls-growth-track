@@ -12,6 +12,7 @@ import {
   renderFollowup3Email,
   renderFollowup4Email,
 } from "@/lib/emailTemplates";
+import { SSP_LINE, buildPerlLine } from "@/lib/proofPoints";
 import { Lead } from "@/lib/types";
 
 const SAMPLE_LEADS = 2;
@@ -80,6 +81,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
           stepResult.quality = await checkEmailQuality({
             subject: initial.subject, bodyHtml: initial.bodyHtml, step: "initial",
             contactName: lead.contact_name, notes: lead.notes, website: lead.website, fixedTemplateNoCta: true,
+            researchEvidence: extraction.evidence,
+            fixedProofLine: extraction.variant === "solar" ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes),
           });
         } catch (e) {
           stepResult.qualityError = e instanceof Error ? e.message : "Quality check failed";
