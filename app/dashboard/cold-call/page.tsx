@@ -6,6 +6,7 @@ import Topbar from "@/components/Topbar";
 import { Lead, EmailCheck } from "@/lib/types";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
+import { addNoteToStorage } from "@/lib/notesStore";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -216,6 +217,8 @@ export default function ColdCallPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ callNotes: quickData.summary }),
     });
+
+    addNoteToStorage(`${data.lead.company}: ${quickData.summary}`);
     setNoteLoading(false);
 
     router.push(`/dashboard?flash=${encodeURIComponent(`Saved a note for ${data.lead.company} and added them to the pipeline.`)}`);

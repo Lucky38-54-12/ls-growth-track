@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { StickyNote, Bell, BellRing, Plus, X } from "lucide-react";
+import { NOTES_KEY, Note } from "@/lib/notesStore";
 
 const L = { border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dim: "#94a3b8" };
 
@@ -12,15 +13,6 @@ const STICKY_COLORS = [
   { bg: "#ffedd5", border: "#fed7aa" },
   { bg: "#ede9fe", border: "#ddd6fe" },
 ];
-
-interface Note {
-  id: string;
-  text: string;
-  reminderTime: string;
-  createdAt: number;
-}
-
-const NOTES_KEY = "notes-list";
 
 export default function DailyNotes() {
   const [notes, setNotes] = useState<Note[]>([]);
