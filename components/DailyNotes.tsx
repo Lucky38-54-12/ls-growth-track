@@ -20,12 +20,9 @@ interface Note {
   createdAt: number;
 }
 
-function todayKey(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-}
+const NOTES_KEY = "notes-list";
 
 export default function DailyNotes() {
-  const key = `today-notes-list-${todayKey()}`;
   const [notes, setNotes] = useState<Note[]>([]);
   const [draft, setDraft] = useState("");
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
@@ -33,12 +30,12 @@ export default function DailyNotes() {
 
   useEffect(() => {
     try {
-      setNotes(JSON.parse(localStorage.getItem(key) || "[]"));
+      setNotes(JSON.parse(localStorage.getItem(NOTES_KEY) || "[]"));
     } catch {
       setNotes([]);
     }
     setPermission(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
-  }, [key]);
+  }, []);
 
   useEffect(() => {
     const check = setInterval(() => {
@@ -56,7 +53,7 @@ export default function DailyNotes() {
 
   function persist(next: Note[]) {
     setNotes(next);
-    localStorage.setItem(key, JSON.stringify(next));
+    localStorage.setItem(NOTES_KEY, JSON.stringify(next));
   }
 
   function handleAdd() {
@@ -85,7 +82,7 @@ export default function DailyNotes() {
     <div className="surface-card" style={{ overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
         <StickyNote style={{ width: 15, height: 15, color: L.muted }} />
-        <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Notes For Today</span>
+        <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Notes</span>
         {permission === "default" && (
           <button
             onClick={handleEnableNotifications}

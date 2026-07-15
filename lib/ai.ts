@@ -268,7 +268,7 @@ Check 13 (nothing invented) is about facts specific to THIS lead's business — 
 
 MECHANICAL CHECKS (objective, no judgment call):
 1. No dash of any kind anywhere, in the subject or the body — this includes plain hyphens used as punctuation, not just em/en dashes
-2. The first <p> in the body is a greeting only: "Hey [Name]," if a real name was given, otherwise "Hi," — never "Hey there,"
+2. {{GREETING_CHECK}}
 3. {{STRUCTURE_CHECK}}
 4. Contains none of: "hope this finds you well", "just checking in", "touching base", "circling back", "I wanted to reach out", "I'd love to connect", "don't hesitate to reach out"
 5. Contains none of: "automated SMS", "AI voice call", "30-second response", "follow-up sequence", "Meta ads", "done-for-you system", "our system", "our platform", "our process", "we built"
@@ -307,6 +307,11 @@ export async function checkEmailQuality(input: EmailQualityInput): Promise<Email
 
   const client = new Anthropic({ apiKey });
 
+  const greetingCheck = input.fixedTemplateNoCta
+    ? `Not applicable — this is a fixed, pre-approved template whose opening line is Lucky's own locked wording, which does not always start with a standalone greeting (the no-name variant opens straight into the pitch with no greeting at all, and the with-name variant blends "Hey [Name]," into the first sentence rather than giving it its own line). Never fail this check for a fixed template's greeting shape.`
+    : input.meetingAlreadyBooked
+    ? `The first <p> is a real name greeting, "Hey [Name],"`
+    : `The first <p> in the body is a greeting only: "Hey [Name]," if a real name was given, otherwise "Hi," — never "Hey there,"`;
   const ctaCheck = input.fixedTemplateNoCta
     ? "Not applicable — this is a fixed, pre-approved template that deliberately ends on a plain question with no CTA link, booking link, or case-studies link anywhere in it. Never fail this check for a missing CTA here."
     : input.meetingAlreadyBooked
@@ -327,6 +332,7 @@ export async function checkEmailQuality(input: EmailQualityInput): Promise<Email
     ? `Not applicable — this is a fixed-format meeting confirmation (greeting, meeting time + link, one paragraph on their specific situation, then the fixed logistics line), not a length-flexible follow-up. Never fail this check for a meeting-confirmation email's length.`
     : "Length in range: initial email 4-6 sentences, follow-ups 2-4 sentences";
   const system = QUALITY_CHECK_SYSTEM_PROMPT
+    .replace("{{GREETING_CHECK}}", greetingCheck)
     .replace("{{CTA_CHECK}}", ctaCheck)
     .replace("{{STRUCTURE_CHECK}}", structureCheck)
     .replace("{{LENGTH_CHECK}}", lengthCheck)
