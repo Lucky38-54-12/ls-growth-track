@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY is not configured." }, { status: 500 });
   }
 
-  const prompt = `Lucky just tried calling a business and jotted down a quick, messy note (e.g. the owner was out, no answer, call back later). Read it and return JSON with:
+  const prompt = `Lucky just made a cold call and jotted down a quick, messy note about it (could be anything — the owner was out, no answer, an objection they raised, a next step, general context worth remembering). Read it and return JSON with:
 - "company": the business name if mentioned, otherwise ""
 - "contact_name": the person's first name if mentioned, otherwise ""
 - "summary": one short sentence (max 15 words) capturing what happened and any next step (e.g. call back time). No punctuation at the end.

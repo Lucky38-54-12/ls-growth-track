@@ -342,9 +342,9 @@ export default function ColdCallPage() {
           </form>
 
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
-            <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Owner not available?</div>
+            <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Cold call notes</div>
             <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
-              No email to send yet — just jot down what happened. We'll pull out the business name, summarise it, and add them to the pipeline.
+              No email to send yet — just jot down anything worth saving. We'll pull out the business name, summarise it, and add them to the pipeline.
             </p>
             {noteError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, marginBottom: 12, fontSize: 13 }}>{noteError}</div>}
             <form onSubmit={handleSaveNoteOnly}>
@@ -352,7 +352,7 @@ export default function ColdCallPage() {
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
                 rows={8}
-                placeholder="e.g. Called Acme Plumbing, owner was out on a job — call back Thursday afternoon."
+                placeholder="e.g. Called Acme Plumbing, owner was out on a job — call back Thursday afternoon. Or any other note worth saving from the call."
                 style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 16 }}
               />
               <button
