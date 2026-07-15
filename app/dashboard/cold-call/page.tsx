@@ -40,6 +40,12 @@ export default function ColdCallPage() {
   const [recentlyEmailed, setRecentlyEmailed] = useState<Lead[]>([]);
   const [heldChecks, setHeldChecks] = useState<EmailCheck[]>([]);
 
+  const [noteCompany, setNoteCompany] = useState("");
+  const [noteContactName, setNoteContactName] = useState("");
+  const [noteText, setNoteText] = useState("");
+  const [noteLoading, setNoteLoading] = useState(false);
+  const [noteError, setNoteError] = useState("");
+
   useEffect(() => {
     fetch("/api/leads")
       .then(res => res.json())
@@ -174,6 +180,35 @@ export default function ColdCallPage() {
     router.push(`/dashboard?flash=${encodeURIComponent(parts.join(" "))}`);
   }
 
+  async function handleSaveNoteOnly(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!noteCompany.trim() || !noteText.trim()) {
+      setNoteError("Add a company name and a note before saving.");
+      return;
+    }
+    setNoteLoading(true);
+    setNoteError("");
+
+    const today = new Date().toISOString().split("T")[0];
+    const entry = `[${today} call] ${noteText.trim()}`;
+
+    const res = await fetch("/api/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        company: noteCompany,
+        contact_name: noteContactName,
+        notes: entry,
+        source: "cold_call",
+      }),
+    });
+    const data = await res.json();
+    setNoteLoading(false);
+    if (data.error) { setNoteError(data.error); return; }
+
+    router.push(`/dashboard?flash=${encodeURIComponent(`Saved a note for ${data.lead.company} and added them to the pipeline.`)}`);
+  }
+
   return (
     <div>
       <Topbar title="COLD CALL" subtitle="Paste your notes, generate a follow-up email, and send it now" />
@@ -229,6 +264,41 @@ export default function ColdCallPage() {
               >
                 {generating ? "Generating…" : "Generate email from notes"}
               </button>
+            </div>
+
+            <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
+              <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Owner not available?</div>
+              <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
+                No email to send yet — just save a note and get them into the pipeline so you remember to follow up.
+              </p>
+              {noteError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, marginBottom: 12, fontSize: 13 }}>{noteError}</div>}
+              <form onSubmit={handleSaveNoteOnly}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <label>Company</label>
+                    <input value={noteCompany} onChange={(e) => setNoteCompany(e.target.value)} placeholder="e.g. Acme Plumbing" />
+                  </div>
+                  <div>
+                    <label>Contact first name</label>
+                    <input value={noteContactName} onChange={(e) => setNoteContactName(e.target.value)} placeholder="optional" />
+                  </div>
+                </div>
+                <textarea
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Called, owner was out on a job — call back Thursday afternoon."
+                  style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 12 }}
+                />
+                <button
+                  type="submit"
+                  disabled={noteLoading}
+                  className="btn-lift"
+                  style={{ display: "inline-block", padding: "10px 20px", background: noteLoading ? "#f1f5f9" : "#f8fafc", color: L.text, border: `1px solid ${L.border}`, borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: noteLoading ? "default" : "pointer" }}
+                >
+                  {noteLoading ? "Saving…" : "Save note & add to pipeline"}
+                </button>
+              </form>
             </div>
 
             {generated && (

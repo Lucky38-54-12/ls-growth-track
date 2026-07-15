@@ -16,12 +16,16 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const today = new Date().toISOString().split("T")[0];
 
-  const { data: existingLead } = await sb.from("leads").select("*").eq("email", (body.email as string).toLowerCase()).maybeSingle();
-  if (existingLead) {
-    // source is set once at creation and never changed by a later POST —
-    // otherwise cold-calling an email that was originally imported as
-    // email_outreach silently reclassifies it into the Cold Call pipeline.
-    return NextResponse.json({ lead: existingLead, emailError: null });
+  const email = body.email ? (body.email as string).toLowerCase() : "";
+
+  if (email) {
+    const { data: existingLead } = await sb.from("leads").select("*").eq("email", email).maybeSingle();
+    if (existingLead) {
+      // source is set once at creation and never changed by a later POST —
+      // otherwise cold-calling an email that was originally imported as
+      // email_outreach silently reclassifies it into the Cold Call pipeline.
+      return NextResponse.json({ lead: existingLead, emailError: null });
+    }
   }
 
   const existing = await fetchAllRows<{ lead_id: string }>((from, to) => sb.from("leads").select("lead_id").range(from, to));
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
     lead_id: leadId,
     company: body.company,
     contact_name: body.contact_name || "there",
-    email: (body.email as string).toLowerCase(),
+    email,
     trade: body.trade || "",
     location: body.location || "",
     status: body.source === "cold_call" ? "called" : "not_contacted",
