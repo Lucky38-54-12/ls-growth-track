@@ -5,6 +5,7 @@ export interface Note {
   text: string;
   reminderTime: string;
   createdAt: number;
+  pushedToPipeline?: boolean;
 }
 
 // Shared with components/DailyNotes.tsx so other pages (e.g. the cold-call

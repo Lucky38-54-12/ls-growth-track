@@ -7,6 +7,7 @@ import { Lead, EmailCheck } from "@/lib/types";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { addNoteToStorage } from "@/lib/notesStore";
+import { pushNoteToPipeline } from "@/lib/quickNote";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -188,40 +189,13 @@ export default function ColdCallPage() {
     setNoteLoading(true);
     setNoteError("");
 
-    const quickRes = await fetch("/api/leads/quick-note", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: noteText }),
-    });
-    const quickData = await quickRes.json();
-    if (quickData.error) { setNoteLoading(false); setNoteError(quickData.error); return; }
+    const result = await pushNoteToPipeline(noteText);
+    if (!result.ok) { setNoteLoading(false); setNoteError(result.error); return; }
 
-    const res = await fetch("/api/leads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        company: quickData.company,
-        contact_name: quickData.contact_name,
-        source: "cold_call",
-      }),
-    });
-    const data = await res.json();
-    if (data.error) { setNoteLoading(false); setNoteError(data.error); return; }
-
-    // Append via the followup endpoint (not embedded in the create call above)
-    // so a repeat note about the same business — which dedupes to the same
-    // lead by company name since there's no email yet — stacks onto the
-    // existing note history instead of only ever landing on first creation.
-    await fetch(`/api/leads/${data.lead.lead_id}/followup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ callNotes: quickData.summary }),
-    });
-
-    addNoteToStorage(`${data.lead.company}: ${quickData.summary}`);
+    addNoteToStorage(`${result.company}: ${noteText.trim()}`);
     setNoteLoading(false);
 
-    router.push(`/dashboard?flash=${encodeURIComponent(`Saved a note for ${data.lead.company} and added them to the pipeline.`)}`);
+    router.push(`/dashboard?flash=${encodeURIComponent(`Saved a note for ${result.company} and added them to the pipeline.`)}`);
   }
 
   return (

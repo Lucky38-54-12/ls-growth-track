@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { StickyNote, Bell, BellRing, Plus, X } from "lucide-react";
+import { StickyNote, Bell, BellRing, Plus, X, PhoneCall, Check } from "lucide-react";
 import { NOTES_KEY, Note } from "@/lib/notesStore";
+import { pushNoteToPipeline } from "@/lib/quickNote";
 
 const L = { border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dim: "#94a3b8" };
 
@@ -18,6 +19,8 @@ export default function DailyNotes() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [draft, setDraft] = useState("");
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [pushingId, setPushingId] = useState<string | null>(null);
+  const [pushError, setPushError] = useState<string | null>(null);
   const firedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -70,6 +73,15 @@ export default function DailyNotes() {
     setPermission(result);
   }
 
+  async function handlePushToPipeline(note: Note) {
+    setPushingId(note.id);
+    setPushError(null);
+    const result = await pushNoteToPipeline(note.text);
+    setPushingId(null);
+    if (!result.ok) { setPushError(result.error); return; }
+    persist(notes.map(n => (n.id === note.id ? { ...n, pushedToPipeline: true } : n)));
+  }
+
   return (
     <div className="surface-card" style={{ overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
@@ -109,6 +121,8 @@ export default function DailyNotes() {
           </button>
         </div>
 
+        {pushError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "8px 12px", fontSize: 12.5 }}>{pushError}</div>}
+
         {notes.length === 0 ? (
           <p style={{ fontSize: 12.5, color: L.dim }}>No notes yet — add one above.</p>
         ) : (
@@ -119,7 +133,7 @@ export default function DailyNotes() {
                 <div
                   key={note.id}
                   style={{
-                    width: 190, minHeight: 130, padding: "12px 14px", background: color.bg, border: `1px solid ${color.border}`,
+                    width: 190, minHeight: 160, padding: "12px 14px", background: color.bg, border: `1px solid ${color.border}`,
                     boxShadow: "0 2px 6px rgba(15,23,42,0.08)", display: "flex", flexDirection: "column", gap: 8,
                     transform: `rotate(${(i % 2 === 0 ? -1 : 1) * 1.5}deg)`,
                   }}
@@ -133,6 +147,23 @@ export default function DailyNotes() {
                     </button>
                   </div>
                   <p style={{ fontSize: 13, color: L.text, lineHeight: 1.5, flex: 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{note.text}</p>
+                  {note.pushedToPipeline ? (
+                    <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, color: "#166534" }}>
+                      <Check style={{ width: 11, height: 11 }} /> In pipeline
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handlePushToPipeline(note)}
+                      disabled={pushingId === note.id}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700,
+                        color: "#7c3aed", background: "rgba(255,255,255,0.6)", border: `1px solid ${color.border}`,
+                        padding: "4px 8px", cursor: pushingId === note.id ? "default" : "pointer",
+                      }}
+                    >
+                      <PhoneCall style={{ width: 11, height: 11 }} /> {pushingId === note.id ? "Adding…" : "Add to pipeline"}
+                    </button>
+                  )}
                   <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                     {note.reminderTime ? <BellRing style={{ width: 12, height: 12, color: "#b45309", flexShrink: 0 }} /> : <Bell style={{ width: 12, height: 12, color: "rgba(15,23,42,0.35)", flexShrink: 0 }} />}
                     <input
