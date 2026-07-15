@@ -26,6 +26,23 @@ export async function POST(req: NextRequest) {
       // email_outreach silently reclassifies it into the Cold Call pipeline.
       return NextResponse.json({ lead: existingLead, emailError: null });
     }
+  } else if (body.source === "cold_call" && body.company?.trim()) {
+    // No email on file yet (e.g. quick note logged while the owner was out) —
+    // dedupe by company name instead, but only against other email-less
+    // cold-call leads, so a second call about the same business appends to
+    // the same lead instead of spawning a duplicate card. Never merges into
+    // a lead that already has a real email — that one's already progressed
+    // further than a bare note.
+    const { data: existingLead } = await sb
+      .from("leads")
+      .select("*")
+      .eq("source", "cold_call")
+      .eq("email", "")
+      .ilike("company", body.company.trim())
+      .maybeSingle();
+    if (existingLead) {
+      return NextResponse.json({ lead: existingLead, emailError: null });
+    }
   }
 
   const existing = await fetchAllRows<{ lead_id: string }>((from, to) => sb.from("leads").select("lead_id").range(from, to));

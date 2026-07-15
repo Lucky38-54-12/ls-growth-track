@@ -195,22 +195,28 @@ export default function ColdCallPage() {
     const quickData = await quickRes.json();
     if (quickData.error) { setNoteLoading(false); setNoteError(quickData.error); return; }
 
-    const today = new Date().toISOString().split("T")[0];
-    const entry = `[${today} call] ${quickData.summary}`;
-
     const res = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         company: quickData.company,
         contact_name: quickData.contact_name,
-        notes: entry,
         source: "cold_call",
       }),
     });
     const data = await res.json();
+    if (data.error) { setNoteLoading(false); setNoteError(data.error); return; }
+
+    // Append via the followup endpoint (not embedded in the create call above)
+    // so a repeat note about the same business — which dedupes to the same
+    // lead by company name since there's no email yet — stacks onto the
+    // existing note history instead of only ever landing on first creation.
+    await fetch(`/api/leads/${data.lead.lead_id}/followup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callNotes: quickData.summary }),
+    });
     setNoteLoading(false);
-    if (data.error) { setNoteError(data.error); return; }
 
     router.push(`/dashboard?flash=${encodeURIComponent(`Saved a note for ${data.lead.company} and added them to the pipeline.`)}`);
   }

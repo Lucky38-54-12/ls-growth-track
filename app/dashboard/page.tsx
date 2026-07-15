@@ -16,6 +16,7 @@ export const revalidate = 0;
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
 const COLD_CALL_COLUMNS: { key: string; label: string }[] = [
+  { key: "called", label: "Called, Not Yet Emailed" },
   { key: "contacted", label: "Email Sent" },
   { key: "thinking_about_it", label: "Thinking About It" },
   { key: "booked", label: "Meeting Booked" },
