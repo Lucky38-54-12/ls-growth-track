@@ -89,7 +89,7 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
   // row and book a duplicate calendar event for the same conversation.
   const alreadyClosed = conversation.status !== "active";
   if (alreadyClosed) {
-    const postClose = await runPostCloseTurn(config, history);
+    const postClose = await runPostCloseTurn(config, userMessage);
     if (postClose.reply_text) {
       await sb.from("lq_messages").insert({
         conversation_id: conversation.id,

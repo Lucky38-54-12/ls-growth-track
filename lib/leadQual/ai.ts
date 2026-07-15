@@ -91,7 +91,7 @@ function buildPostCloseSystemPrompt(config: ClientConfigData): string {
     ? config.faqs.map((f) => `Q: ${f.question}\nA: ${f.answer}`).join("\n\n")
     : "(none provided)";
 
-  return `You are texting back on behalf of ${config.businessName}, a ${config.description || "local trade business"}. The qualifying conversation with this lead already finished — you already confirmed the job and either locked in a quote-visit time or offered to call them. Don't re-introduce yourself, don't say "hi"/"hey"/"hello" like this is a new conversation, and don't re-ask about job type, location, or timeline — that's already settled.
+  return `You are texting back on behalf of ${config.businessName}, a ${config.description || "local trade business"}. The qualifying conversation with this lead already finished — you already confirmed the job and told them a team member will call back. Don't re-introduce yourself, don't say "hi"/"hey"/"hello", and don't ask about job type, location, timeline, quote-visit times, or email — that's all already settled, you are only ever answering one isolated follow-up message below, nothing more.
 
 Services offered: ${config.services.join(", ") || "(not specified)"}
 Service areas: ${config.serviceAreas.join(", ") || "(not specified)"}
@@ -100,8 +100,8 @@ Frequently asked questions you can answer directly:
 ${faqBlock}
 ${config.websiteContent ? `\nBackground pulled from the business's own website — use this for real specifics but never quote it verbatim or mention "the website":\n${config.websiteContent}\n` : ""}${config.extraContext ? `\nAdditional context from the business owner:\n${config.extraContext}\n` : ""}
 
-The lead just sent another message. Decide:
-- If it's a genuine question you can answer from the info above (pricing questions still get no number — say a team member will confirm that when they call/visit), reply briefly and naturally in the same warm texting voice, 1-2 sentences. Never use a dash (either "-" or "—") in the reply — use full stops or commas, or start a new sentence instead.
+The lead's message is below, given to you in isolation with no other conversation history on purpose — do not imagine or infer what earlier turns might have asked, and never fall back into asking qualifying questions no matter what. Decide:
+- If it's a genuine question you can answer from the info above (pricing questions still get no number — say a team member will confirm that when they call), reply briefly and naturally in the same warm texting voice, 1-2 sentences. Never use a dash (either "-" or "—") in the reply — use full stops or commas, or start a new sentence instead.
 - If it's not really a question — just an acknowledgment like "ok thanks", "sounds good", "👍" — respond with exactly the text ${NO_REPLY_NEEDED} and nothing else, so nothing gets sent back. Don't manufacture a reason to keep chatting.
 - Never invent details, prices, or availability you don't actually know.
 
@@ -112,16 +112,21 @@ export interface PostCloseTurnResult {
   reply_text: string | null;
 }
 
-export async function runPostCloseTurn(config: ClientConfigData, history: ConversationTurn[]): Promise<PostCloseTurnResult> {
+export async function runPostCloseTurn(config: ClientConfigData, latestUserMessage: string): Promise<PostCloseTurnResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
 
+  // Deliberately does NOT receive the full conversation history: a long,
+  // heavily-patterned transcript (e.g. repeated manual testing of the same
+  // qualifying script) can pull the model back into repeating that pattern
+  // even against explicit system-prompt instructions not to. Each post-close
+  // reply is judged in isolation instead.
   const client = new Anthropic({ apiKey });
   const response = await client.messages.create({
     model: "claude-sonnet-4-5",
     max_tokens: 300,
     system: buildPostCloseSystemPrompt(config),
-    messages: history.map((turn) => ({ role: turn.role, content: turn.content })),
+    messages: [{ role: "user", content: latestUserMessage }],
   });
 
   const textBlock = response.content.find((b) => b.type === "text");
