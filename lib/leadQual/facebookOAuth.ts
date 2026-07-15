@@ -15,6 +15,10 @@ export function buildFacebookAuthUrl(clientId: string): string {
     redirect_uri: getRedirectUri(),
     state: clientId,
     scope: "pages_show_list,pages_messaging,pages_manage_metadata",
+    // Without this, Facebook silently reuses whatever scopes were granted
+    // last time and skips the consent screen — so a page that was connected
+    // without pages_messaging stays stuck without it on every reconnect.
+    auth_type: "rerequest",
   });
   return `https://www.facebook.com/v20.0/dialog/oauth?${params.toString()}`;
 }
