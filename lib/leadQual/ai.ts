@@ -19,6 +19,20 @@ export interface QualifyingTurnResult {
   next_action: "continue" | "ready_for_qualification" | "needs_human";
 }
 
+// Backstop for the "no dashes" voice rule — the prompt already instructs this,
+// but a deterministic pass guarantees it instead of relying on the model to
+// always comply. Only touches dashes used as punctuation (surrounded by
+// spaces, or a standalone em dash), not real hyphenated words.
+function stripDashes(text: string): string {
+  return text
+    .replace(/\s+—\s+/g, ". ")
+    .replace(/—/g, ",")
+    .replace(/\s+-\s+/g, ". ")
+    .replace(/\.\s*\./g, ".")
+    .replace(/\.\s+([a-z])/g, (_, letter) => `. ${letter.toUpperCase()}`)
+    .trim();
+}
+
 function parseJsonResponse<T>(text: string): T {
   const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
   try {
@@ -133,7 +147,7 @@ export async function runPostCloseTurn(config: ClientConfigData, latestUserMessa
   if (!textBlock || textBlock.type !== "text") throw new Error("No text response from Claude");
 
   const reply = textBlock.text.trim();
-  return { reply_text: reply === NO_REPLY_NEEDED ? null : reply };
+  return { reply_text: reply === NO_REPLY_NEEDED ? null : stripDashes(reply) };
 }
 
 export async function runQualifyingTurn(
@@ -155,13 +169,14 @@ export async function runQualifyingTurn(
   if (!textBlock || textBlock.type !== "text") throw new Error("No text response from Claude");
 
   try {
-    return parseJsonResponse<QualifyingTurnResult>(textBlock.text);
+    const parsed = parseJsonResponse<QualifyingTurnResult>(textBlock.text);
+    return { ...parsed, reply_text: stripDashes(parsed.reply_text) };
   } catch {
     // Claude occasionally forgets the JSON wrapper despite instructions —
     // treating the raw reply as plain text keeps the customer's message
     // answered instead of silently dropping this turn. next_action:
     // "continue" is safe here since we can't trust extracted_fields from an
     // unstructured response; the next turn's structured extraction catches up.
-    return { reply_text: textBlock.text.trim(), extracted_fields: {}, confidence: 0, next_action: "continue" };
+    return { reply_text: stripDashes(textBlock.text.trim()), extracted_fields: {}, confidence: 0, next_action: "continue" };
   }
 }
