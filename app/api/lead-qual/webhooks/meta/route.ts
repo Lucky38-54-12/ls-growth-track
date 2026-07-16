@@ -20,7 +20,18 @@ export async function GET(request: NextRequest) {
 interface MessengerEvent {
   sender: { id: string };
   recipient: { id: string };
-  message?: { mid: string; text?: string };
+  message?: { mid: string; text?: string; is_echo?: boolean; app_id?: number };
+}
+
+// Messages we send via sendMessengerReply() come back through the webhook as
+// echoes tagged with our own app_id — those are just confirmation, not new
+// information. An echo with no app_id (or a different one) was sent by a
+// human typing directly into the Page's Messenger inbox, i.e. a staff member
+// has taken over the conversation and the AI needs to back off.
+function isHumanStaffEcho(event: MessengerEvent): boolean {
+  if (!event.message?.is_echo) return false;
+  const ourAppId = process.env.META_APP_ID;
+  return String(event.message.app_id || "") !== ourAppId;
 }
 
 // Meta retries a webhook on any non-2xx or slow response, so every event
@@ -47,6 +58,39 @@ export async function POST(request: NextRequest) {
       const text = event.message?.text;
       if (!text) continue; // skip delivery/read receipts, attachments, etc. for now
       if (event.message?.mid && (await alreadyProcessed(event.message.mid))) continue;
+
+      // Echoes of our own AI-sent replies carry our app_id and need no
+      // action — they're just Meta confirming delivery of a message we
+      // already logged when runTurn() generated it.
+      if (event.message?.is_echo && !isHumanStaffEcho(event)) continue;
+
+      if (isHumanStaffEcho(event)) {
+        // A staff member replied directly in the Page inbox: sender is the
+        // Page, recipient is the lead (opposite of a normal inbound message).
+        const channel = await resolveChannelByPageId(event.sender.id);
+        if (!channel) continue;
+
+        const sb = createSupabaseClient();
+        const { data: existing } = await sb
+          .from("lq_conversations")
+          .select("id")
+          .eq("client_id", channel.clientId)
+          .eq("channel_id", channel.channelId)
+          .contains("contact", { psid: event.recipient.id })
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!existing) continue; // human messaged a lead with no AI conversation on record
+
+        await sb.from("lq_messages").insert({
+          conversation_id: existing.id,
+          role: "staff",
+          content: text,
+          meta_message_id: event.message?.mid || null,
+        });
+        await sb.from("lq_conversations").update({ paused_at: new Date().toISOString() }).eq("id", existing.id);
+        continue;
+      }
 
       const channel = await resolveChannelByPageId(event.recipient.id);
       if (!channel) continue; // page not connected to any client — nothing to do

@@ -36,6 +36,7 @@ async function loadClientConfig(clientId: string): Promise<{ config: ClientConfi
   const businessInfo = (configRow?.business_info as Record<string, unknown>) || {};
   const config: ClientConfigData = {
     businessName: client?.name || "the business",
+    trade: client?.trade,
     description: (businessInfo.description as string) || client?.trade || "",
     services: (configRow?.services as string[]) || [],
     serviceAreas: (configRow?.service_areas as string[]) || [],
@@ -69,6 +70,18 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
   if (!conversation) throw new Error("Conversation not found");
 
   await sb.from("lq_messages").insert({ conversation_id: conversation.id, role: "user", content: userMessage, meta_message_id: metaMessageId || null });
+
+  // A staff member has taken this conversation over directly in the Page
+  // inbox — the AI stays silent and just keeps logging inbound messages so
+  // the human has full context, until someone clears paused_at manually.
+  if (conversation.paused_at) {
+    return {
+      conversationId: conversation.id,
+      reply: null,
+      status: conversation.status,
+      extractedFields: conversation.extracted_fields as Record<string, unknown>,
+    };
+  }
 
   const { data: priorMessages } = await sb
     .from("lq_messages")

@@ -42,7 +42,7 @@ export async function resolveChannelByPageId(pageId: string): Promise<ResolvedCh
 // developer console ("Add Subscriptions") for every new client.
 async function subscribeWebhookForPage(pageId: string, pageAccessToken: string): Promise<void> {
   const res = await fetch(
-    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins&access_token=${encodeURIComponent(pageAccessToken)}`,
+    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins,message_echoes&access_token=${encodeURIComponent(pageAccessToken)}`,
     { method: "POST" }
   );
   if (!res.ok) {

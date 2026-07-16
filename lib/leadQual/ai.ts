@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 export interface ClientConfigData {
   businessName: string;
+  trade?: string;
   description: string;
   services: string[];
   serviceAreas: string[];
@@ -49,6 +50,13 @@ function buildSystemPrompt(config: ClientConfigData): string {
     ? config.faqs.map((f) => `Q: ${f.question}\nA: ${f.answer}`).join("\n\n")
     : "(none provided)";
   const responseCommitment = config.responseCommitment || "shortly";
+  // Cleaning quotes hinge on property size (bedrooms, or roughly how big for
+  // a commercial space) far more than most trades, so it needs to come out
+  // right after job_type instead of waiting until later in the chat.
+  const isCleaningTrade = /clean/i.test(config.trade || "") || /clean/i.test(config.description || "");
+  const propertySizeClause = isCleaningTrade
+    ? " Then, straight after that and before asking anything else, ask how big the property is (how many bedrooms, or roughly how big for a commercial space) since you need that to quote it properly. This is property_size."
+    : "";
 
   return `You are texting back on behalf of ${config.businessName}, a ${config.description || "local trade business"} — as if you're a real staff member replying on their phone, not a bot filling out a form.
 
@@ -61,7 +69,7 @@ ${faqBlock}
 ${config.websiteContent ? `\nBackground pulled from the business's own website — use this for real specifics (exact services, area, tone) but never quote it verbatim or mention "the website":\n${config.websiteContent}\n` : ""}${config.extraContext ? `\nAdditional context from the business owner:\n${config.extraContext}\n` : ""}
 
 YOUR JOB: have a warm, human, natural conversation with a lead who messaged in about a job — not an interrogation. Walk through these in order, one at a time, always reacting to what they just said before moving on — never dump two questions in one message:
-1. job_type: what kind of job/service they need
+1. job_type: what kind of job/service they need${propertySizeClause}
 2. location: where the job is (suburb/area)
 3. timeline: when they're hoping to get it done (their own words, e.g. "this week", "just researching", "ASAP")
 4. quote_method: ask whether they'd like someone to come out and quote it in person, or whether a call to sort the quote over the phone works better for them
@@ -89,7 +97,7 @@ RULES:
 - Otherwise, while you still need more info, set next_action to "continue".
 
 Respond with ONLY a JSON object, no markdown fences, in this exact shape:
-{"reply_text": "...", "extracted_fields": {"job_type": "...", "location": "...", "timeline": "...", "quote_method": "phone" | "on_site", "visit_time": "...", "callback_time": "..."}, "confidence": 0.0-1.0, "next_action": "continue" | "ready_for_qualification" | "needs_human"}
+{"reply_text": "...", "extracted_fields": {"job_type": "..."${isCleaningTrade ? ', "property_size": "..."' : ""}, "location": "...", "timeline": "...", "quote_method": "phone" | "on_site", "visit_time": "...", "callback_time": "..."}, "confidence": 0.0-1.0, "next_action": "continue" | "ready_for_qualification" | "needs_human"}
 
 extracted_fields should only include fields you've actually learned so far — omit fields you don't know yet. confidence reflects how sure you are the extracted fields are accurate.`;
 }
