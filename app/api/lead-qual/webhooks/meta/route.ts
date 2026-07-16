@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = JSON.parse(rawBody);
+  console.log("lead-qual meta webhook payload", JSON.stringify(payload));
   if (payload.object !== "page") return NextResponse.json({ ok: true });
 
   for (const entry of payload.entry || []) {
