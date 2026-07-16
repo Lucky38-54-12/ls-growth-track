@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles, Clock, Search } from "lucide-react";
+import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles, Clock, Search, Copy, Check } from "lucide-react";
 import FollowUpModal from "@/components/FollowUpModal";
 import { Lead, EngagementSummary } from "@/lib/types";
 import { nextStepFor } from "@/lib/leads";
@@ -57,7 +57,43 @@ function LeadCard({
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [findingDetails, setFindingDetails] = useState(false);
   const [findResult, setFindResult] = useState<string | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const missingDetails = !lead.phone || !lead.email || !lead.website || !lead.contact_name || lead.contact_name === "there";
+
+  function copyToClipboard(e: React.MouseEvent, field: string, value: string) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField((f) => (f === field ? null : f)), 1500);
+  }
+
+  function copyAllDetails(e: React.MouseEvent) {
+    const lines = [
+      lead.company,
+      lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : null,
+      lead.phone,
+      lead.email,
+      lead.website,
+      lead.location,
+    ].filter(Boolean);
+    copyToClipboard(e, "all", lines.join("\n"));
+  }
+
+  function CopyIcon({ field, value }: { field: string; value: string }) {
+    return (
+      <button
+        onClick={(e) => copyToClipboard(e, field, value)}
+        title="Copy"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          width: 18, height: 18, marginLeft: "auto", background: "none", border: "none", cursor: "pointer",
+          color: copiedField === field ? "var(--green)" : L.dimmed,
+        }}
+      >
+        {copiedField === field ? <Check style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
+      </button>
+    );
+  }
 
   async function handleFindDetails(e: React.MouseEvent) {
     e.stopPropagation();
@@ -122,6 +158,17 @@ function LeadCard({
 
       {expanded && (
         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${L.border}`, display: "flex", flexDirection: "column", gap: 6 }}>
+          <button
+            onClick={copyAllDetails}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700,
+              color: copiedField === "all" ? "var(--green)" : L.muted, background: "#f8fafc", border: `1px solid ${L.border}`,
+              padding: "5px 9px", cursor: "pointer", alignSelf: "flex-end",
+            }}
+          >
+            {copiedField === "all" ? <Check style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
+            {copiedField === "all" ? "Copied" : "Copy details"}
+          </button>
           {(statusLabel || meetingTime) && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {statusLabel && (
@@ -138,16 +185,21 @@ function LeadCard({
             </div>
           )}
           {lead.contact_name && lead.contact_name !== "there" && (
-            <div style={{ fontSize: 12, color: L.text, fontWeight: 600 }}>{lead.contact_name}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: L.text, fontWeight: 600 }}>
+              {lead.contact_name}
+              <CopyIcon field="name" value={lead.contact_name} />
+            </div>
           )}
           {lead.email && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: L.muted }}>
               <Mail style={{ width: 11, height: 11, flexShrink: 0 }} /> <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{lead.email}</span>
+              <CopyIcon field="email" value={lead.email} />
             </div>
           )}
           {lead.phone && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: L.muted }}>
               <Phone style={{ width: 11, height: 11, flexShrink: 0 }} /> {lead.phone}
+              <CopyIcon field="phone" value={lead.phone} />
             </div>
           )}
           {lead.website && (
