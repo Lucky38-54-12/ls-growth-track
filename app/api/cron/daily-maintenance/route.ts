@@ -9,6 +9,8 @@ import { dispatchDueNurtureEmails } from "@/lib/leadQual/nurtureEmail";
 import { escalateStaleReplies } from "@/lib/staleReplies";
 import { sendDueProposalFollowups } from "@/lib/proposalFollowup";
 import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
+import { checkMessengerChannelHealth } from "@/lib/leadQual/meta";
+import { notifySlack } from "@/lib/slackNotify";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +87,20 @@ export async function GET(req: NextRequest) {
     results.weeklyDigest = await sendWeeklyDigestIfDue(sb);
   } catch (e) {
     results.weeklyDigest = { error: e instanceof Error ? e.message : "weekly digest failed" };
+  }
+
+  try {
+    const deadChannels = await checkMessengerChannelHealth();
+    results.messengerHealth = { deadChannels };
+    if (deadChannels.length > 0) {
+      await notifySlack(
+        `🔴 Lead-qual Messenger connection dead for ${deadChannels.length} client(s) — leads are not getting replies right now:\n` +
+        deadChannels.map((d) => `• *${d.clientName}* (page ${d.pageId}): ${d.reason}`).join("\n") +
+        `\nReconnect from /dashboard/lead-qual.`
+      );
+    }
+  } catch (e) {
+    results.messengerHealth = { error: e instanceof Error ? e.message : "messenger health check failed" };
   }
 
   return NextResponse.json(results);

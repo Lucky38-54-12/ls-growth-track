@@ -78,3 +78,52 @@ export async function sendMessengerReply(pageAccessToken: string, recipientPsid:
     throw new Error(`Messenger send failed: ${res.status} ${body}`);
   }
 }
+
+export interface DeadChannel {
+  clientName: string;
+  pageId: string;
+  reason: string;
+}
+
+// A dead page token fails silently from the outside — Messenger just stops
+// replying, with nothing in the logs pointing at "reconnect this page" (this
+// exact failure mode cost real Shine Cleans / Queenstown Cleaning traffic
+// before it was caught manually). Checking token validity daily via Meta's
+// own debug_token endpoint turns that into a same-day Slack alert instead.
+export async function checkMessengerChannelHealth(): Promise<DeadChannel[]> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) throw new Error("META_APP_ID / META_APP_SECRET env vars are not set");
+
+  const sb = createSupabaseClient();
+  const { data: channels } = await sb
+    .from("lq_channels")
+    .select("external_page_id, credentials, lq_clients(name)")
+    .eq("type", "messenger");
+
+  const dead: DeadChannel[] = [];
+  for (const channel of channels || []) {
+    const clientName = (channel.lq_clients as unknown as { name: string } | null)?.name || "unknown client";
+    let token: string;
+    try {
+      token = decryptSecret(channel.credentials as unknown as Buffer);
+    } catch (e) {
+      dead.push({ clientName, pageId: channel.external_page_id, reason: `could not decrypt stored token: ${e instanceof Error ? e.message : String(e)}` });
+      continue;
+    }
+
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/debug_token?input_token=${encodeURIComponent(token)}&access_token=${appId}|${appSecret}`
+      );
+      const body = await res.json();
+      if (!res.ok || !body?.data?.is_valid) {
+        dead.push({ clientName, pageId: channel.external_page_id, reason: body?.data?.error?.message || body?.error?.message || "token reported invalid" });
+      }
+    } catch (e) {
+      dead.push({ clientName, pageId: channel.external_page_id, reason: `debug_token request failed: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  }
+
+  return dead;
+}
