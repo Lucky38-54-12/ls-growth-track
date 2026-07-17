@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { extractLeadSlots, checkEmailQuality } from "@/lib/ai";
+import { extractLeadSlots } from "@/lib/ai";
 import {
   renderInitialEmail,
   renderFollowup1Email,
@@ -13,6 +13,7 @@ import {
   renderFollowup4Email,
 } from "@/lib/emailTemplates";
 import { SSP_LINE, buildPerlLine } from "@/lib/proofPoints";
+import { checkFixedTemplateGate } from "@/lib/sendPipeline";
 import { Lead } from "@/lib/types";
 
 const SAMPLE_LEADS = 2;
@@ -50,7 +51,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
   const previews = await Promise.all(
     sample.map(async (lead) => {
-      const steps: { step: string; day: string; subject?: string; bodyHtml?: string; error?: string; notAFit?: boolean; quality?: unknown; qualityError?: string }[] = [];
+      const steps: { step: string; day: string; subject?: string; bodyHtml?: string; error?: string; notAFit?: boolean; quality?: unknown }[] = [];
 
       let initialSubject = "";
       try {
@@ -69,37 +70,38 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
         }
 
         const initial = renderInitialEmail({
-          variant: extraction.variant,
-          jobType: extraction.jobType,
-          matchedJobTypes: extraction.matchedJobTypes,
           firstName: extraction.confirmedFirstName,
+          jobType: extraction.jobType,
+          city: (lead.location || "").replace(/\s+(NZ|AU|USA|UK)$/i, "").trim() || "your area",
+          matchedJobTypes: extraction.matchedJobTypes,
+          isSolarDominant: extraction.isSolarDominant,
         });
         initialSubject = initial.subject;
-        const stepResult: { step: string; day: string; subject: string; bodyHtml: string; quality?: unknown; qualityError?: string } = { step: "initial", day: "Day 0", subject: initial.subject, bodyHtml: initial.bodyHtml };
+        const stepResult: { step: string; day: string; subject: string; bodyHtml: string; quality?: unknown } = { step: "initial", day: "Day 0", subject: initial.subject, bodyHtml: initial.bodyHtml };
         steps.push(stepResult);
-        try {
-          stepResult.quality = await checkEmailQuality({
-            subject: initial.subject, bodyHtml: initial.bodyHtml, step: "initial",
-            contactName: lead.contact_name, notes: lead.notes, website: lead.website, fixedTemplateNoCta: true,
-            researchEvidence: extraction.evidence,
-            fixedProofLine: extraction.variant === "solar" ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes),
-          });
-        } catch (e) {
-          stepResult.qualityError = e instanceof Error ? e.message : "Quality check failed";
-        }
+        stepResult.quality = checkFixedTemplateGate({
+          subject: initial.subject,
+          bodyHtml: initial.bodyHtml,
+          slots: {
+            jobType: extraction.jobType,
+            matchedJobTypes: extraction.matchedJobTypes,
+            confirmedFirstName: extraction.confirmedFirstName,
+          },
+          expectedProofLine: extraction.isSolarDominant ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes),
+        });
+
+        const followup1 = renderFollowup1Email(initialSubject);
+        const followup2 = renderFollowup2Email();
+        const followup3 = renderFollowup3Email({ businessName: lead.company, caseStudiesLink: CASE_STUDIES_URL, initialUsedSolar: extraction.isSolarDominant });
+        const followup4 = renderFollowup4Email();
+        steps.push({ step: "followup1", day: "Day 3", subject: followup1.subject, bodyHtml: followup1.bodyHtml });
+        steps.push({ step: "followup2", day: "Day 7", subject: followup2.subject, bodyHtml: followup2.bodyHtml });
+        steps.push({ step: "followup3", day: "Day 14", subject: followup3.subject, bodyHtml: followup3.bodyHtml });
+        steps.push({ step: "followup4", day: "Day 21", subject: followup4.subject, bodyHtml: followup4.bodyHtml });
       } catch (e) {
         steps.push({ step: "initial", day: "Day 0", error: e instanceof Error ? e.message : "Extraction failed" });
         return { leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, steps };
       }
-
-      const followup1 = renderFollowup1Email(initialSubject);
-      const followup2 = renderFollowup2Email();
-      const followup3 = renderFollowup3Email({ businessName: lead.company, caseStudiesLink: CASE_STUDIES_URL });
-      const followup4 = renderFollowup4Email();
-      steps.push({ step: "followup1", day: "Day 3", subject: followup1.subject, bodyHtml: followup1.bodyHtml });
-      steps.push({ step: "followup2", day: "Day 7", subject: followup2.subject, bodyHtml: followup2.bodyHtml });
-      steps.push({ step: "followup3", day: "Day 14", subject: followup3.subject, bodyHtml: followup3.bodyHtml });
-      steps.push({ step: "followup4", day: "Day 21", subject: followup4.subject, bodyHtml: followup4.bodyHtml });
 
       return { leadId: lead.lead_id, company: lead.company, contactName: lead.contact_name, steps };
     })

@@ -1,7 +1,7 @@
 import { createSupabaseClient } from "./supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "./leads";
-import { sendPersonalizedEmail, buildFinalEmailHtml } from "./email";
-import { extractLeadSlots, checkEmailQuality, checkCommonSense } from "./ai";
+import { sendPersonalizedEmail } from "./email";
+import { extractLeadSlots } from "./ai";
 import {
   renderInitialEmail,
   renderFollowup1Email,
@@ -10,7 +10,18 @@ import {
   renderFollowup4Email,
   renderCheckinEmail,
 } from "./emailTemplates";
-import { ALLOWED_CASE_STUDY_NAMES, SSP_LINE, buildPerlLine } from "./proofPoints";
+import {
+  ALLOWED_CASE_STUDY_NAMES,
+  ALLOWED_PROOF_SENTENCES,
+  GUARANTEE_LINE,
+  GUARANTEE_LINE_INITIAL,
+  GUARANTEE_LINE_FOLLOWUP1,
+  PERL_FALLBACK_LINE,
+  PERL_WHITELIST,
+  PerlJobType,
+  SSP_LINE,
+  buildPerlLine,
+} from "./proofPoints";
 import { notifySlack } from "./slackNotify";
 import { Lead } from "./types";
 
@@ -23,9 +34,16 @@ type SupabaseClient = ReturnType<typeof createSupabaseClient>;
 // real Wellington leads.
 const CASE_STUDIES_URL = "https://lsgrowth.agency";
 
-// Cheap, deterministic and free — runs on every send (fixed template or
-// not), independent of the LLM-based checkEmailQuality gate below. Scoped to
-// only the parts that actually vary per lead (the subject line — built from
+// lead.location is stored as e.g. "Auckland NZ" — the subject line reads
+// better as just the city.
+function cityFromLocation(location: string): string {
+  const trimmed = (location || "").replace(/\s+(NZ|AU|USA|UK)$/i, "").trim();
+  return trimmed || "your area";
+}
+
+// Cheap, deterministic and free — runs on every send, before the fixed-
+// template gate below. Scoped to only the parts that actually vary per lead
+// (the subject line — built from
 // an AI-extracted job type or a past approved subject), NOT the fixed
 // template prose itself: followup2's locked copy legitimately contains a
 // hyphen ("follow-up problem", see lib/emailTemplates.ts) that would
@@ -56,6 +74,86 @@ function extractQuotedLikeNames(text: string): string[] {
   return [...new Set(matches)];
 }
 
+export interface FixedTemplateGateVerdict {
+  verdict: "approved" | "rejected";
+  fails: string[];
+}
+
+// Every word of a fixed template's body is Lucky's own locked copy, already
+// verified once when he wrote it — there's nothing left for an AI reviewer
+// to judge. The only things that vary per lead are slot values already
+// validated at extraction time and a proof sentence built deterministically
+// from a fixed constant, both fully checkable in code with no ambiguity an
+// AI judgment call would resolve any better (and no AI-call latency/cost).
+// Replaces the old checkEmailQuality/checkCommonSense AI pass for the whole
+// campaign sequence — that AI gate is still used, unchanged, for genuinely
+// AI-authored emails (cold-call follow-ups, reply drafts), which are the
+// only place a free-text judgment call is actually needed. Three checks,
+// all pure string/value comparisons, no AI call:
+export function checkFixedTemplateGate(input: {
+  subject: string;
+  bodyHtml: string;
+  // Only the `initial` step has any AI-extracted slot values — every later
+  // step is fixed prose plus the lead's own company name, so this is
+  // undefined there and only checks 1 and 3 below apply.
+  slots?: {
+    jobType: string;
+    matchedJobTypes: PerlJobType[];
+    confirmedFirstName: string | null;
+  };
+  // The exact proof sentence this specific render used, if any (computed by
+  // the caller from the same matched job types the template was built
+  // from, e.g. buildPerlLine(matchedJobTypes) or SSP_LINE) — verified
+  // against proofPoints.ts below, not trusted blindly.
+  expectedProofLine?: string | null;
+}): FixedTemplateGateVerdict {
+  const fails: string[] = [];
+  const combined = `${input.subject} ${input.bodyHtml}`;
+
+  // 1. Proof match — every proof-point claim used must appear verbatim in
+  // proofPoints.ts. Detected by the presence of an allowed case-study name
+  // or a guarantee line's own wording; fails only when a claim is present
+  // but doesn't match one of the fixed sentences (plus the exact dynamic
+  // proof line this render used) word for word.
+  const mentionsProofClaim =
+    ALLOWED_CASE_STUDY_NAMES.some((name) => combined.includes(name)) ||
+    combined.includes(GUARANTEE_LINE) ||
+    combined.includes(GUARANTEE_LINE_INITIAL) ||
+    combined.includes(GUARANTEE_LINE_FOLLOWUP1);
+  if (mentionsProofClaim) {
+    const allowed =
+      input.expectedProofLine?.trim() && !(ALLOWED_PROOF_SENTENCES as readonly string[]).includes(input.expectedProofLine.trim())
+        ? [...ALLOWED_PROOF_SENTENCES, input.expectedProofLine.trim()]
+        : ALLOWED_PROOF_SENTENCES;
+    if (!allowed.some((s) => combined.includes(s))) {
+      fails.push("Proof match: body references a case study or result claim that doesn't match any sentence in proofPoints.ts verbatim.");
+    }
+  }
+
+  // 2. Slot sanity — matched job types must be on the whitelist, a confirmed
+  // name (if any) must be a plausible value, no slot left empty. Only
+  // applicable to the `initial` step. A confirmed name is optional — the
+  // template greets "Hey," either way, so there's nothing to require here
+  // beyond "if a name was confirmed, it has to look real".
+  if (input.slots) {
+    const badJobTypes = input.slots.matchedJobTypes.filter((j) => !(PERL_WHITELIST as readonly string[]).includes(j));
+    if (badJobTypes.length) fails.push(`Slot sanity: matched_job_types contains a value outside the whitelist: ${badJobTypes.join(", ")}.`);
+    if (!input.slots.jobType.trim()) fails.push("Slot sanity: job_type slot is empty.");
+    const name = input.slots.confirmedFirstName?.trim();
+    if (name && (name.length < 2 || /\d/.test(name) || name.toLowerCase() === "there")) {
+      fails.push(`Slot sanity: confirmed first name "${name}" doesn't look like a plausible name.`);
+    }
+  }
+
+  // 3. No unfilled slots — a literal, unreplaced template placeholder
+  // reaching a real inbox is always a bug, never a judgment call.
+  if (/\{\{?\s*[a-zA-Z_ ]+\s*\}?\}/.test(input.subject) || /\{\{?\s*[a-zA-Z_ ]+\s*\}?\}/.test(input.bodyHtml)) {
+    fails.push('Unfilled slot: a literal "{...}" placeholder is still present in the subject or body.');
+  }
+
+  return { verdict: fails.length === 0 ? "approved" : "rejected", fails };
+}
+
 // Shared by /api/send (manual trigger) and /api/cron (scheduled, currently
 // off) so the two never drift out of sync with each other again.
 //
@@ -81,18 +179,10 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
 
   let subject: string;
   let bodyHtml: string;
-  let researchEvidence: string | undefined;
-  let fixedProofLine: string | undefined;
-  // Only the `initial` step has any AI-extracted content (job type, matched
-  // job types, variant) — every later step is the lead's own company name
-  // plus fixed prose, already covered by deterministicSafetyCheck above.
-  // That's the only step that needs the full LLM quality gate + common-sense
-  // check; running both on every followup would just be repeatedly checking
-  // static text nobody wrote today.
-  let needsAiQualityGate = false;
+  let slots: { jobType: string; matchedJobTypes: PerlJobType[]; confirmedFirstName: string | null } | undefined;
+  let expectedProofLine: string | undefined;
 
   if (step === "initial") {
-    needsAiQualityGate = true;
     const extraction = await extractLeadSlots({
       company: lead.company,
       contactName: lead.contact_name,
@@ -121,23 +211,27 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     }
 
     ({ subject, bodyHtml } = renderInitialEmail({
-      variant: extraction.variant,
+      firstName: extraction.confirmedFirstName,
+      jobType: extraction.jobType,
+      city: cityFromLocation(lead.location),
+      matchedJobTypes: extraction.matchedJobTypes,
+      isSolarDominant: extraction.isSolarDominant,
+    }));
+    slots = {
       jobType: extraction.jobType,
       matchedJobTypes: extraction.matchedJobTypes,
-      firstName: extraction.confirmedFirstName,
-    }));
-    researchEvidence = extraction.evidence;
-    // The exact proof sentence this specific render used — solar variant
-    // always uses SSP_LINE (already in ALLOWED_PROOF_SENTENCES), every other
-    // variant uses buildPerlLine, which legitimately produces a 1-or-2
+      confirmedFirstName: extraction.confirmedFirstName,
+    };
+    // The exact proof sentence this specific render used — solar-dominant
+    // leads always use SSP_LINE (already in ALLOWED_PROOF_SENTENCES), every
+    // other lead uses buildPerlLine, which legitimately produces a 1-or-2
     // service subset that isn't literally the fixed all-three-services form
-    // the checker's static whitelist recognises.
-    fixedProofLine = extraction.variant === "solar" ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes);
+    // the static whitelist alone recognises.
+    expectedProofLine = extraction.isSolarDominant ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes);
   } else if (step === "followup1") {
     // "re: {initial subject}" needs the exact subject actually sent, not a
-    // recomputed guess — the initial's jobType/variant aren't stored
-    // anywhere else, but the subject that went out is sitting in
-    // email_sends already.
+    // recomputed guess — the initial's jobType/city aren't stored anywhere
+    // else, but the subject that went out is sitting in email_sends already.
     const { data: initialSend } = await sb
       .from("email_sends")
       .select("subject")
@@ -150,7 +244,22 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   } else if (step === "followup2") {
     ({ subject, bodyHtml } = renderFollowup2Email());
   } else if (step === "followup3") {
-    ({ subject, bodyHtml } = renderFollowup3Email({ businessName: lead.company, caseStudiesLink: CASE_STUDIES_URL }));
+    // followup3 always cites the OTHER client to whichever proof line the
+    // initial actually used — re-derived from the initial's own sent body
+    // rather than re-running extraction, since a lead's solar-dominance read
+    // could change between the initial and followup3 sends and this has to
+    // reflect what was actually sent, not what would be decided today.
+    const { data: initialSend } = await sb
+      .from("email_sends")
+      .select("body_html")
+      .eq("lead_id", lead.lead_id)
+      .eq("step", "initial")
+      .order("sent_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const initialUsedSolar = (initialSend?.body_html || "").includes(SSP_LINE);
+    ({ subject, bodyHtml } = renderFollowup3Email({ businessName: lead.company, caseStudiesLink: CASE_STUDIES_URL, initialUsedSolar }));
+    expectedProofLine = initialUsedSolar ? PERL_FALLBACK_LINE : SSP_LINE;
   } else if (step === "followup4") {
     ({ subject, bodyHtml } = renderFollowup4Email());
   } else {
@@ -177,59 +286,24 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     return { sent: false, held: true };
   }
 
-  if (needsAiQualityGate) {
-    const check = await checkEmailQuality({
-      subject,
-      bodyHtml,
-      step,
-      contactName: lead.contact_name,
-      notes: lead.notes,
-      website: lead.website,
-      fixedTemplateNoCta: true,
-      researchEvidence,
-      fixedProofLine,
-    });
-    await sb.from("email_checks").insert({
-      lead_id: lead.lead_id,
-      step,
-      subject,
-      body_html: bodyHtml,
-      verdict: check.verdict,
-      mechanical_fails: check.mechanicalFails,
-      judgment_flags: check.judgmentFlags,
-      reasoning: check.reasoning,
-      sent: check.verdict === "approved",
-    });
-    if (check.verdict === "rejected") {
-      await notifySlack(
-        `🛑 Held email for *${lead.company}* (${step}) — quality check rejected it.\n` +
-        `Reason: ${check.reasoning || check.mechanicalFails?.[0] || check.judgmentFlags?.[0] || "no reason given"}\n` +
-        `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${lead.lead_id}`
-      );
-      return { sent: false, held: true };
-    }
-
-    const { html: finalHtml } = buildFinalEmailHtml(lead, bodyHtml, step);
-    const commonSense = await checkCommonSense({ subject, bodyHtml: finalHtml, company: lead.company });
-    if (!commonSense.ok) {
-      await sb.from("email_checks").insert({
-        lead_id: lead.lead_id,
-        step,
-        subject,
-        body_html: bodyHtml,
-        verdict: "rejected",
-        mechanical_fails: [],
-        judgment_flags: [],
-        reasoning: `Common-sense check: ${commonSense.reason || "flagged, no reason given"}`,
-        sent: false,
-      });
-      await notifySlack(
-        `🛑 Held email for *${lead.company}* (${step}) — failed the common-sense check.\n` +
-        `Reason: ${commonSense.reason || "no reason given"}\n` +
-        `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${lead.lead_id}`
-      );
-      return { sent: false, held: true };
-    }
+  const gate = checkFixedTemplateGate({ subject, bodyHtml, slots, expectedProofLine });
+  await sb.from("email_checks").insert({
+    lead_id: lead.lead_id,
+    step,
+    subject,
+    body_html: bodyHtml,
+    verdict: gate.verdict,
+    mechanical_fails: gate.fails,
+    judgment_flags: [],
+    reasoning: gate.fails.join(" ") || "Passed the fixed-template gate (proof match, slot sanity, no unfilled slots).",
+    sent: gate.verdict === "approved",
+  });
+  if (gate.verdict === "rejected") {
+    await notifySlack(
+      `🛑 Held email for *${lead.company}* (${step}) — ${gate.fails.join(" ")}\n` +
+      `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${lead.lead_id}`
+    );
+    return { sent: false, held: true };
   }
 
   await sendPersonalizedEmail(lead, subject, bodyHtml, step);

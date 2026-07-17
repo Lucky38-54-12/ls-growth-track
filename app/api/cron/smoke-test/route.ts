@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractLeadSlots, checkEmailQuality, checkCommonSense } from "@/lib/ai";
+import { extractLeadSlots } from "@/lib/ai";
 import { renderInitialEmail } from "@/lib/emailTemplates";
 import { SSP_LINE, buildPerlLine } from "@/lib/proofPoints";
 import { buildFinalEmailHtml } from "@/lib/email";
+import { checkFixedTemplateGate } from "@/lib/sendPipeline";
 import { notifySlack } from "@/lib/slackNotify";
 import { Lead } from "@/lib/types";
 
@@ -10,17 +11,17 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // Runs the actual send pipeline (extract slots -> render fixed template ->
-// quality check -> common-sense check -> final HTML assembly) against
-// synthetic leads that never touch the database or send a real email, so a
-// regression gets caught by CI within seconds of a deploy instead of by a
-// human watching real sends fail. Triggered by
-// .github/workflows/smoke-test.yml after any push touching the send
-// pipeline; can also be hit manually to sanity-check after a related change.
+// fixed-template gate -> final HTML assembly) against synthetic leads that
+// never touch the database or send a real email, so a regression gets
+// caught by CI within seconds of a deploy instead of by a human watching
+// real sends fail. Triggered by .github/workflows/smoke-test.yml after any
+// push touching the send pipeline; can also be hit manually to sanity-check
+// after a related change.
 //
-// Rewritten 2026-07-15 alongside the move to fixed templates — the checks
-// now validate slot extraction + template rendering instead of full AI
-// authorship, but the intent is the same: catch a broken pipeline before it
-// reaches a real lead.
+// Rewritten 2026-07-15 alongside the move to fixed templates, then again
+// the same day to swap the AI-based quality/common-sense check for the
+// deterministic checkFixedTemplateGate — an AI reviewer has nothing left to
+// judge once the body is Lucky's own locked copy with validated slots.
 function fakeLead(overrides: Partial<Lead>): Lead {
   return {
     id: "00000000-0000-0000-0000-000000000000",
@@ -83,7 +84,11 @@ export async function GET(req: NextRequest) {
       results.push({ name: "normal-lead: should not flag a real small trade business as not-a-fit", pass: false, detail: `Extraction incorrectly refused a normal small trade business: ${extraction.reason}` });
     } else {
       const { subject, bodyHtml } = renderInitialEmail({
-        variant: extraction.variant, jobType: extraction.jobType, matchedJobTypes: extraction.matchedJobTypes, firstName: extraction.confirmedFirstName,
+        firstName: extraction.confirmedFirstName,
+        jobType: extraction.jobType,
+        city: lead.location || "your area",
+        matchedJobTypes: extraction.matchedJobTypes,
+        isSolarDominant: extraction.isSolarDominant,
       });
 
       const { html: finalHtml } = buildFinalEmailHtml(lead, bodyHtml, "initial");
@@ -94,29 +99,19 @@ export async function GET(req: NextRequest) {
         detail: finalHtml.includes("{{") || finalHtml.includes("{job type}") ? "Found a literal, unfilled slot in the assembled email." : "clean",
       });
 
-      const quality = await checkEmailQuality({
-        subject, bodyHtml, step: "initial",
-        contactName: lead.contact_name, notes: lead.notes, website: lead.website, fixedTemplateNoCta: true,
-        researchEvidence: extraction.evidence,
-        fixedProofLine: extraction.variant === "solar" ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes),
+      const gate = checkFixedTemplateGate({
+        subject, bodyHtml,
+        slots: {
+          jobType: extraction.jobType,
+          matchedJobTypes: extraction.matchedJobTypes,
+          confirmedFirstName: extraction.confirmedFirstName,
+        },
+        expectedProofLine: extraction.isSolarDominant ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes),
       });
-      // This used to assert pass: true unconditionally regardless of verdict
-      // — meaning the smoke test could never actually catch a quality gate
-      // that rejects every real email, which is exactly what happened
-      // (the greeting-check and proof-line bugs both shipped and only got
-      // caught by a real production test send, not this check). Asserting
-      // the real verdict is the whole point of this test existing.
       results.push({
-        name: "normal-lead: quality gate approves a clean, well-researched email",
-        pass: quality.verdict === "approved",
-        detail: quality.verdict === "approved" ? "approved" : `rejected: ${quality.reasoning || quality.mechanicalFails?.[0] || quality.judgmentFlags?.[0] || "no reason given"}`,
-      });
-
-      const commonSense = await checkCommonSense({ subject, bodyHtml: finalHtml, company: lead.company });
-      results.push({
-        name: "normal-lead: common-sense check approves real final HTML",
-        pass: commonSense.ok,
-        detail: commonSense.ok ? "approved" : `Flagged a normal, well-formed email: ${commonSense.reason}`,
+        name: "normal-lead: fixed-template gate approves a clean, well-researched email",
+        pass: gate.verdict === "approved",
+        detail: gate.verdict === "approved" ? "approved" : `rejected: ${gate.fails.join(" ")}`,
       });
     }
   } catch (e) {

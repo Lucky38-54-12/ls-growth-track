@@ -8,7 +8,7 @@ import { createSupabaseClient } from "./supabase";
 const FROM = `Lucky <${process.env.GMAIL_USER}>`;
 const ZOHO_FROM = `Lucky <${process.env.ZOHO_EMAIL_USER}>`;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
-const BOOKING_URL = process.env.BOOKING_URL || "https://lsgrowth.agency/book";
+export const BOOKING_URL = process.env.BOOKING_URL || "https://lsgrowth.agency/book";
 
 // Bulk/automated outreach (cold initial emails, follow-up sequences, campaign
 // emails) goes through Resend on the verified lsgrowth.agency domain instead

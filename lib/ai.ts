@@ -3,7 +3,7 @@ import path from "path";
 import Anthropic from "@anthropic-ai/sdk";
 import { fetchWebsiteSnippet } from "./website";
 import { PERL_WHITELIST, PerlJobType, ALLOWED_CASE_STUDY_NAMES, ALLOWED_PROOF_SENTENCES } from "./proofPoints";
-import { InitialVariant, SequenceStep } from "./emailTemplates";
+import { SequenceStep } from "./emailTemplates";
 
 // Lucky's explicit voice rules (2026-07-15) — every prompt that writes text
 // a lead or client actually reads must load and follow this file, not just
@@ -115,17 +115,8 @@ export type ExtractLeadSlotsResult =
       notAFit?: false;
       jobType: string;
       matchedJobTypes: PerlJobType[];
-      variant: InitialVariant;
+      isSolarDominant: boolean;
       confirmedFirstName: string | null;
-      // Where each confirmed value actually came from (e.g. "website About
-      // page names John Lovett as owner"). checkEmailQuality never sees the
-      // live research this extraction did — only lead.notes, which is
-      // usually empty for a freshly-imported lead — so without this, any
-      // genuinely-confirmed name or job type looks indistinguishable from an
-      // invented one and gets held every time. Passed through as
-      // researchEvidence so the quality gate has something real to check
-      // against instead of reflexively flagging real findings as invented.
-      evidence: string;
     };
 
 const SLOT_EXTRACTION_SYSTEM_PROMPT = `You research an electrical business for Lucky at LS Growth before he sends a fixed, pre-written cold email to them. You do not write any email copy — every email is already written and locked. Your only job is to research this one business and fill in a few slot values from what you actually find.
@@ -145,12 +136,9 @@ YOUR JOB, in order:
 
 3. FILL matched_job_types — up to 3 of the confirmed services that are also in this exact whitelist: heat pumps, solar, switchboard upgrades. Only include a whitelist term if their own confirmed services genuinely match it. If none match, matched_job_types is an empty array — do not force a match.
 
-4. DECIDE variant:
-   - "solar" only if solar work is clearly the business's dominant, headline service (not just one line among several services)
-   - otherwise "with_name" if a real contact first name is confirmed (see step 5)
-   - otherwise "no_name"
+4. DECIDE solar_dominant — true only if solar work is clearly the business's dominant, headline service (not just one line among several services alongside general electrical, heat pumps, switchboards etc). This is independent of whether a name is confirmed.
 
-5. CONFIRM a first name — ONLY from an explicit statement naming a real person as the owner, founder, director, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a staff/about page naming them). Do NOT guess a name from the business name itself (e.g. "Mike's Electrical" does not confirm a person named Mike unless a source also explicitly says so) and do NOT guess from an email address. If nothing explicitly confirms a real person's name, confirmed_first_name is null.
+5. CONFIRM a first name — ONLY from an explicit statement naming a real person as the owner, founder, director, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a staff/about page naming them). A name mentioned only in a customer testimonial or review (not an explicit "this is the owner/founder" statement) does NOT count. Do NOT guess a name from the business name itself (e.g. "Mike's Electrical" does not confirm a person named Mike unless a source also explicitly says so) and do NOT guess from an email address. If nothing explicitly confirms a real person's name, confirmed_first_name is null. This is independent of solar_dominant — a name can be confirmed (or not) regardless of what solar_dominant is.
 
 6. FLAG not_a_fit instead of the above if the business is clearly:
    - A national utility, lines company, or retailer, not a local trade business
@@ -159,12 +147,10 @@ YOUR JOB, in order:
    - Confirmed NOT to be an electrical trade business at all
    When in doubt and it's an ordinary local electrical business, do not flag it — this is only for clear, obvious cases. You only see this one business's own research, so don't try to judge whether it's a duplicate branch of a franchise contacted elsewhere in the same campaign — only flag a franchise HEAD OFFICE itself if this business clearly is one.
 
-7. WRITE evidence — one or two short sentences citing exactly where job_type, matched_job_types, and confirmed_first_name (if any) came from (e.g. "Website About page lists heat pump installs and switchboard upgrades as services. Facebook post names John Lovett as owner."). This is read by a separate reviewer who cannot see your research, only this sentence — so it's the only way anything you confirmed can be told apart from something invented. If nothing beyond the generic fallback was confirmed, say so plainly (e.g. "Nothing specific confirmed anywhere, using generic fallback.").
-
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
 {"not_a_fit": true, "reason": "..."}
 or
-{"job_type": "...", "matched_job_types": ["..."], "variant": "solar" or "with_name" or "no_name", "confirmed_first_name": "John" or null, "evidence": "..."}`;
+{"job_type": "...", "matched_job_types": ["..."], "solar_dominant": true or false, "confirmed_first_name": "John" or null}`;
 
 export async function extractLeadSlots(input: ExtractLeadSlotsInput): Promise<ExtractLeadSlotsResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -201,9 +187,8 @@ ${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` 
     reason?: string;
     job_type?: string;
     matched_job_types?: string[];
-    variant?: string;
+    solar_dominant?: boolean;
     confirmed_first_name?: string | null;
-    evidence?: string;
   }>(text);
 
   if (parsed.not_a_fit) {
@@ -215,15 +200,9 @@ ${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` 
     (j): j is PerlJobType => (PERL_WHITELIST as readonly string[]).includes(j)
   ).slice(0, 3);
   const confirmedFirstName = parsed.confirmed_first_name?.trim() || null;
-  // A "with_name"/"solar" verdict with no actual confirmed name is a model
-  // slip, not a real signal — the templates for both variants require a
-  // name, so downgrade to "no_name" rather than rendering "Hey ," (missing
-  // name text) into a real email.
-  const rawVariant = parsed.variant === "solar" || parsed.variant === "with_name" || parsed.variant === "no_name" ? parsed.variant : "no_name";
-  const variant: InitialVariant = rawVariant !== "no_name" && !confirmedFirstName ? "no_name" : rawVariant;
-  const evidence = parsed.evidence?.trim() || "No evidence provided by the extraction step.";
+  const isSolarDominant = parsed.solar_dominant === true;
 
-  return { jobType, matchedJobTypes, variant, confirmedFirstName, evidence };
+  return { jobType, matchedJobTypes, isSolarDominant, confirmedFirstName };
 }
 
 export interface EmailQualityInput {
@@ -249,29 +228,6 @@ export interface EmailQualityInput {
   // doesn't apply here and was flagging every meeting-confirmation email as
   // held for a structure problem that isn't actually one.
   meetingAlreadyBooked?: boolean;
-  // The new fixed sequence templates (lib/emailTemplates.ts) end on a plain
-  // question ("Worth a conversation?") with no CTA link, no booking link,
-  // and no case-studies link anywhere — a deliberately different shape from
-  // the old "AI writes the pitch, a fixed CTA block gets appended after"
-  // structure the checks below were built around. Without this flag, checks
-  // 3/6/7 would fail every one of these on a missing CTA/wrong length, which
-  // isn't a real problem here — the whole body is a fixed, pre-approved
-  // template, so only the AI-filled fragments (job type, name) matter.
-  fixedTemplateNoCta?: boolean;
-  // What extractLeadSlots actually found and why it confirmed the job
-  // type/name filled into this fixed template — without this, checks 9/13
-  // have nothing to verify a genuinely-researched name or service against
-  // and reject it as invented every time. See extractLeadSlots' evidence field.
-  researchEvidence?: string | null;
-  // The exact proof-point sentence this specific render used (computed by
-  // the caller from the same matchedJobTypes the template was built from).
-  // ALLOWED_PROOF_SENTENCES only lists the all-three-services and
-  // zero-services forms of the Perl Electrical line; buildPerlLine also
-  // legitimately produces a 1-or-2-service subset for most real leads, which
-  // isn't literally any of those strings — passing the real one through
-  // lets the checker recognise it instead of flagging a correctly-built
-  // subset as an altered, unapproved claim.
-  fixedProofLine?: string | null;
 }
 
 export interface EmailQualityVerdict {
@@ -295,7 +251,7 @@ Check 13 (nothing invented) is about facts specific to THIS lead's business — 
 
 MECHANICAL CHECKS (objective, no judgment call):
 1. No dash of any kind anywhere, in the subject or the body — this includes plain hyphens used as punctuation, not just em/en dashes
-2. {{GREETING_CHECK}}
+2. The first <p> in the body is a greeting only: "Hey [Name]," if a real name was given, otherwise "Hi," — never "Hey there,"
 3. {{STRUCTURE_CHECK}}
 4. Contains none of: "hope this finds you well", "just checking in", "touching base", "circling back", "I wanted to reach out", "I'd love to connect", "don't hesitate to reach out"
 5. Contains none of: "automated SMS", "AI voice call", "30-second response", "follow-up sequence", "Meta ads", "done-for-you system", "our system", "our platform", "our process", "we built"
@@ -308,9 +264,9 @@ MECHANICAL CHECKS (objective, no judgment call):
 
 JUDGMENT CHECKS (read it like the business owner would):
 8. Opening paragraph is about THEM, not "I" or Lucky
-9. {{SPECIFICITY_CHECK}}
-10. {{JOB_TYPE_CHECK}}
-11. {{PROOF_FIT_CHECK}}
+9. References at least one specific, real detail from the notes/research given below, not just "trade business in [location]"
+10. Names the actual job type(s) they do, not a generic "more work" or "more jobs"
+11. If a proof point is used, it actually fits their trade
 12. Sounds like a person texting, not a brand — no corporate phrasing
 13. Nothing invented — no fact, name, or detail that isn't in the notes/research/website given below (other than the allowed proof sentences, which are always fine to cite). This is one of the most important checks: if the email confidently states something specific that wasn't given to you, that is always a judgment fail, no exceptions.
 14. This must be a real pitch, never a declination. Automatic reject if the email discusses whether the lead is a fit for LS Growth, recommends skipping/not sending, says sending it would hurt credibility, or is otherwise addressed to a reviewer deciding whether to send rather than to the lead being pitched. A real generation bug already produced and sent emails like this (subject "not a fit", body explaining why the business shouldn't be emailed) — this check exists specifically to catch that failure mode before it reaches a real inbox again.
@@ -334,59 +290,28 @@ export async function checkEmailQuality(input: EmailQualityInput): Promise<Email
 
   const client = new Anthropic({ apiKey });
 
-  const specificityCheck = input.fixedTemplateNoCta
-    ? `Not applicable in the usual sense — Lucky's fixed template body is deliberately generic, verbatim prose that works the same way for any lead; the only lead-specific detail is the subject line (job type) and, for the with_name/solar variants, the greeting name. Treat the subject line as satisfying this check on its own — never fail this just because the body itself doesn't restate the job type or another specific detail. Still fail this if the subject line's job type isn't actually a real, confirmed value per the research findings below.`
-    : `References at least one specific, real detail from the notes/research given below, not just "trade business in [location]"`;
-  const jobTypeCheck = input.fixedTemplateNoCta
-    ? `Not applicable in the usual sense — the job type only ever appears in the subject line for a fixed template (e.g. "heat pumps sitting on the table"), never restated inside the locked body prose. Check it there instead of the body, and never fail this for a fixed template just because the body's generic copy doesn't repeat it.`
-    : `Names the actual job type(s) they do, not a generic "more work" or "more jobs"`;
-  const proofFitCheck = input.fixedTemplateNoCta
-    ? `Not applicable — which proof sentence appears is chosen deterministically before this check ever runs (the exact matched services when the lead confirms any of heat pumps/solar/switchboard upgrades, or the general "everything from heat pumps to switchboard upgrades" fallback line specifically when nothing on that list was confirmed — see lib/proofPoints.ts). Never reject a fixed template for the fallback line supposedly not matching the lead's actual services; that mismatch is expected and already accounted for by design. Check 18 (job types named inside the Perl sentence itself) still applies as normal.`
-    : `If a proof point is used, it actually fits their trade`;
-  const greetingCheck = input.fixedTemplateNoCta
-    ? `Not applicable — this is a fixed, pre-approved template whose opening line is Lucky's own locked wording, which does not always start with a standalone greeting (the no-name variant opens straight into the pitch with no greeting at all, and the with-name variant blends "Hey [Name]," into the first sentence rather than giving it its own line). Never fail this check for a fixed template's greeting shape.`
-    : input.meetingAlreadyBooked
-    ? `The first <p> is a real name greeting, "Hey [Name],"`
-    : `The first <p> in the body is a greeting only: "Hey [Name]," if a real name was given, otherwise "Hi," — never "Hey there,"`;
-  const ctaCheck = input.fixedTemplateNoCta
-    ? "Not applicable — this is a fixed, pre-approved template that deliberately ends on a plain question with no CTA link, booking link, or case-studies link anywhere in it. Never fail this check for a missing CTA here."
-    : input.meetingAlreadyBooked
+  const ctaCheck = input.meetingAlreadyBooked
     ? "Not applicable — a meeting is already booked for this lead, so there is no separate call to action. Never fail this check for a missing CTA link on a meeting-confirmation email."
     : input.requireCtaPlaceholder === false
     ? "The second-to-last <p> is a real call to action (a real link or a clear next step), not a passive close"
     : `Not applicable — a fixed block with a case-studies link and a booking link is appended automatically after this content, the AI-written part you're checking should NOT contain {{CTA_LINK}}, a booking link, or a link to the main website at all. Never fail this check (or flag it as a missing CTA) just because the content you're given ends after the closing line with no link in it — that's correct.`;
-  const structureCheck = input.fixedTemplateNoCta
-    ? `This is a fixed, pre-approved template — do not evaluate its structure or paragraph order at all, that's already correct by construction. Only check whether the job type / matched job types / name filled into it (visible in the body) look like real, sane values, not something obviously wrong or invented.`
-    : input.meetingAlreadyBooked
+  const structureCheck = input.meetingAlreadyBooked
     ? `A meeting is already booked, so there is no CTA to sequence. Instead: somewhere in the body there is a paragraph containing exactly "[MEETING LINK]" and nothing else, and the fixed logistics line (e.g. "Shouldn't take more than 20-30 minutes. If anything comes up and you need to shift the time, just flick me a text.") appears once the body is otherwise done. It's fine, and common, for one short natural closing line (e.g. "Looking forward to our chat.") to come immediately after that logistics line as the true LAST <p> — that's not a structure failure, just a warmer close. Only fail this check if something substantive (a new topic, another CTA, an unrelated paragraph) comes after the logistics line, not for a one-line closing.`
     : input.requireCtaPlaceholder === false
     ? `The LAST <p> (before the sign-off) is a one-sentence closing line, e.g. "Looking forward to hearing from you." — the second-to-last <p> is the CTA line (check 6), and the closing line always comes after it`
     : `The LAST <p> (before the sign-off) is a one-sentence closing line, e.g. "Looking forward to hearing from you." This email should NOT contain a CTA paragraph at all — the booking and case-studies links are appended automatically after this content, so the closing line is correctly the very last thing in what you're checking.`;
-  const lengthCheck = input.fixedTemplateNoCta
-    ? `Not applicable — this is a fixed-length pre-approved template, not AI-authored prose. Never fail this check here.`
-    : input.meetingAlreadyBooked
+  const lengthCheck = input.meetingAlreadyBooked
     ? `Not applicable — this is a fixed-format meeting confirmation (greeting, meeting time + link, one paragraph on their specific situation, then the fixed logistics line), not a length-flexible follow-up. Never fail this check for a meeting-confirmation email's length.`
     : "Length in range: initial email 4-6 sentences, follow-ups 2-4 sentences";
   const system = QUALITY_CHECK_SYSTEM_PROMPT
-    .replace("{{GREETING_CHECK}}", greetingCheck)
-    .replace("{{SPECIFICITY_CHECK}}", specificityCheck)
-    .replace("{{JOB_TYPE_CHECK}}", jobTypeCheck)
-    .replace("{{PROOF_FIT_CHECK}}", proofFitCheck)
     .replace("{{CTA_CHECK}}", ctaCheck)
     .replace("{{STRUCTURE_CHECK}}", structureCheck)
     .replace("{{LENGTH_CHECK}}", lengthCheck)
-    .replace(
-      "{{ALLOWED_PROOF_SENTENCES}}",
-      (input.fixedProofLine?.trim() && !(ALLOWED_PROOF_SENTENCES as readonly string[]).includes(input.fixedProofLine.trim())
-        ? [...ALLOWED_PROOF_SENTENCES, input.fixedProofLine.trim()]
-        : ALLOWED_PROOF_SENTENCES
-      ).map((s) => `- "${s}"`).join("\n")
-    )
+    .replace("{{ALLOWED_PROOF_SENTENCES}}", ALLOWED_PROOF_SENTENCES.map((s) => `- "${s}"`).join("\n"))
     .replace(/\{\{ALLOWED_CASE_STUDY_NAMES\}\}/g, ALLOWED_CASE_STUDY_NAMES.join(" or "));
 
   const knownInfo = [
     realName(input.contactName) ? `- Contact name given: ${realName(input.contactName)}` : "- No contact name was given",
-    input.researchEvidence?.trim() ? `- Research findings used to fill this template's slots (trust this for check 9/13): ${input.researchEvidence.trim()}` : "",
     input.personalizationHook?.trim() ? `- Research hook: ${input.personalizationHook.trim()}` : "",
     input.notes?.trim() ? `- Call notes: ${input.notes.trim()}` : "",
     input.websiteSnippet?.trim()
@@ -442,58 +367,6 @@ ${input.bodyHtml}`;
     judgmentFlags,
     reasoning: parsed.reasoning || "",
   };
-}
-
-// A second, independent opinion after checkEmailQuality approves — not
-// another pass through the same 13/14-item checklist (which already missed
-// 4 real emails whose entire content was the AI explaining why it shouldn't
-// send to that lead, one of which literally said "sending this is likely to
-// damage credibility" and still got approved and sent). This asks a
-// completely different question with a fresh, un-checklisted prompt: would
-// an ordinary person reading this once, cold, think "wait, this doesn't make
-// sense to send"? Deliberately loose and holistic instead of itemized, so it
-// isn't blind to the same failure shapes as the structured gate.
-const COMMON_SENSE_SYSTEM_PROMPT = `You are the very last human-judgment check before this email goes out to a real business owner with nobody else reading it first. A structured quality checklist already approved it — your job isn't to re-run that checklist, it's to read the email once, the way a busy, slightly suspicious business owner would when it lands in their inbox, and catch anything a checklist could miss.
-
-Flag it if any of this is true:
-- It reads like a note written ABOUT the recipient for someone else to review, not a message TO them (e.g. it discusses whether they're a good fit, recommends skipping them, evaluates whether sending is a good idea, or refers to them in a way a real cold email never would)
-- It says or implies anything that would confuse, offend, or make the recipient think "did I get this by mistake?"
-- It contains a claim, tone, or logic that's actually broken or self-contradictory, not just imperfect style
-- Your honest gut reaction is "a real person would never actually hit send on this"
-
-Do NOT flag normal cold-outreach imperfections: a proof point that feels a bit salesy, a slightly generic opener, anything that's just not your personal writing style. This is a coarse safety net for genuine mistakes, not a rewrite request — only flag something you're confident a real recipient would immediately notice as wrong.
-
-Respond with ONLY a JSON object, no other text:
-{"ok": true or false, "reason": "one sentence, only if ok is false"}`;
-
-export interface CommonSenseInput {
-  subject: string;
-  bodyHtml: string;
-  company: string;
-}
-
-export async function checkCommonSense(input: CommonSenseInput): Promise<{ ok: boolean; reason?: string }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
-
-  const client = new Anthropic({ apiKey });
-
-  const msg = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 300,
-    temperature: 0,
-    system: COMMON_SENSE_SYSTEM_PROMPT,
-    messages: [{
-      role: "user",
-      content: `This email is addressed to: ${input.company}\n\nSubject: ${input.subject}\n\nBody (HTML):\n${input.bodyHtml}`,
-    }],
-  });
-
-  const block = msg.content[0];
-  if (block.type !== "text") throw new Error("Unexpected response from AI");
-
-  const parsed = parseJsonResponse<{ ok?: boolean; reason?: string }>(block.text);
-  return { ok: parsed.ok !== false, reason: parsed.reason };
 }
 
 export interface PersonalizationHookInput {
