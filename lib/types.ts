@@ -218,6 +218,39 @@ export interface PatternTracker {
   updated_at: string;
 }
 
+export type ContentIdeaStatus = "idea" | "scheduled" | "posted";
+
+export interface ContentIdea {
+  id: string;
+  title: string;
+  notes: string | null;
+  post_date: string | null;
+  status: ContentIdeaStatus;
+  created_at: string;
+}
+
+export const CONTENT_IDEA_STATUS_LABELS: Record<ContentIdeaStatus, string> = {
+  idea: "Idea",
+  scheduled: "Scheduled",
+  posted: "Posted",
+};
+
+export const CONTENT_IDEA_STATUS_COLORS: Record<ContentIdeaStatus, { bg: string; text: string }> = {
+  idea:      { bg: "#f1f5f9", text: "#475569" },
+  scheduled: { bg: "#dbeafe", text: "#1e40af" },
+  posted:    { bg: "#dcfce7", text: "#166534" },
+};
+
+export interface Prospect {
+  id: string;
+  name: string;
+  company: string | null;
+  industry: string | null;
+  linkedin_url: string | null;
+  connected: boolean;
+  created_at: string;
+}
+
 export interface OnboardingClient {
   id: string;
   name: string;
