@@ -133,7 +133,7 @@ export default function RevenueGoalCard({ clients, monthlyGoal }: Props) {
           onClick={() => { setAddOpen(false); setGoalOpen(false); }}
         >
           <div
-            style={{ width: "100%", maxWidth: 420, background: "#fff", margin: "0 16px", border: `1px solid ${L.border}`, boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}
+            style={{ width: "100%", maxWidth: 420, background: "#fff", margin: "0 16px", border: `1px solid ${L.border}`, borderRadius: 14, overflow: "hidden", boxShadow: "0 20px 48px rgba(15,23,42,0.22)" }}
             onClick={e => e.stopPropagation()}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>

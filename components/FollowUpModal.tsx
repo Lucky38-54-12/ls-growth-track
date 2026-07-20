@@ -85,6 +85,7 @@ export default function FollowUpModal({
         style={{
           background: L.surface, border: `1px solid ${L.border}`, width: "100%", maxWidth: 560,
           maxHeight: "90vh", overflowY: "auto", display: "flex", flexDirection: "column",
+          borderRadius: 14, boxShadow: "0 20px 48px rgba(15,23,42,0.22)",
         }}
       >
         {/* Header */}

@@ -62,7 +62,7 @@ export default function MeetingReminderButton({ to, defaultSubject, defaultBody 
           onClick={() => setOpen(false)}
         >
           <div
-            style={{ width: "100%", maxWidth: 500, background: "#fff", margin: "0 16px", border: `1px solid ${L.border}`, boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}
+            style={{ width: "100%", maxWidth: 500, background: "#fff", margin: "0 16px", border: `1px solid ${L.border}`, borderRadius: 14, overflow: "hidden", boxShadow: "0 20px 48px rgba(15,23,42,0.22)" }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}

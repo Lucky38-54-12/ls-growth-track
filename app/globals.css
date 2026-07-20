@@ -1,92 +1,117 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700&display=swap');
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@400;600;700;800&display=swap');
 
 :root {
   --red: #dc2626;
   --blue: #2563eb;
   --green: #16a34a;
+  --amber: #d97706;
+
+  --ink: #0f172a;
+  --muted: #64748b;
+  --dimmed: #94a3b8;
+  --border: #e6eaf0;
+  --surface: #ffffff;
+  --bg: #f4f6f9;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 6px 16px rgba(15, 23, 42, 0.08), 0 2px 5px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.14), 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
 * {
-  @apply transition-colors duration-300;
-}
-
-/* Square corners everywhere — overrides any inline border-radius too */
-*, *::before, *::after {
-  border-radius: 0 !important;
+  transition-property: color, background-color, border-color, box-shadow, transform;
+  transition-duration: 0.15s;
+  transition-timing-function: ease;
 }
 
 html {
-  @apply scroll-smooth;
+  scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-dark text-white;
+  background: var(--bg);
+  color: var(--ink);
   font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Sensible defaults so elements that don't set their own radius still look
+   intentional, instead of the hard 90° corners a plain <button>/<input> gets. */
+button, input, select, textarea {
+  font-family: inherit;
+  border-radius: var(--radius-sm);
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  @apply w-2;
+  width: 10px;
+  height: 10px;
 }
-
 ::-webkit-scrollbar-track {
-  @apply bg-dark;
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-700 rounded-full hover:bg-gray-600;
+  background: #cbd5e1;
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 /* Gradient text */
 .gradient-text {
-  @apply bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent;
+  background: linear-gradient(90deg, var(--blue), #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
-/* Card animation */
-.card-hover {
-  @apply hover:shadow-hover hover:border-blue-500/50 transition-all;
-}
-
-/* Dashboard interactivity — these classes used to be dead weight (referenced
-   all over the dashboard JSX but never defined), so nothing reacted to a
-   hover. Defining them here is what actually puts the lift/shadow/color
-   feedback on cards, buttons, pills, and rows. */
+/* Cards — the base surface used across every dashboard page. Rounded,
+   softly shadowed, so panels read as raised surfaces instead of flat boxes. */
 .surface-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-}
-
-a.card-hover, div.card-hover, .surface-card.card-hover {
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-}
-a.card-hover:hover, div.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
-  border-color: var(--red);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .stat-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
 .stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+  box-shadow: var(--shadow-md);
+}
+
+a.card-hover, div.card-hover, .surface-card.card-hover {
+  cursor: pointer;
+}
+a.card-hover:hover, div.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--red);
 }
 
 .btn-lift {
-  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  border-radius: var(--radius-sm);
 }
 .btn-lift:hover {
   transform: translateY(-1px);
   filter: brightness(1.06);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--shadow-md);
 }
 .btn-lift:active {
   transform: translateY(0);
@@ -94,7 +119,7 @@ a.card-hover:hover, div.card-hover:hover {
 }
 
 .pill-hover {
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  border-radius: 999px;
 }
 .pill-hover:hover {
   background-color: #fef2f2 !important;
@@ -102,27 +127,22 @@ a.card-hover:hover, div.card-hover:hover {
   color: var(--red) !important;
 }
 
-.row-hover {
-  transition: background-color 0.12s ease;
-}
 .row-hover:hover {
   background-color: #f8fafc;
 }
 
 .nav-link-light {
-  transition: background-color 0.15s ease, color 0.15s ease;
+  border-radius: var(--radius-sm);
 }
 .nav-link-light:hover {
   background-color: #f8fafc;
   color: #0f172a;
 }
 
-/* Pulse animation */
 @keyframes pulse-slow {
-  0%, 100% { @apply opacity-100; }
-  50% { @apply opacity-50; }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
-
 .pulse-slow {
   animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
