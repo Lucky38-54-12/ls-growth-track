@@ -294,7 +294,7 @@ ${input.recentObjections.length ? input.recentObjections.map((o) => `- ${o}`).jo
   // whole prep on a refusal.
   const msg = await client().beta.messages.create({
     model: "claude-fable-5",
-    max_tokens: 2048,
+    max_tokens: 8192,
     system: CALL_PREP_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
     betas: ["server-side-fallback-2026-06-01"],
@@ -305,8 +305,8 @@ ${input.recentObjections.length ? input.recentObjections.map((o) => `- ${o}`).jo
     throw new Error("Couldn't generate a prep for this one, try rephrasing the notes.");
   }
 
-  const block = msg.content[0];
-  if (block.type !== "text") throw new Error("Unexpected response from AI");
+  const block = msg.content.find((b) => b.type === "text");
+  if (!block) throw new Error("Unexpected response from AI");
 
   const parsed = parseJsonResponse<Partial<CallPrepResult>>(block.text);
 
