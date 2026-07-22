@@ -54,6 +54,19 @@ async function loadClientConfig(clientId: string): Promise<{ config: ClientConfi
 export async function runTurn({ clientId, conversationId, userMessage, channelId, contact, metaMessageId }: RunTurnInput): Promise<RunTurnOutput> {
   const sb = createSupabaseClient();
 
+  // A paused client should not spend AI tokens or send replies at all — bail
+  // out before touching the conversation row or calling the model. Schema
+  // has supported this status for a while, but nothing actually enforced it.
+  const { data: clientRow } = await sb.from("lq_clients").select("status").eq("id", clientId).single();
+  if (clientRow?.status === "paused") {
+    return {
+      conversationId: conversationId || "",
+      reply: null,
+      status: "paused",
+      extractedFields: {},
+    };
+  }
+
   let conversation;
   if (conversationId) {
     const { data } = await sb.from("lq_conversations").select("*").eq("id", conversationId).single();
@@ -89,9 +102,19 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
     .eq("conversation_id", conversation.id)
     .order("created_at", { ascending: true });
 
+  // The qualifying script is ~9 exchanges (job type, location, timeline,
+  // quote method, a time, phone, anything else) — 30 messages is generous
+  // headroom for a normal conversation. Capped so an unusual conversation
+  // (a lead going back and forth well past the script, or manual repeated
+  // testing) can't grow the resent history, and therefore the per-turn
+  // token cost, without bound. Every call resends this whole array from
+  // scratch (see runQualifyingTurn), so an uncapped history is the single
+  // biggest driver of runaway API spend on this route.
+  const MAX_HISTORY_MESSAGES = 30;
   const history: ConversationTurn[] = (priorMessages || [])
     .filter((m) => m.role !== "system")
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))
+    .slice(-MAX_HISTORY_MESSAGES);
 
   const { config, rules } = await loadClientConfig(clientId);
 
