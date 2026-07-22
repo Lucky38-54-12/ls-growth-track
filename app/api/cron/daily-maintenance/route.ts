@@ -3,7 +3,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 import { checkForReplies } from "@/lib/campaignReplies";
 import { syncAllTrackedSheets } from "@/lib/sheetSync";
 import { getHealthSnapshot } from "@/lib/leads";
-import { syncCalendarBookings, sendMeetingTouchpoints } from "@/lib/calendarSync";
+import { syncCalendarBookings } from "@/lib/calendarSync";
 import { generateEmailLearnings } from "@/lib/emailLearning";
 import { dispatchDueNurtureEmails } from "@/lib/leadQual/nurtureEmail";
 import { escalateStaleReplies } from "@/lib/staleReplies";
@@ -48,7 +48,6 @@ export async function GET(req: NextRequest) {
 
   try {
     results.calendarSync = await syncCalendarBookings();
-    results.meetingTouchpoints = await sendMeetingTouchpoints();
   } catch (e) {
     results.calendarSync = { error: e instanceof Error ? e.message : "calendar-sync failed" };
   }

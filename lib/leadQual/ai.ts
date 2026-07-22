@@ -145,11 +145,16 @@ export async function runPostCloseTurn(config: ClientConfigData, latestUserMessa
   // qualifying script) can pull the model back into repeating that pattern
   // even against explicit system-prompt instructions not to. Each post-close
   // reply is judged in isolation instead.
+  // Haiku, not Sonnet: this is a binary classification (real question vs.
+  // "ok thanks") plus at most a 1-2 sentence answer pulled straight from the
+  // FAQ/services block given below, on a single isolated message with no
+  // history or multi-step reasoning involved — a much simpler job than the
+  // qualifying flow in runQualifyingTurn.
   const client = new Anthropic({ apiKey });
   const response = await client.messages.create({
-    model: "claude-sonnet-4-5",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 300,
-    system: buildPostCloseSystemPrompt(config),
+    system: [{ type: "text", text: buildPostCloseSystemPrompt(config), cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: latestUserMessage }],
   });
 
@@ -167,12 +172,28 @@ export async function runQualifyingTurn(
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
 
+  // Every turn resends the whole history from the start of the conversation
+  // (see conversationManager.ts), and that array is only ever appended to
+  // between turns, never edited — so everything up to the second-to-last
+  // message here is byte-identical to what the previous turn's call sent as
+  // its own last message onward. Marking a cache breakpoint there lets each
+  // turn read that growing prefix back from cache instead of paying full
+  // price for the whole conversation-so-far again on every single message.
+  // Only the newest message (the one this turn is actually replying to) is
+  // ever paid for at full price.
+  const lastIndex = history.length - 1;
   const client = new Anthropic({ apiKey });
   const response = await client.messages.create({
     model: "claude-sonnet-4-5",
     max_tokens: 500,
-    system: buildSystemPrompt(config),
-    messages: history.map((turn) => ({ role: turn.role, content: turn.content })),
+    system: [{ type: "text", text: buildSystemPrompt(config), cache_control: { type: "ephemeral" } }],
+    messages: history.map((turn, i) => ({
+      role: turn.role,
+      content:
+        i === lastIndex - 1
+          ? [{ type: "text" as const, text: turn.content, cache_control: { type: "ephemeral" as const } }]
+          : turn.content,
+    })),
   });
 
   const textBlock = response.content.find((b) => b.type === "text");

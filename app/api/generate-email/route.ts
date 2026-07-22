@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
   const prompt = `You are writing a follow-up email on behalf of Lucky from LS Growth Agency. Lucky just got off a cold call and has written up some notes on how it went. Your job is to turn those notes into a short, human-sounding email that sounds like Lucky actually wrote it.
 
-LS Growth Agency gets trade businesses more booked jobs. The pitch is always the outcome — specific booked jobs, real revenue — never the process or mechanism. Never say "we built a system", "automated SMS", "AI voice call", "Meta ads", "30-second response", "follow-up sequence", "done-for-you", or anything describing how it works. Do not cite any specific dollar figure, client name, or case study — none are verified for this flow. Use the research and call notes to identify the specific job types this business does (heat pumps, switchboard upgrades, solar, end-of-tenancy cleans, etc.) and reference those by name instead of saying "trade business" or "more jobs" generically.
+LS Growth Agency gets trade businesses more booked jobs. The pitch is always the outcome — specific booked jobs, real revenue — never the process or mechanism. Never say "we built a system", "automated SMS", "AI voice call", "Meta ads", "30-second response", "follow-up sequence", "done-for-you", or anything describing how it works. Do not cite any specific dollar figure, client name, or case study content — none are verified for this flow. (If they asked to see case studies, you can say that's exactly what you're sending them, since a link is appended automatically — you just can't make up the numbers or names inside one.) Use the research and call notes to identify the specific job types this business does (heat pumps, switchboard upgrades, solar, end-of-tenancy cleans, etc.) and reference those by name instead of saying "trade business" or "more jobs" generically.
 
 Today's date: ${today}
 
@@ -110,6 +110,7 @@ Rules that apply to ALL emails:
   * Never say "Good talking earlier" or "Good chat" unless the call was same day or yesterday
 - Reference at least ONE specific thing from the notes that proves you were actually on that call with them — not just their industry, something particular they said or wanted
 - Whenever you refer to their type of business, use the actual trade by name (e.g. "fencing businesses", "cleaning companies", "builders") — NEVER the generic phrase "trade business" or "trade businesses". If KNOWN INFO ABOVE includes website text, work in one specific, real detail from it (a service they offer, the area they cover, the kind of jobs they do) so it's obvious you actually looked at their business, not just their industry
+- Never state a specific detail (a city, region, number, name, or anything else concrete) that isn't literally in the notes or KNOWN INFO above. If the notes say something vague like "has companies across the country" or "operates nationwide", keep it exactly that vague — do NOT invent specific city names to sound more precise (e.g. do not turn "across the country" into "Auckland, Wellington, and beyond"). A specific-sounding detail you made up is worse than a plainly generic one.
 - Never use these phrases anywhere in the email: "Just confirming", "I get it", "yeah so", "anyway", "I want to dig into". Write in full, clear, professional sentences throughout — this is going to a business owner, treat it like a real business email.
 - No dashes or em dashes anywhere
 - No corporate phrases: never use "make a real difference", "explore how we can help", "circle back", "hope this finds you well", "I wanted to reach out", "just wanted to", "following up on our chat", "it was great speaking with you", "I really enjoyed our conversation"
@@ -127,7 +128,7 @@ A) MEETING_BOOKED:
 
 B) WANTS_INFO:
 - Open by referencing exactly what they asked for
-- Give them what they need or point them to it
+- Give them what they need or point them to it. If what they asked for was case studies, proof, or examples of results specifically, say so plainly (e.g. "You asked about seeing some case studies") — a case-studies link is appended after your text automatically, so your job is just to acknowledge that's what they wanted, never skip past their actual request into something generic
 - One soft CTA link to https://lsgrowth.agency/book
 - Don't push hard
 

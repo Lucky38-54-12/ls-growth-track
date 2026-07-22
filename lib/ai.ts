@@ -171,7 +171,7 @@ ${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` 
   const msg = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
-    system: SLOT_EXTRACTION_SYSTEM_PROMPT,
+    system: [{ type: "text", text: SLOT_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
     tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 } as const],
   });
@@ -337,7 +337,7 @@ ${input.bodyHtml}`;
     // getting a real verdict. Doubled for headroom.
     max_tokens: 2048,
     temperature: 0,
-    system,
+    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
   });
 
@@ -423,7 +423,7 @@ ${canSearch ? "\nNo website text or notes are available — search the web for t
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: withWritingStyle(PERSONALIZATION_SYSTEM_PROMPT),
+    system: [{ type: "text", text: withWritingStyle(PERSONALIZATION_SYSTEM_PROMPT), cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
     ...(canSearch ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 } as const] } : {}),
   });
@@ -497,7 +497,7 @@ Search for this business and find whichever of phone, email, website, facebook, 
   const msg = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
-    system: LEAD_DETAILS_SYSTEM_PROMPT,
+    system: [{ type: "text", text: LEAD_DETAILS_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
     tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 } as const],
   });

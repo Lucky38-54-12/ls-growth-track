@@ -9,6 +9,13 @@ type SupabaseClient = ReturnType<typeof createSupabaseClient>;
 // with a conclusion drawn from a handful of emails.
 const MIN_SENDS = 5;
 
+// This runs daily and previously fed in every step-tagged send ever, so the
+// dataset (and the token cost of analyzing it) grew a little more every
+// single day forever. Recent performance is what should drive the playbook
+// anyway — capped to the most recent sends so the daily cost stays roughly
+// flat instead of climbing with total send volume.
+const MAX_SENDS_IN_DATASET = 150;
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 interface SendPerformance {
@@ -49,11 +56,16 @@ export async function generateEmailLearnings(sb: SupabaseClient): Promise<{ skip
   // Only sends whose step was actually recorded on their tracking links
   // (see lib/email.ts buildLinks) can be joined back to specific engagement —
   // older sends predate the step-tagged tracking URLs and are excluded here.
-  const qualifying = sends.filter((s) => s.step && !testLeadIds.has(s.lead_id));
+  const allQualifying = sends.filter((s) => s.step && !testLeadIds.has(s.lead_id));
 
-  if (qualifying.length < MIN_SENDS) {
-    return { skipped: true, reason: `only ${qualifying.length} step-tagged sends so far, need at least ${MIN_SENDS}` };
+  if (allQualifying.length < MIN_SENDS) {
+    return { skipped: true, reason: `only ${allQualifying.length} step-tagged sends so far, need at least ${MIN_SENDS}` };
   }
+
+  const qualifying = [...allQualifying]
+    .sort((a, b) => b.sent_at.localeCompare(a.sent_at))
+    .slice(0, MAX_SENDS_IN_DATASET)
+    .reverse();
 
   const performance: SendPerformance[] = qualifying.map((send) => {
     const sendEvents = events.filter((e) => e.lead_id === send.lead_id && e.step === send.step);

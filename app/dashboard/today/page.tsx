@@ -7,6 +7,7 @@ import { formatDateTime } from "@/lib/format";
 import { Lead, EmailEvent, EmailSend, RevenueClient, RevenueGoal, EmailCheck } from "@/lib/types";
 import { stripTrackingForDisplay } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
+import MeetingReminderButton from "@/components/MeetingReminderButton";
 import RevenueGoalCard from "@/components/RevenueGoalCard";
 import DailyNotes from "@/components/DailyNotes";
 import CheckRepliesButton from "@/components/CheckRepliesButton";
@@ -227,13 +228,19 @@ export default async function TodayPage() {
                   }
 
                   const timeStr = ev.allDay ? "today" : timeFmt.format(new Date(ev.startISO)).replace(" ", "").toLowerCase();
+                  const firstName = (attendeeName || "").split(" ")[0] || "there";
                   const subLine = [attendeeName, lead?.company].filter(Boolean).join(" · ");
-                  // Meeting reminders are fully automated now (sendMeetingTouchpoints
-                  // in lib/calendarSync.ts sends one on the day, off the same
-                  // calendar data this card reads) — a manual "remind" button here
-                  // was redundant. Shows sent-email count instead so it's obvious
-                  // at a glance whether this lead's been through the sequence
-                  // before the meeting, not just a bare link to go check.
+                  // Automated meeting-day/value touchpoint emails (sendMeetingTouchpoints)
+                  // are turned off — reminders go out manually via this button now.
+                  const reminderBody = [
+                    `Hey ${firstName},`,
+                    "",
+                    `Just a reminder we have our meeting today at ${timeStr}. Looking forward to chatting!`,
+                    "",
+                    ...(ev.hangoutLink ? [`You can join here: ${ev.hangoutLink}`, ""] : []),
+                    "Cheers,",
+                    "Lucky",
+                  ].join("\n");
                   const leadSends = lead ? allSends.filter(s => s.lead_id === lead!.lead_id).sort((a, b) => a.sent_at.localeCompare(b.sent_at)) : [];
                   const sentCount = leadSends.length;
 
@@ -265,6 +272,13 @@ export default async function TodayPage() {
                           </span>
                         )
                       )}
+                      {attendeeEmail && (
+                        <MeetingReminderButton
+                          to={attendeeEmail}
+                          defaultSubject={`Quick reminder — our meeting today at ${timeStr}`}
+                          defaultBody={reminderBody}
+                        />
+                      )}
                       {ev.hangoutLink && (
                         <a href={ev.hangoutLink} target="_blank" rel="noopener noreferrer" className="pill-hover" style={{
                           display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", fontSize: 11.5, fontWeight: 700,
@@ -274,7 +288,7 @@ export default async function TodayPage() {
                         </a>
                       )}
                       {lead && (
-                        <Link href={`/dashboard/leads/${lead.lead_id}`} className="pill-hover" style={{
+                        <Link href={`/dashboard/leads/${lead.lead_id}/context`} className="pill-hover" style={{
                           display: "flex", alignItems: "center", padding: "5px", border: `1px solid ${L.border}`, color: L.muted, flexShrink: 0,
                         }}>
                           <ArrowUpRight style={{ width: 12, height: 12 }} />
