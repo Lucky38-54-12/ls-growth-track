@@ -208,11 +208,20 @@ export default async function TodayPage() {
                   if (showDivider) lastDay = day;
                   let attendeeEmail = ev.attendeeEmail;
                   let attendeeName = ev.attendeeName;
+                  let attendeePhone: string | null = null;
 
                   // Cold-call bookings store name/email in description as "Name <email>"
-                  if (!attendeeEmail && ev.description) {
-                    const m = ev.description.match(/^(.*?)\s*<([^>@]+@[^>]+)>/);
+                  // — some events (typed straight into Google Calendar rather than
+                  // created by the app) come back with the brackets HTML-escaped
+                  // (&lt;/&gt;) instead of literal < >, so decode before matching.
+                  const decodedDescription = ev.description?.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+                  if (!attendeeEmail && decodedDescription) {
+                    const m = decodedDescription.match(/^(.*?)\s*<([^>@]+@[^>]+)>/);
                     if (m) { attendeeName = attendeeName || m[1].trim(); attendeeEmail = m[2].trim().toLowerCase(); }
+                  }
+                  if (decodedDescription) {
+                    const phoneMatch = decodedDescription.match(/\b(0\d{1,2}[\s-]?\d{3}[\s-]?\d{3,4})\b/);
+                    if (phoneMatch) attendeePhone = phoneMatch[1];
                   }
 
                   // Try lead lookup by email first, then fall back to contact name from event title
@@ -229,7 +238,8 @@ export default async function TodayPage() {
 
                   const timeStr = ev.allDay ? "today" : timeFmt.format(new Date(ev.startISO)).replace(" ", "").toLowerCase();
                   const firstName = (attendeeName || "").split(" ")[0] || "there";
-                  const subLine = [attendeeName, lead?.company].filter(Boolean).join(" · ");
+                  const phone = lead?.phone || attendeePhone;
+                  const subLine = [attendeeName, lead?.company, phone].filter(Boolean).join(" · ");
                   // Automated meeting-day/value touchpoint emails (sendMeetingTouchpoints)
                   // are turned off — reminders go out manually via this button now.
                   const reminderBody = [

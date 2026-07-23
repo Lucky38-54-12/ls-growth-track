@@ -1,7 +1,7 @@
 // Shared by the Cold Call page's "Cold call notes" box and the Notes sticky
 // board's "Add to pipeline" button — both need the same extract-summarise-
 // create-lead flow, just triggered from different places.
-export async function pushNoteToPipeline(text: string): Promise<{ ok: true; company: string } | { ok: false; error: string }> {
+export async function pushNoteToPipeline(text: string, followUpAt?: string): Promise<{ ok: true; company: string } | { ok: false; error: string }> {
   const quickRes = await fetch("/api/leads/quick-note", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -29,7 +29,7 @@ export async function pushNoteToPipeline(text: string): Promise<{ ok: true; comp
   await fetch(`/api/leads/${data.lead.lead_id}/followup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ callNotes: quickData.summary }),
+    body: JSON.stringify({ callNotes: quickData.summary, followUpAt: followUpAt || undefined }),
   });
 
   return { ok: true, company: data.lead.company };

@@ -43,6 +43,7 @@ export default function ColdCallPage() {
   const [heldChecks, setHeldChecks] = useState<EmailCheck[]>([]);
 
   const [noteText, setNoteText] = useState("");
+  const [noteFollowUpAt, setNoteFollowUpAt] = useState("");
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteError, setNoteError] = useState("");
 
@@ -189,13 +190,16 @@ export default function ColdCallPage() {
     setNoteLoading(true);
     setNoteError("");
 
-    const result = await pushNoteToPipeline(noteText);
+    const result = await pushNoteToPipeline(noteText, noteFollowUpAt || undefined);
     if (!result.ok) { setNoteLoading(false); setNoteError(result.error); return; }
 
     addNoteToStorage(`${result.company}: ${noteText.trim()}`);
     setNoteLoading(false);
 
-    router.push(`/dashboard?flash=${encodeURIComponent(`Saved a note for ${result.company} and added them to the pipeline.`)}`);
+    const flash = noteFollowUpAt
+      ? `Saved a note for ${result.company}, added them to the pipeline, and set a follow-up for ${noteFollowUpAt}.`
+      : `Saved a note for ${result.company} and added them to the pipeline.`;
+    router.push(`/dashboard?flash=${encodeURIComponent(flash)}`);
   }
 
   return (
@@ -329,6 +333,15 @@ export default function ColdCallPage() {
                 placeholder="e.g. Called Acme Plumbing, owner was out on a job — call back Thursday afternoon. Or any other note worth saving from the call."
                 style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 16 }}
               />
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, color: L.muted, display: "block", marginBottom: 4 }}>Follow up on (optional)</label>
+                <input type="date" value={noteFollowUpAt} onChange={(e) => setNoteFollowUpAt(e.target.value)} style={{ maxWidth: 200 }} />
+                {noteFollowUpAt && (
+                  <button type="button" onClick={() => setNoteFollowUpAt("")} style={{
+                    marginLeft: 10, fontSize: 12, fontWeight: 700, color: L.muted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline",
+                  }}>Clear</button>
+                )}
+              </div>
               <button
                 type="submit"
                 disabled={noteLoading}

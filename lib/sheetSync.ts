@@ -82,6 +82,7 @@ export async function syncLeadsFromSheet(opts: {
         source: "email_outreach",
         website: row.website || null,
         facebook: row.facebook || null,
+        phone: row.phone || null,
         personalization_hook: null,
       };
       const { data: inserted, error } = await sb.from("leads").insert(newLead).select().single();
@@ -125,13 +126,14 @@ export async function syncLeadsFromSheet(opts: {
       updated++;
     }
 
-    // Backfill trade/location on existing leads that were imported before this
-    // sheet's title was being parsed correctly — never overwrite a value that's
-    // already set, only fill in blanks.
+    // Backfill trade/location/phone on existing leads that were imported before
+    // this sheet's title was being parsed correctly (or before phone was synced
+    // at all) — never overwrite a value that's already set, only fill in blanks.
     if (lead) {
       const patch: Partial<Lead> = {};
       if (!lead.trade && trade) patch.trade = trade;
       if (!lead.location && location) patch.location = location;
+      if (!lead.phone && row.phone) patch.phone = row.phone;
       if (Object.keys(patch).length) {
         await sb.from("leads").update(patch).eq("lead_id", lead.lead_id);
         lead = { ...lead, ...patch };
