@@ -8,6 +8,7 @@ import { generateEmailLearnings } from "@/lib/emailLearning";
 import { dispatchDueNurtureEmails } from "@/lib/leadQual/nurtureEmail";
 import { escalateStaleReplies } from "@/lib/staleReplies";
 import { sendDueProposalFollowups } from "@/lib/proposalFollowup";
+import { sendColdCallNudges } from "@/lib/coldCallNudges";
 import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
 import { checkMessengerChannelHealth } from "@/lib/leadQual/meta";
 import { notifySlack } from "@/lib/slackNotify";
@@ -80,6 +81,12 @@ export async function GET(req: NextRequest) {
     results.proposalFollowups = await sendDueProposalFollowups();
   } catch (e) {
     results.proposalFollowups = { error: e instanceof Error ? e.message : "proposal follow-up dispatch failed" };
+  }
+
+  try {
+    results.coldCallNudges = await sendColdCallNudges();
+  } catch (e) {
+    results.coldCallNudges = { error: e instanceof Error ? e.message : "cold-call nudge dispatch failed" };
   }
 
   try {

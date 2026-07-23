@@ -126,3 +126,9 @@ create index if not exists campaign_leads_lead_id_idx on campaign_leads (lead_id
 -- AI-personalized campaign emails instead of the static template sequence.
 alter table leads add column if not exists campaign_id uuid references campaigns(id);
 create index if not exists leads_campaign_id_idx on leads (campaign_id);
+
+-- Set the moment a cold-call lead's status flips to 'thinking_about_it' (see
+-- statusTimestampUpdates in lib/leads.ts) — anchors the automatic
+-- follow-up/follow-up-2 nudges in lib/coldCallNudges.ts to when the lead
+-- actually went quiet, not to whatever last_followup happens to be.
+alter table leads add column if not exists thinking_about_it_at timestamptz;

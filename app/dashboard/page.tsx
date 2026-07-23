@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
-import { Lead, EmailEvent, EngagementSummary } from "@/lib/types";
+import { Lead, EmailEvent, EmailSend, EngagementSummary } from "@/lib/types";
 import { Phone, Calendar, Video } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import PipelineStats from "@/components/PipelineStats";
@@ -34,9 +34,10 @@ export default async function DashboardPage({
 }) {
   const sb = createSupabaseClient();
 
-  const [leads, { data: events }, todaysMeetings, { count: namesRemaining }] = await Promise.all([
+  const [leads, { data: events }, { data: sends }, todaysMeetings, { count: namesRemaining }] = await Promise.all([
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
+    sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
     listTodaysEvents().catch(() => [] as CalendarEvent[]),
     sb.from("leads").select("lead_id", { count: "exact", head: true }).eq("contact_name", "there").not("website", "is", null),
   ]);
@@ -50,6 +51,13 @@ export default async function DashboardPage({
     if (ev.event_type === "open") engagement[ev.lead_id].opens++;
     if (ev.event_type === "click") engagement[ev.lead_id].clicks++;
     if (!engagement[ev.lead_id].last_event_at) engagement[ev.lead_id].last_event_at = ev.created_at;
+  }
+
+  // So each pipeline card can show its own send history without a click
+  // through to the full lead page.
+  const sendsByLead: Record<string, EmailSend[]> = {};
+  for (const send of (sends || []) as EmailSend[]) {
+    (sendsByLead[send.lead_id] ||= []).push(send);
   }
 
   // This board is cold-call only — email-outreach leads have their own
@@ -150,7 +158,7 @@ export default async function DashboardPage({
             No cold-call leads yet — run the <Link href="/dashboard/scraper" style={{ color: "var(--red)", fontWeight: 700 }}>Scraper</Link> to add some.
           </div>
         ) : (
-          <PipelineBoard sections={sections} columns={columns} engagement={engagement} activeSource="cold_call" />
+          <PipelineBoard sections={sections} columns={columns} engagement={engagement} sends={sendsByLead} activeSource="cold_call" />
         )}
       </div>
     </div>

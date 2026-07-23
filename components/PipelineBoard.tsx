@@ -2,11 +2,13 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles, Clock, Search, Copy, Check } from "lucide-react";
+import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles, Clock, Search, Copy, Check, Send } from "lucide-react";
 import FollowUpModal from "@/components/FollowUpModal";
-import { Lead, EngagementSummary } from "@/lib/types";
+import { Lead, EngagementSummary, EmailSend } from "@/lib/types";
 import { nextStepFor } from "@/lib/leads";
 import { cleanNotes, extractMeetingTime } from "@/lib/notes";
+import { formatDateTime } from "@/lib/format";
+import { stripTrackingForDisplay } from "@/lib/templates";
 import { COLD_CALL_STATUS_LABELS, COLD_CALL_STATUS_COLORS } from "@/lib/coldCallStatus";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
@@ -39,9 +41,9 @@ function groupByStatus(leads: Lead[], columns: Column[], activeSource: string): 
 }
 
 function LeadCard({
-  lead, engagement, expanded, onToggle, onDragStart, onFollowUp, onLeadUpdated,
+  lead, engagement, sends, expanded, onToggle, onDragStart, onFollowUp, onLeadUpdated,
 }: {
-  lead: Lead; engagement: Record<string, EngagementSummary>; expanded: boolean;
+  lead: Lead; engagement: Record<string, EngagementSummary>; sends: EmailSend[]; expanded: boolean;
   onToggle: () => void; onDragStart: (e: React.DragEvent) => void; onFollowUp: (id: string) => void;
   onLeadUpdated: (lead: Lead) => void;
 }) {
@@ -53,6 +55,7 @@ function LeadCard({
   const latestNote = noteEntries[noteEntries.length - 1] || null;
   const olderNotes = noteEntries.slice(0, -1);
   const [showAllNotes, setShowAllNotes] = useState(false);
+  const [showSends, setShowSends] = useState(false);
   const [noteSummary, setNoteSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [findingDetails, setFindingDetails] = useState(false);
@@ -256,6 +259,35 @@ function LeadCard({
           {findResult && (
             <div style={{ fontSize: 11, color: L.muted, textAlign: "center" }}>{findResult}</div>
           )}
+          {sends.length > 0 && (
+            <div>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowSends((s) => !s); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: 0,
+                  cursor: "pointer", fontSize: 10.5, fontWeight: 700, color: L.dimmed,
+                }}
+              >
+                <Send style={{ width: 11, height: 11 }} /> {sends.length} email{sends.length !== 1 ? "s" : ""} sent{showSends ? " (hide)" : ""}
+              </button>
+              {showSends && (
+                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {sends.map((s) => (
+                    <details key={s.id} onClick={(e) => e.stopPropagation()} style={{ border: `1px solid ${L.border}`, background: "#f8fafc" }}>
+                      <summary style={{ padding: "6px 8px", cursor: "pointer", fontSize: 11 }}>
+                        <span style={{ fontWeight: 700, color: L.text }}>{s.subject}</span>
+                        <span style={{ color: L.dimmed, marginLeft: 6 }}>{formatDateTime(s.sent_at)}</span>
+                      </summary>
+                      <div
+                        style={{ padding: "8px 10px", borderTop: `1px solid ${L.border}`, fontFamily: "Arial,Helvetica,sans-serif", fontSize: 12.5, color: L.text, lineHeight: 1.5 }}
+                        dangerouslySetInnerHTML={{ __html: stripTrackingForDisplay(s.body_html) }}
+                      />
+                    </details>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); onFollowUp(lead.lead_id); }}
             style={{
@@ -278,9 +310,9 @@ function LeadCard({
 }
 
 function KanbanColumn({
-  col, leads, engagement, expandedId, onToggle, onDragStart, onFollowUp, onLeadUpdated, onDrop, dropDisabled, isDragOver, onDragOverColumn, onDragLeaveColumn,
+  col, leads, engagement, sends, expandedId, onToggle, onDragStart, onFollowUp, onLeadUpdated, onDrop, dropDisabled, isDragOver, onDragOverColumn, onDragLeaveColumn,
 }: {
-  col: Column; leads: Lead[]; engagement: Record<string, EngagementSummary>;
+  col: Column; leads: Lead[]; engagement: Record<string, EngagementSummary>; sends: Record<string, EmailSend[]>;
   expandedId: string | null; onToggle: (id: string) => void; onDragStart: (lead: Lead) => (e: React.DragEvent) => void;
   onFollowUp: (id: string) => void; onLeadUpdated: (lead: Lead) => void;
   onDrop: () => void; dropDisabled: boolean; isDragOver: boolean;
@@ -314,6 +346,7 @@ function KanbanColumn({
               key={lead.lead_id}
               lead={lead}
               engagement={engagement}
+              sends={sends[lead.lead_id] || []}
               expanded={expandedId === lead.lead_id}
               onToggle={() => onToggle(lead.lead_id)}
               onDragStart={onDragStart(lead)}
@@ -328,9 +361,9 @@ function KanbanColumn({
 }
 
 export default function PipelineBoard({
-  sections: initialSections, columns, engagement, activeSource,
+  sections: initialSections, columns, engagement, sends = {}, activeSource,
 }: {
-  sections: Section[]; columns: Column[]; engagement: Record<string, EngagementSummary>; activeSource: string;
+  sections: Section[]; columns: Column[]; engagement: Record<string, EngagementSummary>; sends?: Record<string, EmailSend[]>; activeSource: string;
 }) {
   const [sections, setSections] = useState(initialSections);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -426,6 +459,7 @@ export default function PipelineBoard({
                     col={col}
                     leads={grouped[col.key]}
                     engagement={engagement}
+                    sends={sends}
                     expandedId={expandedId}
                     onToggle={toggle}
                     onDragStart={dragStart}

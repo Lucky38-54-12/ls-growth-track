@@ -50,6 +50,7 @@ function fakeLead(overrides: Partial<Lead>): Lead {
     proposal_sent_at: null,
     proposal_followup_sent: false,
     unsubscribed_at: null,
+    thinking_about_it_at: null,
     ...overrides,
   };
 }
