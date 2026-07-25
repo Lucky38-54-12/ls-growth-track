@@ -87,7 +87,7 @@ export default function SalesCallsClient({
   }
 
   return (
-    <div style={{ maxWidth: 1080, margin: "0 auto", padding: "24px 28px 40px" }}>
+    <div style={{ padding: "24px 28px 40px" }}>
       <StatsBar stats={stats} />
 
       <div style={{ marginBottom: 20 }}>
