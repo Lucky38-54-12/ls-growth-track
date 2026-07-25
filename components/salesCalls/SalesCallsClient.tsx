@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { SalesCall, ScriptVersion, ScriptProposal, Lead, EngagementSummary, PatternTracker } from "@/lib/types";
+import { SalesCall, ScriptVersion, ScriptProposal, Lead, EngagementSummary, PatternTracker, OnboardingNote } from "@/lib/types";
 import { computeStats, computePatterns, CallStats, CallPatterns } from "@/lib/salesCallsStats";
 import { ONBOARDING_PIPELINE_COLUMNS } from "@/lib/onboardingSteps";
 import StatsBar from "./StatsBar";
@@ -10,6 +10,7 @@ import CallList from "./CallList";
 import MasterScriptPanel from "./MasterScriptPanel";
 import CallPrepPanel from "./CallPrepPanel";
 import PatternsPanel from "./PatternsPanel";
+import OnboardingNotesPanel from "./OnboardingNotesPanel";
 import { Download, Cloud } from "lucide-react";
 
 const L = { border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
@@ -17,6 +18,7 @@ const L = { border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 const TABS = [
   { key: "log", label: "Log a Call" },
   { key: "history", label: "Call History" },
+  { key: "notes", label: "Onboarding Notes" },
   { key: "script", label: "Master Script" },
   { key: "prep", label: "Call Prep" },
   { key: "patterns", label: "Patterns" },
@@ -34,11 +36,12 @@ interface Props {
   pipelineLeads: Lead[];
   engagement: Record<string, EngagementSummary>;
   scriptPatterns: PatternTracker[];
+  initialOnboardingNotes: OnboardingNote[];
 }
 
 export default function SalesCallsClient({
   initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialStats, initialPatterns,
-  pipelineLeads, engagement, scriptPatterns,
+  pipelineLeads, engagement, scriptPatterns, initialOnboardingNotes,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("log");
   const [calls, setCalls] = useState<SalesCall[]>(initialCalls);
@@ -143,6 +146,7 @@ export default function SalesCallsClient({
 
       {tab === "log" && <CallLogForm onSaved={handleCallSaved} />}
       {tab === "history" && <CallList calls={calls} onUpdated={handleCallUpdated} />}
+      {tab === "notes" && <OnboardingNotesPanel initialNotes={initialOnboardingNotes} />}
       {tab === "script" && (
         <MasterScriptPanel
           currentVersion={currentVersion}

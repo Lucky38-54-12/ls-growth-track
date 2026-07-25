@@ -268,3 +268,9 @@ export interface OnboardingClient {
   ad_budget: string | null;
   creatives_needed: string | null;
 }
+
+export interface OnboardingNote {
+  id: string;
+  note: string;
+  created_at: string;
+}
