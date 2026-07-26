@@ -6,7 +6,20 @@ export const dynamic = "force-dynamic";
 
 const ai = new Anthropic();
 
-async function extractAgreementDetails(callNotes: string) {
+interface AgreementDetails {
+  clientName: string;
+  company: string;
+  email: string;
+  trade: string;
+  focusService: string;
+  monthlyFee: string;
+  dailyAdSpend: string;
+  quoteThreshold: string;
+  trialWeeks: string;
+  startDate: string;
+}
+
+async function extractAgreementDetails(callNotes: string): Promise<AgreementDetails> {
   const msg = await ai.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 512,
@@ -23,15 +36,21 @@ Return this exact JSON shape (use empty string if not found):
   "company": "",
   "email": "",
   "trade": "",
-  "setupFee": "$750",
-  "monthlyFee": "$1,200",
+  "focusService": "",
+  "monthlyFee": "$2,000",
+  "dailyAdSpend": "$15",
+  "quoteThreshold": "10",
+  "trialWeeks": "3",
   "startDate": ""
 }
 
 Rules:
-- trade = what the business does (e.g. "cleaning", "plumbing", "building")
-- setupFee = any one-time fee mentioned, default "$750"
-- monthlyFee = any recurring fee mentioned, default "$1,200"
+- trade = what the business does generally (e.g. "electrical services", "cleaning", "plumbing")
+- focusService = the specific service the campaign should focus on first (e.g. "solar installations", "new builds"), else fall back to trade
+- monthlyFee = any recurring management fee mentioned, default "$2,000"
+- dailyAdSpend = any daily ad spend mentioned, default "$15"
+- quoteThreshold = number of qualified quote requests needed to trigger the fee, default "10"
+- trialWeeks = length of the free trial in weeks, default "3"
 - startDate = campaign start date if mentioned, else empty`,
     }],
   });
@@ -46,16 +65,22 @@ export async function POST(req: NextRequest) {
   const effectiveDate = new Date().toLocaleDateString("en-NZ", { day: "numeric", month: "2-digit", year: "2-digit" });
 
   try {
-    let details: { clientName: string; company: string; email: string; trade: string; setupFee: string; monthlyFee: string; startDate: string };
+    let details: AgreementDetails;
 
     if (body.callNotes) {
       details = await extractAgreementDetails(body.callNotes);
     } else {
-      const { clientName, company, email, trade, setupFee, monthlyFee, startDate } = body;
+      const { clientName, company, email, trade, focusService, monthlyFee, dailyAdSpend, quoteThreshold, trialWeeks, startDate } = body;
       if (!company && !clientName) {
         return NextResponse.json({ error: "Company or client name is required" }, { status: 400 });
       }
-      details = { clientName: clientName || "", company: company || clientName, email: email || "", trade: trade || "", setupFee: setupFee || "$750", monthlyFee: monthlyFee || "$1,200", startDate: startDate || "" };
+      details = {
+        clientName: clientName || "", company: company || clientName, email: email || "",
+        trade: trade || "", focusService: focusService || trade || "",
+        monthlyFee: monthlyFee || "$2,000", dailyAdSpend: dailyAdSpend || "$15",
+        quoteThreshold: quoteThreshold || "10", trialWeeks: trialWeeks || "3",
+        startDate: startDate || "",
+      };
     }
 
     if (!details.company && !details.clientName) {
