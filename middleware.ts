@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
-const PUBLIC_PATHS = ["/login", "/api/login", "/api/click", "/api/open", "/api/ping", "/api/lead-qual/webhooks/meta"];
+const PUBLIC_PATHS = [
+  "/login", "/api/login", "/api/click", "/api/open", "/api/ping", "/api/lead-qual/webhooks/meta",
+  // Client-facing self-serve connect flow — a client completes this in their
+  // own browser, logged into their own Google/Facebook account, so it can't
+  // sit behind our dashboard login (see /connect/[clientId]/page.tsx).
+  "/connect",
+  "/api/lead-qual/public",
+  "/api/lead-qual/oauth/google",
+  "/api/lead-qual/oauth/facebook",
+];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

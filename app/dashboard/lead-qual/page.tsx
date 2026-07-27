@@ -34,6 +34,14 @@ function LeadQualPageInner() {
   const [trade, setTrade] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function handleCopyLink(clientId: string) {
+    const url = `${window.location.origin}/connect/${clientId}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId(clientId);
+    setTimeout(() => setCopiedId((id) => (id === clientId ? null : id)), 2000);
+  }
 
   async function loadClients() {
     setLoading(true);
@@ -154,48 +162,28 @@ function LeadQualPageInner() {
                       {client.trade || "No trade set"}{client.phone ? ` · ${client.phone}` : ""} · click to configure &amp; test
                     </p>
                   </Link>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {fbConnection ? (
-                      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, color: "#15803d" }}>
-                          <MessageCircle style={{ width: 14, height: 14 }} />
-                          Facebook connected
-                        </span>
-                        <a
-                          href={`/api/lead-qual/oauth/facebook?clientId=${client.id}`}
-                          style={{ fontWeight: 600, color: L.muted, textDecoration: "underline" }}
-                        >
-                          Reconnect
-                        </a>
-                      </span>
-                    ) : (
-                      <a
-                        href={`/api/lead-qual/oauth/facebook?clientId=${client.id}`}
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: fbConnection ? "#15803d" : L.dimmed }}>
+                      <MessageCircle style={{ width: 14, height: 14 }} />
+                      {fbConnection ? "Facebook connected" : "Facebook not connected"}
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: connection ? "#15803d" : L.dimmed }}>
+                      <CalendarCheck style={{ width: 14, height: 14 }} />
+                      {connection ? `Calendar connected (${connection.google_account_email})` : "Calendar not connected"}
+                    </span>
+                    {(!fbConnection || !connection) && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopyLink(client.id)}
                         style={{
                           display: "flex", alignItems: "center", gap: 6,
-                          fontSize: 12.5, fontWeight: 700, color: "var(--red)",
-                          border: "1px solid var(--red)", borderRadius: 8, padding: "6px 12px", textDecoration: "none",
+                          fontSize: 12.5, fontWeight: 700, color: copiedId === client.id ? "#15803d" : "var(--red)",
+                          border: `1px solid ${copiedId === client.id ? "#15803d" : "var(--red)"}`, borderRadius: 8,
+                          padding: "6px 12px", background: "none", cursor: "pointer",
                         }}
                       >
-                        Connect Facebook Page
-                      </a>
-                    )}
-                    {connection ? (
-                      <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#15803d" }}>
-                        <CalendarCheck style={{ width: 14, height: 14 }} />
-                        Connected ({connection.google_account_email})
-                      </span>
-                    ) : (
-                      <a
-                        href={`/api/lead-qual/oauth/google?clientId=${client.id}`}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 6,
-                          fontSize: 12.5, fontWeight: 700, color: "var(--red)",
-                          border: "1px solid var(--red)", borderRadius: 8, padding: "6px 12px", textDecoration: "none",
-                        }}
-                      >
-                        Connect Calendar
-                      </a>
+                        {copiedId === client.id ? "Link copied" : "Copy client link"}
+                      </button>
                     )}
                   </div>
                 </div>
