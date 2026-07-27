@@ -335,51 +335,35 @@ function Shell({ children }: { children: React.ReactNode }) {
       <style>{`
         @keyframes connect-spin { to { transform: rotate(360deg); } }
         .connect-shell { flex-direction: row; }
-        .connect-brand { flex: 1 1 42%; min-width: 320px; padding: 48px 44px; }
-        .connect-brand-copy { display: flex; }
+        .connect-brand { flex: 1 1 46%; min-width: 320px; padding: 48px 56px; }
+        .connect-brand-headline { font-size: 52px; }
         @media (max-width: 780px) {
           .connect-shell { flex-direction: column; }
-          .connect-brand { flex: none; min-width: 0; padding: 32px 24px; }
-          .connect-brand-copy { display: none; }
+          .connect-brand { flex: none; min-width: 0; padding: 32px 24px 8px; }
+          .connect-brand-headline { font-size: 34px; }
         }
       `}</style>
 
       {/* Branding panel */}
-      <div
-        className="connect-brand"
-        style={{ background: "#0b1220", color: "#fff", display: "flex", flexDirection: "column", justifyContent: "space-between" }}
-      >
-        <img src="/logo-wide.png" alt="LS Growth" style={{ height: 28, width: "auto", objectFit: "contain", filter: "brightness(0) invert(1)" }} />
+      <div className="connect-brand" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <img src="/logo-wide.png" alt="LS Growth" style={{ height: 24, width: "auto", objectFit: "contain" }} />
 
-        <div className="connect-brand-copy" style={{ flexDirection: "column" }}>
-          <h2 style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.15, marginBottom: 14 }}>
-            Let&apos;s get you connected.
+        <div>
+          <h2 className="connect-brand-headline" style={{ fontWeight: 900, lineHeight: 1.05, letterSpacing: "-0.02em", color: L.text, marginBottom: 14, textTransform: "uppercase" }}>
+            Let&apos;s get<br />you connected.
           </h2>
-          <p style={{ fontSize: 14.5, color: "#94a3b8", lineHeight: 1.6, maxWidth: 380 }}>
-            Two accounts, two minutes, and every lead we qualify for you books straight onto your calendar automatically.
+          <p style={{ fontSize: 15, color: L.muted }}>
+            A few quick steps to get your account set up.
           </p>
         </div>
 
-        <div className="connect-brand-copy" style={{ flexDirection: "column", gap: 12 }}>
-          <TrustLine text="You approve access on Google and Facebook's own screens" />
-          <TrustLine text="LS Growth never sees or stores your password" />
-          <TrustLine text="Revoke access anytime from your own account settings" />
-        </div>
+        <p style={{ fontSize: 12.5, color: "#94a3b8" }}>© {new Date().getFullYear()} LS Growth</p>
       </div>
 
       {/* Content panel */}
-      <div style={{ flex: "1 1 58%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <div style={{ width: "100%", maxWidth: 460 }}>{children}</div>
+      <div style={{ flex: "1 1 54%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ width: "100%", maxWidth: 440 }}>{children}</div>
       </div>
-    </div>
-  );
-}
-
-function TrustLine({ text }: { text: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 9 }}>
-      <CheckCircle2 style={{ width: 15, height: 15, color: "#4ade80", flexShrink: 0, marginTop: 2 }} />
-      <p style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.4 }}>{text}</p>
     </div>
   );
 }
