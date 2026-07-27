@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CalendarCheck, MessageCircle, CheckCircle2, XCircle, ShieldCheck, Lock, Megaphone, Copy, Check, ArrowRight, ArrowLeft, Link2 } from "lucide-react";
+import { CheckCircle2, XCircle, ShieldCheck, Lock, Megaphone, Copy, Check, ArrowRight, ArrowLeft, Link2 } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -239,27 +239,21 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
               {fbConnectError && <p style={{ color: "#b91c1c", fontSize: 12.5, marginTop: 10 }}>{fbConnectError}</p>}
             </div>
           ) : (
-            <ConnectRow
-              icon={<MessageCircle style={{ width: 18, height: 18 }} />}
-              title="Facebook Page"
-              description="So Messenger leads from your Page get qualified automatically."
-              connected={facebookDone}
-              error={fbError || fbConnectError}
-              href={`/api/lead-qual/oauth/facebook?clientId=${resolvedClientId}`}
-            />
-          )}
+            <>
+              <ConnectRow
+                title="Facebook Page"
+                description="So Messenger leads from your Page get qualified automatically."
+                connected={facebookDone}
+                error={fbError || fbConnectError}
+              />
 
-          <button
-            type="button"
-            onClick={() => setStep("calendar")}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
-              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
-              border: "none", borderRadius: 0, padding: "11px 16px", cursor: "pointer", marginTop: 8,
-            }}
-          >
-            Next <ArrowRight style={{ width: 15, height: 15 }} />
-          </button>
+              <PrimaryAction
+                connected={facebookDone}
+                href={`/api/lead-qual/oauth/facebook?clientId=${resolvedClientId}`}
+                onNext={() => setStep("calendar")}
+              />
+            </>
+          )}
 
           <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: L.muted, marginTop: 14 }}>
             <Lock style={{ width: 12, height: 12 }} /> Secured by Facebook&apos;s own login, LS Growth never sees your password.
@@ -288,25 +282,17 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
           </p>
 
           <ConnectRow
-            icon={<CalendarCheck style={{ width: 18, height: 18 }} />}
             title="Google Calendar"
             description="So a booked lead lands straight on your calendar."
             connected={calendarDone}
             error={calendarError}
-            href={`/api/lead-qual/oauth/google?clientId=${resolvedClientId}`}
           />
 
-          <button
-            type="button"
-            onClick={() => setStep("ads")}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
-              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
-              border: "none", borderRadius: 0, padding: "11px 16px", cursor: "pointer", marginTop: 8,
-            }}
-          >
-            Next <ArrowRight style={{ width: 15, height: 15 }} />
-          </button>
+          <PrimaryAction
+            connected={calendarDone}
+            href={`/api/lead-qual/oauth/google?clientId=${resolvedClientId}`}
+            onNext={() => setStep("ads")}
+          />
 
           <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: L.muted, marginTop: 14 }}>
             <Lock style={{ width: 12, height: 12 }} /> Secured by Google&apos;s own login, LS Growth never sees your password.
@@ -359,41 +345,46 @@ function StepHeader({ client, step, of }: { client: ClientInfo; step: number; of
 }
 
 function ConnectRow({
-  icon, title, description, connected, error, href,
+  title, description, connected, error,
 }: {
-  icon: React.ReactNode; title: string; description: string; connected: boolean; error?: string | null; href: string;
+  title: string; description: string; connected: boolean; error?: string | null;
 }) {
   return (
     <div style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: 18, marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 0, background: "#fef2f2", color: "var(--red)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {icon}
-          </div>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: L.text }}>{title}</p>
-            <p style={{ fontSize: 12.5, color: L.muted }}>{description}</p>
-          </div>
+        <div>
+          <p style={{ fontSize: 14, fontWeight: 700, color: L.text }}>{title}</p>
+          <p style={{ fontSize: 12.5, color: L.muted }}>{description}</p>
         </div>
-        {connected ? (
+        {connected && (
           <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#15803d", flexShrink: 0 }}>
             <CheckCircle2 style={{ width: 16, height: 16 }} /> Connected
           </span>
-        ) : (
-          <a
-            href={href}
-            style={{
-              flexShrink: 0, fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--red)",
-              borderRadius: 0, padding: "8px 16px", textDecoration: "none",
-            }}
-          >
-            Connect
-          </a>
         )}
       </div>
       {error && <p style={{ color: "#b91c1c", fontSize: 12.5, marginTop: 10 }}>Couldn&apos;t connect: {error}</p>}
     </div>
   );
+}
+
+// The one primary action per step — reads "Connect" and hits the real OAuth
+// URL until that channel is actually connected, then flips to "Next" to
+// advance. One button instead of a separate per-item Connect plus a
+// separate step-level Next.
+function PrimaryAction({ connected, href, onNext }: { connected: boolean; href: string; onNext: () => void }) {
+  const style: React.CSSProperties = {
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", boxSizing: "border-box",
+    fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
+    border: "none", borderRadius: 0, padding: "11px 16px", cursor: "pointer", marginTop: 8, textDecoration: "none",
+  };
+  if (connected) {
+    return (
+      <button type="button" onClick={onNext} style={style}>
+        Next <ArrowRight style={{ width: 15, height: 15 }} />
+      </button>
+    );
+  }
+  return <a href={href} style={style}>Connect</a>;
 }
 
 function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirming: boolean; onConfirm: () => void }) {
@@ -484,7 +475,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <style>{`
         @keyframes connect-spin { to { transform: rotate(360deg); } }
         .connect-shell { flex-direction: row; }
-        .connect-brand { flex: 1 1 46%; min-width: 320px; padding: 48px 56px; }
+        .connect-brand { flex: 1 1 70%; min-width: 320px; padding: 48px 56px; }
         .connect-brand-logo { height: 120px; }
         .connect-brand-headline { font-size: 52px; }
         @media (max-width: 780px) {
@@ -513,7 +504,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Content panel */}
-      <div className="connect-content" style={{ flex: "1 1 54%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, borderLeft: "1px solid #e6eaf0" }}>
+      <div className="connect-content" style={{ flex: "1 1 30%", minWidth: 380, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, borderLeft: "1px solid #e6eaf0" }}>
         <div style={{ width: "100%", maxWidth: 440 }}>{children}</div>
       </div>
     </div>
