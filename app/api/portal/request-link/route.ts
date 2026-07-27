@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   if (client?.email) {
     const token = await createMagicLinkToken(client.id);
-    const link = `${process.env.APP_URL || "https://app.lsgrowth.agency"}/portal/verify?token=${encodeURIComponent(token)}`;
+    const link = `${process.env.APP_URL || "https://app.lsgrowth.agency"}/api/portal/verify?token=${encodeURIComponent(token)}`;
     await sendReminderEmail(
       client.email,
       `Your ${client.name} login link`,
