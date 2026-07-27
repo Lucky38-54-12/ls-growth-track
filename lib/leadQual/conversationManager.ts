@@ -1,7 +1,7 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { runQualifyingTurn, runPostCloseTurn, ClientConfigData, ConversationTurn } from "./ai";
 import { evaluate, Rule, defaultRules } from "./qualification";
-import { bookJobOnClientCalendar } from "./googleCalendar";
+import { bookJobOnClientCalendar, resolveAvailableSlot } from "./googleCalendar";
 import { enrollInNurture } from "./nurture";
 
 export interface RunTurnInput {
@@ -45,6 +45,7 @@ async function loadClientConfig(clientId: string): Promise<{ config: ClientConfi
     proofPoint: businessInfo.proof_point as string | undefined,
     websiteContent: businessInfo.website_content as string | undefined,
     extraContext: businessInfo.extra_context as string | undefined,
+    timezone: client?.timezone || "Pacific/Auckland",
   };
   const rules: Rule[] = (configRow?.qualification_rules as Rule[]) || defaultRules();
 
@@ -180,12 +181,26 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
       if (result.outcome === "qualified" && lead) {
         try {
           const timezone = (await sb.from("lq_clients").select("timezone").eq("id", clientId).single()).data?.timezone || "Pacific/Auckland";
-          const startISO = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // placeholder: next-day slot, real scheduling logic comes later
+
+          // visit_time_iso/callback_time_iso are the AI's own resolution of
+          // whatever loose time the lead gave ("tomorrow arvo") into a real
+          // local date/time — an on-site visit uses visit_time, a phone-only
+          // quote uses callback_time. Actually checked against the client's
+          // calendar (business hours + no conflicts) instead of blindly
+          // booking a fixed 24h-from-now slot regardless of what was said.
+          const isOnSite = mergedFields.quote_method === "on_site";
+          const desiredLocalDateTime = (isOnSite ? mergedFields.visit_time_iso : mergedFields.callback_time_iso) as string | undefined;
+          const durationMinutes = isOnSite ? 60 : 20;
+
+          const slot = await resolveAvailableSlot({ clientId, desiredLocalDateTime, durationMinutes, timeZone: timezone });
+
+          const requestedTimeLabel = isOnSite ? mergedFields.visit_time : mergedFields.callback_time;
           const { eventId } = await bookJobOnClientCalendar({
             clientId,
             summary: `${mergedFields.job_type || "Job"} — ${mergedFields.location || "location TBC"}`,
-            description: `Qualified via AI chat.\nJob type: ${mergedFields.job_type || "?"}\nLocation: ${mergedFields.location || "?"}\nTimeline: ${mergedFields.timeline || "?"}`,
-            startISO,
+            description: `Qualified via AI chat.\nJob type: ${mergedFields.job_type || "?"}\nLocation: ${mergedFields.location || "?"}\nTimeline: ${mergedFields.timeline || "?"}${requestedTimeLabel ? `\nLead requested: ${requestedTimeLabel}` : ""}`,
+            startISO: slot.toISOString(),
+            durationMinutes,
             timeZone: timezone,
           });
           await sb.from("lq_leads").update({ booking_status: "booked", calendar_event_id: eventId, booked_at: new Date().toISOString() }).eq("id", lead.id);
