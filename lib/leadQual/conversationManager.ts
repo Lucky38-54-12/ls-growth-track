@@ -3,6 +3,7 @@ import { runQualifyingTurn, runPostCloseTurn, ClientConfigData, ConversationTurn
 import { evaluate, Rule, defaultRules } from "./qualification";
 import { bookJobOnClientCalendar, resolveAvailableSlot } from "./googleCalendar";
 import { enrollInNurture } from "./nurture";
+import { notifySlack } from "@/lib/slackNotify";
 
 export interface RunTurnInput {
   clientId: string;
@@ -205,6 +206,19 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
           });
           await sb.from("lq_leads").update({ booking_status: "booked", calendar_event_id: eventId, booked_at: new Date().toISOString() }).eq("id", lead.id);
           bookingStatus = "booked";
+
+          const slotLabel = new Intl.DateTimeFormat("en-NZ", {
+            timeZone: timezone, weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
+          }).format(slot);
+          // Awaited, not fire-and-forget — this runs inside a serverless
+          // webhook handler that returns shortly after, and an un-awaited
+          // fetch can get cut off mid-flight when the function terminates.
+          await notifySlack(
+            `📅 New booking — *${config.businessName}*\n` +
+            `${mergedFields.job_type || "Job"} in ${mergedFields.location || "location TBC"}, booked for ${slotLabel}\n` +
+            `${mergedFields.phone ? `Phone: ${mergedFields.phone}\n` : ""}` +
+            `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/lead-qual/${clientId}`
+          );
         } catch {
           // No calendar connected yet, or booking failed — lead is still
           // recorded as qualified, just not auto-booked. Surfaced in the UI
