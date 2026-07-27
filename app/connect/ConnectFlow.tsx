@@ -167,7 +167,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
     <Shell>
       {phase === "gate" && (
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text, marginBottom: 8 }}>Verify your link</h1>
+          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 8 }}>Verify your link</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 18, lineHeight: 1.5 }}>
             Paste the link LS Growth sent you below, then verify it's genuinely yours before we get you connected.
           </p>
@@ -214,7 +214,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
         <div>
           <StepHeader client={client} step={1} of={3} />
 
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 6 }}>Connect your Facebook Page</h1>
+          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Connect your Facebook Page</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
             So Messenger leads from your Page get qualified automatically. You&apos;ll log into your own Facebook account on Facebook&apos;s screen, not ours.
           </p>
@@ -282,7 +282,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
 
           <StepHeader client={client} step={2} of={3} />
 
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 6 }}>Connect your Calendar</h1>
+          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Connect your Calendar</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
             So a booked lead lands straight on your calendar. You&apos;ll log into your own Google account on Google&apos;s screen, not ours.
           </p>
@@ -329,7 +329,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
 
           <StepHeader client={client} step={3} of={3} />
 
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 6 }}>One last step</h1>
+          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>One last step</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
             So we can set up and run your ad campaigns.
           </p>
@@ -492,6 +492,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           .connect-brand { flex: none; min-width: 0; padding: 32px 24px 8px; }
           .connect-brand-logo { height: 72px; }
           .connect-brand-headline { font-size: 34px; }
+          .connect-content { border-left: none !important; border-top: 1px solid #e6eaf0; }
         }
       `}</style>
 
@@ -512,7 +513,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Content panel */}
-      <div style={{ flex: "1 1 54%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div className="connect-content" style={{ flex: "1 1 54%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, borderLeft: "1px solid #e6eaf0" }}>
         <div style={{ width: "100%", maxWidth: 440 }}>{children}</div>
       </div>
     </div>
