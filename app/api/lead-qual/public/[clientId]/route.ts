@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const sb = createSupabaseClient();
   const { data: client, error } = await sb
     .from("lq_clients")
-    .select("id, name, trade, lq_calendar_connections(google_account_email), lq_channels(type)")
+    .select("id, name, trade, ads_manager_access_confirmed_at, lq_calendar_connections(google_account_email), lq_channels(type)")
     .eq("id", clientId)
     .maybeSingle();
 
@@ -23,5 +23,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     trade: client.trade,
     calendarConnected: !!client.lq_calendar_connections?.[0],
     facebookConnected: !!client.lq_channels?.some((c: { type: string }) => c.type === "messenger"),
+    adsAccessConfirmed: !!client.ads_manager_access_confirmed_at,
   });
 }

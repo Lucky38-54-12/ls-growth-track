@@ -2,9 +2,15 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { CalendarCheck, MessageCircle, CheckCircle2, ShieldCheck, Lock } from "lucide-react";
+import { CalendarCheck, MessageCircle, CheckCircle2, ShieldCheck, Lock, Megaphone, Copy, Check } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
+
+// The Business Manager clients add as a partner to grant ad account access —
+// there's no OAuth flow for this (Meta requires it done by hand in Business
+// Suite), so this just needs to be correct, not secret.
+const LS_GROWTH_BUSINESS_NAME = "LS Growth Agency";
+const LS_GROWTH_BUSINESS_ID = "1348658683829583";
 
 interface ClientInfo {
   id: string;
@@ -12,6 +18,7 @@ interface ClientInfo {
   trade: string | null;
   calendarConnected: boolean;
   facebookConnected: boolean;
+  adsAccessConfirmed: boolean;
 }
 
 interface FbPage {
@@ -105,8 +112,19 @@ function ConnectPageInner() {
     loadClient();
   }
 
+  const [adsConfirming, setAdsConfirming] = useState(false);
+  const [adsJustConfirmed, setAdsJustConfirmed] = useState(false);
+
+  async function handleConfirmAdsAccess() {
+    setAdsConfirming(true);
+    await fetch(`/api/lead-qual/public/${clientId}/confirm-ads-access`, { method: "POST" });
+    setAdsConfirming(false);
+    setAdsJustConfirmed(true);
+  }
+
   const calendarDone = !!client?.calendarConnected || !!calendarConnected;
   const facebookDone = !!client?.facebookConnected || fbJustConnected;
+  const adsDone = !!client?.adsAccessConfirmed || adsJustConfirmed;
 
   return (
     <Shell>
@@ -132,7 +150,7 @@ function ConnectPageInner() {
 
           <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 6 }}>Connect {client.name}</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
-            Two quick connections so leads book straight onto your calendar. You&apos;ll log into your own Google and Facebook accounts on their screens, not ours, nothing is shared with us beyond what you approve there — and you can revoke access anytime from your own account settings.
+            A few quick steps so leads book straight onto your calendar and we can get your ads running. You&apos;ll log into your own Google and Facebook accounts on their screens, not ours, nothing is shared with us beyond what you approve there — and you can revoke access anytime from your own account settings.
           </p>
 
           <ConnectRow
@@ -174,7 +192,9 @@ function ConnectPageInner() {
             />
           )}
 
-          {calendarDone && facebookDone ? (
+          <AdsAccessCard done={adsDone} confirming={adsConfirming} onConfirm={handleConfirmAdsAccess} />
+
+          {calendarDone && facebookDone && adsDone ? (
             <p style={{ fontSize: 13.5, color: "#15803d", fontWeight: 700, marginTop: 4 }}>
               All set, you&apos;re good to go.
             </p>
@@ -223,6 +243,82 @@ function ConnectRow({
         )}
       </div>
       {error && <p style={{ color: "#b91c1c", fontSize: 12.5, marginTop: 10 }}>Couldn&apos;t connect: {error}</p>}
+    </div>
+  );
+}
+
+function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirming: boolean; onConfirm: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(LS_GROWTH_BUSINESS_ID);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 12, padding: 18, marginBottom: 14, boxShadow: "0 1px 2px rgba(15,23,42,0.03)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: done ? 0 : 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, background: "#fef2f2", color: "var(--red)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Megaphone style={{ width: 18, height: 18 }} />
+          </div>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: L.text }}>Meta Ads Manager</p>
+            <p style={{ fontSize: 12.5, color: L.muted }}>So we can set up and run your ad campaigns.</p>
+          </div>
+        </div>
+        {done && (
+          <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#15803d", flexShrink: 0 }}>
+            <CheckCircle2 style={{ width: 16, height: 16 }} /> Marked done
+          </span>
+        )}
+      </div>
+
+      {!done && (
+        <>
+          <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 10, lineHeight: 1.6 }}>
+            Meta doesn&apos;t let us request this one with a click, you&apos;ll need to add us as a partner yourself in Meta Business Suite:
+          </p>
+          <ol style={{ fontSize: 12.5, color: L.text, lineHeight: 1.9, paddingLeft: 18, marginBottom: 12 }}>
+            <li>Go to <strong>business.facebook.com/settings</strong> and open your Business Settings</li>
+            <li><strong>Accounts → Ad accounts</strong>, select your ad account</li>
+            <li>Click <strong>Assign partner</strong>, and paste in the Business ID below</li>
+            <li>Give <strong>full control</strong> (or advertiser access) and confirm</li>
+          </ol>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{LS_GROWTH_BUSINESS_NAME} — Business ID</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "monospace" }}>{LS_GROWTH_BUSINESS_ID}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopy}
+              style={{
+                display: "flex", alignItems: "center", gap: 5, flexShrink: 0,
+                fontSize: 12, fontWeight: 700, color: copied ? "#15803d" : L.text,
+                background: "#fff", border: `1px solid ${L.border}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer",
+              }}
+            >
+              {copied ? <Check style={{ width: 13, height: 13 }} /> : <Copy style={{ width: 13, height: 13 }} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={confirming}
+            style={{
+              width: "100%", fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--red)",
+              border: "none", borderRadius: 8, padding: "9px 16px", cursor: confirming ? "default" : "pointer",
+            }}
+          >
+            {confirming ? "Saving…" : "I've added LS Growth as a partner"}
+          </button>
+        </>
+      )}
     </div>
   );
 }

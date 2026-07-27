@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Topbar from "@/components/Topbar";
-import { CalendarCheck, Plus, MessageCircle } from "lucide-react";
+import { CalendarCheck, Plus, MessageCircle, Megaphone } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -14,6 +14,7 @@ interface LqClient {
   trade: string | null;
   phone: string | null;
   status: string;
+  ads_manager_access_confirmed_at: string | null;
   lq_calendar_connections: { google_account_email: string; connected_at: string }[] | null;
   lq_channels: { type: string; external_page_id: string }[] | null;
 }
@@ -171,7 +172,14 @@ function LeadQualPageInner() {
                       <CalendarCheck style={{ width: 14, height: 14 }} />
                       {connection ? `Calendar connected (${connection.google_account_email})` : "Calendar not connected"}
                     </span>
-                    {(!fbConnection || !connection) && (
+                    <span
+                      title="Self-reported by the client, not verified — check Business Manager to confirm it actually landed"
+                      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: client.ads_manager_access_confirmed_at ? "#15803d" : L.dimmed }}
+                    >
+                      <Megaphone style={{ width: 14, height: 14 }} />
+                      {client.ads_manager_access_confirmed_at ? "Ads access claimed" : "Ads access not confirmed"}
+                    </span>
+                    {(!fbConnection || !connection || !client.ads_manager_access_confirmed_at) && (
                       <button
                         type="button"
                         onClick={() => handleCopyLink(client.id)}
