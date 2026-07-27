@@ -224,27 +224,27 @@ export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initia
 
       {/* Pipeline kanban — drag a card between columns */}
       <Section title="Pipeline" count={leads.length}>
-        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, alignItems: "start" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "start" }}>
           {PIPELINE_COLUMNS.map((col) => (
             <div
               key={col.key}
-              style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}
+              style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}
               onDragOver={(e) => { e.preventDefault(); setDragOverKey(col.key); }}
               onDragLeave={() => setDragOverKey((prev) => (prev === col.key ? null : prev))}
               onDrop={(e) => { e.preventDefault(); handleDrop(col.key); }}
             >
-              <div className="surface-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px" }}>
+              <div style={{ background: L.surface, border: `1px solid ${L.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px" }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: L.text }}>{col.label}</span>
                 <span style={{ fontSize: 20, fontWeight: 800, color: L.text }}>{grouped[col.key].length}</span>
               </div>
               <div style={{
-                display: "flex", flexDirection: "column", gap: 8, minHeight: 80, padding: 4, borderRadius: 10,
+                display: "flex", flexDirection: "column", gap: 8, minHeight: 80, padding: 4,
                 background: dragOverKey === col.key ? "#fef2f2" : "transparent",
                 border: dragOverKey === col.key ? "1px dashed var(--red)" : "1px dashed transparent",
                 transition: "background 0.1s, border 0.1s",
               }}>
                 {grouped[col.key].length === 0 ? (
-                  <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 12, background: "#f8fafc", border: `1px dashed ${L.border}`, borderRadius: 10 }}>Empty</div>
+                  <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 12, background: "#f8fafc", border: `1px dashed ${L.border}` }}>Empty</div>
                 ) : (
                   grouped[col.key].map((lead) => (
                     <div
