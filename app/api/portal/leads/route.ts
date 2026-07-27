@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   const { data: leads, error } = await sb
     .from("lq_leads")
-    .select("id, outcome, booking_status, calendar_event_id, booked_at, scheduled_at, created_at, contact_email, lq_conversations(extracted_fields)")
+    .select("id, outcome, booking_status, calendar_event_id, booked_at, scheduled_at, created_at, contact_email, pipeline_stage, lq_conversations(extracted_fields)")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false })
     .limit(100);

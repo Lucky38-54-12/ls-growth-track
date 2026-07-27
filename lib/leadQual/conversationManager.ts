@@ -176,6 +176,7 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
           outcome: result.outcome,
           score: result.score,
           contact_email: contactEmail || null,
+          pipeline_stage: result.outcome === "disqualified" ? "not_a_fit" : result.outcome === "nurture" ? "not_ready" : "new_inquiry",
         })
         .select()
         .single();
@@ -209,7 +210,7 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
           // booked_at is when this booking transaction happened; scheduled_at
           // is the actual appointment/callback time (slot) — the portal's
           // calendar and leads views need the latter, not the former.
-          await sb.from("lq_leads").update({ booking_status: "booked", calendar_event_id: eventId, booked_at: new Date().toISOString(), scheduled_at: slot.toISOString() }).eq("id", lead.id);
+          await sb.from("lq_leads").update({ booking_status: "booked", calendar_event_id: eventId, booked_at: new Date().toISOString(), scheduled_at: slot.toISOString(), pipeline_stage: "booked" }).eq("id", lead.id);
           bookingStatus = "booked";
 
           const slotLabel = new Intl.DateTimeFormat("en-NZ", {

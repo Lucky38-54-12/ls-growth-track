@@ -11,32 +11,33 @@ interface Lead {
   scheduled_at: string | null;
   created_at: string;
   contact_email: string | null;
+  pipeline_stage: string | null;
   lq_conversations: { extracted_fields: Record<string, unknown> } | null;
 }
 
-// These map to the AI qualifier's actual states — there's no multi-touch
-// enquiry funnel here (job_type/quote_method/time all get captured in one
-// chat), so the stages are "what actually happens next", not a generic
-// CRM's New/Contacted/Trial vocabulary that wouldn't correspond to anything
-// this system tracks.
 const STAGES = [
-  { key: "nurture", label: "Not ready yet", color: "#b45309", bg: "#fffbeb" },
-  { key: "booked", label: "Booked", color: "#15803d", bg: "#f0fdf4" },
-  { key: "needs_booking", label: "Needs manual booking", color: "#b91c1c", bg: "#fef2f2" },
-  { key: "disqualified", label: "Not a fit", color: "#64748b", bg: "#f1f5f9" },
+  { key: "new_inquiry", label: "New Inquiry", color: "#1d4ed8", bg: "#eff6ff" },
+  { key: "followed_up", label: "Followed Up", color: "#7c3aed", bg: "#f5f3ff" },
+  { key: "not_ready", label: "Not Ready Yet — Email Sequence", color: "#b45309", bg: "#fffbeb" },
+  { key: "booked", label: "Booked Jobs", color: "#15803d", bg: "#f0fdf4" },
+  { key: "not_a_fit", label: "Not a Fit", color: "#64748b", bg: "#f1f5f9" },
 ] as const;
 
+// Older leads inserted before pipeline_stage existed fall back to a
+// derived stage so nothing silently disappears off the board.
 function stageFor(lead: Lead): string {
-  if (lead.outcome === "nurture") return "nurture";
-  if (lead.outcome === "disqualified") return "disqualified";
+  if (lead.pipeline_stage) return lead.pipeline_stage;
+  if (lead.outcome === "disqualified") return "not_a_fit";
+  if (lead.outcome === "nurture") return "not_ready";
   if (lead.outcome === "qualified" && lead.booking_status === "booked") return "booked";
-  if (lead.outcome === "qualified" && lead.booking_status === "failed") return "needs_booking";
-  return "nurture";
+  return "new_inquiry";
 }
 
 export default function PortalPipelinePage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/portal/leads")
@@ -55,11 +56,28 @@ export default function PortalPipelinePage() {
     return map;
   }, [leads]);
 
+  function moveLead(leadId: string, stage: string) {
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, pipeline_stage: stage } : l)));
+    fetch(`/api/portal/leads/${leadId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pipeline_stage: stage }),
+    }).catch(() => {});
+  }
+
+  function handleDrop(stage: string) {
+    setDragOverStage(null);
+    if (!dragId) return;
+    const current = leads.find((l) => l.id === dragId);
+    if (current && stageFor(current) !== stage) moveLead(dragId, stage);
+    setDragId(null);
+  }
+
   return (
     <div>
       <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
         <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text }}>Pipeline</h1>
-        <p style={{ fontSize: 13, color: L.muted }}>Where every lead is at, so nothing falls through the cracks.</p>
+        <p style={{ fontSize: 13, color: L.muted }}>Drag a card to move it through your pipeline — so nothing falls through the cracks.</p>
       </div>
 
       {loading ? (
@@ -68,21 +86,50 @@ export default function PortalPipelinePage() {
         <div style={{ display: "flex", gap: 14, padding: "20px 28px 60px", overflowX: "auto", alignItems: "flex-start" }}>
           {STAGES.map((stage) => {
             const stageLeads = byStage[stage.key] || [];
+            const isDragOver = dragOverStage === stage.key;
             return (
-              <div key={stage.key} style={{ flex: "1 1 240px", minWidth: 240 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div
+                key={stage.key}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (dragOverStage !== stage.key) setDragOverStage(stage.key);
+                }}
+                onDragLeave={() => setDragOverStage((prev) => (prev === stage.key ? null : prev))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleDrop(stage.key);
+                }}
+                style={{
+                  flex: "1 1 240px", minWidth: 240, background: isDragOver ? "#f8fafc" : "transparent",
+                  border: isDragOver ? `1px dashed ${stage.color}` : "1px solid transparent",
+                  padding: 6, transition: "background 0.1s",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, padding: "0 4px" }}>
                   <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{stage.label}</p>
                   <span style={{ fontSize: 11.5, fontWeight: 700, color: stage.color, background: stage.bg, padding: "2px 8px" }}>{stageLeads.length}</span>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 60 }}>
                   {stageLeads.length === 0 ? (
                     <div style={{ border: `1px dashed ${L.border}`, padding: 16, textAlign: "center", color: "#cbd5e1", fontSize: 12 }}>Empty</div>
                   ) : (
                     stageLeads.map((lead) => {
                       const fields = lead.lq_conversations?.extracted_fields || {};
                       return (
-                        <div key={lead.id} style={{ background: L.surface, border: `1px solid ${L.border}`, borderLeft: `3px solid ${stage.color}`, padding: "10px 12px" }}>
+                        <div
+                          key={lead.id}
+                          draggable
+                          onDragStart={() => setDragId(lead.id)}
+                          onDragEnd={() => {
+                            setDragId(null);
+                            setDragOverStage(null);
+                          }}
+                          style={{
+                            background: L.surface, border: `1px solid ${L.border}`, borderLeft: `3px solid ${stage.color}`,
+                            padding: "10px 12px", cursor: "grab", opacity: dragId === lead.id ? 0.4 : 1,
+                          }}
+                        >
                           <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{String(fields.job_type || "Job type unknown")}</p>
                           <p style={{ fontSize: 11.5, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
                           <p style={{ fontSize: 11, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email || "No contact")}</p>
