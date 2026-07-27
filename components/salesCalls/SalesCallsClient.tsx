@@ -1,14 +1,12 @@
 "use client";
 import { useState } from "react";
-import { SalesCall, ScriptVersion, ScriptProposal, PatternTracker, OnboardingNote } from "@/lib/types";
+import { SalesCall, ScriptVersion, ScriptProposal, PatternTracker } from "@/lib/types";
 import { computePatterns, CallPatterns } from "@/lib/salesCallsStats";
 import CallLogForm from "./CallLogForm";
 import CallList from "./CallList";
 import MasterScriptPanel from "./MasterScriptPanel";
 import CallPrepPanel from "./CallPrepPanel";
 import PatternsPanel from "./PatternsPanel";
-import OnboardingNotesPanel from "./OnboardingNotesPanel";
-import AgreementMakerPanel from "./AgreementMakerPanel";
 import { Download, Cloud } from "lucide-react";
 
 const L = { border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
@@ -16,8 +14,6 @@ const L = { border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 const TABS = [
   { key: "log", label: "Log a Call" },
   { key: "history", label: "Call History" },
-  { key: "notes", label: "Onboarding Notes" },
-  { key: "agreement", label: "Agreement Maker" },
   { key: "script", label: "Master Script" },
   { key: "prep", label: "Call Prep" },
   { key: "patterns", label: "Patterns" },
@@ -32,12 +28,11 @@ interface Props {
   initialPendingProposals: ScriptProposal[];
   initialPatterns: CallPatterns;
   scriptPatterns: PatternTracker[];
-  initialOnboardingNotes: OnboardingNote[];
 }
 
 export default function SalesCallsClient({
   initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialPatterns,
-  scriptPatterns, initialOnboardingNotes,
+  scriptPatterns,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("log");
   const [calls, setCalls] = useState<SalesCall[]>(initialCalls);
@@ -128,8 +123,6 @@ export default function SalesCallsClient({
 
       {tab === "log" && <CallLogForm onSaved={handleCallSaved} />}
       {tab === "history" && <CallList calls={calls} onUpdated={handleCallUpdated} />}
-      {tab === "notes" && <OnboardingNotesPanel initialNotes={initialOnboardingNotes} />}
-      {tab === "agreement" && <AgreementMakerPanel />}
       {tab === "script" && (
         <MasterScriptPanel
           currentVersion={currentVersion}

@@ -9,7 +9,7 @@ const SEARCH_ITEMS = [
   { label: "Email Pipeline", href: "/dashboard/email-pipeline", icon: Rows3 },
   { label: "Contacts", href: "/dashboard/contacts", icon: Users },
   { label: "Onboarding", href: "/dashboard/lead-qual", icon: Bot },
-  { label: "Sales & Onboarding", href: "/dashboard/sales-calls", icon: PhoneCall },
+  { label: "Sales", href: "/dashboard/sales-calls", icon: PhoneCall },
   { label: "Discovery Pipeline", href: "/dashboard/discovery-pipeline", icon: Flame },
   { label: "Growth Hub", href: "/dashboard/growth-hub", icon: Rocket },
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },

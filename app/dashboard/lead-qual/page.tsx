@@ -5,8 +5,17 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Topbar from "@/components/Topbar";
 import { CalendarCheck, Plus, MessageCircle, Megaphone } from "lucide-react";
+import OnboardingNotesPanel from "@/components/onboarding/OnboardingNotesPanel";
+import AgreementMakerPanel from "@/components/onboarding/AgreementMakerPanel";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
+
+const TABS = [
+  { key: "clients", label: "Clients" },
+  { key: "notes", label: "Onboarding Notes" },
+  { key: "agreement", label: "Agreement Maker" },
+] as const;
+type TabKey = typeof TABS[number]["key"];
 
 interface LqClient {
   id: string;
@@ -29,6 +38,7 @@ export default function LeadQualPage() {
 
 function LeadQualPageInner() {
   const searchParams = useSearchParams();
+  const [tab, setTab] = useState<TabKey>("clients");
   const [clients, setClients] = useState<LqClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
@@ -84,6 +94,34 @@ function LeadQualPageInner() {
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
       <Topbar title="Onboarding" subtitle="AI-qualified Meta leads, booked straight onto each client's calendar" />
 
+      <div style={{ padding: "20px 28px 0", display: "flex", gap: 4 }}>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none",
+              background: tab === t.key ? "var(--red)" : "#e2e8f0",
+              color: tab === t.key ? "#fff" : L.muted,
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "notes" && (
+        <div style={{ padding: "20px 28px 60px", maxWidth: 720 }}>
+          <OnboardingNotesPanel />
+        </div>
+      )}
+      {tab === "agreement" && (
+        <div style={{ padding: "20px 28px 60px", maxWidth: 720 }}>
+          <AgreementMakerPanel />
+        </div>
+      )}
+
+      {tab === "clients" && (
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
         {oauthError && (
           <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: "10px 14px", fontSize: 13, borderRadius: 8 }}>
@@ -200,6 +238,7 @@ function LeadQualPageInner() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

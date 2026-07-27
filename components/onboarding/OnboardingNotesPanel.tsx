@@ -1,16 +1,24 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { OnboardingNote } from "@/lib/types";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
-export default function OnboardingNotesPanel({ initialNotes }: { initialNotes: OnboardingNote[] }) {
-  const [notes, setNotes] = useState<OnboardingNote[]>(initialNotes);
+export default function OnboardingNotesPanel() {
+  const [notes, setNotes] = useState<OnboardingNote[]>([]);
+  const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/onboarding-notes")
+      .then((res) => res.json())
+      .then((data) => { if (Array.isArray(data)) setNotes(data); })
+      .finally(() => setLoading(false));
+  }, []);
 
   async function handleSave() {
     if (!draft.trim()) return;
@@ -72,7 +80,9 @@ export default function OnboardingNotesPanel({ initialNotes }: { initialNotes: O
         </button>
       </div>
 
-      {notes.length === 0 ? (
+      {loading ? (
+        <p style={{ fontSize: 13, color: L.muted }}>Loading…</p>
+      ) : notes.length === 0 ? (
         <p style={{ fontSize: 13, color: L.muted }}>No notes yet — add one above.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

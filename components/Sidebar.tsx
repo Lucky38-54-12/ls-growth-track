@@ -11,7 +11,7 @@ const NAV = [
   { href: "/dashboard/email-pipeline", label: "Email Pipeline", icon: Rows3 },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/lead-qual", label: "Onboarding", icon: Bot },
-  { href: "/dashboard/sales-calls", label: "Sales & Onboarding", icon: PhoneCall },
+  { href: "/dashboard/sales-calls", label: "Sales", icon: PhoneCall },
   { href: "/dashboard/discovery-pipeline", label: "Discovery Pipeline", icon: Flame },
   { href: "/dashboard/growth-hub", label: "Growth Hub", icon: Rocket },
   { href: "/dashboard/campaigns", label: "Campaigns", icon: Megaphone },
