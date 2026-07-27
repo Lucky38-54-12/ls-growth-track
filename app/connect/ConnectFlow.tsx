@@ -480,16 +480,16 @@ function Shell({ children }: { children: React.ReactNode }) {
         .connect-brand-headline { font-size: 52px; }
         @media (max-width: 780px) {
           .connect-shell { flex-direction: column; }
-          .connect-brand { flex: none; min-width: 0; padding: 32px 24px 8px; }
-          .connect-brand-logo { height: 72px; }
-          .connect-brand-headline { font-size: 34px; }
-          .connect-content { border-left: none !important; border-top: 1px solid #e6eaf0; }
+          .connect-brand { flex: none; min-width: 0; padding: 28px 20px 8px; }
+          .connect-brand-logo { height: 48px; }
+          .connect-brand-headline { font-size: 30px; }
+          .connect-content { flex: none !important; min-width: 0 !important; width: 100%; box-sizing: border-box; padding: 20px !important; border-left: none !important; border-top: 1px solid #e6eaf0; }
         }
       `}</style>
 
       {/* Branding panel */}
       <div className="connect-brand" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <img src="/logo-wide.png" alt="LS Growth" className="connect-brand-logo" style={{ width: "auto", objectFit: "contain", alignSelf: "flex-start" }} />
+        <img src="/logo-wide.png" alt="LS Growth" className="connect-brand-logo" style={{ width: "auto", maxWidth: "100%", objectFit: "contain", alignSelf: "flex-start" }} />
 
         <div>
           <h2 className="connect-brand-headline" style={{ fontWeight: 900, lineHeight: 1.05, letterSpacing: "-0.02em", color: L.text, marginBottom: 14, textTransform: "uppercase" }}>
