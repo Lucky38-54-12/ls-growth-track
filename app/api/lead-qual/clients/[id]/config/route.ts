@@ -3,6 +3,8 @@ import { defaultRules } from "@/lib/leadQual/qualification";
 import { fetchWebsiteSnippet } from "@/lib/website";
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sb = createSupabaseClient();

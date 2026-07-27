@@ -1,6 +1,8 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 // Public, unauthenticated lookup for the client-facing /connect/[clientId]
 // page — deliberately returns only what that page needs to render (name,
 // trade, whether each channel is already connected), never tokens or any
