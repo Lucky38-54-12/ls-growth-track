@@ -1,8 +1,10 @@
 "use client";
-import { useState } from "react";
-import { Flame, Snowflake, PauseCircle, Wind, CheckCircle2, Circle } from "lucide-react";
+import { useRef, useState } from "react";
+import { CheckCircle2, Circle } from "lucide-react";
 import { Lead, PostCallOutcome } from "@/lib/types";
 import { advance, currentStep, firstTouchpointDate, TouchpointResult } from "@/lib/followUpCadence";
+import { CallStats } from "@/lib/salesCallsStats";
+import StatsBar from "@/components/salesCalls/StatsBar";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -11,6 +13,16 @@ const OUTCOME_BADGE: Record<PostCallOutcome, { bg: string; text: string; label: 
   warm: { bg: "#fef9c3", text: "#854d0e", label: "Warm" },
   closed_won: { bg: "#dcfce7", text: "#15803d", label: "Closed Won" },
 };
+
+type PipelineColumnKey = "hot" | "warm" | "paused" | "cold_again" | "onboarding";
+
+const PIPELINE_COLUMNS: { key: PipelineColumnKey; label: string }[] = [
+  { key: "hot", label: "Hot" },
+  { key: "warm", label: "Warm" },
+  { key: "paused", label: "Paused" },
+  { key: "cold_again", label: "Cold Again" },
+  { key: "onboarding", label: "Onboarding" },
+];
 
 const CHECKLIST_ITEMS: { key: "agreement_sent" | "ads_manager_access" | "agreement_signed" | "campaign_live"; label: string }[] = [
   { key: "agreement_sent", label: "Agreement sent" },
@@ -38,6 +50,15 @@ async function patchJson(url: string, body: unknown) {
   return res.ok;
 }
 
+function columnFor(lead: Lead): PipelineColumnKey | null {
+  if (lead.post_call_stage === "active" && lead.post_call_outcome === "hot") return "hot";
+  if (lead.post_call_stage === "active" && lead.post_call_outcome === "warm") return "warm";
+  if (lead.post_call_stage === "paused") return "paused";
+  if (lead.post_call_stage === "cold_again") return "cold_again";
+  if (lead.post_call_stage === "onboarding") return "onboarding";
+  return null;
+}
+
 function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 28 }}>
@@ -58,14 +79,21 @@ function LeadMeta({ lead }: { lead: Lead }) {
   );
 }
 
+function btnStyle(bg: string): React.CSSProperties {
+  return { padding: "6px 12px", background: bg, border: `1px solid ${L.border}`, fontSize: 12, fontWeight: 700, color: L.text, cursor: "pointer" };
+}
+
 interface Props {
   initialAwaitingOutcome: Lead[];
   initialGraduated: Lead[];
+  stats: CallStats;
 }
 
-export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initialGraduated }: Props) {
+export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initialGraduated, stats }: Props) {
   const [awaiting, setAwaiting] = useState<Lead[]>(initialAwaitingOutcome);
   const [leads, setLeads] = useState<Lead[]>(initialGraduated);
+  const draggingId = useRef<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<PipelineColumnKey | null>(null);
 
   function updateLead(id: string, patch: Partial<Lead>) {
     setLeads((prev) => prev.map((l) => (l.lead_id === id ? { ...l, ...patch } : l)));
@@ -91,16 +119,41 @@ export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initia
     updateLead(lead.lead_id, { last_touchpoint_at: now, touchpoint_index: advanced.touchpoint_index, next_touchpoint_at: advanced.next_touchpoint_at, post_call_stage: advanced.post_call_stage });
   }
 
-  async function logSecondCallResult(lead: Lead, result: "closed_won" | "no_close") {
-    const ok = await postJson(`/api/leads/${lead.lead_id}/second-call-result`, { result });
-    if (!ok) return;
-    updateLead(lead.lead_id, { post_call_stage: result === "closed_won" ? "onboarding" : "cold_again" });
-  }
-
   async function toggleChecklist(lead: Lead, key: (typeof CHECKLIST_ITEMS)[number]["key"]) {
     const next = !lead[key];
     updateLead(lead.lead_id, { [key]: next } as Partial<Lead>);
     await patchJson(`/api/leads/${lead.lead_id}/onboarding-checklist`, { [key]: next });
+  }
+
+  function dragStart(leadId: string) {
+    return (e: React.DragEvent) => {
+      draggingId.current = leadId;
+      e.dataTransfer.setData("text/plain", leadId);
+      e.dataTransfer.effectAllowed = "move";
+    };
+  }
+
+  async function handleDrop(column: PipelineColumnKey) {
+    const id = draggingId.current;
+    draggingId.current = null;
+    setDragOverKey(null);
+    if (!id) return;
+    const lead = leads.find((l) => l.lead_id === id);
+    if (!lead || columnFor(lead) === column) return;
+
+    const today = new Date().toISOString();
+    let patch: Partial<Lead> = {};
+    if (column === "hot" || column === "warm") {
+      patch = { post_call_outcome: column, post_call_stage: "active", touchpoint_index: 1, next_touchpoint_at: firstTouchpointDate(column, today) };
+    } else if (column === "paused") {
+      patch = { post_call_stage: "paused", next_touchpoint_at: null };
+    } else if (column === "cold_again") {
+      patch = { post_call_stage: "cold_again", next_touchpoint_at: null };
+    } else if (column === "onboarding") {
+      patch = { post_call_outcome: "closed_won", post_call_stage: "onboarding", next_touchpoint_at: null };
+    }
+    updateLead(id, patch);
+    await postJson(`/api/leads/${id}/set-pipeline-stage`, { column });
   }
 
   const today = nzToday();
@@ -112,14 +165,17 @@ export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initia
       if (hotFirst !== 0) return hotFirst;
       return (a.next_touchpoint_at || "").localeCompare(b.next_touchpoint_at || "");
     });
-  const hotActive = active.filter((l) => l.post_call_outcome === "hot");
-  const warmActive = active.filter((l) => l.post_call_outcome === "warm");
-  const paused = leads.filter((l) => l.post_call_stage === "paused");
-  const coldAgain = leads.filter((l) => l.post_call_stage === "cold_again");
-  const onboarding = leads.filter((l) => l.post_call_stage === "onboarding");
+
+  const grouped: Record<PipelineColumnKey, Lead[]> = { hot: [], warm: [], paused: [], cold_again: [], onboarding: [] };
+  for (const lead of leads) {
+    const col = columnFor(lead);
+    if (col) grouped[col].push(lead);
+  }
 
   return (
     <div style={{ padding: "24px 28px 60px" }}>
+      <StatsBar stats={stats} />
+
       {/* Today */}
       <Section title="Today" count={dueToday.length}>
         {dueToday.length === 0 ? (
@@ -166,106 +222,73 @@ export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initia
         )}
       </Section>
 
-      {/* Active pipeline */}
-      <Section title="Active Pipeline" count={active.length}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          <div>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#b91c1c", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Flame style={{ width: 13, height: 13 }} /> Hot ({hotActive.length})</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {hotActive.map((lead) => <ActiveLeadCard key={lead.lead_id} lead={lead} />)}
+      {/* Pipeline kanban — drag a card between columns */}
+      <Section title="Pipeline" count={leads.length}>
+        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, alignItems: "start" }}>
+          {PIPELINE_COLUMNS.map((col) => (
+            <div
+              key={col.key}
+              style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}
+              onDragOver={(e) => { e.preventDefault(); setDragOverKey(col.key); }}
+              onDragLeave={() => setDragOverKey((prev) => (prev === col.key ? null : prev))}
+              onDrop={(e) => { e.preventDefault(); handleDrop(col.key); }}
+            >
+              <div className="surface-card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: L.text }}>{col.label}</span>
+                <span style={{ fontSize: 20, fontWeight: 800, color: L.text }}>{grouped[col.key].length}</span>
+              </div>
+              <div style={{
+                display: "flex", flexDirection: "column", gap: 8, minHeight: 80, padding: 4, borderRadius: 10,
+                background: dragOverKey === col.key ? "#fef2f2" : "transparent",
+                border: dragOverKey === col.key ? "1px dashed var(--red)" : "1px dashed transparent",
+                transition: "background 0.1s, border 0.1s",
+              }}>
+                {grouped[col.key].length === 0 ? (
+                  <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 12, background: "#f8fafc", border: `1px dashed ${L.border}`, borderRadius: 10 }}>Empty</div>
+                ) : (
+                  grouped[col.key].map((lead) => (
+                    <div
+                      key={lead.lead_id}
+                      draggable
+                      onDragStart={dragStart(lead.lead_id)}
+                      className="card-hover"
+                      style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "12px 14px", cursor: "grab" }}
+                    >
+                      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{lead.contact_name || lead.company}</div>
+                      <div style={{ fontSize: 12, color: L.muted }}>{lead.company}</div>
+                      <LeadMeta lead={lead} />
+                      {col.key === "hot" || col.key === "warm" ? (
+                        <div style={{ fontSize: 12, color: L.muted, marginTop: 4 }}>
+                          Next: {currentStep(col.key, lead.touchpoint_index)?.label || "—"}{lead.next_touchpoint_at ? ` (${fmtDate(lead.next_touchpoint_at)})` : ""}
+                        </div>
+                      ) : null}
+                      {col.key === "onboarding" && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${L.border}` }}>
+                          {CHECKLIST_ITEMS.map((item) => {
+                            const done = !!lead[item.key];
+                            return (
+                              <button
+                                key={item.key}
+                                onClick={(e) => { e.stopPropagation(); toggleChecklist(lead, item.key); }}
+                                style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: "2px 0", textAlign: "left" }}
+                              >
+                                {done ? <CheckCircle2 style={{ width: 13, height: 13, color: "#16a34a", flexShrink: 0 }} /> : <Circle style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} />}
+                                <span style={{ fontSize: 11.5, color: done ? "#15803d" : L.text, textDecoration: done ? "line-through" : "none" }}>{item.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#854d0e", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Snowflake style={{ width: 13, height: 13 }} /> Warm ({warmActive.length})</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {warmActive.map((lead) => <ActiveLeadCard key={lead.lead_id} lead={lead} />)}
-            </div>
-          </div>
+          ))}
         </div>
-      </Section>
-
-      {/* Paused */}
-      <Section title="Paused (second call booked)" count={paused.length}>
-        {paused.length === 0 ? (
-          <p style={{ fontSize: 13, color: L.muted }}>None right now.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {paused.map((lead) => (
-              <div key={lead.lead_id} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <PauseCircle style={{ width: 14, height: 14, color: L.muted }} />
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>{lead.contact_name || lead.company}</span>
-                    <span style={{ fontSize: 12.5, color: L.muted }}>{lead.company}</span>
-                  </div>
-                  <LeadMeta lead={lead} />
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => logSecondCallResult(lead, "closed_won")} style={btnStyle("#dcfce7")}>Closed Won</button>
-                  <button onClick={() => logSecondCallResult(lead, "no_close")} style={btnStyle("#f1f5f9")}>Didn&apos;t close</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* Cold again */}
-      <Section title="Cold Again" count={coldAgain.length}>
-        {coldAgain.length === 0 ? (
-          <p style={{ fontSize: 13, color: L.muted }}>None right now.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {coldAgain.map((lead) => (
-              <div key={lead.lead_id} style={{ background: "#f8fafc", border: `1px solid ${L.border}`, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-                <Wind style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} />
-                <span style={{ fontWeight: 700, fontSize: 13 }}>{lead.contact_name || lead.company}</span>
-                <span style={{ fontSize: 12.5, color: L.muted }}>{lead.company}</span>
-                <span style={{ fontSize: 12, color: L.dimmed, marginLeft: "auto" }}>Cooled {fmtDate(lead.last_touchpoint_at)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* Onboarding */}
-      <Section title="Onboarding" count={onboarding.length}>
-        {onboarding.length === 0 ? (
-          <p style={{ fontSize: 13, color: L.muted }}>No closed-won clients yet.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {onboarding.map((lead) => (
-              <div key={lead.lead_id} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "16px 20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{lead.contact_name || lead.company}</span>
-                  <span style={{ fontSize: 12.5, color: L.muted }}>{lead.company}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {CHECKLIST_ITEMS.map((item) => {
-                    const done = !!lead[item.key];
-                    return (
-                      <button
-                        key={item.key}
-                        onClick={() => toggleChecklist(lead, item.key)}
-                        style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "4px 0", textAlign: "left" }}
-                      >
-                        {done ? <CheckCircle2 style={{ width: 16, height: 16, color: "#16a34a", flexShrink: 0 }} /> : <Circle style={{ width: 16, height: 16, color: L.dimmed, flexShrink: 0 }} />}
-                        <span style={{ fontSize: 13, color: done ? "#15803d" : L.text, textDecoration: done ? "line-through" : "none" }}>{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </Section>
     </div>
   );
-}
-
-function btnStyle(bg: string): React.CSSProperties {
-  return { padding: "6px 12px", background: bg, border: `1px solid ${L.border}`, fontSize: 12, fontWeight: 700, color: L.text, cursor: "pointer" };
 }
 
 function AwaitingOutcomeCard({ lead, onLog }: { lead: Lead; onLog: (lead: Lead, outcome: PostCallOutcome, objection: string) => void }) {
@@ -286,20 +309,6 @@ function AwaitingOutcomeCard({ lead, onLog }: { lead: Lead; onLog: (lead: Lead, 
         <button onClick={() => onLog(lead, "closed_won", objection)} style={btnStyle("#dcfce7")}>Closed Won</button>
         <button onClick={() => onLog(lead, "hot", objection)} style={btnStyle("#fee2e2")}>Hot</button>
         <button onClick={() => onLog(lead, "warm", objection)} style={btnStyle("#fef9c3")}>Warm</button>
-      </div>
-    </div>
-  );
-}
-
-function ActiveLeadCard({ lead }: { lead: Lead }) {
-  const step = currentStep(lead.post_call_outcome as "hot" | "warm", lead.touchpoint_index);
-  return (
-    <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "12px 16px" }}>
-      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{lead.contact_name || lead.company}</div>
-      <div style={{ fontSize: 12, color: L.muted }}>{lead.company}</div>
-      <LeadMeta lead={lead} />
-      <div style={{ fontSize: 12, color: L.muted, marginTop: 4 }}>
-        Next: {step?.label || "—"}{lead.next_touchpoint_at ? ` (${fmtDate(lead.next_touchpoint_at)})` : ""}
       </div>
     </div>
   );

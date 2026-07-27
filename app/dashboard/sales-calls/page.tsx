@@ -1,6 +1,6 @@
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { SalesCall, ScriptVersion, ScriptProposal, PatternTracker, OnboardingNote } from "@/lib/types";
-import { computeStats, computePatterns } from "@/lib/salesCallsStats";
+import { computePatterns } from "@/lib/salesCallsStats";
 import Topbar from "@/components/Topbar";
 import SalesCallsClient from "@/components/salesCalls/SalesCallsClient";
 
@@ -21,7 +21,6 @@ export default async function SalesCallsPage() {
   const currentVersion = allVersions.find((v) => v.is_current) || allVersions[0] || null;
   const proposals = (pendingProposals || []) as ScriptProposal[];
 
-  const stats = computeStats(calls);
   const patterns = computePatterns(calls);
 
   return (
@@ -32,7 +31,6 @@ export default async function SalesCallsPage() {
         initialVersions={allVersions}
         initialCurrentVersion={currentVersion}
         initialPendingProposals={proposals}
-        initialStats={stats}
         initialPatterns={patterns}
         scriptPatterns={(scriptPatterns || []) as PatternTracker[]}
         initialOnboardingNotes={(onboardingNotes || []) as OnboardingNote[]}

@@ -1,8 +1,7 @@
 "use client";
 import { useState } from "react";
 import { SalesCall, ScriptVersion, ScriptProposal, PatternTracker, OnboardingNote } from "@/lib/types";
-import { computeStats, computePatterns, CallStats, CallPatterns } from "@/lib/salesCallsStats";
-import StatsBar from "./StatsBar";
+import { computePatterns, CallPatterns } from "@/lib/salesCallsStats";
 import CallLogForm from "./CallLogForm";
 import CallList from "./CallList";
 import MasterScriptPanel from "./MasterScriptPanel";
@@ -31,14 +30,13 @@ interface Props {
   initialVersions: ScriptVersion[];
   initialCurrentVersion: ScriptVersion | null;
   initialPendingProposals: ScriptProposal[];
-  initialStats: CallStats;
   initialPatterns: CallPatterns;
   scriptPatterns: PatternTracker[];
   initialOnboardingNotes: OnboardingNote[];
 }
 
 export default function SalesCallsClient({
-  initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialStats, initialPatterns,
+  initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialPatterns,
   scriptPatterns, initialOnboardingNotes,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("log");
@@ -46,7 +44,6 @@ export default function SalesCallsClient({
   const [versions, setVersions] = useState<ScriptVersion[]>(initialVersions);
   const [currentVersion, setCurrentVersion] = useState<ScriptVersion | null>(initialCurrentVersion);
   const [pendingProposals, setPendingProposals] = useState<ScriptProposal[]>(initialPendingProposals);
-  const [stats, setStats] = useState<CallStats>(initialStats);
   const [patterns, setPatterns] = useState<CallPatterns>(initialPatterns);
   const [backingUp, setBackingUp] = useState(false);
   const [backupResult, setBackupResult] = useState("");
@@ -54,7 +51,6 @@ export default function SalesCallsClient({
   function handleCallSaved(call: SalesCall, proposal: ScriptProposal | null, backupUrl: string | null) {
     const nextCalls = [call, ...calls];
     setCalls(nextCalls);
-    setStats(computeStats(nextCalls));
     setPatterns(computePatterns(nextCalls));
     if (proposal) setPendingProposals((p) => [proposal, ...p]);
     setBackupResult(backupUrl ? `Backed up. Sheet: ${backupUrl}` : "");
@@ -65,7 +61,6 @@ export default function SalesCallsClient({
   function handleCallUpdated(updated: SalesCall) {
     const nextCalls = calls.map((c) => (c.id === updated.id ? updated : c));
     setCalls(nextCalls);
-    setStats(computeStats(nextCalls));
     setPatterns(computePatterns(nextCalls));
   }
 
@@ -89,8 +84,6 @@ export default function SalesCallsClient({
 
   return (
     <div style={{ padding: "24px 28px 40px" }}>
-      <StatsBar stats={stats} />
-
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", gap: 4 }}>
           {TABS.map((t) => (
