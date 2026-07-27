@@ -52,7 +52,13 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
   const [phase, setPhase] = useState<"gate" | "verifying" | "found">("gate");
   const [resolvedClientId, setResolvedClientId] = useState<string | null>(null);
   const [client, setClient] = useState<ClientInfo | null>(null);
-  const [step, setStep] = useState<"connect" | "ads">("connect");
+  // One thing at a time — landing back from Google/Facebook's redirect
+  // should reopen on whichever step that was, not wherever the state
+  // otherwise defaults to.
+  const [step, setStep] = useState<"facebook" | "calendar" | "ads">(() => {
+    if (calendarConnected || calendarError) return "calendar";
+    return "facebook";
+  });
 
   const [fbPages, setFbPages] = useState<FbPage[]>([]);
   const [fbConnecting, setFbConnecting] = useState(false);
@@ -204,25 +210,14 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
         </div>
       )}
 
-      {phase === "found" && client && step === "connect" && (
+      {phase === "found" && client && step === "facebook" && (
         <div>
-          <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#15803d", marginBottom: 18 }}>
-            <ShieldCheck style={{ width: 15, height: 15 }} /> Verified — this is a genuine link for {client.name}
-          </p>
+          <StepHeader client={client} step={1} of={3} />
 
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 6 }}>Connect {client.name}</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 6 }}>Connect your Facebook Page</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
-            So leads book straight onto your calendar. You&apos;ll log into your own Google and Facebook accounts on their screens, not ours — nothing is shared with us beyond what you approve there.
+            So Messenger leads from your Page get qualified automatically. You&apos;ll log into your own Facebook account on Facebook&apos;s screen, not ours.
           </p>
-
-          <ConnectRow
-            icon={<CalendarCheck style={{ width: 18, height: 18 }} />}
-            title="Google Calendar"
-            description="So a booked lead lands straight on your calendar."
-            connected={calendarDone}
-            error={calendarError}
-            href={`/api/lead-qual/oauth/google?clientId=${resolvedClientId}`}
-          />
 
           {fbPending && fbPages.length > 0 ? (
             <div style={{ background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: 18, marginBottom: 14 }}>
@@ -256,6 +251,53 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
 
           <button
             type="button"
+            onClick={() => setStep("calendar")}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
+              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
+              border: "none", borderRadius: 0, padding: "11px 16px", cursor: "pointer", marginTop: 8,
+            }}
+          >
+            Next <ArrowRight style={{ width: 15, height: 15 }} />
+          </button>
+
+          <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: L.muted, marginTop: 14 }}>
+            <Lock style={{ width: 12, height: 12 }} /> Secured by Facebook&apos;s own login, LS Growth never sees your password.
+          </p>
+        </div>
+      )}
+
+      {phase === "found" && client && step === "calendar" && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setStep("facebook")}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: L.muted,
+              background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 18,
+            }}
+          >
+            <ArrowLeft style={{ width: 13, height: 13 }} /> Back
+          </button>
+
+          <StepHeader client={client} step={2} of={3} />
+
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 6 }}>Connect your Calendar</h1>
+          <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
+            So a booked lead lands straight on your calendar. You&apos;ll log into your own Google account on Google&apos;s screen, not ours.
+          </p>
+
+          <ConnectRow
+            icon={<CalendarCheck style={{ width: 18, height: 18 }} />}
+            title="Google Calendar"
+            description="So a booked lead lands straight on your calendar."
+            connected={calendarDone}
+            error={calendarError}
+            href={`/api/lead-qual/oauth/google?clientId=${resolvedClientId}`}
+          />
+
+          <button
+            type="button"
             onClick={() => setStep("ads")}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
@@ -267,7 +309,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
           </button>
 
           <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: L.muted, marginTop: 14 }}>
-            <Lock style={{ width: 12, height: 12 }} /> Secured by Google and Facebook&apos;s own login, LS Growth never sees your password.
+            <Lock style={{ width: 12, height: 12 }} /> Secured by Google&apos;s own login, LS Growth never sees your password.
           </p>
         </div>
       )}
@@ -276,7 +318,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
         <div>
           <button
             type="button"
-            onClick={() => setStep("connect")}
+            onClick={() => setStep("calendar")}
             style={{
               display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: L.muted,
               background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 18,
@@ -284,6 +326,8 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
           >
             <ArrowLeft style={{ width: 13, height: 13 }} /> Back
           </button>
+
+          <StepHeader client={client} step={3} of={3} />
 
           <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 6 }}>One last step</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
@@ -300,6 +344,17 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
         </div>
       )}
     </Shell>
+  );
+}
+
+function StepHeader({ client, step, of }: { client: ClientInfo; step: number; of: number }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+      <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#15803d" }}>
+        <ShieldCheck style={{ width: 15, height: 15 }} /> Verified for {client.name}
+      </p>
+      <p style={{ fontSize: 12, fontWeight: 700, color: L.muted }}>Step {step} of {of}</p>
+    </div>
   );
 }
 
