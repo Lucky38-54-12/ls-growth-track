@@ -206,7 +206,10 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
             durationMinutes,
             timeZone: timezone,
           });
-          await sb.from("lq_leads").update({ booking_status: "booked", calendar_event_id: eventId, booked_at: new Date().toISOString() }).eq("id", lead.id);
+          // booked_at is when this booking transaction happened; scheduled_at
+          // is the actual appointment/callback time (slot) — the portal's
+          // calendar and leads views need the latter, not the former.
+          await sb.from("lq_leads").update({ booking_status: "booked", calendar_event_id: eventId, booked_at: new Date().toISOString(), scheduled_at: slot.toISOString() }).eq("id", lead.id);
           bookingStatus = "booked";
 
           const slotLabel = new Intl.DateTimeFormat("en-NZ", {
