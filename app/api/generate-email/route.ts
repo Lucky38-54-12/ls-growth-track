@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { fetchWebsiteSnippet } from "@/lib/website";
-import { checkEmailQuality, stripDashes } from "@/lib/ai";
+import { stripDashes } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +26,6 @@ export async function POST(req: NextRequest) {
   // specifics instead of generic "trade business" phrasing.
   const emailMatch = callNotes.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
   let knownInfoBlock = "";
-  let existingLeadId: string | null = null;
-  let existingLeadNotes = "";
   if (emailMatch) {
     const sb = createSupabaseClient();
     const { data: existingLead } = await sb
@@ -37,8 +35,6 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (existingLead) {
-      existingLeadId = existingLead.lead_id;
-      existingLeadNotes = existingLead.notes || "";
       const websiteSnippet = existingLead.website ? await fetchWebsiteSnippet(existingLead.website) : "";
       const parts = [
         `Company: ${existingLead.company}`,
@@ -202,42 +198,6 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     const caseStudyBlock = `<p>If you want to see some case studies, here's a link to our website:</p><p><a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>`;
     const finalBodyHtml = bodyHtml + caseStudyBlock;
 
-    // Same quality gate as the automated campaign sends — this path is
-    // already human-reviewed (Lucky sees the preview before clicking Save &
-    // Send), so a rejection doesn't block anything, it just surfaces as a
-    // badge so he knows to actually read this one instead of trusting it.
-    // Checked against parsed.bodyHtml (the AI-written part only), not
-    // finalBodyHtml — the case-study block below is a fixed block this route
-    // always appends after the close, same as how the campaign path checks
-    // its email before the "Cheers, Lucky" signature gets added on.
-    let quality: { verdict: "approved" | "rejected"; mechanicalFails: string[]; judgmentFlags: string[]; reasoning: string } | null = null;
-    try {
-      quality = await checkEmailQuality({
-        subject,
-        bodyHtml,
-        step: "cold_call_followup",
-        contactName: parsed.contact_name,
-        notes: [callNotes, existingLeadNotes].filter(Boolean).join("\n---\n"),
-        requireCtaPlaceholder: false,
-        meetingAlreadyBooked: parsed.call_type === "MEETING_BOOKED",
-      });
-      const sb = createSupabaseClient();
-      await sb.from("email_checks").insert({
-        lead_id: existingLeadId || `cold-call-${(parsed.company || parsed.email || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-        step: "cold_call_followup",
-        subject,
-        body_html: finalBodyHtml,
-        verdict: quality.verdict,
-        mechanical_fails: quality.mechanicalFails,
-        judgment_flags: quality.judgmentFlags,
-        reasoning: quality.reasoning,
-        sent: false,
-      });
-    } catch {
-      // Quality check is advisory here, not a gate — never block the cold-call
-      // flow (or Lucky's ability to send) just because the checker itself failed.
-    }
-
     return NextResponse.json({
       company: parsed.company || "",
       contact_name: parsed.contact_name || "",
@@ -247,7 +207,6 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       meetingDateTime: parsed.meeting_datetime || "",
       subject,
       bodyHtml: finalBodyHtml,
-      quality,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

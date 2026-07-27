@@ -6,6 +6,10 @@ export function formatDateTime(dateStr: string): string {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    // Server components render on Vercel (UTC), not in the browser — without
+    // this, times silently render in UTC while every other clock in the app
+    // reads NZT, off by a 12-13h DST-dependent offset.
+    timeZone: "Pacific/Auckland",
   });
 }
 

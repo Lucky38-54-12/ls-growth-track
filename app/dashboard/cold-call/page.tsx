@@ -3,9 +3,8 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { coldEmailDraft } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
-import { Lead, EmailCheck } from "@/lib/types";
+import { Lead } from "@/lib/types";
 import Link from "next/link";
-import { ShieldAlert } from "lucide-react";
 import { addNoteToStorage } from "@/lib/notesStore";
 import { pushNoteToPipeline } from "@/lib/quickNote";
 
@@ -37,10 +36,7 @@ export default function ColdCallPage() {
   const [generated, setGenerated] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0);
   const [selectedPage, setSelectedPage] = useState("standard");
-  const [quality, setQuality] = useState<{ verdict: "approved" | "rejected"; mechanicalFails: string[]; judgmentFlags: string[]; reasoning: string } | null>(null);
-
   const [recentlyEmailed, setRecentlyEmailed] = useState<Lead[]>([]);
-  const [heldChecks, setHeldChecks] = useState<EmailCheck[]>([]);
 
   const [noteText, setNoteText] = useState("");
   const [noteFollowUpAt, setNoteFollowUpAt] = useState("");
@@ -57,10 +53,6 @@ export default function ColdCallPage() {
           .sort((a, b) => (b.last_followup || "").localeCompare(a.last_followup || ""));
         setRecentlyEmailed(emailed);
       })
-      .catch(() => {});
-    fetch("/api/cold-call/held")
-      .then(res => res.json())
-      .then((data: EmailCheck[]) => { if (Array.isArray(data)) setHeldChecks(data); })
       .catch(() => {});
   }, []);
 
@@ -114,7 +106,6 @@ export default function ColdCallPage() {
       setMeetingDateTime(result.meetingDateTime || "");
       setSubject(result.subject);
       setBodyHtml(result.bodyHtml);
-      setQuality(result.quality || null);
       setGenerated(true);
       setPreviewVersion((v) => v + 1);
     } catch {
@@ -133,7 +124,6 @@ export default function ColdCallPage() {
     });
     setSubject(draft.subject);
     setBodyHtml(draft.bodyHtml);
-    setQuality(null);
     setGenerated(true);
     setPreviewVersion((v) => v + 1);
   }
@@ -205,31 +195,6 @@ export default function ColdCallPage() {
   return (
     <div>
       <Topbar title="COLD CALL" subtitle="Paste your notes, generate a follow-up email, and send it now" />
-
-      {heldChecks.length > 0 && (
-        <div style={{ maxWidth: 1080, margin: "24px auto 0", padding: "0 28px" }}>
-          <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: "1px solid #fecdd3" }}>
-              <ShieldAlert style={{ width: 15, height: 15, color: "#be123c" }} />
-              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#be123c" }}>Held for review</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#be123c" }}>{heldChecks.length}</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {heldChecks.map(check => (
-                <div key={check.id} style={{ padding: "12px 18px", borderBottom: "1px solid #fecdd3" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{check.lead_id.replace(/^cold-call-/, "").replace(/-/g, " ")}</div>
-                  <div style={{ fontSize: 11.5, color: "#9f1239", marginTop: 2 }}>
-                    {check.mechanical_fails?.[0] || check.judgment_flags?.[0] || check.reasoning || "Flagged by AI check"}
-                  </div>
-                  <div style={{ fontSize: 11, color: L.muted, marginTop: 4 }}>
-                    Paste the same call notes above and generate again — the fix is already in the generator.
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
         <div>
@@ -364,28 +329,6 @@ export default function ColdCallPage() {
                 }}>Insert cold email template</button>
               )}
             </div>
-
-            {quality && (
-              <div style={{
-                display: "flex", flexDirection: "column", gap: 4, marginBottom: 14, padding: "8px 12px",
-                fontSize: 11.5, borderRadius: 0,
-                background: quality.verdict === "approved" ? "#f0fdf4" : "#fff1f2",
-                border: `1px solid ${quality.verdict === "approved" ? "#bbf7d0" : "#fecdd3"}`,
-                color: quality.verdict === "approved" ? "#15803d" : "#9f1239",
-              }}>
-                <div style={{ fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", fontSize: 10.5 }}>
-                  {quality.verdict === "approved" ? "AI check: approved" : "AI check: needs a look"}
-                </div>
-                {quality.verdict === "rejected" && (
-                  <>
-                    {quality.reasoning && <div>{quality.reasoning}</div>}
-                    {[...quality.mechanicalFails, ...quality.judgmentFlags].map((flag, i) => (
-                      <div key={i}>• {flag}</div>
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
 
             {/* Landing page picker */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
