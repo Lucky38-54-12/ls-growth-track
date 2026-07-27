@@ -17,7 +17,11 @@ export function buildGoogleAuthUrl(clientId: string): string {
   return oauth2Client.generateAuthUrl({
     access_type: "offline", // required to get a refresh_token back
     prompt: "consent", // forces Google to re-issue a refresh_token even on a repeat connect
-    scope: ["https://www.googleapis.com/auth/calendar"],
+    // userinfo.email is needed for the oauth2.userinfo.get() call below,
+    // which fetches the connected account's email to store/display —
+    // calendar-only scope leaves that call with no authorization and it
+    // fails with "missing required authentication credential".
+    scope: ["https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/userinfo.email"],
     state: clientId,
   });
 }
