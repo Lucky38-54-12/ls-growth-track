@@ -23,7 +23,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     id: client.id,
     name: client.name,
     trade: client.trade,
-    calendarConnected: !!client.lq_calendar_connections?.[0],
+    // lq_calendar_connections.client_id is unique, so PostgREST embeds this
+    // as a single object, not an array — `?.[0]` on an object is always
+    // undefined, which silently made this false for every connected client.
+    calendarConnected: !!client.lq_calendar_connections,
     facebookConnected: !!client.lq_channels?.some((c: { type: string }) => c.type === "messenger"),
     adsAccessConfirmed: !!client.ads_manager_access_confirmed_at,
   });

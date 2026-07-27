@@ -24,7 +24,9 @@ interface LqClient {
   phone: string | null;
   status: string;
   ads_manager_access_confirmed_at: string | null;
-  lq_calendar_connections: { google_account_email: string; connected_at: string }[] | null;
+  // lq_calendar_connections.client_id is unique, so PostgREST embeds this as
+  // a single object, not an array.
+  lq_calendar_connections: { google_account_email: string; connected_at: string } | null;
   lq_channels: { type: string; external_page_id: string }[] | null;
 }
 
@@ -185,7 +187,7 @@ function LeadQualPageInner() {
         ) : (
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, overflow: "hidden" }}>
             {clients.map((client) => {
-              const connection = client.lq_calendar_connections?.[0];
+              const connection = client.lq_calendar_connections;
               const fbConnection = client.lq_channels?.find((c) => c.type === "messenger");
               return (
                 <div

@@ -3,7 +3,14 @@ import { createClient, PostgrestError } from "@supabase/supabase-js";
 export function createSupabaseClient() {
   return createClient(
     process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      // supabase-js calls PostgREST via fetch, and Next.js on Vercel patches
+      // global fetch to cache/dedupe by default — force every Supabase
+      // request to actually hit the database, not a stale Next.js Data
+      // Cache entry, regardless of what a given route's own config says.
+      global: { fetch: (url, options) => fetch(url, { ...options, cache: "no-store" }) },
+    }
   );
 }
 
