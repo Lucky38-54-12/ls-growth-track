@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CheckCircle2, XCircle, Clock } from "lucide-react";
+import { usePortalLeads } from "@/lib/hooks/usePortalLeads";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -33,25 +34,9 @@ const FILTERS = [
 ] as const;
 
 export default function PortalLeadsPage() {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { leads, loading, error } = usePortalLeads<Lead>();
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    fetch("/api/portal/leads")
-      .then((r) => r.json())
-      .then((body) => {
-        if (body.error) setError(body.error);
-        else setLeads(body.leads || []);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError("Something went wrong loading your leads.");
-        setLoading(false);
-      });
-  }, []);
 
   const stats = useMemo(() => {
     const total = leads.length;

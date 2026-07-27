@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { usePortalLeads } from "@/lib/hooks/usePortalLeads";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -58,24 +59,13 @@ function sameDay(a: Date, b: Date): boolean {
 }
 
 export default function PortalCalendarPage() {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { leads, loading } = usePortalLeads<Lead>();
   const [monthStart, setMonthStart] = useState(() => {
     const d = new Date();
     d.setDate(1);
     d.setHours(0, 0, 0, 0);
     return d;
   });
-
-  useEffect(() => {
-    fetch("/api/portal/leads")
-      .then((r) => r.json())
-      .then((body) => {
-        setLeads(body.leads || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
 
   const jobs = useMemo(() => toBookedJobs(leads), [leads]);
   const grid = useMemo(() => buildMonthGrid(monthStart), [monthStart]);

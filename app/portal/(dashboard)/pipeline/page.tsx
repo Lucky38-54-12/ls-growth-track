@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { usePortalLeads } from "@/lib/hooks/usePortalLeads";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -33,21 +34,30 @@ function stageFor(lead: Lead): string {
   return "new_inquiry";
 }
 
+// A move fired via drag-and-drop hits the server async; if a poll lands
+// before that PATCH commits, it would otherwise show the card snapping
+// back to its old stage for a moment. Overrides paper over that window.
+const OVERRIDE_GRACE_MS = 20000;
+
 export default function PortalPipelinePage() {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const overridesRef = useRef<Map<string, { stage: string; ts: number }>>(new Map());
+  const applyOverrides = useCallback((fetched: Lead[]) => {
+    const overrides = overridesRef.current;
+    const now = Date.now();
+    return fetched.map((lead) => {
+      const o = overrides.get(lead.id);
+      if (!o) return lead;
+      if (now - o.ts > OVERRIDE_GRACE_MS || lead.pipeline_stage === o.stage) {
+        overrides.delete(lead.id);
+        return lead;
+      }
+      return { ...lead, pipeline_stage: o.stage };
+    });
+  }, []);
+
+  const { leads, setLeads, loading } = usePortalLeads<Lead>({ transform: applyOverrides });
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/portal/leads")
-      .then((r) => r.json())
-      .then((body) => {
-        setLeads(body.leads || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
 
   const byStage = useMemo(() => {
     const map: Record<string, Lead[]> = {};
@@ -57,6 +67,7 @@ export default function PortalPipelinePage() {
   }, [leads]);
 
   function moveLead(leadId: string, stage: string) {
+    overridesRef.current.set(leadId, { stage, ts: Date.now() });
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, pipeline_stage: stage } : l)));
     fetch(`/api/portal/leads/${leadId}`, {
       method: "PATCH",
