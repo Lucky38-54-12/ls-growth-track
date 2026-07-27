@@ -22,6 +22,7 @@ interface LqClient {
   name: string;
   trade: string | null;
   phone: string | null;
+  email: string | null;
   status: string;
   ads_manager_access_confirmed_at: string | null;
   // lq_calendar_connections.client_id is unique, so PostgREST embeds this as
@@ -46,8 +47,29 @@ function LeadQualPageInner() {
   const [name, setName] = useState("");
   const [trade, setTrade] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+
+  function startEditEmail(client: LqClient) {
+    setEditingEmailId(client.id);
+    setEmailDraft(client.email || "");
+  }
+
+  async function saveEmail(clientId: string) {
+    setSavingEmail(true);
+    await fetch(`/api/lead-qual/clients/${clientId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailDraft.trim() }),
+    });
+    setSavingEmail(false);
+    setEditingEmailId(null);
+    loadClients();
+  }
 
   function handleCopyLink(clientId: string) {
     const url = `${window.location.origin}/connect/${clientId}`;
@@ -79,7 +101,7 @@ function LeadQualPageInner() {
     const res = await fetch("/api/lead-qual/clients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, trade, phone }),
+      body: JSON.stringify({ name, trade, phone, email }),
     });
     const body = await res.json();
     if (!res.ok) {
@@ -89,6 +111,7 @@ function LeadQualPageInner() {
     setName("");
     setTrade("");
     setPhone("");
+    setEmail("");
     loadClients();
   }
 
@@ -164,6 +187,13 @@ function LeadQualPageInner() {
             onChange={(e) => setPhone(e.target.value)}
             style={{ flex: "1 1 160px", padding: "8px 12px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }}
           />
+          <input
+            type="email"
+            placeholder="Client email (for booking alerts)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={{ flex: "1 1 200px", padding: "8px 12px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }}
+          />
           <button
             type="submit"
             style={{
@@ -197,12 +227,49 @@ function LeadQualPageInner() {
                     padding: "14px 16px", borderBottom: `1px solid ${L.border}`, flexWrap: "wrap", gap: 8,
                   }}
                 >
-                  <Link href={`/dashboard/lead-qual/${client.id}`} style={{ textDecoration: "none" }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: L.text }}>{client.name}</p>
-                    <p style={{ fontSize: 12, color: L.muted }}>
-                      {client.trade || "No trade set"}{client.phone ? ` · ${client.phone}` : ""} · click to configure &amp; test
-                    </p>
-                  </Link>
+                  <div>
+                    <Link href={`/dashboard/lead-qual/${client.id}`} style={{ textDecoration: "none" }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: L.text }}>{client.name}</p>
+                      <p style={{ fontSize: 12, color: L.muted }}>
+                        {client.trade || "No trade set"}{client.phone ? ` · ${client.phone}` : ""} · click to configure &amp; test
+                      </p>
+                    </Link>
+                    {editingEmailId === client.id ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                        <input
+                          type="email"
+                          autoFocus
+                          value={emailDraft}
+                          onChange={(e) => setEmailDraft(e.target.value)}
+                          placeholder="client@business.co.nz"
+                          style={{ fontSize: 12, padding: "4px 8px", border: `1px solid ${L.border}`, borderRadius: 6 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => saveEmail(client.id)}
+                          disabled={savingEmail}
+                          style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", background: "var(--red)", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
+                        >
+                          {savingEmail ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingEmailId(null)}
+                          style={{ fontSize: 11.5, color: L.muted, background: "none", border: "none", cursor: "pointer" }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startEditEmail(client)}
+                        style={{ fontSize: 11.5, color: client.email ? L.muted : "var(--red)", background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 2 }}
+                      >
+                        {client.email ? `📧 ${client.email} (booking alerts)` : "+ Add email for booking alerts"}
+                      </button>
+                    )}
+                  </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: fbConnection ? "#15803d" : L.dimmed }}>
                       <MessageCircle style={{ width: 14, height: 14 }} />

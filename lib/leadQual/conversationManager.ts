@@ -4,6 +4,7 @@ import { evaluate, Rule, defaultRules } from "./qualification";
 import { bookJobOnClientCalendar, resolveAvailableSlot } from "./googleCalendar";
 import { enrollInNurture } from "./nurture";
 import { notifySlack } from "@/lib/slackNotify";
+import { sendReminderEmail } from "@/lib/email";
 
 export interface RunTurnInput {
   clientId: string;
@@ -181,7 +182,8 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
 
       if (result.outcome === "qualified" && lead) {
         try {
-          const timezone = (await sb.from("lq_clients").select("timezone").eq("id", clientId).single()).data?.timezone || "Pacific/Auckland";
+          const clientRecord = (await sb.from("lq_clients").select("timezone, email").eq("id", clientId).single()).data;
+          const timezone = clientRecord?.timezone || "Pacific/Auckland";
 
           // visit_time_iso/callback_time_iso are the AI's own resolution of
           // whatever loose time the lead gave ("tomorrow arvo") into a real
@@ -219,6 +221,24 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
             `${mergedFields.phone ? `Phone: ${mergedFields.phone}\n` : ""}` +
             `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/lead-qual/${clientId}`
           );
+
+          // The actual point of all this — the client themselves needs to
+          // know a job landed on their calendar and who to call beforehand,
+          // not just Lucky. Silently skipped if no email is on file yet
+          // (see lq_clients.email, set from the client list page).
+          if (clientRecord?.email) {
+            await sendReminderEmail(
+              clientRecord.email,
+              `New job booked: ${mergedFields.job_type || "Job"} — ${slotLabel}`,
+              `You've got a new job booked in from your Messenger chat.\n\n` +
+              `Job: ${mergedFields.job_type || "Not specified"}\n` +
+              `Location: ${mergedFields.location || "Not specified"}\n` +
+              `${isOnSite ? "Site visit" : "Callback"} booked for: ${slotLabel}\n` +
+              `${mergedFields.phone ? `Their number: ${mergedFields.phone}\n` : ""}` +
+              `${requestedTimeLabel ? `They asked for: ${requestedTimeLabel}\n` : ""}` +
+              `\nGive them a call beforehand to confirm everything before you head out or call for the quote.`
+            );
+          }
         } catch {
           // No calendar connected yet, or booking failed — lead is still
           // recorded as qualified, just not auto-booked. Surfaced in the UI

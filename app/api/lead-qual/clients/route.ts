@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       name,
       trade: body.trade || null,
       phone: body.phone || null,
+      email: body.email || null,
       timezone: body.timezone || "Pacific/Auckland",
     })
     .select()
