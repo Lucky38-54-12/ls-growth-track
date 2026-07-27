@@ -163,7 +163,7 @@ function ConnectPageInner() {
           />
 
           {fbPending && fbPages.length > 0 ? (
-            <div style={{ background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 12, padding: 18, marginBottom: 14 }}>
+            <div style={{ background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: 18, marginBottom: 14 }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: L.text, marginBottom: 10 }}>
                 Which Facebook Page should send us leads?
               </p>
@@ -173,7 +173,7 @@ function ConnectPageInner() {
                     key={page.id}
                     onClick={() => handleChoosePage(page.id)}
                     disabled={fbConnecting}
-                    style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: fbConnecting ? "default" : "pointer" }}
+                    style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: fbConnecting ? "default" : "pointer" }}
                   >
                     {page.name}
                   </button>
@@ -215,10 +215,10 @@ function ConnectRow({
   icon: React.ReactNode; title: string; description: string; connected: boolean; error?: string | null; href: string;
 }) {
   return (
-    <div style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 12, padding: 18, marginBottom: 14, boxShadow: "0 1px 2px rgba(15,23,42,0.03)" }}>
+    <div style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: 18, marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: "#fef2f2", color: "var(--red)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 0, background: "#fef2f2", color: "var(--red)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             {icon}
           </div>
           <div>
@@ -235,7 +235,7 @@ function ConnectRow({
             href={href}
             style={{
               flexShrink: 0, fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--red)",
-              borderRadius: 8, padding: "8px 16px", textDecoration: "none",
+              borderRadius: 0, padding: "8px 16px", textDecoration: "none",
             }}
           >
             Connect
@@ -257,10 +257,10 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
   }
 
   return (
-    <div style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 12, padding: 18, marginBottom: 14, boxShadow: "0 1px 2px rgba(15,23,42,0.03)" }}>
+    <div style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: 18, marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: done ? 0 : 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: "#fef2f2", color: "var(--red)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 0, background: "#fef2f2", color: "var(--red)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Megaphone style={{ width: 18, height: 18 }} />
           </div>
           <div>
@@ -287,7 +287,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
             <li>Give <strong>full control</strong> (or advertiser access) and confirm</li>
           </ol>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 8, padding: "8px 10px", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: "8px 10px", marginBottom: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{LS_GROWTH_BUSINESS_NAME} — Business ID</p>
               <p style={{ fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "monospace" }}>{LS_GROWTH_BUSINESS_ID}</p>
@@ -298,7 +298,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
               style={{
                 display: "flex", alignItems: "center", gap: 5, flexShrink: 0,
                 fontSize: 12, fontWeight: 700, color: copied ? "#15803d" : L.text,
-                background: "#fff", border: `1px solid ${L.border}`, borderRadius: 6, padding: "6px 10px", cursor: "pointer",
+                background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: "6px 10px", cursor: "pointer",
               }}
             >
               {copied ? <Check style={{ width: 13, height: 13 }} /> : <Copy style={{ width: 13, height: 13 }} />}
@@ -312,7 +312,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
             disabled={confirming}
             style={{
               width: "100%", fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--red)",
-              border: "none", borderRadius: 8, padding: "9px 16px", cursor: confirming ? "default" : "pointer",
+              border: "none", borderRadius: 0, padding: "9px 16px", cursor: confirming ? "default" : "pointer",
             }}
           >
             {confirming ? "Saving…" : "I've added LS Growth as a partner"}
