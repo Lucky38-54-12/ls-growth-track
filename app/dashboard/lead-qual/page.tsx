@@ -82,7 +82,7 @@ function LeadQualPageInner() {
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
-      <Topbar title="Lead Qualification" subtitle="AI-qualified Meta leads, booked straight onto each client's calendar" />
+      <Topbar title="Onboarding" subtitle="AI-qualified Meta leads, booked straight onto each client's calendar" />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
         {oauthError && (
