@@ -346,7 +346,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
       {/* Branding panel */}
       <div className="connect-brand" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <img src="/logo-wide.png" alt="LS Growth" style={{ height: 24, width: "auto", objectFit: "contain" }} />
+        <img src="/logo-wide.png" alt="LS Growth" style={{ height: 64, width: "auto", objectFit: "contain", alignSelf: "flex-start" }} />
 
         <div>
           <h2 className="connect-brand-headline" style={{ fontWeight: 900, lineHeight: 1.05, letterSpacing: "-0.02em", color: L.text, marginBottom: 14, textTransform: "uppercase" }}>
