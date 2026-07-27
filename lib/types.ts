@@ -48,7 +48,21 @@ export interface Lead {
   proposal_followup_sent: boolean;
   unsubscribed_at: string | null;
   thinking_about_it_at: string | null;
+  post_call_outcome: PostCallOutcome | null;
+  post_call_stage: PostCallStage | null;
+  main_objection: string | null;
+  sales_call_done_at: string | null;
+  touchpoint_index: number;
+  last_touchpoint_at: string | null;
+  next_touchpoint_at: string | null;
+  agreement_sent: boolean;
+  ads_manager_access: boolean;
+  agreement_signed: boolean;
+  campaign_live: boolean;
 }
+
+export type PostCallOutcome = "hot" | "warm" | "closed_won";
+export type PostCallStage = "active" | "paused" | "cold_again" | "onboarding";
 
 export type CampaignStatus = "draft" | "active" | "paused" | "completed";
 

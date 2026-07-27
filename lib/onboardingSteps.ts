@@ -10,14 +10,3 @@ export const ONBOARDING_STEPS = [
   { key: "campaign_launched",  label: "First campaign launched" },
   { key: "first_review",       label: "First results review scheduled" },
 ];
-
-export const ONBOARDING_PIPELINE_COLUMNS = [
-  { key: "meeting_booked",    label: "Discovery Booked" },
-  { key: "discovery_done",    label: "Discovery Done" },
-  { key: "proposal_sent",     label: "Proposal Sent" },
-  { key: "thinking_about_it", label: "Thinking" },
-  { key: "onboarding",        label: "Onboarding" },
-  { key: "ready_to_launch",   label: "Ready to Launch" },
-];
-
-export const ONBOARDING_PIPELINE_STATUSES = new Set(ONBOARDING_PIPELINE_COLUMNS.map((c) => c.key));

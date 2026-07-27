@@ -28,7 +28,7 @@ export default async function ColdCallPipelinePage() {
 
   // Uncalled prospects belong in the Call Queue — this page is every
   // cold-call lead you've actually called, all together, no sections.
-  const calledLeads = leads.filter(l => l.status !== "not_contacted");
+  const calledLeads = leads.filter(l => l.status !== "not_contacted" && !l.post_call_stage);
   const queueCount = leads.filter(l => l.status === "not_contacted").length;
 
   return (

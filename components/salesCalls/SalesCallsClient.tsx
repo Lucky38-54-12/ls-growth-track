@@ -1,10 +1,8 @@
 "use client";
 import { useState } from "react";
-import { SalesCall, ScriptVersion, ScriptProposal, Lead, EngagementSummary, PatternTracker, OnboardingNote } from "@/lib/types";
+import { SalesCall, ScriptVersion, ScriptProposal, PatternTracker, OnboardingNote } from "@/lib/types";
 import { computeStats, computePatterns, CallStats, CallPatterns } from "@/lib/salesCallsStats";
-import { ONBOARDING_PIPELINE_COLUMNS } from "@/lib/onboardingSteps";
 import StatsBar from "./StatsBar";
-import PipelineBoard from "@/components/PipelineBoard";
 import CallLogForm from "./CallLogForm";
 import CallList from "./CallList";
 import MasterScriptPanel from "./MasterScriptPanel";
@@ -35,15 +33,13 @@ interface Props {
   initialPendingProposals: ScriptProposal[];
   initialStats: CallStats;
   initialPatterns: CallPatterns;
-  pipelineLeads: Lead[];
-  engagement: Record<string, EngagementSummary>;
   scriptPatterns: PatternTracker[];
   initialOnboardingNotes: OnboardingNote[];
 }
 
 export default function SalesCallsClient({
   initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialStats, initialPatterns,
-  pipelineLeads, engagement, scriptPatterns, initialOnboardingNotes,
+  scriptPatterns, initialOnboardingNotes,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("log");
   const [calls, setCalls] = useState<SalesCall[]>(initialCalls);
@@ -94,15 +90,6 @@ export default function SalesCallsClient({
   return (
     <div style={{ padding: "24px 28px 40px" }}>
       <StatsBar stats={stats} />
-
-      <div style={{ marginBottom: 20 }}>
-        <PipelineBoard
-          sections={[{ key: "onboarding", label: `${pipelineLeads.length} in pipeline`, leads: pipelineLeads }]}
-          columns={ONBOARDING_PIPELINE_COLUMNS}
-          engagement={engagement}
-          activeSource="onboarding"
-        />
-      </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", gap: 4 }}>

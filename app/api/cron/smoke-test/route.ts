@@ -51,6 +51,17 @@ function fakeLead(overrides: Partial<Lead>): Lead {
     proposal_followup_sent: false,
     unsubscribed_at: null,
     thinking_about_it_at: null,
+    post_call_outcome: null,
+    post_call_stage: null,
+    main_objection: null,
+    sales_call_done_at: null,
+    touchpoint_index: 0,
+    last_touchpoint_at: null,
+    next_touchpoint_at: null,
+    agreement_sent: false,
+    ads_manager_access: false,
+    agreement_signed: false,
+    campaign_live: false,
     ...overrides,
   };
 }

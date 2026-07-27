@@ -65,7 +65,7 @@ export default async function DashboardPage({
   // Call Queue, not here; this is everyone actually called, emailed, or booked.
   const coldCallLeads = allLeads.filter(l => l.source === "cold_call");
   const callQueueLeads = coldCallLeads.filter(l => l.status === "not_contacted");
-  const pipelineLeads = coldCallLeads.filter(l => l.status !== "not_contacted");
+  const pipelineLeads = coldCallLeads.filter(l => l.status !== "not_contacted" && !l.post_call_stage);
 
   // Trade/city segments become filter pills instead of separate stacked
   // boards — clicking one narrows the single board down to just that group.
