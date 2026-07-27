@@ -37,7 +37,7 @@ function PortalLoginInner() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, background: "#fff" }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
-        <img src="/logo-wide.png" alt="LS Growth" style={{ height: 40, width: "auto", objectFit: "contain", marginBottom: 32 }} />
+        <img src="/logo-trimmed.png" alt="LS Growth" style={{ height: 42, width: "auto", objectFit: "contain", marginBottom: 32 }} />
 
         {sent ? (
           <div>

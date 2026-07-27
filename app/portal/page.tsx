@@ -50,7 +50,7 @@ export default function PortalHomePage() {
   return (
     <div style={{ background: "#f8fafc", minHeight: "100vh" }}>
       <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
-        <img src="/logo-wide.png" alt="LS Growth" style={{ height: 26, width: "auto", objectFit: "contain", marginBottom: 10 }} />
+        <img src="/logo-trimmed.png" alt="LS Growth" style={{ height: 28, width: "auto", objectFit: "contain", marginBottom: 10 }} />
         <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text }}>{clientName ? `${clientName}'s leads` : "Your leads"}</h1>
         <p style={{ fontSize: 13, color: L.muted }}>Everyone who's messaged in and been qualified by your AI chat.</p>
       </div>
