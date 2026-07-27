@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { CalendarCheck, MessageCircle, CheckCircle2, ShieldCheck, Lock, Megaphone, Copy, Check } from "lucide-react";
+import { CalendarCheck, MessageCircle, CheckCircle2, ShieldCheck, Lock, Megaphone, Copy, Check, ArrowRight, ArrowLeft, Link2 } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -38,18 +38,21 @@ function ConnectPageInner() {
   const { clientId } = useParams<{ clientId: string }>();
   const searchParams = useSearchParams();
 
-  // "verifying" holds the connect UI behind a brief, real check that this
-  // link resolves to an actual client record — not theater, this is the
-  // same lookup that would otherwise happen invisibly, just given a moment
-  // on screen so a client opening a link from Lucky sees it get confirmed
-  // rather than the connect buttons just appearing.
-  const [phase, setPhase] = useState<"verifying" | "found" | "notfound">("verifying");
-  const [client, setClient] = useState<ClientInfo | null>(null);
-
   const calendarConnected = searchParams.get("calendarConnected");
   const calendarError = searchParams.get("calendarError");
   const fbError = searchParams.get("fbError");
   const fbPending = searchParams.get("fbPending");
+
+  // Landing here fresh (typed/tapped the link Lucky sent) starts at "gate" —
+  // a real click-to-verify step, not decorative. Landing here mid-flow (back
+  // from the Google/Facebook consent screen, which is a full page redirect
+  // and loses any in-memory state) skips straight past it, since the link
+  // was already proven genuine the first time through.
+  const arrivingMidFlow = !!(calendarConnected || calendarError || fbError || fbPending);
+
+  const [phase, setPhase] = useState<"gate" | "verifying" | "found" | "notfound">(arrivingMidFlow ? "verifying" : "gate");
+  const [client, setClient] = useState<ClientInfo | null>(null);
+  const [step, setStep] = useState<"connect" | "ads">("connect");
 
   const [fbPages, setFbPages] = useState<FbPage[]>([]);
   const [fbConnecting, setFbConnecting] = useState(false);
@@ -79,9 +82,9 @@ function ConnectPageInner() {
   }
 
   useEffect(() => {
-    loadClient();
+    if (phase === "verifying") loadClient();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
+  }, [clientId, phase]);
 
   useEffect(() => {
     if (!fbPending) return;
@@ -128,6 +131,26 @@ function ConnectPageInner() {
 
   return (
     <Shell>
+      {phase === "gate" && (
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text, marginBottom: 8 }}>You&apos;ve got a link from LS Growth</h1>
+          <p style={{ fontSize: 14, color: L.muted, marginBottom: 22, lineHeight: 1.5 }}>
+            Before we get you connected, let&apos;s confirm this link is genuinely yours.
+          </p>
+          <button
+            type="button"
+            onClick={() => setPhase("verifying")}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
+              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
+              border: "none", borderRadius: 0, padding: "12px 16px", cursor: "pointer",
+            }}
+          >
+            <Link2 style={{ width: 16, height: 16 }} /> Verify link
+          </button>
+        </div>
+      )}
+
       {phase === "verifying" && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: "40px 0" }}>
           <div style={spinnerStyle} />
@@ -142,7 +165,7 @@ function ConnectPageInner() {
         </div>
       )}
 
-      {phase === "found" && client && (
+      {phase === "found" && client && step === "connect" && (
         <div>
           <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#15803d", marginBottom: 18 }}>
             <ShieldCheck style={{ width: 15, height: 15 }} /> Link verified for {client.name}
@@ -150,7 +173,7 @@ function ConnectPageInner() {
 
           <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 6 }}>Connect {client.name}</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
-            A few quick steps so leads book straight onto your calendar and we can get your ads running. You&apos;ll log into your own Google and Facebook accounts on their screens, not ours, nothing is shared with us beyond what you approve there — and you can revoke access anytime from your own account settings.
+            So leads book straight onto your calendar. You&apos;ll log into your own Google and Facebook accounts on their screens, not ours — nothing is shared with us beyond what you approve there.
           </p>
 
           <ConnectRow
@@ -192,15 +215,47 @@ function ConnectPageInner() {
             />
           )}
 
+          <button
+            type="button"
+            onClick={() => setStep("ads")}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
+              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
+              border: "none", borderRadius: 0, padding: "11px 16px", cursor: "pointer", marginTop: 8,
+            }}
+          >
+            Next <ArrowRight style={{ width: 15, height: 15 }} />
+          </button>
+
+          <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: L.muted, marginTop: 14 }}>
+            <Lock style={{ width: 12, height: 12 }} /> Secured by Google and Facebook&apos;s own login, LS Growth never sees your password.
+          </p>
+        </div>
+      )}
+
+      {phase === "found" && client && step === "ads" && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setStep("connect")}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: L.muted,
+              background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 18,
+            }}
+          >
+            <ArrowLeft style={{ width: 13, height: 13 }} /> Back
+          </button>
+
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 6 }}>One last step</h1>
+          <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
+            So we can set up and run your ad campaigns.
+          </p>
+
           <AdsAccessCard done={adsDone} confirming={adsConfirming} onConfirm={handleConfirmAdsAccess} />
 
-          {calendarDone && facebookDone && adsDone ? (
+          {adsDone && (
             <p style={{ fontSize: 13.5, color: "#15803d", fontWeight: 700, marginTop: 4 }}>
               All set, you&apos;re good to go.
-            </p>
-          ) : (
-            <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: L.muted, marginTop: 18 }}>
-              <Lock style={{ width: 12, height: 12 }} /> Secured by Google and Facebook&apos;s own login, LS Growth never sees your password.
             </p>
           )}
         </div>
@@ -336,17 +391,19 @@ function Shell({ children }: { children: React.ReactNode }) {
         @keyframes connect-spin { to { transform: rotate(360deg); } }
         .connect-shell { flex-direction: row; }
         .connect-brand { flex: 1 1 46%; min-width: 320px; padding: 48px 56px; }
+        .connect-brand-logo { height: 120px; }
         .connect-brand-headline { font-size: 52px; }
         @media (max-width: 780px) {
           .connect-shell { flex-direction: column; }
           .connect-brand { flex: none; min-width: 0; padding: 32px 24px 8px; }
+          .connect-brand-logo { height: 72px; }
           .connect-brand-headline { font-size: 34px; }
         }
       `}</style>
 
       {/* Branding panel */}
       <div className="connect-brand" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <img src="/logo-wide.png" alt="LS Growth" style={{ height: 64, width: "auto", objectFit: "contain", alignSelf: "flex-start" }} />
+        <img src="/logo-wide.png" alt="LS Growth" className="connect-brand-logo" style={{ width: "auto", objectFit: "contain", alignSelf: "flex-start" }} />
 
         <div>
           <h2 className="connect-brand-headline" style={{ fontWeight: 900, lineHeight: 1.05, letterSpacing: "-0.02em", color: L.text, marginBottom: 14, textTransform: "uppercase" }}>
