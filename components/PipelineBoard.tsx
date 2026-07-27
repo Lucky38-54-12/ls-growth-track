@@ -320,12 +320,13 @@ function KanbanColumn({
 }) {
   return (
     <div
-      style={{ width: 270, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}
+      style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}
       onDragOver={(e) => { if (dropDisabled) return; e.preventDefault(); onDragOverColumn(); }}
       onDragLeave={onDragLeaveColumn}
       onDrop={(e) => { if (dropDisabled) return; e.preventDefault(); onDragLeaveColumn(); onDrop(); }}
     >
-      <div className="surface-card" style={{
+      <div style={{
+        background: L.surface, border: `1px solid ${L.border}`,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "10px 14px",
       }}>
@@ -333,13 +334,13 @@ function KanbanColumn({
         <span style={{ fontSize: 20, fontWeight: 800, color: L.text }}>{leads.length}</span>
       </div>
       <div style={{
-        display: "flex", flexDirection: "column", gap: 8, minHeight: 80, padding: 4, borderRadius: 10,
+        display: "flex", flexDirection: "column", gap: 8, minHeight: 80, padding: 4,
         background: isDragOver ? "#fef2f2" : "transparent",
         border: isDragOver ? "1px dashed var(--red)" : "1px dashed transparent",
         transition: "background 0.1s, border 0.1s",
       }}>
         {leads.length === 0 ? (
-          <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 12, background: "#f8fafc", border: `1px dashed ${L.border}`, borderRadius: 10 }}>Empty</div>
+          <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 12, background: "#f8fafc", border: `1px dashed ${L.border}` }}>Empty</div>
         ) : (
           leads.map(lead => (
             <LeadCard
@@ -450,7 +451,7 @@ export default function PipelineBoard({
               <span style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 7px", background: "#e2e8f0", color: L.muted }}>{section.leads.length}</span>
               <div style={{ flex: 1, height: 1, background: L.border }} />
             </div>
-            <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, alignItems: "start" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "start" }}>
               {columns.map(col => {
                 const dropKey = `${section.key}:${col.key}`;
                 return (
