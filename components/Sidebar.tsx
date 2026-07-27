@@ -28,7 +28,7 @@ const NAV = [
 
 export default function Sidebar() {
   const path = usePathname();
-  if (path?.startsWith("/results") || path?.startsWith("/login") || path?.startsWith("/connect")) return null;
+  if (path?.startsWith("/results") || path?.startsWith("/login") || path?.startsWith("/connect") || path?.startsWith("/portal")) return null;
   return (
     <div style={{
       width: 224, flexShrink: 0, background: "#fff", borderRight: "1px solid #e6eaf0",

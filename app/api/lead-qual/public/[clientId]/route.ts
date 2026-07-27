@@ -12,7 +12,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const sb = createSupabaseClient();
   const { data: client, error } = await sb
     .from("lq_clients")
-    .select("id, name, trade, ads_manager_access_confirmed_at, lq_calendar_connections(google_account_email), lq_channels(type)")
+    .select("id, name, trade, email, ads_manager_access_confirmed_at, lq_calendar_connections(google_account_email), lq_channels(type)")
     .eq("id", clientId)
     .maybeSingle();
 
@@ -23,6 +23,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     id: client.id,
     name: client.name,
     trade: client.trade,
+    email: client.email,
     // lq_calendar_connections.client_id is unique, so PostgREST embeds this
     // as a single object, not an array — `?.[0]` on an object is always
     // undefined, which silently made this false for every connected client.
