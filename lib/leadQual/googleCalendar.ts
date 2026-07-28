@@ -21,7 +21,18 @@ export function buildGoogleAuthUrl(clientId: string): string {
     // which fetches the connected account's email to store/display —
     // calendar-only scope leaves that call with no authorization and it
     // fails with "missing required authentication credential".
-    scope: ["https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/userinfo.email"],
+    //
+    // calendar.events + calendar.freebusy (not the full "calendar" scope)
+    // is deliberate — this app only ever calls events.insert and
+    // freebusy.query (see resolveAvailableSlot / booking below), and the
+    // full scope is Google's "restricted" tier (needs a paid third-party
+    // security assessment to verify). These two are "sensitive" tier
+    // instead — standard verification only, no assessment.
+    scope: [
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/calendar.freebusy",
+      "https://www.googleapis.com/auth/userinfo.email",
+    ],
     state: clientId,
   });
 }
