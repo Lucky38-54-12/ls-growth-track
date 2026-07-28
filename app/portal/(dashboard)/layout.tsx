@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, Calendar, Columns3, Mail, LogOut } from "lucide-react";
+import { Sunrise, Users, Calendar, Columns3, Mail, LogOut } from "lucide-react";
 
 const SIDEBAR_BG = "#0b0d12";
 const SIDEBAR_BORDER = "#1f2229";
 const SIDEBAR_MUTED = "#8b8f99";
 
 const NAV = [
+  { href: "/portal/today", label: "Today", icon: Sunrise },
   { href: "/portal", label: "Leads", icon: Users },
   { href: "/portal/calendar", label: "Calendar", icon: Calendar },
   { href: "/portal/pipeline", label: "Pipeline", icon: Columns3 },
