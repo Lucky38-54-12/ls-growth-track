@@ -58,49 +58,52 @@ export default function PortalLeadsPage() {
 
   return (
     <div>
-      <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text, textTransform: "uppercase", letterSpacing: "0.02em" }}>Leads</h1>
-          <p style={{ fontSize: 13, color: L.muted }}>Everyone who's messaged in and been qualified by your AI chat.</p>
+      <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "20px 32px", display: "flex", alignItems: "stretch", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "stretch", gap: 14 }}>
+          <div style={{ width: 4, borderRadius: 2, background: "var(--red)", alignSelf: "stretch", flexShrink: 0 }} />
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: L.text, textTransform: "uppercase", letterSpacing: "0.02em" }}>Leads</h1>
+            <p style={{ fontSize: 14, color: L.muted, marginTop: 3 }}>Everyone who's messaged in and been qualified by your AI chat.</p>
+          </div>
         </div>
 
-        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: "#15803d" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#15803d", background: "#f0fdf4", padding: "6px 14px", borderRadius: 20, height: "fit-content", alignSelf: "center" }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
           LIVE
         </span>
       </div>
 
-      <div style={{ padding: "20px 28px 60px" }}>
+      <div style={{ padding: "24px 32px 60px" }}>
         {loading ? (
           <p style={{ color: L.muted, fontSize: 13 }}>Loading…</p>
         ) : error ? (
           <p style={{ color: "#b91c1c", fontSize: 13 }}>{error}</p>
         ) : (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
-              <StatCard label="Total leads" value={stats.total} />
-              <StatCard label="Qualified" value={stats.qualified} />
-              <StatCard label="Booked" value={stats.booked} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
+              <StatCard label="Total leads" value={stats.total} accent="#64748b" />
+              <StatCard label="Qualified" value={stats.qualified} accent="#15803d" />
+              <StatCard label="Booked" value={stats.booked} accent="#1d4ed8" />
               <StatCard label="Booked rate" value={`${stats.conversionRate}%`} highlight />
             </div>
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 320 }}>
-                <Search style={{ width: 14, height: 14, position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: L.muted }} />
+            <div style={{ display: "flex", gap: 14, marginBottom: 16, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ position: "relative", flex: "1 1 240px", maxWidth: 340 }}>
+                <Search style={{ width: 15, height: 15, position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: L.muted }} />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search…"
-                  style={{ width: "100%", padding: "8px 12px 8px 30px", fontSize: 13, border: `1px solid ${L.border}`, boxSizing: "border-box" }}
+                  style={{ width: "100%", padding: "10px 14px 10px 34px", fontSize: 14, border: `1px solid ${L.border}`, boxSizing: "border-box" }}
                 />
               </div>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {FILTERS.map((f) => (
                   <button
                     key={f.key}
                     onClick={() => setFilter(f.key)}
                     style={{
-                      padding: "6px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: "none",
+                      padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none",
                       background: filter === f.key ? "var(--red)" : "#e2e8f0",
                       color: filter === f.key ? "#fff" : L.muted,
                     }}
@@ -111,7 +114,7 @@ export default function PortalLeadsPage() {
               </div>
             </div>
 
-            <p style={{ fontSize: 12, color: L.muted, marginBottom: 8 }}>
+            <p style={{ fontSize: 13, color: L.muted, marginBottom: 10 }}>
               Showing {filtered.length} of {leads.length}
             </p>
 
@@ -125,7 +128,7 @@ export default function PortalLeadsPage() {
                   <thead>
                     <tr style={{ borderBottom: `1px solid ${L.border}`, background: "#f8fafc" }}>
                       {["Lead", "Contact", "Status", "Scheduled", "Received"].map((h) => (
-                        <th key={h} style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        <th key={h} style={{ textAlign: "left", padding: "12px 18px", fontSize: 12, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                           {h}
                         </th>
                       ))}
@@ -139,43 +142,43 @@ export default function PortalLeadsPage() {
                       const initials = jobType.slice(0, 2).toUpperCase();
                       return (
                         <tr key={lead.id} style={{ borderBottom: `1px solid ${L.border}` }}>
-                          <td style={{ padding: "12px 16px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <div style={{ width: 30, height: 30, flexShrink: 0, background: style.bg, color: style.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>
+                          <td style={{ padding: "16px 18px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              <div style={{ width: 38, height: 38, borderRadius: 4, flexShrink: 0, background: style.bg, color: style.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800 }}>
                                 {initials}
                               </div>
                               <div>
-                                <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text }}>{jobType}</p>
-                                <p style={{ fontSize: 12, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
+                                <p style={{ fontSize: 15, fontWeight: 700, color: L.text }}>{jobType}</p>
+                                <p style={{ fontSize: 13, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
                               </div>
                             </div>
                           </td>
-                          <td style={{ padding: "12px 16px", fontSize: 12.5, color: L.text }}>
+                          <td style={{ padding: "16px 18px", fontSize: 14, color: L.text }}>
                             {String(fields.phone || lead.contact_email || "—")}
                           </td>
-                          <td style={{ padding: "12px 16px" }}>
-                            <span style={{ fontSize: 11.5, fontWeight: 700, color: style.color, background: style.bg, padding: "4px 10px", whiteSpace: "nowrap" }}>
+                          <td style={{ padding: "16px 18px" }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: style.color, background: style.bg, padding: "5px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>
                               {style.label}
                             </span>
                           </td>
-                          <td style={{ padding: "12px 16px", fontSize: 12.5 }}>
+                          <td style={{ padding: "16px 18px", fontSize: 14 }}>
                             {lead.booking_status === "booked" && lead.scheduled_at ? (
-                              <span style={{ display: "flex", alignItems: "center", gap: 5, color: "#15803d", fontWeight: 600 }}>
-                                <CheckCircle2 style={{ width: 13, height: 13 }} /> {new Date(lead.scheduled_at).toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                              <span style={{ display: "flex", alignItems: "center", gap: 6, color: "#15803d", fontWeight: 600 }}>
+                                <CheckCircle2 style={{ width: 14, height: 14 }} /> {new Date(lead.scheduled_at).toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
                               </span>
                             ) : lead.booking_status === "failed" ? (
-                              <span style={{ display: "flex", alignItems: "center", gap: 5, color: "#b91c1c", fontWeight: 600 }}>
-                                <XCircle style={{ width: 13, height: 13 }} /> Book manually
+                              <span style={{ display: "flex", alignItems: "center", gap: 6, color: "#b91c1c", fontWeight: 600 }}>
+                                <XCircle style={{ width: 14, height: 14 }} /> Book manually
                               </span>
                             ) : lead.outcome === "nurture" ? (
-                              <span style={{ display: "flex", alignItems: "center", gap: 5, color: "#b45309", fontWeight: 600 }}>
-                                <Clock style={{ width: 13, height: 13 }} /> Kept warm
+                              <span style={{ display: "flex", alignItems: "center", gap: 6, color: "#b45309", fontWeight: 600 }}>
+                                <Clock style={{ width: 14, height: 14 }} /> Kept warm
                               </span>
                             ) : (
                               <span style={{ color: L.muted }}>—</span>
                             )}
                           </td>
-                          <td style={{ padding: "12px 16px", fontSize: 12.5, color: L.muted, whiteSpace: "nowrap" }}>
+                          <td style={{ padding: "16px 18px", fontSize: 14, color: L.muted, whiteSpace: "nowrap" }}>
                             {new Date(lead.created_at).toLocaleDateString("en-NZ")}
                           </td>
                         </tr>
@@ -192,13 +195,18 @@ export default function PortalLeadsPage() {
   );
 }
 
-function StatCard({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
+function StatCard({ label, value, accent, highlight }: { label: string; value: string | number; accent?: string; highlight?: boolean }) {
   return (
-    <div style={{ background: highlight ? "var(--red)" : L.surface, border: `1px solid ${highlight ? "var(--red)" : L.border}`, padding: "14px 16px" }}>
-      <p style={{ fontSize: 10.5, fontWeight: 700, color: highlight ? "rgba(255,255,255,0.85)" : L.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+    <div style={{
+      background: highlight ? "var(--red)" : L.surface,
+      border: `1px solid ${highlight ? "var(--red)" : L.border}`,
+      borderTop: highlight ? undefined : `3px solid ${accent || L.border}`,
+      padding: "18px 20px",
+    }}>
+      <p style={{ fontSize: 11, fontWeight: 700, color: highlight ? "rgba(255,255,255,0.85)" : L.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
         {label}
       </p>
-      <p style={{ fontSize: 26, fontWeight: 800, color: highlight ? "#fff" : L.text }}>{value}</p>
+      <p style={{ fontSize: 36, fontWeight: 900, color: highlight ? "#fff" : L.text, lineHeight: 1 }}>{value}</p>
     </div>
   );
 }
