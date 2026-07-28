@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, XCircle, Clock } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Search } from "lucide-react";
 import { usePortalLeads } from "@/lib/hooks/usePortalLeads";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
@@ -58,9 +58,16 @@ export default function PortalLeadsPage() {
 
   return (
     <div>
-      <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text }}>Leads</h1>
-        <p style={{ fontSize: 13, color: L.muted }}>Everyone who's messaged in and been qualified by your AI chat.</p>
+      <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text, textTransform: "uppercase", letterSpacing: "0.02em" }}>Leads</h1>
+          <p style={{ fontSize: 13, color: L.muted }}>Everyone who's messaged in and been qualified by your AI chat.</p>
+        </div>
+
+        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: "#15803d" }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+          LIVE
+        </span>
       </div>
 
       <div style={{ padding: "20px 28px 60px" }}>
@@ -77,7 +84,16 @@ export default function PortalLeadsPage() {
               <StatCard label="Booked rate" value={`${stats.conversionRate}%`} highlight />
             </div>
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 320 }}>
+                <Search style={{ width: 14, height: 14, position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: L.muted }} />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  style={{ width: "100%", padding: "8px 12px 8px 30px", fontSize: 13, border: `1px solid ${L.border}`, boxSizing: "border-box" }}
+                />
+              </div>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {FILTERS.map((f) => (
                   <button
@@ -93,13 +109,11 @@ export default function PortalLeadsPage() {
                   </button>
                 ))}
               </div>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search job, location, phone…"
-                style={{ flex: "1 1 220px", padding: "7px 12px", fontSize: 13, border: `1px solid ${L.border}` }}
-              />
             </div>
+
+            <p style={{ fontSize: 12, color: L.muted, marginBottom: 8 }}>
+              Showing {filtered.length} of {leads.length}
+            </p>
 
             {filtered.length === 0 ? (
               <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 32, textAlign: "center", color: L.muted, fontSize: 13 }}>
@@ -107,10 +121,10 @@ export default function PortalLeadsPage() {
               </div>
             ) : (
               <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
                   <thead>
                     <tr style={{ borderBottom: `1px solid ${L.border}`, background: "#f8fafc" }}>
-                      {["Job", "Contact", "Status", "Scheduled", "Received"].map((h) => (
+                      {["Lead", "Contact", "Status", "Scheduled", "Received"].map((h) => (
                         <th key={h} style={{ textAlign: "left", padding: "10px 16px", fontSize: 11, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                           {h}
                         </th>
@@ -120,12 +134,21 @@ export default function PortalLeadsPage() {
                   <tbody>
                     {filtered.map((lead) => {
                       const fields = lead.lq_conversations?.extracted_fields || {};
+                      const jobType = String(fields.job_type || "Job type unknown");
                       const style = OUTCOME_STYLE[lead.outcome] || { bg: "#f1f5f9", color: L.muted, label: lead.outcome };
+                      const initials = jobType.slice(0, 2).toUpperCase();
                       return (
                         <tr key={lead.id} style={{ borderBottom: `1px solid ${L.border}` }}>
                           <td style={{ padding: "12px 16px" }}>
-                            <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text }}>{String(fields.job_type || "Job type unknown")}</p>
-                            <p style={{ fontSize: 12, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <div style={{ width: 30, height: 30, flexShrink: 0, background: style.bg, color: style.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>
+                                {initials}
+                              </div>
+                              <div>
+                                <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text }}>{jobType}</p>
+                                <p style={{ fontSize: 12, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
+                              </div>
+                            </div>
                           </td>
                           <td style={{ padding: "12px 16px", fontSize: 12.5, color: L.text }}>
                             {String(fields.phone || lead.contact_email || "—")}

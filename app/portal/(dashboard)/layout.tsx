@@ -5,7 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Users, Calendar, Columns3, Mail, LogOut } from "lucide-react";
 
-const L = { text: "#0f172a", muted: "#64748b", border: "#e2e8f0" };
+const SIDEBAR_BG = "#0b0d12";
+const SIDEBAR_BORDER = "#1f2229";
+const SIDEBAR_MUTED = "#8b8f99";
 
 const NAV = [
   { href: "/portal", label: "Leads", icon: Users },
@@ -33,13 +35,13 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" }}>
-      <div style={{ width: 220, flexShrink: 0, background: "#fff", borderRight: `1px solid ${L.border}`, display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "20px 20px 16px", borderBottom: `1px solid ${L.border}` }}>
-          <img src="/logo-trimmed.png" alt="LS Growth" style={{ height: 26, width: "auto", objectFit: "contain", marginBottom: 10 }} />
-          <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{clientName || "Your dashboard"}</p>
+      <div style={{ width: 220, flexShrink: 0, background: SIDEBAR_BG, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "22px 20px", borderBottom: `1px solid ${SIDEBAR_BORDER}` }}>
+          <img src="/logo-wide.png" alt="LS Growth" style={{ height: 30, width: "auto", maxWidth: "100%", objectFit: "contain" }} />
         </div>
 
-        <nav style={{ flex: 1, padding: "14px 10px" }}>
+        <p style={{ padding: "16px 20px 6px", fontSize: 10.5, fontWeight: 700, color: SIDEBAR_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Menu</p>
+        <nav style={{ padding: "0 10px" }}>
           {NAV.map(({ href, label, icon: Icon }) => {
             const active = href === "/portal" ? pathname === "/portal" : pathname.startsWith(href);
             return (
@@ -49,8 +51,9 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
                 style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", marginBottom: 2,
                   fontSize: 13, fontWeight: active ? 700 : 500, textDecoration: "none",
-                  color: active ? "var(--red)" : "#475569",
-                  background: active ? "#fef2f2" : "transparent",
+                  color: active ? "#fff" : SIDEBAR_MUTED,
+                  background: active ? "var(--red)" : "transparent",
+                  borderRadius: 2,
                 }}
               >
                 <Icon style={{ width: 15, height: 15, flexShrink: 0 }} />
@@ -60,17 +63,28 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
           })}
         </nav>
 
-        <div style={{ padding: 10, borderTop: `1px solid ${L.border}` }}>
+        <div style={{ flex: 1 }} />
+
+        <div style={{ padding: 10, borderTop: `1px solid ${SIDEBAR_BORDER}` }}>
           <button
             type="button"
             onClick={handleLogout}
             style={{
               display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px",
-              fontSize: 13, fontWeight: 600, color: L.muted, background: "none", border: "none", cursor: "pointer",
+              fontSize: 13, fontWeight: 600, color: SIDEBAR_MUTED, background: "none", border: "none", cursor: "pointer",
             }}
           >
             <LogOut style={{ width: 15, height: 15 }} /> Sign out
           </button>
+        </div>
+
+        <div style={{ padding: "12px 20px", borderTop: `1px solid ${SIDEBAR_BORDER}`, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#1f2229", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 800, color: "#fff" }}>
+            {(clientName || "LS").slice(0, 2).toUpperCase()}
+          </div>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {clientName || "Your dashboard"}
+          </p>
         </div>
       </div>
 
