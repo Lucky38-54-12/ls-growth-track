@@ -11,25 +11,14 @@ interface Client {
   email: string | null;
 }
 
-const inputStyle: React.CSSProperties = {
-  display: "block", width: "100%", boxSizing: "border-box", padding: "8px 10px",
-  border: `1px solid ${L.border}`, fontSize: 13, marginBottom: 12,
-};
-const labelStyle: React.CSSProperties = { fontSize: 11.5, fontWeight: 700, color: L.muted, marginBottom: 4, display: "block" };
-
 export default function AgreementModal({ client, onClose }: { client: Client; onClose: () => void }) {
-  const [contactName, setContactName] = useState("");
-  const [focusService, setFocusService] = useState("");
-  const [monthlyFee, setMonthlyFee] = useState("$2,000");
-  const [dailyAdSpend, setDailyAdSpend] = useState("$15");
-  const [quoteThreshold, setQuoteThreshold] = useState("10");
-  const [trialWeeks, setTrialWeeks] = useState("3");
-  const [startDate, setStartDate] = useState("");
+  const [notes, setNotes] = useState("");
   const [generating, setGenerating] = useState(false);
   const [docUrl, setDocUrl] = useState("");
   const [error, setError] = useState("");
 
   async function handleGenerate() {
+    if (!notes.trim()) return;
     setGenerating(true);
     setError("");
     setDocUrl("");
@@ -38,16 +27,10 @@ export default function AgreementModal({ client, onClose }: { client: Client; on
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clientName: contactName,
           company: client.name,
-          email: client.email || "",
           trade: client.trade || "",
-          focusService,
-          monthlyFee,
-          dailyAdSpend,
-          quoteThreshold,
-          trialWeeks,
-          startDate,
+          email: client.email || "",
+          dealNotes: notes,
         }),
       });
       const data = await res.json();
@@ -67,7 +50,7 @@ export default function AgreementModal({ client, onClose }: { client: Client; on
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ background: L.surface, border: `1px solid ${L.border}`, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", borderRadius: 14, boxShadow: "0 20px 48px rgba(15,23,42,0.22)" }}
+        style={{ background: L.surface, border: `1px solid ${L.border}`, width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto", borderRadius: 14, boxShadow: "0 20px 48px rgba(15,23,42,0.22)" }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${L.border}` }}>
           <p style={{ fontSize: 13, fontWeight: 800, color: L.text }}>Make agreement — {client.name}</p>
@@ -77,43 +60,24 @@ export default function AgreementModal({ client, onClose }: { client: Client; on
         </div>
 
         <div style={{ padding: 16 }}>
-          <label style={labelStyle}>Client contact name</label>
-          <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="e.g. Charl Van der Mescht" style={inputStyle} />
-
-          <label style={labelStyle}>Focus service (leave blank to use their trade)</label>
-          <input value={focusService} onChange={(e) => setFocusService(e.target.value)} placeholder="e.g. solar installations" style={inputStyle} />
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <label style={labelStyle}>Monthly fee</label>
-              <input value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Daily ad spend</label>
-              <input value={dailyAdSpend} onChange={(e) => setDailyAdSpend(e.target.value)} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Quote threshold</label>
-              <input value={quoteThreshold} onChange={(e) => setQuoteThreshold(e.target.value)} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Trial weeks</label>
-              <input value={trialWeeks} onChange={(e) => setTrialWeeks(e.target.value)} style={inputStyle} />
-            </div>
-          </div>
-
-          <label style={labelStyle}>Campaign start date</label>
-          <input value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="e.g. 27/07/26" style={inputStyle} />
-
+          <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
+            Just say what was actually agreed — e.g. contact name, 3 week trial, 50% deposit then we start, whatever the deal is. The doc gets written to match, not forced into a fixed template.
+          </p>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={8}
+            placeholder="e.g. Charl. 3 week trial, 10 qualified quotes to trigger the $2k/mo fee, $15/day ad spend, starts 27/07..."
+            style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 12, padding: "8px 10px", border: `1px solid ${L.border}`, fontSize: 13 }}
+          />
           {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 14px", marginBottom: 12, fontSize: 13 }}>{error}</div>}
-
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={generating || !contactName.trim()}
+              disabled={generating || !notes.trim()}
               className="btn-lift"
-              style={{ padding: "10px 20px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: generating || !contactName.trim() ? "default" : "pointer", opacity: !contactName.trim() ? 0.6 : 1 }}
+              style={{ padding: "10px 20px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: generating || !notes.trim() ? "default" : "pointer", opacity: !notes.trim() ? 0.6 : 1 }}
             >
               {generating ? "Generating…" : "Generate agreement"}
             </button>
