@@ -186,23 +186,25 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
           const clientRecord = (await sb.from("lq_clients").select("timezone, email").eq("id", clientId).single()).data;
           const timezone = clientRecord?.timezone || "Pacific/Auckland";
 
-          // visit_time_iso/callback_time_iso are the AI's own resolution of
-          // whatever loose time the lead gave ("tomorrow arvo") into a real
-          // local date/time — an on-site visit uses visit_time, a phone-only
-          // quote uses callback_time. Actually checked against the client's
-          // calendar (business hours + no conflicts) instead of blindly
-          // booking a fixed 24h-from-now slot regardless of what was said.
+          // Only the callback ever gets auto-booked onto the calendar, for
+          // both quote methods — an on-site visit time is just what the lead
+          // asked for, not something we can commit to on the tradesperson's
+          // behalf (their day-to-day schedule isn't visible to us and
+          // changes daily). The actual visit gets confirmed by the
+          // tradesperson themselves during that call, not auto-locked in
+          // from a Messenger chat. visit_time is still captured and surfaced
+          // below so they know what the lead asked for going into the call.
           const isOnSite = mergedFields.quote_method === "on_site";
-          const desiredLocalDateTime = (isOnSite ? mergedFields.visit_time_iso : mergedFields.callback_time_iso) as string | undefined;
-          const durationMinutes = isOnSite ? 60 : 20;
+          const desiredLocalDateTime = mergedFields.callback_time_iso as string | undefined;
+          const durationMinutes = 20;
 
           const slot = await resolveAvailableSlot({ clientId, desiredLocalDateTime, durationMinutes, timeZone: timezone });
 
-          const requestedTimeLabel = isOnSite ? mergedFields.visit_time : mergedFields.callback_time;
+          const requestedVisitLabel = mergedFields.visit_time as string | undefined;
           const { eventId } = await bookJobOnClientCalendar({
             clientId,
-            summary: `${mergedFields.job_type || "Job"} — ${mergedFields.location || "location TBC"}`,
-            description: `Qualified via AI chat.\nJob type: ${mergedFields.job_type || "?"}\nLocation: ${mergedFields.location || "?"}\nTimeline: ${mergedFields.timeline || "?"}${requestedTimeLabel ? `\nLead requested: ${requestedTimeLabel}` : ""}`,
+            summary: `Call — ${mergedFields.job_type || "Job"} — ${mergedFields.location || "location TBC"}`,
+            description: `Qualified via AI chat.\nJob type: ${mergedFields.job_type || "?"}\nLocation: ${mergedFields.location || "?"}\nTimeline: ${mergedFields.timeline || "?"}${isOnSite && requestedVisitLabel ? `\nLead asked for someone to come round: ${requestedVisitLabel} — confirm on this call, don't assume it's locked in.` : ""}`,
             startISO: slot.toISOString(),
             durationMinutes,
             timeZone: timezone,
@@ -221,7 +223,8 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
           // fetch can get cut off mid-flight when the function terminates.
           await notifySlack(
             `📅 New booking — *${config.businessName}*\n` +
-            `${mergedFields.job_type || "Job"} in ${mergedFields.location || "location TBC"}, booked for ${slotLabel}\n` +
+            `Call booked for ${slotLabel} — ${mergedFields.job_type || "Job"} in ${mergedFields.location || "location TBC"}\n` +
+            `${isOnSite && requestedVisitLabel ? `Lead asked for someone to come round: ${requestedVisitLabel} (confirm on the call)\n` : ""}` +
             `${mergedFields.phone ? `Phone: ${mergedFields.phone}\n` : ""}` +
             `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/lead-qual/${clientId}`
           );
@@ -237,10 +240,10 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
               `You've got a new job booked in from your Messenger chat.\n\n` +
               `Job: ${mergedFields.job_type || "Not specified"}\n` +
               `Location: ${mergedFields.location || "Not specified"}\n` +
-              `${isOnSite ? "Site visit" : "Callback"} booked for: ${slotLabel}\n` +
+              `Callback booked for: ${slotLabel}\n` +
               `${mergedFields.phone ? `Their number: ${mergedFields.phone}\n` : ""}` +
-              `${requestedTimeLabel ? `They asked for: ${requestedTimeLabel}\n` : ""}` +
-              `\nGive them a call beforehand to confirm everything before you head out or call for the quote.`
+              `${isOnSite && requestedVisitLabel ? `They asked for someone to come round: ${requestedVisitLabel} — this isn't locked in, confirm it works for you on the call first.\n` : ""}` +
+              `\nGive them a call at that time to sort the quote${isOnSite ? " and confirm a visit time that actually works for you" : ""}.`
             );
           }
         } catch {
