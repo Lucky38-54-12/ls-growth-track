@@ -119,9 +119,9 @@ export default function PortalLeadsPage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 8, background: logoUrl ? "#fff" : "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, flexShrink: 0, overflow: "hidden", padding: logoUrl ? 6 : 0, boxSizing: "border-box" }}>
+          <div style={{ width: 52, height: 52, borderRadius: 8, background: logoUrl ? "transparent" : "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, flexShrink: 0, overflow: "hidden" }}>
             {logoUrl ? (
-              <img src={logoUrl} alt={clientName} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              <img src="/api/portal/logo" alt={clientName} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             ) : (
               (clientName || "LS").slice(0, 2).toUpperCase()
             )}

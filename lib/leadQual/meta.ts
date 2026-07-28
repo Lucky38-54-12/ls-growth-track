@@ -42,7 +42,7 @@ export async function resolveChannelByPageId(pageId: string): Promise<ResolvedCh
 // developer console ("Add Subscriptions") for every new client.
 async function subscribeWebhookForPage(pageId: string, pageAccessToken: string): Promise<void> {
   const res = await fetch(
-    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins,message_echoes&access_token=${encodeURIComponent(pageAccessToken)}`,
+    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins,message_echoes,leadgen&access_token=${encodeURIComponent(pageAccessToken)}`,
     { method: "POST" }
   );
   if (!res.ok) {
@@ -100,6 +100,26 @@ export async function sendMessengerReply(pageAccessToken: string, recipientPsid:
     const body = await res.text();
     throw new Error(`Messenger send failed: ${res.status} ${body}`);
   }
+}
+
+export interface LeadgenField {
+  name: string;
+  values: string[];
+}
+
+// A Lead Ads submission (Facebook/Instagram "Instant Form") arrives on the
+// webhook as just an id — the actual name/email/phone the person typed in
+// has to be pulled separately from the Graph API.
+export async function fetchLeadgenDetails(leadgenId: string, pageAccessToken: string): Promise<LeadgenField[]> {
+  const res = await fetch(
+    `https://graph.facebook.com/v20.0/${leadgenId}?fields=field_data&access_token=${encodeURIComponent(pageAccessToken)}`
+  );
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Leadgen fetch failed: ${res.status} ${body}`);
+  }
+  const body = await res.json();
+  return (body.field_data as LeadgenField[]) || [];
 }
 
 export interface DeadChannel {
