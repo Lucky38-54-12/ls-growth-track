@@ -1,10 +1,48 @@
 "use client";
 
-import { useMemo } from "react";
-import { CheckCircle2, MessageCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, MessageCircle, Zap } from "lucide-react";
 import { usePortalLeads } from "@/lib/hooks/usePortalLeads";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
+
+interface ImpactStats {
+  messagesAutomated: number;
+  adminTimeSavedMinutes: number;
+  avgResponseSeconds: number | null;
+  leadsHandled: number;
+}
+
+function formatTimeSaved(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = minutes / 60;
+  return hours >= 10 ? `${Math.round(hours)}h` : `${hours.toFixed(1)}h`;
+}
+
+function formatResponseTime(seconds: number | null): string {
+  if (seconds === null) return "—";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  return `${(seconds / 60).toFixed(1)}m`;
+}
+
+function useImpactStats(): { stats: ImpactStats | null } {
+  const [stats, setStats] = useState<ImpactStats | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    function load() {
+      fetch("/api/portal/impact")
+        .then((r) => r.json())
+        .then((body) => { if (!cancelled && !body.error) setStats(body); })
+        .catch(() => {});
+    }
+    load();
+    const interval = setInterval(load, 15000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  return { stats };
+}
 
 interface Lead {
   id: string;
@@ -24,6 +62,7 @@ function isToday(iso: string): boolean {
 
 export default function PortalTodayPage() {
   const { leads, loading, error } = usePortalLeads<Lead>();
+  const { stats: impact } = useImpactStats();
 
   const newToday = useMemo(
     () => leads.filter((l) => isToday(l.created_at)).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
@@ -72,6 +111,18 @@ export default function PortalTodayPage() {
               <StatCard label="Needs a reply" value={stats.needsReplyToday} />
               <StatCard label="Bookings today" value={stats.bookingsCount} highlight />
             </div>
+
+            {impact && (
+              <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderTop: "3px solid #22c55e", padding: "14px 20px", marginBottom: 24, display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <Zap style={{ width: 13, height: 13, color: "#22c55e" }} /> Operational impact
+                </span>
+                <ImpactStat value={impact.messagesAutomated} label="Messages automated" />
+                <ImpactStat value={formatTimeSaved(impact.adminTimeSavedMinutes)} label="Admin time saved" />
+                <ImpactStat value={formatResponseTime(impact.avgResponseSeconds)} label="Avg response time" />
+                <ImpactStat value={impact.leadsHandled} label="Leads handled by AI" />
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start" }}>
               <div style={{ flex: "1 1 360px" }}>
@@ -136,6 +187,15 @@ export default function PortalTodayPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function ImpactStat({ value, label }: { value: string | number; label: string }) {
+  return (
+    <span style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+      <span style={{ fontSize: 18, fontWeight: 800, color: L.text }}>{value}</span>
+      <span style={{ fontSize: 12, color: L.muted }}>{label}</span>
+    </span>
   );
 }
 
