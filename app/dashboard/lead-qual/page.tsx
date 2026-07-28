@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Topbar from "@/components/Topbar";
-import { CalendarCheck, Plus, MessageCircle, Megaphone } from "lucide-react";
+import { CalendarCheck, Plus, MessageCircle, Megaphone, ExternalLink } from "lucide-react";
 import OnboardingNotesPanel from "@/components/onboarding/OnboardingNotesPanel";
 import AgreementMakerPanel from "@/components/onboarding/AgreementMakerPanel";
 
@@ -300,6 +300,19 @@ function LeadQualPageInner() {
                         {copiedId === client.id ? "Link copied" : "Copy client link"}
                       </button>
                     )}
+                    <a
+                      href={`/api/lead-qual/clients/${client.id}/view-portal`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        fontSize: 12.5, fontWeight: 700, color: L.muted,
+                        border: `1px solid ${L.border}`, borderRadius: 8,
+                        padding: "6px 12px", background: "none", textDecoration: "none",
+                      }}
+                    >
+                      <ExternalLink style={{ width: 13, height: 13 }} /> View portal
+                    </a>
                   </div>
                 </div>
               );
