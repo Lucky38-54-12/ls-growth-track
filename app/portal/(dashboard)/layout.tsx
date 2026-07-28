@@ -5,9 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sunrise, Users, Calendar, Columns3, Mail, LogOut } from "lucide-react";
 
-const SIDEBAR_BG = "#0b0d12";
-const SIDEBAR_BORDER = "#1f2229";
-const SIDEBAR_MUTED = "#8b8f99";
+const SIDEBAR_BG = "#ffffff";
+const SIDEBAR_BORDER = "#e2e8f0";
+const SIDEBAR_MUTED = "#64748b";
+const SIDEBAR_TEXT = "#0f172a";
 
 const NAV = [
   { href: "/portal/today", label: "Today", icon: Sunrise },
@@ -36,13 +37,13 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" }}>
-      <div style={{ width: 220, flexShrink: 0, background: SIDEBAR_BG, display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "22px 20px", borderBottom: `1px solid ${SIDEBAR_BORDER}` }}>
-          <img src="/logo-wide.png" alt="LS Growth" style={{ height: 30, width: "auto", maxWidth: "100%", objectFit: "contain" }} />
+      <div style={{ width: 260, flexShrink: 0, background: SIDEBAR_BG, borderRight: `1px solid ${SIDEBAR_BORDER}`, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "26px 22px", borderBottom: `1px solid ${SIDEBAR_BORDER}` }}>
+          <img src="/logo-wide.png" alt="LS Growth" style={{ height: 38, width: "auto", maxWidth: "100%", objectFit: "contain" }} />
         </div>
 
-        <p style={{ padding: "16px 20px 6px", fontSize: 10.5, fontWeight: 700, color: SIDEBAR_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Menu</p>
-        <nav style={{ padding: "0 10px" }}>
+        <p style={{ padding: "20px 22px 8px", fontSize: 12, fontWeight: 700, color: SIDEBAR_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>Menu</p>
+        <nav style={{ padding: "0 12px" }}>
           {NAV.map(({ href, label, icon: Icon }) => {
             const active = href === "/portal" ? pathname === "/portal" : pathname.startsWith(href);
             return (
@@ -50,14 +51,14 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
                 key={href}
                 href={href}
                 style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", marginBottom: 2,
-                  fontSize: 13, fontWeight: active ? 700 : 500, textDecoration: "none",
-                  color: active ? "#fff" : SIDEBAR_MUTED,
+                  display: "flex", alignItems: "center", gap: 12, padding: "12px 12px", marginBottom: 4,
+                  fontSize: 15, fontWeight: active ? 700 : 500, textDecoration: "none",
+                  color: active ? "#fff" : SIDEBAR_TEXT,
                   background: active ? "var(--red)" : "transparent",
-                  borderRadius: 2,
+                  borderRadius: 4,
                 }}
               >
-                <Icon style={{ width: 15, height: 15, flexShrink: 0 }} />
+                <Icon style={{ width: 19, height: 19, flexShrink: 0 }} />
                 {label}
               </Link>
             );
@@ -66,24 +67,24 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
 
         <div style={{ flex: 1 }} />
 
-        <div style={{ padding: 10, borderTop: `1px solid ${SIDEBAR_BORDER}` }}>
+        <div style={{ padding: 12, borderTop: `1px solid ${SIDEBAR_BORDER}` }}>
           <button
             type="button"
             onClick={handleLogout}
             style={{
-              display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px",
-              fontSize: 13, fontWeight: 600, color: SIDEBAR_MUTED, background: "none", border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 12px",
+              fontSize: 15, fontWeight: 600, color: SIDEBAR_MUTED, background: "none", border: "none", cursor: "pointer",
             }}
           >
-            <LogOut style={{ width: 15, height: 15 }} /> Sign out
+            <LogOut style={{ width: 19, height: 19 }} /> Sign out
           </button>
         </div>
 
-        <div style={{ padding: "12px 20px", borderTop: `1px solid ${SIDEBAR_BORDER}`, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#1f2229", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 800, color: "#fff" }}>
+        <div style={{ padding: "16px 22px", borderTop: `1px solid ${SIDEBAR_BORDER}`, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#f1f5f9", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: SIDEBAR_TEXT }}>
             {(clientName || "LS").slice(0, 2).toUpperCase()}
           </div>
-          <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: SIDEBAR_TEXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {clientName || "Your dashboard"}
           </p>
         </div>
