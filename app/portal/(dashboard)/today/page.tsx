@@ -87,7 +87,7 @@ export default function PortalTodayPage() {
 
   return (
     <div>
-      <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+      <div className="portal-header-pad" style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text, textTransform: "uppercase", letterSpacing: "0.02em" }}>Today</h1>
           <p style={{ fontSize: 13, color: L.muted }}>{todayLabel}</p>
@@ -98,7 +98,7 @@ export default function PortalTodayPage() {
         </span>
       </div>
 
-      <div style={{ padding: "20px 28px 60px" }}>
+      <div className="portal-page-pad" style={{ padding: "20px 28px 60px" }}>
         {loading ? (
           <p style={{ color: L.muted, fontSize: 13 }}>Loading…</p>
         ) : error ? (

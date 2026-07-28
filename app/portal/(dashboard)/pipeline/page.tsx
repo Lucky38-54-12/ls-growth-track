@@ -86,7 +86,7 @@ export default function PortalPipelinePage() {
 
   return (
     <div>
-      <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
+      <div className="portal-header-pad" style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
         <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text }}>Pipeline</h1>
         <p style={{ fontSize: 13, color: L.muted }}>Drag a card to move it through your pipeline — so nothing falls through the cracks.</p>
       </div>

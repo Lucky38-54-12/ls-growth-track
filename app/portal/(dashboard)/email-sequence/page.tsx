@@ -43,12 +43,12 @@ export default function PortalEmailSequencePage() {
 
   return (
     <div>
-      <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
+      <div className="portal-header-pad" style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
         <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text }}>Email sequence</h1>
         <p style={{ fontSize: 13, color: L.muted }}>Follow-up emails going out to people who weren't ready to book yet.</p>
       </div>
 
-      <div style={{ padding: "20px 28px 60px" }}>
+      <div className="portal-page-pad" style={{ padding: "20px 28px 60px" }}>
         {loading ? (
           <p style={{ color: L.muted, fontSize: 13 }}>Loading…</p>
         ) : error ? (

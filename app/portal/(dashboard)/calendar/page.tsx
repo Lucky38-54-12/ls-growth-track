@@ -88,7 +88,7 @@ export default function PortalCalendarPage() {
 
   return (
     <div>
-      <div style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
+      <div className="portal-header-pad" style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
         <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text }}>Calendar</h1>
         <p style={{ fontSize: 13, color: L.muted }}>Every job booked in through your AI chat.</p>
       </div>
@@ -96,7 +96,7 @@ export default function PortalCalendarPage() {
       {loading ? (
         <p style={{ padding: 28, color: L.muted, fontSize: 13 }}>Loading…</p>
       ) : (
-        <div style={{ display: "flex", gap: 20, padding: "20px 28px 60px", alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div className="portal-page-pad" style={{ display: "flex", gap: 20, padding: "20px 28px 60px", alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 560px", background: L.surface, border: `1px solid ${L.border}` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
               <button type="button" onClick={() => changeMonth(-1)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>

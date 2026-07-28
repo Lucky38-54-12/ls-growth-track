@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sunrise, Users, Calendar, Columns3, Mail, LogOut } from "lucide-react";
+import { Sunrise, Users, Calendar, Columns3, Mail, LogOut, Menu, X } from "lucide-react";
 
 const SIDEBAR_BG = "#ffffff";
 const SIDEBAR_BORDER = "#e2e8f0";
@@ -23,6 +23,7 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
   const router = useRouter();
   const [clientName, setClientName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/portal/me")
@@ -34,6 +35,10 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+
   async function handleLogout() {
     await fetch("/api/portal/logout", { method: "POST" });
     router.push("/portal/login");
@@ -41,7 +46,24 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" }}>
-      <div style={{ width: 260, flexShrink: 0, background: SIDEBAR_BG, borderRight: `1px solid ${SIDEBAR_BORDER}`, display: "flex", flexDirection: "column" }}>
+      <div
+        className={`portal-topbar portal-header-pad`}
+        style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 30, alignItems: "center", justifyContent: "space-between", padding: "14px 20px", background: SIDEBAR_BG, borderBottom: `1px solid ${SIDEBAR_BORDER}` }}
+      >
+        <img src="/logo-wide.png" alt="LS Growth" style={{ height: 28, width: "auto", maxWidth: 160, objectFit: "contain" }} />
+        <button
+          type="button"
+          onClick={() => setNavOpen((v) => !v)}
+          aria-label={navOpen ? "Close menu" : "Open menu"}
+          style={{ background: "none", border: "none", cursor: "pointer", color: SIDEBAR_TEXT, padding: 4, display: "flex" }}
+        >
+          {navOpen ? <X style={{ width: 22, height: 22 }} /> : <Menu style={{ width: 22, height: 22 }} />}
+        </button>
+      </div>
+
+      <div className={`portal-backdrop${navOpen ? " is-open" : ""}`} onClick={() => setNavOpen(false)} />
+
+      <div className={`portal-sidebar${navOpen ? " is-open" : ""}`} style={{ width: 260, flexShrink: 0, background: SIDEBAR_BG, borderRight: `1px solid ${SIDEBAR_BORDER}`, display: "flex", flexDirection: "column" }}>
         <div style={{ padding: "26px 22px", borderBottom: `1px solid ${SIDEBAR_BORDER}` }}>
           <img src="/logo-wide.png" alt="LS Growth" style={{ height: 38, width: "auto", maxWidth: "100%", objectFit: "contain" }} />
         </div>
@@ -98,7 +120,7 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
         </div>
       </div>
 
-      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+      <div className="portal-content" style={{ flex: 1, minWidth: 0 }}>{children}</div>
     </div>
   );
 }

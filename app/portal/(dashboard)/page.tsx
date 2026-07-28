@@ -104,6 +104,7 @@ export default function PortalLeadsPage() {
   return (
     <div>
       <div
+        className="portal-banner-pad"
         style={{
           position: "relative",
           overflow: "hidden",
@@ -118,9 +119,9 @@ export default function PortalLeadsPage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 8, background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, flexShrink: 0, overflow: "hidden" }}>
+          <div style={{ width: 52, height: 52, borderRadius: 8, background: logoUrl ? "#fff" : "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, flexShrink: 0, overflow: "hidden", padding: logoUrl ? 6 : 0, boxSizing: "border-box" }}>
             {logoUrl ? (
-              <img src={logoUrl} alt={clientName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img src={logoUrl} alt={clientName} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             ) : (
               (clientName || "LS").slice(0, 2).toUpperCase()
             )}
@@ -138,7 +139,7 @@ export default function PortalLeadsPage() {
         </div>
       </div>
 
-      <div style={{ padding: "24px 32px 60px" }}>
+      <div className="portal-page-pad" style={{ padding: "24px 32px 60px" }}>
         {loading ? (
           <p style={{ color: L.muted, fontSize: 13 }}>Loading…</p>
         ) : error ? (
