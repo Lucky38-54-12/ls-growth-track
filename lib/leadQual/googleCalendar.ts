@@ -61,6 +61,14 @@ export async function exchangeCodeAndStore(clientId: string, code: string): Prom
     { onConflict: "client_id" }
   );
   if (error) throw error;
+
+  // The whole point of connecting a real Google account is that we now know
+  // a real email for this client — use it for booking alerts and portal
+  // login instead of making them type it in again during the login step.
+  // Never overwrites an email they've already confirmed themselves.
+  if (profile.email) {
+    await sb.from("lq_clients").update({ email: profile.email }).eq("id", clientId).is("email", null);
+  }
 }
 
 async function getAuthedClientFor(clientId: string) {
