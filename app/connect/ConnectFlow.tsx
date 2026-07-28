@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, XCircle, ShieldCheck, Lock, Megaphone, Copy, Check, ArrowRight, ArrowLeft, Link2, Mail } from "lucide-react";
+import { CheckCircle2, XCircle, ShieldCheck, Lock, Megaphone, Copy, Check, ArrowRight, ArrowLeft, Link2, Mail, AlertTriangle } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -288,6 +288,15 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
             connected={calendarDone}
             error={calendarError}
           />
+
+          {!calendarDone && (
+            <div style={{ display: "flex", gap: 10, background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 0, padding: 14, marginBottom: 14 }}>
+              <AlertTriangle style={{ width: 16, height: 16, color: "#b45309", flexShrink: 0, marginTop: 1 }} />
+              <p style={{ fontSize: 12.5, color: "#92400e", lineHeight: 1.6 }}>
+                Google may show a <strong>&quot;Google hasn&apos;t verified this app&quot;</strong> warning next — that&apos;s expected, this app is still going through Google&apos;s verification process. It&apos;s safe to continue: click <strong>Advanced</strong>, then <strong>&quot;Go to LS Growth Lead Qual (unsafe)&quot;</strong> to proceed to your own Google login.
+              </p>
+            </div>
+          )}
 
           <PrimaryAction
             connected={calendarDone}
