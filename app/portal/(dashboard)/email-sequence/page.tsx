@@ -88,7 +88,9 @@ export default function PortalEmailSequencePage() {
                       return (
                         <tr key={e.id} style={{ borderBottom: `1px solid ${L.border}` }}>
                           <td style={{ padding: "12px 16px" }}>
-                            <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text }}>{String(fields.job_type || "Job type unknown")}</p>
+                            <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text }}>
+                              {fields.name ? `${String(fields.name)} — ${String(fields.job_type || "Job type unknown")}` : String(fields.job_type || "Job type unknown")}
+                            </p>
                             <p style={{ fontSize: 12, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
                           </td>
                           <td style={{ padding: "12px 16px", fontSize: 12.5, color: L.text }}>

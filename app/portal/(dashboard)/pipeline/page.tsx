@@ -141,7 +141,9 @@ export default function PortalPipelinePage() {
                             padding: "10px 12px", cursor: "grab", opacity: dragId === lead.id ? 0.4 : 1,
                           }}
                         >
-                          <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{String(fields.job_type || "Job type unknown")}</p>
+                          <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>
+                            {fields.name ? `${String(fields.name)} — ${String(fields.job_type || "Job type unknown")}` : String(fields.job_type || "Job type unknown")}
+                          </p>
                           <p style={{ fontSize: 11.5, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
                           <p style={{ fontSize: 11, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email || "No contact")}</p>
                           {lead.scheduled_at && stage.key === "booked" && (

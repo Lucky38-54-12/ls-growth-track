@@ -78,7 +78,7 @@ export default function PortalLeadsPage() {
       if (filter !== "all" && lead.outcome !== filter) return false;
       if (!search.trim()) return true;
       const fields = lead.lq_conversations?.extracted_fields || {};
-      const haystack = [fields.job_type, fields.location, fields.phone, lead.contact_email].join(" ").toLowerCase();
+      const haystack = [fields.name, fields.job_type, fields.location, fields.phone, lead.contact_email].join(" ").toLowerCase();
       return haystack.includes(search.trim().toLowerCase());
     });
   }, [leads, filter, search]);
@@ -214,9 +214,11 @@ export default function PortalLeadsPage() {
                     {filtered.map((lead) => {
                       const fields = lead.lq_conversations?.extracted_fields || {};
                       const jobType = String(fields.job_type || "Job type unknown");
+                      const name = fields.name ? String(fields.name) : null;
+                      const headline = name ? `${name} — ${jobType}` : jobType;
                       const phone = fields.phone ? String(fields.phone) : null;
                       const style = OUTCOME_STYLE[lead.outcome] || { bg: "#f1f5f9", color: L.muted, label: lead.outcome };
-                      const initials = jobType.slice(0, 2).toUpperCase();
+                      const initials = (name || jobType).slice(0, 2).toUpperCase();
                       const isSelected = selected.has(lead.id);
                       return (
                         <tr key={lead.id} style={{ borderBottom: `1px solid ${L.border}`, background: isSelected ? "#f8fafc" : undefined }}>
@@ -229,7 +231,7 @@ export default function PortalLeadsPage() {
                                 {initials}
                               </div>
                               <div>
-                                <p style={{ fontSize: 15, fontWeight: 700, color: L.text }}>{jobType}</p>
+                                <p style={{ fontSize: 15, fontWeight: 700, color: L.text }}>{headline}</p>
                                 <p style={{ fontSize: 13, color: L.muted }}>{phone || lead.contact_email || "No contact"}</p>
                               </div>
                             </div>

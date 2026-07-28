@@ -24,6 +24,50 @@ export interface RunTurnOutput {
   extractedFields: Record<string, unknown>;
 }
 
+export interface FacebookFormLeadInput {
+  clientId: string;
+  channelId?: string;
+  leadgenId: string;
+  fields: Record<string, string>;
+}
+
+// A Facebook Lead Ads submission already has everything a qualifying chat
+// spends nine exchanges gathering, so it skips runTurn entirely and lands
+// straight in lq_leads — there's no conversation to hold a script against.
+export async function createLeadFromFacebookForm({ clientId, channelId, leadgenId, fields }: FacebookFormLeadInput): Promise<void> {
+  const sb = createSupabaseClient();
+
+  const { data: conversation, error } = await sb
+    .from("lq_conversations")
+    .insert({
+      client_id: clientId,
+      channel_id: channelId || null,
+      status: "qualified",
+      extracted_fields: fields,
+      contact: { leadgen_id: leadgenId, name: fields.name || null, email: fields.email || null, phone: fields.phone || null },
+    })
+    .select()
+    .single();
+  if (error) throw error;
+
+  await sb.from("lq_leads").insert({
+    conversation_id: conversation.id,
+    client_id: clientId,
+    outcome: "qualified",
+    contact_email: fields.email || null,
+    pipeline_stage: "new_inquiry",
+    booking_status: "not_applicable",
+  });
+
+  const { data: client } = await sb.from("lq_clients").select("name").eq("id", clientId).single();
+  await notifySlack(
+    `📋 New Facebook Lead Ad — *${client?.name || "client"}*\n` +
+    `${fields.name || "Unknown name"} — ${fields.job_type}${fields.location !== "Not provided" ? ` in ${fields.location}` : ""}\n` +
+    `${fields.phone ? `Phone: ${fields.phone}\n` : ""}` +
+    `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/lead-qual/${clientId}`
+  );
+}
+
 async function loadClientConfig(clientId: string): Promise<{ config: ClientConfigData; rules: Rule[] }> {
   const sb = createSupabaseClient();
   const { data: client } = await sb.from("lq_clients").select("name, trade, timezone").eq("id", clientId).single();

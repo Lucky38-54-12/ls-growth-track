@@ -122,6 +122,36 @@ export async function fetchLeadgenDetails(leadgenId: string, pageAccessToken: st
   return (body.field_data as LeadgenField[]) || [];
 }
 
+// Standard Lead Ads fields have fixed names; anything else is a custom
+// question the client added to their form, whose key varies per form. We
+// keep every raw key (nothing is thrown away) and best-effort-match the
+// custom ones onto the job_type/location fields the rest of the app already
+// reads, by scanning for keys that look like they're asking that.
+export function parseLeadgenFields(fieldData: LeadgenField[]): Record<string, string> {
+  const raw: Record<string, string> = {};
+  for (const f of fieldData) raw[f.name] = f.values?.[0] || "";
+
+  const findByHint = (...hints: string[]): string | undefined => {
+    const key = Object.keys(raw).find((k) => hints.some((hint) => k.includes(hint)));
+    return key ? raw[key] : undefined;
+  };
+
+  const name = raw.full_name || (raw.first_name ? `${raw.first_name}${raw.last_name ? ` ${raw.last_name}` : ""}` : undefined) || findByHint("name");
+  const email = raw.email || findByHint("email");
+  const phone = raw.phone_number || findByHint("phone");
+  const jobType = findByHint("job_type", "job", "service");
+  const location = findByHint("location", "suburb", "area", "address");
+
+  return {
+    ...raw,
+    ...(name ? { name } : {}),
+    ...(email ? { email } : {}),
+    ...(phone ? { phone } : {}),
+    job_type: jobType || "Facebook Lead Ad enquiry",
+    location: location || "Not provided",
+  };
+}
+
 export interface DeadChannel {
   clientName: string;
   pageId: string;

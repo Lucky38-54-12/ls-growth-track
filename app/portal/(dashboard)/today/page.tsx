@@ -141,7 +141,9 @@ export default function PortalTodayPage() {
                         <div key={lead.id} style={{ background: L.surface, border: `1px solid ${L.border}`, borderLeft: "3px solid #1d4ed8", padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: 10 }}>
                           <MessageCircle style={{ width: 14, height: 14, color: "#1d4ed8", marginTop: 2, flexShrink: 0 }} />
                           <div>
-                            <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{String(fields.job_type || "Job type unknown")}</p>
+                            <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>
+                              {fields.name ? `${String(fields.name)} — ${String(fields.job_type || "Job type unknown")}` : String(fields.job_type || "Job type unknown")}
+                            </p>
                             <p style={{ fontSize: 11.5, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
                             <p style={{ fontSize: 11, color: L.muted, marginTop: 2 }}>
                               {new Date(lead.created_at).toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })}

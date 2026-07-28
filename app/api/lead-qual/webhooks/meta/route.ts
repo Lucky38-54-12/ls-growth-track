@@ -1,5 +1,5 @@
-import { runTurn } from "@/lib/leadQual/conversationManager";
-import { resolveChannelByPageId, sendMessengerReply, verifyMetaSignature } from "@/lib/leadQual/meta";
+import { createLeadFromFacebookForm, runTurn } from "@/lib/leadQual/conversationManager";
+import { fetchLeadgenDetails, parseLeadgenFields, resolveChannelByPageId, sendMessengerReply, verifyMetaSignature } from "@/lib/leadQual/meta";
 import { createSupabaseClient } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -21,6 +21,11 @@ interface MessengerEvent {
   sender: { id: string };
   recipient: { id: string };
   message?: { mid: string; text?: string; is_echo?: boolean; app_id?: number };
+}
+
+interface LeadgenChange {
+  field: string;
+  value: { leadgen_id: string; page_id: string; form_id?: string };
 }
 
 // Messages we send via sendMessengerReply() come back through the webhook as
@@ -54,6 +59,32 @@ export async function POST(request: NextRequest) {
   if (payload.object !== "page") return NextResponse.json({ ok: true });
 
   for (const entry of payload.entry || []) {
+    for (const change of (entry.changes || []) as LeadgenChange[]) {
+      if (change.field !== "leadgen") continue;
+      const { leadgen_id: leadgenId, page_id: pageId } = change.value || {};
+      if (!leadgenId || !pageId) continue;
+
+      const channel = await resolveChannelByPageId(pageId);
+      if (!channel) continue; // page not connected to any client
+
+      const sb = createSupabaseClient();
+      const { data: existing } = await sb
+        .from("lq_conversations")
+        .select("id")
+        .eq("client_id", channel.clientId)
+        .contains("contact", { leadgen_id: leadgenId })
+        .maybeSingle();
+      if (existing) continue; // Meta retried this same form submission
+
+      try {
+        const fieldData = await fetchLeadgenDetails(leadgenId, channel.pageAccessToken);
+        const fields = parseLeadgenFields(fieldData);
+        await createLeadFromFacebookForm({ clientId: channel.clientId, channelId: channel.channelId, leadgenId, fields });
+      } catch (err) {
+        console.error("lead-qual meta webhook leadgen failed", err);
+      }
+    }
+
     for (const event of (entry.messaging || []) as MessengerEvent[]) {
       const text = event.message?.text;
       if (!text) continue; // skip delivery/read receipts, attachments, etc. for now

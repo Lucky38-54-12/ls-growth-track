@@ -506,7 +506,7 @@ function ClientDetailPageInner() {
                 <div key={lead.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${L.border}`, gap: 12, flexWrap: "wrap" }}>
                   <div>
                     <p style={{ fontSize: 13, fontWeight: 600, color: L.text }}>
-                      {String(fields.job_type || "Job type unknown")} — {String(fields.location || "location unknown")}
+                      {fields.name ? `${String(fields.name)} — ` : ""}{String(fields.job_type || "Job type unknown")} — {String(fields.location || "location unknown")}
                     </p>
                     <p style={{ fontSize: 11.5, color: L.muted }}>
                       {lead.contact_email || "no email captured"} · {new Date(lead.created_at).toLocaleString()}
