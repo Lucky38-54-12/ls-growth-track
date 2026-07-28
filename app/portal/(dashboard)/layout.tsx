@@ -22,11 +22,15 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
   const pathname = usePathname();
   const router = useRouter();
   const [clientName, setClientName] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
 
   useEffect(() => {
     fetch("/api/portal/me")
       .then((r) => r.json())
-      .then((body) => setClientName(body.client?.name || ""))
+      .then((body) => {
+        setClientName(body.client?.name || "");
+        setLogoUrl(body.client?.logo_url || "");
+      })
       .catch(() => {});
   }, []);
 
@@ -81,8 +85,12 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
         </div>
 
         <div style={{ padding: "16px 22px", borderTop: `1px solid ${SIDEBAR_BORDER}`, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#f1f5f9", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: SIDEBAR_TEXT }}>
-            {(clientName || "LS").slice(0, 2).toUpperCase()}
+          <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#f1f5f9", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: SIDEBAR_TEXT, overflow: "hidden" }}>
+            {logoUrl ? (
+              <img src={logoUrl} alt={clientName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              (clientName || "LS").slice(0, 2).toUpperCase()
+            )}
           </div>
           <p style={{ fontSize: 14, fontWeight: 700, color: SIDEBAR_TEXT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {clientName || "Your dashboard"}

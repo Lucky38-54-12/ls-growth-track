@@ -36,6 +36,7 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 export default function PortalLeadsPage() {
   const { leads, loading, error } = usePortalLeads<Lead>();
   const [clientName, setClientName] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -44,7 +45,10 @@ export default function PortalLeadsPage() {
   useEffect(() => {
     fetch("/api/portal/me")
       .then((r) => r.json())
-      .then((body) => setClientName(body.client?.name || ""))
+      .then((body) => {
+        setClientName(body.client?.name || "");
+        setLogoUrl(body.client?.logo_url || "");
+      })
       .catch(() => {});
   }, []);
 
@@ -114,8 +118,12 @@ export default function PortalLeadsPage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 8, background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, flexShrink: 0 }}>
-            {(clientName || "LS").slice(0, 2).toUpperCase()}
+          <div style={{ width: 52, height: 52, borderRadius: 8, background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, flexShrink: 0, overflow: "hidden" }}>
+            {logoUrl ? (
+              <img src={logoUrl} alt={clientName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              (clientName || "LS").slice(0, 2).toUpperCase()
+            )}
           </div>
           <div>
             <p style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.02em" }}>LEADS</p>

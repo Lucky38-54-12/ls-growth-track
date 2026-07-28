@@ -51,6 +51,21 @@ async function subscribeWebhookForPage(pageId: string, pageAccessToken: string):
   }
 }
 
+// Non-fatal — a client's Page connection shouldn't fail just because the
+// logo fetch hiccuped, so this is best-effort and swallows its own errors.
+async function fetchPageLogoUrl(pageId: string, pageAccessToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v20.0/${pageId}/picture?type=large&redirect=false&access_token=${encodeURIComponent(pageAccessToken)}`
+    );
+    if (!res.ok) return null;
+    const body = await res.json();
+    return body?.data?.url || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function connectMessengerPage(clientId: string, pageId: string, pageAccessToken: string): Promise<void> {
   await subscribeWebhookForPage(pageId, pageAccessToken);
 
@@ -65,6 +80,14 @@ export async function connectMessengerPage(clientId: string, pageId: string, pag
     { onConflict: "type,external_page_id" }
   );
   if (error) throw error;
+
+  // Pulls the client's real logo straight from their Facebook Page instead
+  // of anyone needing to upload one — refreshed every time the Page
+  // (re)connects, so a client's rebrand carries through automatically.
+  const logoUrl = await fetchPageLogoUrl(pageId, pageAccessToken);
+  if (logoUrl) {
+    await sb.from("lq_clients").update({ logo_url: logoUrl }).eq("id", clientId);
+  }
 }
 
 export async function sendMessengerReply(pageAccessToken: string, recipientPsid: string, text: string): Promise<void> {
