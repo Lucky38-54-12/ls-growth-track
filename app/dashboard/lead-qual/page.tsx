@@ -4,9 +4,10 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Topbar from "@/components/Topbar";
-import { CalendarCheck, Plus, MessageCircle, Megaphone, ExternalLink } from "lucide-react";
+import { CalendarCheck, Plus, MessageCircle, Megaphone, ExternalLink, FileText } from "lucide-react";
 import OnboardingNotesPanel from "@/components/onboarding/OnboardingNotesPanel";
 import AgreementMakerPanel from "@/components/onboarding/AgreementMakerPanel";
+import AgreementModal from "@/components/onboarding/AgreementModal";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -50,6 +51,7 @@ function LeadQualPageInner() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [agreementClient, setAgreementClient] = useState<LqClient | null>(null);
   const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
@@ -313,6 +315,18 @@ function LeadQualPageInner() {
                     >
                       <ExternalLink style={{ width: 13, height: 13 }} /> View portal
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => setAgreementClient(client)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        fontSize: 12.5, fontWeight: 700, color: L.muted,
+                        border: `1px solid ${L.border}`, borderRadius: 8,
+                        padding: "6px 12px", background: "none", cursor: "pointer",
+                      }}
+                    >
+                      <FileText style={{ width: 13, height: 13 }} /> Make agreement
+                    </button>
                   </div>
                 </div>
               );
@@ -320,6 +334,13 @@ function LeadQualPageInner() {
           </div>
         )}
       </div>
+      )}
+
+      {agreementClient && (
+        <AgreementModal
+          client={{ name: agreementClient.name, trade: agreementClient.trade, email: agreementClient.email }}
+          onClose={() => setAgreementClient(null)}
+        />
       )}
     </div>
   );
