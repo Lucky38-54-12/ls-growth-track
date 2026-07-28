@@ -1,4 +1,5 @@
 import { exchangeCodeAndStore } from "@/lib/leadQual/googleCalendar";
+import { checkAndNotifyOnboardingComplete } from "@/lib/leadQual/onboardingNotify";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
 
   try {
     await exchangeCodeAndStore(clientId, code);
+    await checkAndNotifyOnboardingComplete(clientId).catch(() => {});
     return NextResponse.redirect(`${origin}/connect/${clientId}?calendarConnected=1`);
   } catch (err) {
     // Supabase/Postgrest errors are plain objects with a `.message`, not

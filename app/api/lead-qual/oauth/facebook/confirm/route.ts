@@ -1,5 +1,6 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { connectMessengerPage } from "@/lib/leadQual/meta";
+import { checkAndNotifyOnboardingComplete } from "@/lib/leadQual/onboardingNotify";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -23,5 +24,6 @@ export async function POST(request: NextRequest) {
   }
 
   await sb.from("lq_pending_facebook_connections").delete().eq("id", pendingId);
+  await checkAndNotifyOnboardingComplete(clientId).catch(() => {});
   return NextResponse.json({ ok: true });
 }
