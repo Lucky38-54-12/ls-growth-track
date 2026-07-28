@@ -572,12 +572,12 @@ function Shell({ children }: { children: React.ReactNode }) {
         @keyframes connect-spin { to { transform: rotate(360deg); } }
         .connect-shell { flex-direction: row; }
         .connect-brand { flex: 1 1 70%; min-width: 320px; padding: 48px 56px; }
-        .connect-brand-logo { height: 42px; }
+        .connect-brand-logo { height: 70px; }
         .connect-brand-headline { font-size: 52px; }
         @media (max-width: 780px) {
           .connect-shell { flex-direction: column; }
           .connect-brand { flex: none; min-width: 0; padding: 28px 20px 8px; }
-          .connect-brand-logo { height: 34px; }
+          .connect-brand-logo { height: 56px; }
           .connect-brand-headline { font-size: 30px; }
           .connect-content { flex: none !important; min-width: 0 !important; width: 100%; box-sizing: border-box; padding: 20px !important; border-left: none !important; border-top: 1px solid #e6eaf0; }
         }
@@ -585,7 +585,9 @@ function Shell({ children }: { children: React.ReactNode }) {
 
       {/* Branding panel */}
       <div className="connect-brand" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <img src="/logo-trimmed.png" alt="LS Growth" className="connect-brand-logo" style={{ width: "auto", maxWidth: "100%", objectFit: "contain", alignSelf: "flex-start" }} />
+        <a href="/connect" style={{ alignSelf: "flex-start" }}>
+          <img src="/logo.png" alt="LS Growth" className="connect-brand-logo" style={{ width: "auto", maxWidth: "100%", objectFit: "contain" }} />
+        </a>
 
         <div>
           <h2 className="connect-brand-headline" style={{ fontWeight: 900, lineHeight: 1.05, letterSpacing: "-0.02em", color: L.text, marginBottom: 14, textTransform: "uppercase" }}>
