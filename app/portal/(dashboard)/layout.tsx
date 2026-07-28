@@ -107,9 +107,9 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
         </div>
 
         <div style={{ padding: "16px 22px", borderTop: `1px solid ${SIDEBAR_BORDER}`, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#f1f5f9", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: SIDEBAR_TEXT, overflow: "hidden" }}>
+          <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#f1f5f9", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: SIDEBAR_TEXT, overflow: "hidden", padding: logoUrl ? 4 : 0, boxSizing: "border-box" }}>
             {logoUrl ? (
-              <img src={logoUrl} alt={clientName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img src={logoUrl} alt={clientName} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             ) : (
               (clientName || "LS").slice(0, 2).toUpperCase()
             )}
