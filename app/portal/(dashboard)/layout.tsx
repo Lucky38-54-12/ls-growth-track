@@ -12,9 +12,9 @@ const SIDEBAR_TEXT = "#0f172a";
 
 const NAV = [
   { href: "/portal/today", label: "Today", icon: Sunrise },
-  { href: "/portal", label: "Leads", icon: Users },
-  { href: "/portal/calendar", label: "Calendar", icon: Calendar },
   { href: "/portal/pipeline", label: "Pipeline", icon: Columns3 },
+  { href: "/portal/calendar", label: "Calendar", icon: Calendar },
+  { href: "/portal", label: "Leads", icon: Users },
   { href: "/portal/email-sequence", label: "Email sequence", icon: Mail },
 ];
 
