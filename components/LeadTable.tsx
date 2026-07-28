@@ -108,6 +108,16 @@ export function LeadRowsTable({
 }) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr style={{ borderBottom: `1px solid ${L.border}` }}>
+          {selectable && <th style={{ width: 28, padding: "7px 0 7px 14px" }} />}
+          {["Company", "Status", "Contact", "Engagement", ""].map((h) => (
+            <th key={h} style={{ textAlign: "left", padding: "7px 14px", fontSize: 9.5, fontWeight: 700, color: L.dimmed, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
       <tbody>
         {leads.map((lead, i) => (
           <LeadRow
