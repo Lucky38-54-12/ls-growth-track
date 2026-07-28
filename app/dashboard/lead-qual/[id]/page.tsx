@@ -93,6 +93,8 @@ function ClientDetailPageInner() {
   const [loading, setLoading] = useState(true);
   const [autofilling, setAutofilling] = useState(false);
   const [autofillError, setAutofillError] = useState<string | null>(null);
+  const [autofillingSite, setAutofillingSite] = useState(false);
+  const [autofillSiteError, setAutofillSiteError] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -181,6 +183,31 @@ function ClientDetailPageInner() {
     setAutofilling(false);
     if (!res.ok) {
       setAutofillError(body.error);
+      return;
+    }
+    const draft = body.draft;
+    setDescription(draft.description || "");
+    setServices((draft.services || []).join(", "));
+    setServiceAreas((draft.service_areas || []).join(", "));
+    setFaqs(draft.faqs?.length ? draft.faqs : [{ question: "", answer: "" }]);
+    setExtraContext(draft.extra_context || "");
+  }
+
+  // Same idea as handleAutofill, but scrapes the website URL typed into the
+  // form instead of a connected Facebook Page — this is the primary path
+  // since most clients do have a website.
+  async function handleAutofillFromWebsite() {
+    setAutofillingSite(true);
+    setAutofillSiteError(null);
+    const res = await fetch(`/api/lead-qual/clients/${id}/autofill-website`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: websiteUrl }),
+    });
+    const body = await res.json();
+    setAutofillingSite(false);
+    if (!res.ok) {
+      setAutofillSiteError(body.error);
       return;
     }
     const draft = body.draft;
@@ -292,15 +319,28 @@ function ClientDetailPageInner() {
               style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8, fontFamily: "inherit" }}
             />
 
-            <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, margin: "14px 0 6px" }}>
-              WEBSITE URL (pulled in automatically as context for the AI)
-            </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "14px 0 6px" }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: L.muted }}>
+                WEBSITE URL (pulled in automatically as context for the AI)
+              </p>
+              <button
+                onClick={handleAutofillFromWebsite}
+                disabled={autofillingSite || !websiteUrl.trim()}
+                style={{
+                  flexShrink: 0, background: autofillingSite || !websiteUrl.trim() ? L.dimmed : "var(--red)", color: "#fff", border: "none",
+                  padding: "5px 12px", fontSize: 11.5, fontWeight: 700, borderRadius: 8, cursor: autofillingSite || !websiteUrl.trim() ? "default" : "pointer",
+                }}
+              >
+                {autofillingSite ? "Drafting…" : "Autofill from Website"}
+              </button>
+            </div>
             <input
               value={websiteUrl}
               onChange={(e) => setWebsiteUrl(e.target.value)}
               placeholder="https://theirbusiness.co.nz"
               style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }}
             />
+            {autofillSiteError && <p style={{ color: "#b91c1c", fontSize: 12.5, marginTop: 6 }}>{autofillSiteError}</p>}
 
             <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, margin: "14px 0 6px" }}>
               ADDITIONAL CONTEXT (anything else the AI should know — promos, policies, quirks)
