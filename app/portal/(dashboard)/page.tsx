@@ -145,15 +145,6 @@ export default function PortalLeadsPage() {
           <p style={{ color: "#b91c1c", fontSize: 13 }}>{error}</p>
         ) : (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 24 }}>
-              <StatCard label="Total leads" value={stats.total} accent="#64748b" />
-              <StatCard label="Qualified" value={stats.qualified} accent="#15803d" />
-              <StatCard label="Not ready yet" value={stats.nurture} accent="#b45309" />
-              <StatCard label="Needs a reply" value={stats.needsHuman} accent="#1d4ed8" />
-              <StatCard label="Not a fit" value={stats.disqualified} accent="#64748b" />
-              <StatCard label="New this week" value={stats.newThisWeek} highlight />
-            </div>
-
             <div style={{ display: "flex", gap: 14, marginBottom: 16, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ position: "relative", flex: "1 1 240px", maxWidth: 340 }}>
                 <Search style={{ width: 15, height: 15, position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: L.muted }} />
@@ -320,22 +311,6 @@ function BannerStat({ value, label }: { value: number; label: string }) {
     <div style={{ textAlign: "right" }}>
       <p style={{ fontSize: 28, fontWeight: 900, lineHeight: 1 }}>{value}</p>
       <p style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 4 }}>{label}</p>
-    </div>
-  );
-}
-
-function StatCard({ label, value, accent, highlight }: { label: string; value: string | number; accent?: string; highlight?: boolean }) {
-  return (
-    <div style={{
-      background: highlight ? "var(--red)" : L.surface,
-      border: `1px solid ${highlight ? "var(--red)" : L.border}`,
-      borderTop: highlight ? undefined : `3px solid ${accent || L.border}`,
-      padding: "18px 20px",
-    }}>
-      <p style={{ fontSize: 11, fontWeight: 700, color: highlight ? "rgba(255,255,255,0.85)" : L.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-        {label}
-      </p>
-      <p style={{ fontSize: 36, fontWeight: 900, color: highlight ? "#fff" : L.text, lineHeight: 1 }}>{value}</p>
     </div>
   );
 }
