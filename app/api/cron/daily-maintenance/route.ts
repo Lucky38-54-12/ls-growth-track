@@ -10,7 +10,7 @@ import { escalateStaleReplies } from "@/lib/staleReplies";
 import { sendDueProposalFollowups } from "@/lib/proposalFollowup";
 import { sendColdCallNudges } from "@/lib/coldCallNudges";
 import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
-import { checkMessengerChannelHealth } from "@/lib/leadQual/meta";
+import { checkMessengerChannelHealth, resubscribeAllMessengerChannels } from "@/lib/leadQual/meta";
 import { notifySlack } from "@/lib/slackNotify";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +93,12 @@ export async function GET(req: NextRequest) {
     results.weeklyDigest = await sendWeeklyDigestIfDue(sb);
   } catch (e) {
     results.weeklyDigest = { error: e instanceof Error ? e.message : "weekly digest failed" };
+  }
+
+  try {
+    results.messengerResubscribe = await resubscribeAllMessengerChannels();
+  } catch (e) {
+    results.messengerResubscribe = { error: e instanceof Error ? e.message : "messenger resubscribe failed" };
   }
 
   try {

@@ -152,6 +152,40 @@ export function parseLeadgenFields(fieldData: LeadgenField[]): Record<string, st
   };
 }
 
+export interface ResubscribeResult {
+  clientName: string;
+  pageId: string;
+  error?: string;
+}
+
+// Meta only sends webhook fields a Page was subscribed to *at the time of
+// connection* — adding a new field (e.g. "leadgen") to subscribeWebhookForPage
+// does nothing for Pages that already connected before that change shipped.
+// Re-running the subscribed_apps call is idempotent (it just re-asserts the
+// full current field list), so looping this over every stored channel here
+// keeps every client's subscription current without needing them to
+// reconnect manually each time we add a new webhook field.
+export async function resubscribeAllMessengerChannels(): Promise<ResubscribeResult[]> {
+  const sb = createSupabaseClient();
+  const { data: channels } = await sb
+    .from("lq_channels")
+    .select("external_page_id, credentials, lq_clients(name)")
+    .eq("type", "messenger");
+
+  const results: ResubscribeResult[] = [];
+  for (const channel of channels || []) {
+    const clientName = (channel.lq_clients as unknown as { name: string } | null)?.name || "unknown client";
+    try {
+      const token = decryptSecret(channel.credentials as unknown as Buffer);
+      await subscribeWebhookForPage(channel.external_page_id, token);
+      results.push({ clientName, pageId: channel.external_page_id });
+    } catch (e) {
+      results.push({ clientName, pageId: channel.external_page_id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return results;
+}
+
 export interface DeadChannel {
   clientName: string;
   pageId: string;
