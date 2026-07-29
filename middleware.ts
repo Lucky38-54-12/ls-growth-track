@@ -10,7 +10,6 @@ const PUBLIC_PATHS = [
   "/connect",
   "/api/lead-qual/public",
   "/api/lead-qual/oauth/google",
-  "/api/lead-qual/oauth/facebook",
 ];
 
 // The client portal has its own login entirely separate from the internal

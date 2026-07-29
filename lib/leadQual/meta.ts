@@ -66,6 +66,59 @@ async function fetchPageLogoUrl(pageId: string, pageAccessToken: string): Promis
   }
 }
 
+const NUMERIC_ID_RE = /^\d+$/;
+
+// Clients paste their normal facebook.com/theirpage URL, not a raw numeric
+// Page ID — resolve the vanity username to an ID via a plain app access
+// token (works for any public Page, no partner access needed for this
+// lookup step).
+export async function resolvePageId(input: string): Promise<string> {
+  let identifier = input.trim();
+  const urlMatch = identifier.match(/facebook\.com\/(?:pages\/[^/]+\/)?([^/?#]+)/i);
+  if (urlMatch) identifier = urlMatch[1];
+
+  const profileIdMatch = input.match(/[?&]id=(\d+)/);
+  if (profileIdMatch) identifier = profileIdMatch[1];
+
+  if (NUMERIC_ID_RE.test(identifier)) return identifier;
+
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) throw new Error("META_APP_ID / META_APP_SECRET env vars are not set");
+
+  const res = await fetch(
+    `https://graph.facebook.com/v20.0/${encodeURIComponent(identifier)}?fields=id&access_token=${appId}|${appSecret}`
+  );
+  if (!res.ok) {
+    throw new Error("Couldn't find that Facebook Page — check the URL and try again.");
+  }
+  const body = await res.json();
+  if (!body?.id) {
+    throw new Error("Couldn't find that Facebook Page — check the URL and try again.");
+  }
+  return body.id as string;
+}
+
+// Pulls a Page Access Token via LS Growth's Business Manager System User,
+// rather than a personal OAuth login — this works for any Page the client
+// has added LS Growth as a partner on in Business Settings, and doesn't
+// depend on any individual's personal Facebook session staying alive.
+export async function fetchPageAccessTokenViaSystemUser(pageId: string): Promise<string> {
+  const systemUserToken = process.env.META_SYSTEM_USER_TOKEN;
+  if (!systemUserToken) throw new Error("META_SYSTEM_USER_TOKEN env var is not set");
+
+  const res = await fetch(
+    `https://graph.facebook.com/v20.0/${pageId}?fields=access_token&access_token=${encodeURIComponent(systemUserToken)}`
+  );
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body?.access_token) {
+    throw new Error(
+      "We don't have access to that Page yet — make sure LS Growth Agency was added as a partner with Page access in Business Settings."
+    );
+  }
+  return body.access_token as string;
+}
+
 export async function connectMessengerPage(clientId: string, pageId: string, pageAccessToken: string): Promise<void> {
   await subscribeWebhookForPage(pageId, pageAccessToken);
 
