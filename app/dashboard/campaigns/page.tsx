@@ -57,8 +57,8 @@ export default async function CampaignsPage() {
             No campaigns yet — select leads on the Contacts page and hit &quot;Start Campaign&quot;.
           </div>
         ) : (
-          <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflowX: "auto" }}>
+            <table style={{ width: "100%", minWidth: 600, borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", borderBottom: `1px solid ${L.border}` }}>
                   {["Campaign", "Status", "Leads", "Sent", "Replied", "Booked", ""].map((h) => (

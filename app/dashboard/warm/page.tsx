@@ -64,7 +64,7 @@ export default async function EmailTrackingPage() {
       <Topbar title="EMAIL TRACKING" subtitle="Personal Gmail / cold-call sends only — campaign emails are tracked separately" />
 
       <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14, marginBottom: 20 }}>
           {[
             { label: "Emails Sent", value: totalSent },
             { label: "Opened", value: `${totalOpened} (${openRate}%)` },
@@ -77,11 +77,11 @@ export default async function EmailTrackingPage() {
           ))}
         </div>
 
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24, overflowX: "auto" }}>
           {rows.length === 0 ? (
             <p style={{ color: L.muted, fontSize: 13 }}>No emails sent yet.</p>
           ) : (
-            <table style={{ borderCollapse: "collapse", width: "100%" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 680 }}>
               <thead>
                 <tr>
                   {["Sent", "Company", "Contact", "Subject", "Activity", "Last Activity"].map((h) => (

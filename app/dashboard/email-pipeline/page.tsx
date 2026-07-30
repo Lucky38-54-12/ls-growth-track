@@ -93,7 +93,7 @@ export default async function EmailPipelinePage({
       <Topbar title="Email Pipeline" subtitle="Each campaign, kept separate — nothing sends until it's Active on Campaigns" />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
           {statCards.map(({ label, value, icon: Icon }) => (
             <div key={label} className="stat-card" style={{ padding: "16px 18px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>

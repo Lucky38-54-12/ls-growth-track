@@ -96,9 +96,17 @@ export default function ContentCalendarTab({ initialIdeas }: { initialIdeas: Con
   }
 
   return (
-    <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+    <>
+      <style suppressHydrationWarning>{`
+        @media (max-width: 640px) {
+          .growthhub-cal-month { min-width: 0 !important; width: 100% !important; }
+          .growthhub-cal-panel { width: 100% !important; }
+          .growthhub-cal-day { min-height: 56px !important; padding: 4px !important; }
+        }
+      `}</style>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
       {/* Month grid */}
-      <div className="surface-card" style={{ flex: 1, minWidth: 480, overflow: "hidden" }}>
+      <div className="surface-card growthhub-cal-month" style={{ flex: 1, minWidth: 480, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${L.border}` }}>
           <h2 style={{ fontSize: 16, fontWeight: 800, color: L.text }}>{MONTHS[cursor.getMonth()]} {cursor.getFullYear()}</h2>
           <div style={{ display: "flex", gap: 6 }}>
@@ -122,7 +130,7 @@ export default function ContentCalendarTab({ initialIdeas }: { initialIdeas: Con
               <div
                 key={key}
                 onClick={() => setSelected(key)}
-                className="row-hover"
+                className="row-hover growthhub-cal-day"
                 style={{
                   minHeight: 92, padding: 8, borderBottom: `1px solid ${L.border}`, borderRight: `1px solid ${L.border}`,
                   background: isSelected ? "#fef2f2" : L.surface, opacity: inMonth ? 1 : 0.4, cursor: "pointer",
@@ -154,7 +162,7 @@ export default function ContentCalendarTab({ initialIdeas }: { initialIdeas: Con
       </div>
 
       {/* Day detail panel */}
-      <div className="surface-card" style={{ width: 320, flexShrink: 0, overflow: "hidden" }}>
+      <div className="surface-card growthhub-cal-panel" style={{ width: 320, flexShrink: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${L.border}` }}>
           <div>
             <h3 style={{ fontSize: 13, fontWeight: 800, color: L.text }}>
@@ -257,6 +265,7 @@ export default function ContentCalendarTab({ initialIdeas }: { initialIdeas: Con
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

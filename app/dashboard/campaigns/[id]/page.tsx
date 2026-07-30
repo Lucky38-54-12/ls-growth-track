@@ -102,7 +102,7 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 6 }}>
           {[
             { label: "Leads", value: members.length },
             { label: "Sent", value: sent },

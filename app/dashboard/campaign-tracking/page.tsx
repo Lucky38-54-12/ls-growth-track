@@ -128,7 +128,7 @@ export default async function CampaignTrackingPage() {
       <Topbar title="CAMPAIGN TRACKING" subtitle="Outreach campaign emails only — sent via outreach@lsgrowth.agency, separate from Lucky's personal Gmail" />
 
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
           {[
             { label: "Sent", value: totalSent },
             { label: "Opened", value: `${totalOpened} (${openRate}%)` },
@@ -145,14 +145,15 @@ export default async function CampaignTrackingPage() {
           ))}
         </div>
 
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflow: "hidden" }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
           <div style={{ padding: "12px 16px", borderBottom: `1px solid ${L.border}`, fontSize: 11, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
             By Campaign
           </div>
           {perCampaign.length === 0 ? (
             <div style={{ padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>No campaigns yet.</div>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", minWidth: 800, borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
                   {["Campaign", "Status", "Leads", "Sent", "Opened", "Clicked", "Replied", "Booked", "Unsubscribed", "Held"].map((h) => (
@@ -186,17 +187,19 @@ export default async function CampaignTrackingPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflow: "hidden" }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
           <div style={{ padding: "12px 16px", borderBottom: `1px solid ${L.border}`, fontSize: 11, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
             Link Performance — which link people actually click
           </div>
           {linkPerformance.length === 0 ? (
             <div style={{ padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>No clicks recorded yet.</div>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", minWidth: 400, borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#f8fafc" }}>
                   {["Link", "Unique Clickers", "Total Clicks"].map((h) => (
@@ -214,6 +217,7 @@ export default async function CampaignTrackingPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
@@ -245,7 +249,7 @@ export default async function CampaignTrackingPage() {
                   const ev = engagement[leadId];
                   return (
                     <details key={leadId} style={{ border: `1px solid ${L.border}` }}>
-                      <summary style={{ padding: "12px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, background: "#f8fafc" }}>
+                      <summary style={{ padding: "12px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: "#f8fafc" }}>
                         <span style={{ fontWeight: 700, fontSize: 13.5, color: L.text }}>{leadRows[0].company}</span>
                         <span style={{ fontSize: 12, color: L.muted }}>{leadRows[0].campaign_name}</span>
                         <span style={{ fontSize: 11.5, color: L.dimmed }}>{leadRows.length} email{leadRows.length !== 1 ? "s" : ""} sent</span>

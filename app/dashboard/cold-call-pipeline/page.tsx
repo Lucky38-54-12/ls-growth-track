@@ -59,7 +59,8 @@ export default async function ColdCallPipelinePage() {
               No cold-call leads yet — run the <Link href="/dashboard/scraper" style={{ color: "var(--red)" }}>Scraper</Link> to add some.
             </p>
           ) : (
-            <table style={{ borderCollapse: "collapse", width: "100%" }}>
+            <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 600 }}>
               <thead>
                 <tr>
                   {["Company", "Contact", "Trade", "Status", "Added", "Activity"].map((h) => (
@@ -96,6 +97,7 @@ export default async function ColdCallPipelinePage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

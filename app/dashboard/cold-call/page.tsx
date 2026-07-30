@@ -196,7 +196,15 @@ export default function ColdCallPage() {
     <div>
       <Topbar title="COLD CALL" subtitle="Paste your notes, generate a follow-up email, and send it now" />
 
-      <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+      <style suppressHydrationWarning>{`
+        @media (max-width: 700px) {
+          .cold-call-grid { grid-template-columns: 1fr !important; padding-left: 16px !important; padding-right: 16px !important; }
+          .cold-call-field-row { grid-template-columns: 1fr !important; }
+          .cold-call-preview { position: static !important; }
+        }
+      `}</style>
+
+      <div className="cold-call-grid" style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
         <div>
           {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, marginBottom: 18, fontSize: 14 }}>{error}</div>}
 

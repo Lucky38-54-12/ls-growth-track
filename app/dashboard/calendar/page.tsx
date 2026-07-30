@@ -96,9 +96,18 @@ export default function CalendarPage() {
     <div>
       <Topbar title="Calendar" subtitle="Meetings and bookings" />
 
-      <div style={{ padding: "20px 28px 60px", display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <style suppressHydrationWarning>{`
+        @media (max-width: 640px) {
+          .calendar-layout { padding-left: 12px !important; padding-right: 12px !important; }
+          .calendar-month { min-width: 0 !important; width: 100% !important; }
+          .calendar-day-panel { width: 100% !important; }
+          .calendar-day-cell { min-height: 56px !important; padding: 4px !important; }
+        }
+      `}</style>
+
+      <div className="calendar-layout" style={{ padding: "20px 28px 60px", display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
         {/* Month grid */}
-        <div style={{ flex: 1, minWidth: 480, background: L.surface, border: `1px solid ${L.border}` }}>
+        <div className="calendar-month" style={{ flex: 1, minWidth: 480, background: L.surface, border: `1px solid ${L.border}` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${L.border}` }}>
             <h2 style={{ fontSize: 16, fontWeight: 800, color: L.text }}>{MONTHS[cursor.getMonth()]} {cursor.getFullYear()}</h2>
             <div style={{ display: "flex", gap: 6 }}>
@@ -122,7 +131,7 @@ export default function CalendarPage() {
                 <div
                   key={key}
                   onClick={() => setSelected(key)}
-                  className="row-hover"
+                  className="row-hover calendar-day-cell"
                   style={{
                     minHeight: 92, padding: 8, borderBottom: `1px solid ${L.border}`, borderRight: `1px solid ${L.border}`,
                     background: isSelected ? "#fef2f2" : L.surface, opacity: inMonth ? 1 : 0.4, cursor: "pointer",
@@ -152,7 +161,7 @@ export default function CalendarPage() {
         </div>
 
         {/* Day detail panel */}
-        <div style={{ width: 320, flexShrink: 0, background: L.surface, border: `1px solid ${L.border}` }}>
+        <div className="calendar-day-panel" style={{ width: 320, flexShrink: 0, background: L.surface, border: `1px solid ${L.border}` }}>
           <div style={{ padding: "14px 16px", borderBottom: `1px solid ${L.border}` }}>
             <h3 style={{ fontSize: 13, fontWeight: 800, color: L.text }}>
               {new Date(`${selected}T00:00:00`).toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" })}

@@ -92,20 +92,28 @@ export default async function ContactsPage({
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
       <Topbar title="Contacts" subtitle={`${total} lead${total !== 1 ? "s" : ""} · ${contacted} contacted · ${warm} warm`} />
 
+      <style suppressHydrationWarning>{`
+        @media (max-width: 700px) {
+          .contacts-hero { height: auto !important; }
+          .contacts-hero-inner { position: static !important; flex-wrap: wrap; padding: 16px !important; }
+          .contacts-hero-stats { margin-left: 0 !important; width: 100%; justify-content: space-between; gap: 10px !important; }
+        }
+      `}</style>
+
       <div style={{ padding: "20px 28px 60px", display: "flex", flexDirection: "column", gap: 12 }}>
 
         {/* Hero banner */}
-        <div style={{
+        <div className="contacts-hero" style={{
           position: "relative", height: 140, overflow: "hidden",
           background: "linear-gradient(120deg, #0b1220 0%, #1e293b 60%, #334155 100%)",
         }}>
-          <div style={{ position: "absolute", inset: 0, padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
+          <div className="contacts-hero-inner" style={{ position: "absolute", inset: 0, padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
             <img src="/logo.png" alt="LS Growth" style={{ width: 56, height: 56, objectFit: "contain", background: "#fff", padding: 4, boxShadow: "0 2px 12px rgba(0,0,0,0.4)", flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: "clamp(22px,4vw,32px)", fontWeight: 900, color: "#fff", textTransform: "uppercase", letterSpacing: "-0.01em", lineHeight: 1 }}>Lead Database</div>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 5 }}>LS Growth Agency</div>
             </div>
-            <div style={{ marginLeft: "auto", display: "flex", gap: 24 }}>
+            <div className="contacts-hero-stats" style={{ marginLeft: "auto", display: "flex", gap: 24 }}>
               {[{ v: String(total), l: "Total" }, { v: String(contacted), l: "Contacted" }, { v: String(warm), l: "Warm" }].map(({ v, l }) => (
                 <div key={l} style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{v}</div>
@@ -117,7 +125,7 @@ export default async function ContactsPage({
         </div>
 
         {/* Stat cards */}
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 6 }}>
           <div style={{ flex: 1, padding: "14px 18px", background: L.surface, border: `1px solid ${L.border}` }}>
             <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: L.muted, marginBottom: 6 }}>Total Leads</p>
             <div style={{ fontSize: 36, fontWeight: 900, color: L.text, lineHeight: 1 }}>{total}</div>

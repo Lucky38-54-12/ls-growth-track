@@ -96,7 +96,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
           {[
             { label: "Meeting Confirmation", step: "meeting_confirmation" },
             { label: "Pre-Meeting Value Email", step: "meeting_value_touchpoint" },
@@ -141,7 +141,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
           ))}
         </div>
 
-        <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflow: "hidden" }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
           <div style={{ padding: "12px 16px", borderBottom: `1px solid ${L.border}`, fontSize: 11, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
             Most Recent 200 — click a row to read the exact copy that went out
           </div>
@@ -154,7 +154,7 @@ export default async function AutomationsPage({ searchParams }: { searchParams: 
                 const campaignName = row.lead?.campaign_id ? campaignById.get(row.lead.campaign_id)?.name : null;
                 return (
                   <details key={row.id} style={{ borderBottom: `1px solid ${L.border}` }}>
-                    <summary style={{ padding: "11px 16px", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
+                    <summary style={{ padding: "11px 16px", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: badge.bg, color: badge.fg, whiteSpace: "nowrap" }}>
                         {AUTOMATION_LABELS[row.step] || row.step}
                       </span>

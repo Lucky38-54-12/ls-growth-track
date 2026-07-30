@@ -235,11 +235,22 @@ export default function MailboxView({ account, title, subtitle }: { account: Acc
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <style suppressHydrationWarning>{`
+        @media (max-width: 760px) {
+          .mailbox-body { flex-direction: column; }
+          .mailbox-list { width: 100% !important; border-right: none !important; }
+          .mailbox-detail { display: none; }
+          .mailbox-body.has-selection .mailbox-list { display: none; }
+          .mailbox-body.has-selection .mailbox-detail { display: flex !important; }
+          .mailbox-back-btn { display: flex !important; }
+          .mailbox-compose { width: calc(100vw - 24px) !important; right: 12px !important; left: 12px !important; }
+        }
+      `}</style>
       <Topbar title={title} subtitle={`${subtitle} — ${unread > 0 ? `${unread} unread` : "all read"}`} />
 
-      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+      <div className={`mailbox-body${selectedUid ? " has-selection" : ""}`} style={{ flex: 1, display: "flex", minHeight: 0 }}>
         {/* Message list */}
-        <div style={{ width: 340, flexShrink: 0, borderRight: `1px solid ${L.border}`, display: "flex", flexDirection: "column", background: L.surface }}>
+        <div className="mailbox-list" style={{ width: 340, flexShrink: 0, borderRight: `1px solid ${L.border}`, display: "flex", flexDirection: "column", background: L.surface }}>
           {/* Tab bar + compose button */}
           <div style={{ display: "flex", alignItems: "stretch", borderBottom: `1px solid ${L.border}`, background: "#f8fafc" }}>
             <button style={tabStyle(tab === "inbox")} onClick={() => setTab("inbox")}>
@@ -321,7 +332,7 @@ export default function MailboxView({ account, title, subtitle }: { account: Acc
         </div>
 
         {/* Message detail */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, background: "#f8fafc" }}>
+        <div className="mailbox-detail" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, background: "#f8fafc" }}>
           {!selectedUid ? (
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: L.dimmed }}>
               <Mail style={{ width: 40, height: 40, marginBottom: 12, opacity: 0.3 }} />
@@ -333,6 +344,13 @@ export default function MailboxView({ account, title, subtitle }: { account: Acc
             <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
               {/* Header */}
               <div style={{ padding: "18px 24px 14px", borderBottom: `1px solid ${L.border}`, background: L.surface }}>
+                <button
+                  className="mailbox-back-btn"
+                  onClick={() => setSelectedUid(null)}
+                  style={{ display: "none", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: L.muted, fontSize: 12, fontWeight: 700, padding: 0, marginBottom: 10 }}
+                >
+                  ← Back to inbox
+                </button>
                 <h2 style={{ fontSize: 17, fontWeight: 800, color: L.text, marginBottom: 10 }}>{detail.subject}</h2>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--blue)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
@@ -438,8 +456,8 @@ export default function MailboxView({ account, title, subtitle }: { account: Acc
 
       {/* Floating compose window */}
       {composeOpen && (
-        <div style={{
-          position: "fixed", bottom: 20, right: 24, width: 420, background: L.surface,
+        <div className="mailbox-compose" style={{
+          position: "fixed", bottom: 20, right: 24, width: 420, maxWidth: "calc(100vw - 24px)", background: L.surface,
           border: `1px solid ${L.border}`, borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
           display: "flex", flexDirection: "column", zIndex: 1000,
         }}>
