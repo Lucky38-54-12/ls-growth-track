@@ -46,11 +46,11 @@ export default function Topbar({ title, subtitle }: { title: string; subtitle?: 
 
   return (
     <>
-      <header style={{
+      <header className="dashboard-page-topbar" style={{
         height: 64, display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 28px", position: "sticky", top: 0, zIndex: 10,
         background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)",
-        borderBottom: "1px solid #e6eaf0", boxShadow: "0 1px 2px rgba(15,23,42,0.04)", gap: 12,
+        borderBottom: "1px solid #e6eaf0", boxShadow: "0 1px 2px rgba(15,23,42,0.04)", gap: 12, flexWrap: "wrap",
       }}>
         {/* Left */}
         <div style={{ display: "flex", alignItems: "stretch", gap: 14, minWidth: 0 }}>

@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <div style={{ display: "flex", minHeight: "100vh" }}>
           <Sidebar />
-          <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+          <div className="dashboard-content" style={{ flex: 1, minWidth: 0 }}>{children}</div>
         </div>
       </body>
     </html>

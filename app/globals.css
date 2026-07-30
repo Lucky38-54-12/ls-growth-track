@@ -188,6 +188,52 @@ a.card-hover:hover, div.card-hover:hover {
   }
 }
 
+/* Internal dashboard — same off-canvas pattern as the client portal above.
+   Sidebar is a fixed 224px column on desktop; below 860px it becomes a
+   drawer toggled by a mobile top bar's menu button. */
+.dashboard-topbar {
+  display: none;
+}
+.dashboard-backdrop {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .dashboard-topbar {
+    display: flex;
+  }
+  .dashboard-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+  .dashboard-sidebar.is-open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-lg);
+  }
+  .dashboard-backdrop.is-open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    z-index: 40;
+  }
+  .dashboard-content {
+    padding-top: 56px;
+  }
+  .dashboard-page-topbar {
+    top: 56px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    height: auto !important;
+    min-height: 56px;
+  }
+}
+
 @keyframes pulse-slow {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
