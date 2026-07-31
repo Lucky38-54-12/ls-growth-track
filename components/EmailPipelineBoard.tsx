@@ -60,8 +60,8 @@ function LeadCard({
           <Building2 style={{ width: 12, height: 12, color: L.muted }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
+          <p title={lead.company} style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
+          <div title={[lead.trade, lead.location].filter(Boolean).join(" · ")} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             <span style={{ fontSize: 10, color: L.dimmed }}>{lead.trade || "—"}</span>
             {lead.location && <span style={{ fontSize: 10, color: L.dimmed }}>· {lead.location}</span>}
           </div>
