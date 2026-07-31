@@ -142,8 +142,8 @@ function LeadCard({
           <Building2 style={{ width: 12, height: 12, color: L.muted }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
+          <p title={lead.company} style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company}</p>
+          <div title={[lead.trade, lead.location].filter(Boolean).join(" · ")} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             <span style={{ fontSize: 10, color: L.dimmed }}>{lead.trade || "—"}</span>
             {lead.location && <span style={{ fontSize: 10, color: L.dimmed }}>· {lead.location}</span>}
           </div>
@@ -320,7 +320,7 @@ function KanbanColumn({
 }) {
   return (
     <div
-      style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}
+      style={{ flex: "0 0 220px", width: 220, display: "flex", flexDirection: "column", gap: 8 }}
       onDragOver={(e) => { if (dropDisabled) return; e.preventDefault(); onDragOverColumn(); }}
       onDragLeave={onDragLeaveColumn}
       onDrop={(e) => { if (dropDisabled) return; e.preventDefault(); onDragLeaveColumn(); onDrop(); }}
@@ -451,7 +451,7 @@ export default function PipelineBoard({
               <span style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 7px", background: "#e2e8f0", color: L.muted }}>{section.leads.length}</span>
               <div style={{ flex: 1, height: 1, background: L.border }} />
             </div>
-            <div style={{ display: "flex", gap: 12, alignItems: "start" }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "start", overflowX: "auto", paddingBottom: 8 }}>
               {columns.map(col => {
                 const dropKey = `${section.key}:${col.key}`;
                 return (
