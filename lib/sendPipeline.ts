@@ -57,7 +57,13 @@ function deterministicSafetyCheck(subject: string, bodyHtml: string, businessNam
   if (`${subject} ${businessName}`.includes("!")) return "Contains an exclamation mark in a lead-specific value (subject or business name).";
 
   for (const name of extractQuotedLikeNames(bodyHtml)) {
-    if (name.toLowerCase() === businessName.trim().toLowerCase()) continue; // the recipient's own name is always allowed
+    // extractQuotedLikeNames only ever captures the last "Word Electrical" of
+    // whatever phrase it matched, so a recipient named e.g. "Connect
+    // Electrical 2015 Ltd" or "Common Ground Electrical" shows up here as
+    // just "Connect Electrical" / "Ground Electrical" — a substring check
+    // against the full stored name is what "is this the recipient's own
+    // name" actually means, an exact match isn't.
+    if (businessName.trim().toLowerCase().includes(name.toLowerCase())) continue; // the recipient's own name is always allowed
     if (!ALLOWED_CASE_STUDY_NAMES.includes(name as (typeof ALLOWED_CASE_STUDY_NAMES)[number])) {
       return `Named business "${name}" is not one of the allowed case studies (${ALLOWED_CASE_STUDY_NAMES.join(", ")}) and isn't the recipient's own name.`;
     }
