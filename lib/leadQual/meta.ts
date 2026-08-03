@@ -42,13 +42,23 @@ export async function resolveChannelByPageId(pageId: string): Promise<ResolvedCh
 // developer console ("Add Subscriptions") for every new client.
 async function subscribeWebhookForPage(pageId: string, pageAccessToken: string): Promise<void> {
   const res = await fetch(
-    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins,message_echoes,leadgen&access_token=${encodeURIComponent(pageAccessToken)}`,
+    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins,message_echoes&access_token=${encodeURIComponent(pageAccessToken)}`,
     { method: "POST" }
   );
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Webhook subscription failed: ${res.status} ${body}`);
   }
+
+  // leadgen (Facebook Lead Ads forms) needs the leads_retrieval permission,
+  // which Meta gates behind Advanced Access App Review — a Page connected
+  // via personal OAuth won't have it unless that review has gone through.
+  // The Messenger chat this exists for doesn't depend on it, so a client
+  // missing Lead Ads pull-in shouldn't block the whole connection.
+  await fetch(
+    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=leadgen&access_token=${encodeURIComponent(pageAccessToken)}`,
+    { method: "POST" }
+  ).catch(() => {});
 }
 
 // Non-fatal — a client's Page connection shouldn't fail just because the
