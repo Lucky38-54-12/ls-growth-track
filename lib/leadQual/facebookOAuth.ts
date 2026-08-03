@@ -14,7 +14,7 @@ export function buildFacebookAuthUrl(clientId: string): string {
     client_id: appId,
     redirect_uri: getRedirectUri(),
     state: clientId,
-    scope: "pages_show_list,pages_messaging,pages_manage_metadata",
+    scope: "pages_show_list,pages_messaging,pages_manage_metadata,leads_retrieval",
     // Without this, Facebook silently reuses whatever scopes were granted
     // last time and skips the consent screen — so a page that was connected
     // without pages_messaging stays stuck without it on every reconnect.
