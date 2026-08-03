@@ -288,6 +288,19 @@ function LeadQualPageInner() {
                       <Megaphone style={{ width: 14, height: 14 }} />
                       {client.ads_manager_access_confirmed_at ? "Ads access claimed" : "Ads access not confirmed"}
                     </span>
+                    {!fbConnection && (
+                      <a
+                        href={`/api/lead-qual/oauth/facebook?clientId=${client.id}`}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6,
+                          fontSize: 12.5, fontWeight: 700, color: "var(--red)",
+                          border: "1px solid var(--red)", borderRadius: 8,
+                          padding: "6px 12px", background: "none", textDecoration: "none",
+                        }}
+                      >
+                        <MessageCircle style={{ width: 13, height: 13 }} /> Connect Facebook
+                      </a>
+                    )}
                     {(!fbConnection || !connection || !client.ads_manager_access_confirmed_at) && (
                       <button
                         type="button"

@@ -25,7 +25,6 @@ interface ClientInfo {
   trade: string | null;
   email: string | null;
   calendarConnected: boolean;
-  facebookConnected: boolean;
   adsAccessConfirmed: boolean;
 }
 
@@ -38,9 +37,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
   // Coming back from Google's consent screen is a full page redirect (loses
   // any in-memory state), so that trip skips straight past the
   // paste-and-verify gate — the link was already proven genuine the first
-  // time through, re-asking would just be friction. Facebook access no
-  // longer involves a redirect (see PageConnectCard), so only Calendar needs
-  // this.
+  // time through, re-asking would just be friction.
   const arrivingMidFlow = !!(routeClientId && (calendarConnected || calendarError));
 
   const [linkInput, setLinkInput] = useState("");
@@ -50,15 +47,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
   const [client, setClient] = useState<ClientInfo | null>(null);
   // One thing at a time — landing back from Google's redirect should reopen
   // on whichever step that was, not wherever the state otherwise defaults to.
-  const [step, setStep] = useState<"facebook" | "calendar" | "login">(() => {
-    if (calendarConnected || calendarError) return "calendar";
-    return "facebook";
-  });
-
-  const [pageUrlInput, setPageUrlInput] = useState("");
-  const [pageConnecting, setPageConnecting] = useState(false);
-  const [pageConnectError, setPageConnectError] = useState<string | null>(null);
-  const [pageJustConnected, setPageJustConnected] = useState(false);
+  const [step, setStep] = useState<"calendar" | "ads" | "login">("calendar");
 
   // Landed via a direct /connect/[clientId] link — the link is already
   // sitting in the address bar, so pre-fill it into the box exactly as if
@@ -113,24 +102,6 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arrivingMidFlow, routeClientId]);
 
-  async function handleConnectPage() {
-    if (!resolvedClientId || !pageUrlInput.trim()) return;
-    setPageConnecting(true);
-    setPageConnectError(null);
-    const res = await fetch(`/api/lead-qual/public/${resolvedClientId}/connect-facebook-page`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pageUrl: pageUrlInput.trim() }),
-    });
-    const body = await res.json();
-    setPageConnecting(false);
-    if (!res.ok) {
-      setPageConnectError(body.error);
-      return;
-    }
-    setPageJustConnected(true);
-  }
-
   const [adsConfirming, setAdsConfirming] = useState(false);
   const [adsJustConfirmed, setAdsJustConfirmed] = useState(false);
 
@@ -143,7 +114,6 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
   }
 
   const calendarDone = !!client?.calendarConnected || !!calendarConnected;
-  const facebookDone = !!client?.facebookConnected || pageJustConnected;
   const adsDone = !!client?.adsAccessConfirmed || adsJustConfirmed;
 
   return (
@@ -193,58 +163,9 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
         </div>
       )}
 
-      {phase === "found" && client && step === "facebook" && (
-        <div>
-          <StepHeader client={client} step={1} of={3} />
-
-          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Connect your Facebook</h1>
-          <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
-            So Messenger leads from your Page get qualified automatically, and so we can set up and run your ad campaigns from your own ad account. One visit to Business Settings covers both.
-          </p>
-
-          <BusinessPartnerInstructions />
-
-          <PageConnectCard
-            pageUrlInput={pageUrlInput}
-            onChangePageUrl={setPageUrlInput}
-            connected={facebookDone}
-            connecting={pageConnecting}
-            error={pageConnectError}
-            onConnect={handleConnectPage}
-          />
-
-          <AdsAccessCard done={adsDone} confirming={adsConfirming} onConfirm={handleConfirmAdsAccess} />
-
-          <button
-            type="button"
-            onClick={() => setStep("calendar")}
-            disabled={!(facebookDone && adsDone)}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
-              fontSize: 14, fontWeight: 700, color: "#fff", background: facebookDone && adsDone ? "var(--red)" : "#fca5a5",
-              border: "none", borderRadius: 0, padding: "11px 16px",
-              cursor: facebookDone && adsDone ? "pointer" : "default", marginTop: 8,
-            }}
-          >
-            Next <ArrowRight style={{ width: 15, height: 15 }} />
-          </button>
-        </div>
-      )}
-
       {phase === "found" && client && step === "calendar" && (
         <div>
-          <button
-            type="button"
-            onClick={() => setStep("facebook")}
-            style={{
-              display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: L.muted,
-              background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 18,
-            }}
-          >
-            <ArrowLeft style={{ width: 13, height: 13 }} /> Back
-          </button>
-
-          <StepHeader client={client} step={2} of={3} />
+          <StepHeader client={client} step={1} of={3} />
 
           <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Connect your Calendar</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
@@ -270,7 +191,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
           <PrimaryAction
             connected={calendarDone}
             href={`/api/lead-qual/oauth/google?clientId=${resolvedClientId}`}
-            onNext={() => setStep("login")}
+            onNext={() => setStep("ads")}
           />
 
           <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: L.muted, marginTop: 14 }}>
@@ -279,8 +200,44 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
         </div>
       )}
 
+      {phase === "found" && client && step === "ads" && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setStep("calendar")}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: L.muted,
+              background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 18,
+            }}
+          >
+            <ArrowLeft style={{ width: 13, height: 13 }} /> Back
+          </button>
+
+          <StepHeader client={client} step={2} of={3} />
+
+          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Ads Manager access</h1>
+          <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
+            So we can set up and run your ad campaigns.
+          </p>
+
+          <AdsAccessCard done={adsDone} confirming={adsConfirming} onConfirm={handleConfirmAdsAccess} />
+
+          <button
+            type="button"
+            onClick={() => setStep("login")}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
+              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
+              border: "none", borderRadius: 0, padding: "11px 16px", cursor: "pointer", marginTop: 8,
+            }}
+          >
+            Next <ArrowRight style={{ width: 15, height: 15 }} />
+          </button>
+        </div>
+      )}
+
       {phase === "found" && client && step === "login" && (
-        <LoginStep client={client} resolvedClientId={resolvedClientId} onBack={() => setStep("calendar")} />
+        <LoginStep client={client} resolvedClientId={resolvedClientId} onBack={() => setStep("ads")} />
       )}
     </Shell>
   );
@@ -425,11 +382,7 @@ function PrimaryAction({ connected, href, onNext }: { connected: boolean; href: 
   return <a href={href} style={style}>Connect</a>;
 }
 
-// Shared instructions for the one visit to Business Settings that grants
-// both Page and ad account partner access — Meta doesn't offer either of
-// these via a click-through OAuth consent screen, so this has to be walked
-// through by hand regardless.
-function BusinessPartnerInstructions() {
+function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirming: boolean; onConfirm: () => void }) {
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
@@ -439,89 +392,6 @@ function BusinessPartnerInstructions() {
   }
 
   return (
-    <div style={{ background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: 18, marginBottom: 14 }}>
-      <p style={{ fontSize: 13, fontWeight: 700, color: L.text, marginBottom: 10 }}>
-        Add LS Growth as a partner in Meta Business Settings
-      </p>
-      <ol style={{ fontSize: 12.5, color: L.text, lineHeight: 1.9, paddingLeft: 18, marginBottom: 12 }}>
-        <li>Go to <strong>business.facebook.com/settings</strong> and open your Business Settings (no Business Manager yet? Facebook will offer to create one — it&apos;s free and takes a minute)</li>
-        <li>Under <strong>Accounts → Pages</strong>, select your Page, click <strong>Assign partner</strong>, and paste in the Business ID below</li>
-        <li>Do the same under <strong>Accounts → Ad accounts</strong> for your ad account</li>
-        <li>Give <strong>full control</strong> (or the equivalent admin/advertiser role) on each and confirm</li>
-      </ol>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: "8px 10px" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{LS_GROWTH_BUSINESS_NAME} — Business ID</p>
-          <p style={{ fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "monospace" }}>{LS_GROWTH_BUSINESS_ID}</p>
-        </div>
-        <button
-          type="button"
-          onClick={handleCopy}
-          style={{
-            display: "flex", alignItems: "center", gap: 5, flexShrink: 0,
-            fontSize: 12, fontWeight: 700, color: copied ? "#15803d" : L.text,
-            background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: "6px 10px", cursor: "pointer",
-          }}
-        >
-          {copied ? <Check style={{ width: 13, height: 13 }} /> : <Copy style={{ width: 13, height: 13 }} />}
-          {copied ? "Copied" : "Copy"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function PageConnectCard({
-  pageUrlInput, onChangePageUrl, connected, connecting, error, onConnect,
-}: {
-  pageUrlInput: string; onChangePageUrl: (v: string) => void; connected: boolean; connecting: boolean; error?: string | null; onConnect: () => void;
-}) {
-  return (
-    <div style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: 18, marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: connected ? 0 : 12 }}>
-        <div>
-          <p style={{ fontSize: 14, fontWeight: 700, color: L.text }}>Facebook Page</p>
-          <p style={{ fontSize: 12.5, color: L.muted }}>So Messenger leads from your Page get qualified automatically.</p>
-        </div>
-        {connected && (
-          <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#15803d", flexShrink: 0 }}>
-            <CheckCircle2 style={{ width: 16, height: 16 }} /> Connected
-          </span>
-        )}
-      </div>
-
-      {!connected && (
-        <>
-          <input
-            value={pageUrlInput}
-            onChange={(e) => onChangePageUrl(e.target.value)}
-            placeholder="Paste your Facebook Page URL"
-            style={{
-              width: "100%", boxSizing: "border-box", fontSize: 13.5, color: L.text,
-              border: `1px solid ${L.border}`, borderRadius: 0, padding: "10px 12px", marginBottom: 10,
-            }}
-          />
-          <button
-            type="button"
-            onClick={onConnect}
-            disabled={connecting || !pageUrlInput.trim()}
-            style={{
-              width: "100%", fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--red)",
-              border: "none", borderRadius: 0, padding: "9px 16px", cursor: connecting ? "default" : "pointer",
-            }}
-          >
-            {connecting ? "Connecting…" : "Connect Page"}
-          </button>
-        </>
-      )}
-      {error && <p style={{ color: "#b91c1c", fontSize: 12.5, marginTop: 10 }}>{error}</p>}
-    </div>
-  );
-}
-
-function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirming: boolean; onConfirm: () => void }) {
-  return (
     <div style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: 18, marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: done ? 0 : 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -530,7 +400,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
           </div>
           <div>
             <p style={{ fontSize: 14, fontWeight: 700, color: L.text }}>Meta Ads Manager</p>
-            <p style={{ fontSize: 12.5, color: L.muted }}>So we can set up and run your ad campaigns from your own ad account.</p>
+            <p style={{ fontSize: 12.5, color: L.muted }}>So we can set up and run your ad campaigns.</p>
           </div>
         </div>
         {done && (
@@ -541,17 +411,48 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
       </div>
 
       {!done && (
-        <button
-          type="button"
-          onClick={onConfirm}
-          disabled={confirming}
-          style={{
-            width: "100%", fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--red)",
-            border: "none", borderRadius: 0, padding: "9px 16px", cursor: confirming ? "default" : "pointer",
-          }}
-        >
-          {confirming ? "Saving…" : "I've added LS Growth as a partner on my ad account"}
-        </button>
+        <>
+          <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 10, lineHeight: 1.6 }}>
+            Meta doesn&apos;t let us request this one with a click, you&apos;ll need to add us as a partner yourself in Meta Business Suite:
+          </p>
+          <ol style={{ fontSize: 12.5, color: L.text, lineHeight: 1.9, paddingLeft: 18, marginBottom: 12 }}>
+            <li>Go to <strong>business.facebook.com/settings</strong> and open your Business Settings</li>
+            <li><strong>Accounts → Ad accounts</strong>, select your ad account</li>
+            <li>Click <strong>Assign partner</strong>, and paste in the Business ID below</li>
+            <li>Give <strong>full control</strong> (or advertiser access) and confirm</li>
+          </ol>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: "8px 10px", marginBottom: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{LS_GROWTH_BUSINESS_NAME} — Business ID</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "monospace" }}>{LS_GROWTH_BUSINESS_ID}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopy}
+              style={{
+                display: "flex", alignItems: "center", gap: 5, flexShrink: 0,
+                fontSize: 12, fontWeight: 700, color: copied ? "#15803d" : L.text,
+                background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: "6px 10px", cursor: "pointer",
+              }}
+            >
+              {copied ? <Check style={{ width: 13, height: 13 }} /> : <Copy style={{ width: 13, height: 13 }} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={confirming}
+            style={{
+              width: "100%", fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--red)",
+              border: "none", borderRadius: 0, padding: "9px 16px", cursor: confirming ? "default" : "pointer",
+            }}
+          >
+            {confirming ? "Saving…" : "I've added LS Growth as a partner"}
+          </button>
+        </>
       )}
     </div>
   );

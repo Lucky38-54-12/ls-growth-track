@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Topbar from "@/components/Topbar";
 import { Send } from "lucide-react";
 
@@ -43,24 +43,31 @@ export default function ClientDetailPage() {
 
 function ClientDetailPageInner() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const fbPending = searchParams.get("fbPending");
 
-  // For clients where Lucky already has Business Manager partner access to
-  // their Page himself (the common case — see connect-facebook-page route),
-  // this lets him hook up Messenger straight from here instead of sending
-  // the client through the public /connect wizard.
-  const [pageUrlInput, setPageUrlInput] = useState("");
+  const [fbPages, setFbPages] = useState<{ id: string; name: string }[]>([]);
   const [fbConnecting, setFbConnecting] = useState(false);
   const [fbError, setFbError] = useState<string | null>(null);
   const [fbConnected, setFbConnected] = useState(false);
 
-  async function handleConnectPage() {
-    if (!pageUrlInput.trim()) return;
+  useEffect(() => {
+    if (!fbPending) return;
+    fetch(`/api/lead-qual/oauth/facebook/pending/${fbPending}`)
+      .then((r) => r.json())
+      .then((body) => {
+        if (body.pages) setFbPages(body.pages);
+        else setFbError(body.error || "Could not load Facebook Pages");
+      });
+  }, [fbPending]);
+
+  async function handleChoosePage(pageId: string) {
     setFbConnecting(true);
     setFbError(null);
-    const res = await fetch(`/api/lead-qual/public/${id}/connect-facebook-page`, {
+    const res = await fetch("/api/lead-qual/oauth/facebook/confirm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pageUrl: pageUrlInput.trim() }),
+      body: JSON.stringify({ pendingId: fbPending, clientId: id, pageId }),
     });
     const body = await res.json();
     setFbConnecting(false);
@@ -68,6 +75,7 @@ function ClientDetailPageInner() {
       setFbError(body.error);
       return;
     }
+    setFbPages([]);
     setFbConnected(true);
   }
 
@@ -252,32 +260,25 @@ function ClientDetailPageInner() {
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
       <Topbar title="Client Config" subtitle="Edit business info + test the AI qualifier before going live" />
 
-      <div style={{ margin: "20px 28px 0", background: "#fff", border: `1px solid ${L.border}`, borderRadius: 10, padding: 16 }}>
-        <p style={{ fontSize: 13, fontWeight: 700, color: L.text, marginBottom: 4 }}>
-          Connect this client&apos;s Facebook Page
-        </p>
-        <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 10 }}>
-          Only works if LS Growth already has Business Manager partner access to the Page — otherwise send them the /connect link instead.
-        </p>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={pageUrlInput}
-            onChange={(e) => setPageUrlInput(e.target.value)}
-            placeholder="Paste the client's Facebook Page URL"
-            style={{ flex: 1, padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }}
-          />
-          <button
-            onClick={handleConnectPage}
-            disabled={fbConnecting || !pageUrlInput.trim()}
-            style={{
-              flexShrink: 0, background: fbConnecting ? L.dimmed : "var(--red)", color: "#fff", border: "none",
-              padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: fbConnecting ? "default" : "pointer",
-            }}
-          >
-            {fbConnecting ? "Connecting…" : "Connect"}
-          </button>
+      {fbPages.length > 0 && (
+        <div style={{ margin: "20px 28px 0", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
+            Which Facebook Page should send leads to this client?
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {fbPages.map((page) => (
+              <button
+                key={page.id}
+                onClick={() => handleChoosePage(page.id)}
+                disabled={fbConnecting}
+                style={{ background: "#fff", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                {page.name}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
       {fbError && (
         <div style={{ margin: "20px 28px 0", background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: "10px 14px", fontSize: 13, borderRadius: 8 }}>
           {fbError}
