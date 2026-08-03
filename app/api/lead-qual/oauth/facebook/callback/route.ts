@@ -7,11 +7,11 @@ export async function GET(request: NextRequest) {
   const clientId = searchParams.get("state");
   const error = searchParams.get("error");
 
-  // Clients complete this flow themselves from the public /connect/[clientId]
-  // page (see middleware.ts public paths) — send them back there, not to the
-  // internal dashboard they have no login for.
+  // Lucky connects each client's Page himself from the internal dashboard —
+  // Facebook is no longer part of the client-facing /connect wizard, so this
+  // always lands back on the client's admin page, not /connect.
   if (error && clientId) {
-    return NextResponse.redirect(`${origin}/connect/${clientId}?fbError=${encodeURIComponent(error)}`);
+    return NextResponse.redirect(`${origin}/dashboard/lead-qual/${clientId}?fbError=${encodeURIComponent(error)}`);
   }
   if (!code || !clientId) {
     return NextResponse.redirect(`${origin}/dashboard/lead-qual?fbError=missing_code_or_client`);
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const pendingId = await exchangeCodeAndListPages(clientId, code);
-    return NextResponse.redirect(`${origin}/connect/${clientId}?fbPending=${pendingId}`);
+    return NextResponse.redirect(`${origin}/dashboard/lead-qual/${clientId}?fbPending=${pendingId}`);
   } catch (err) {
     // Supabase/Postgrest errors are plain objects with a `.message`, not
     // Error instances — `err instanceof Error` was silently swallowing them
@@ -30,6 +30,6 @@ export async function GET(request: NextRequest) {
       err instanceof Error ? err.message
       : (err && typeof err === "object" && "message" in err) ? String((err as { message: unknown }).message)
       : "unknown_error";
-    return NextResponse.redirect(`${origin}/connect/${clientId}?fbError=${encodeURIComponent(message)}`);
+    return NextResponse.redirect(`${origin}/dashboard/lead-qual/${clientId}?fbError=${encodeURIComponent(message)}`);
   }
 }
