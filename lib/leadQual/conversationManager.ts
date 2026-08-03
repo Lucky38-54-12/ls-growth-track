@@ -190,6 +190,22 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
 
   const turn = await runQualifyingTurn(config, history);
 
+  // runQualifyingTurn is an LLM call that can take several seconds — long
+  // enough for staff to reply in the Page inbox and the echo webhook to set
+  // paused_at while this turn was still in flight. The paused_at check at
+  // the top of this function is now stale, so it's re-checked here, right
+  // before the AI's reply would be persisted/sent, to avoid talking over a
+  // human who has since taken the conversation over.
+  const { data: freshConversation } = await sb.from("lq_conversations").select("paused_at").eq("id", conversation.id).single();
+  if (freshConversation?.paused_at) {
+    return {
+      conversationId: conversation.id,
+      reply: null,
+      status: conversation.status,
+      extractedFields: conversation.extracted_fields as Record<string, unknown>,
+    };
+  }
+
   const mergedFields = { ...(conversation.extracted_fields as Record<string, unknown>), ...turn.extracted_fields };
 
   await sb.from("lq_messages").insert({

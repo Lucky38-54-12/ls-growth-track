@@ -151,7 +151,16 @@ export async function POST(request: NextRequest) {
           contact: { psid: event.sender.id },
           metaMessageId: event.message?.mid,
         });
-        if (result.reply) await sendMessengerReply(channel.pageAccessToken, event.sender.id, result.reply);
+        if (result.reply) {
+          // Belt-and-suspenders: the qualification path above can spend real
+          // time on calendar booking / Slack / email before getting here, so
+          // paused_at is re-checked one last time right before the message
+          // actually goes out to Messenger.
+          const { data: stillActive } = await sb.from("lq_conversations").select("paused_at").eq("id", result.conversationId).single();
+          if (!stillActive?.paused_at) {
+            await sendMessengerReply(channel.pageAccessToken, event.sender.id, result.reply);
+          }
+        }
       } catch (err) {
         console.error("lead-qual meta webhook turn failed", err);
       }
