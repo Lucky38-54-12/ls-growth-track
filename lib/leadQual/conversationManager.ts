@@ -165,6 +165,21 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
 
   const { config, rules } = await loadClientConfig(clientId);
 
+  // needs_human means the AI itself decided a person has to take this one —
+  // e.g. an existing customer complaint, not a fresh lead. It should go
+  // silent exactly like paused_at, not keep firing lightweight auto-replies
+  // at someone who's actively upset (that's what was happening to a Katie's
+  // Elite Cleaning customer chasing up a botched job — they even asked "why
+  // am I getting automated replies?").
+  if (conversation.status === "needs_human") {
+    return {
+      conversationId: conversation.id,
+      reply: null,
+      status: conversation.status,
+      extractedFields: conversation.extracted_fields as Record<string, unknown>,
+    };
+  }
+
   // The qualifying flow (extraction + evaluate + lead creation + calendar
   // booking) only ever runs once per conversation. A lead who messages again
   // after being qualified/nurtured/disqualified gets a lightweight reply
