@@ -12,8 +12,8 @@ interface Prep {
   tailoredScript: string;
 }
 
-export default function CallPrepPanel() {
-  const [notes, setNotes] = useState("");
+export default function CallPrepPanel({ initialNotes = "" }: { initialNotes?: string }) {
+  const [notes, setNotes] = useState(initialNotes);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [prep, setPrep] = useState<Prep | null>(null);

@@ -28,13 +28,15 @@ interface Props {
   initialPendingProposals: ScriptProposal[];
   initialPatterns: CallPatterns;
   scriptPatterns: PatternTracker[];
+  initialTab?: TabKey;
+  initialPrepNotes?: string;
 }
 
 export default function SalesCallsClient({
   initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialPatterns,
-  scriptPatterns,
+  scriptPatterns, initialTab = "log", initialPrepNotes = "",
 }: Props) {
-  const [tab, setTab] = useState<TabKey>("log");
+  const [tab, setTab] = useState<TabKey>(initialTab);
   const [calls, setCalls] = useState<SalesCall[]>(initialCalls);
   const [versions, setVersions] = useState<ScriptVersion[]>(initialVersions);
   const [currentVersion, setCurrentVersion] = useState<ScriptVersion | null>(initialCurrentVersion);
@@ -134,7 +136,7 @@ export default function SalesCallsClient({
           onProposalsChange={setPendingProposals}
         />
       )}
-      {tab === "prep" && <CallPrepPanel />}
+      {tab === "prep" && <CallPrepPanel initialNotes={initialPrepNotes} />}
       {tab === "patterns" && <PatternsPanel patterns={patterns} />}
     </div>
   );

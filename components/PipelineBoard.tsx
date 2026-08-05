@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles, Clock, Search, Copy, Check, Send } from "lucide-react";
+import { Building2, ChevronDown, Mail, Phone, Globe, MapPin, StickyNote, ExternalLink, CalendarClock, Sparkles, Clock, Search, Copy, Check, Send, ClipboardList } from "lucide-react";
 import FollowUpModal from "@/components/FollowUpModal";
 import { Lead, EngagementSummary, EmailSend } from "@/lib/types";
 import { nextStepFor } from "@/lib/leads";
@@ -37,6 +37,9 @@ function groupByStatus(leads: Lead[], columns: Column[], activeSource: string): 
     if (grouped[key]) grouped[key].push(lead);
     else grouped[columns[0].key].push(lead);
   }
+  for (const key in grouped) {
+    grouped[key].sort((a, b) => new Date(b.date_added).getTime() - new Date(a.date_added).getTime());
+  }
   return grouped;
 }
 
@@ -55,6 +58,7 @@ function LeadCard({
   const latestNote = noteEntries[noteEntries.length - 1] || null;
   const olderNotes = noteEntries.slice(0, -1);
   const [showAllNotes, setShowAllNotes] = useState(false);
+  const [showRawNotes, setShowRawNotes] = useState(false);
   const [showSends, setShowSends] = useState(false);
   const [noteSummary, setNoteSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -79,7 +83,19 @@ function LeadCard({
       lead.website,
       lead.location,
     ].filter(Boolean);
+    if (noteEntries.length) {
+      lines.push("", "Notes:", ...noteEntries.map((n) => (n.label ? `[${n.label}] ${n.text}` : n.text)));
+    }
     copyToClipboard(e, "all", lines.join("\n"));
+  }
+
+  function copyNotes(e: React.MouseEvent) {
+    const text = noteEntries.map((n) => (n.label ? `[${n.label}] ${n.text}` : n.text)).join("\n");
+    copyToClipboard(e, "notes", text);
+  }
+
+  function copyRawNotes(e: React.MouseEvent) {
+    copyToClipboard(e, "rawNotes", lead.notes || "");
   }
 
   function CopyIcon({ field, value }: { field: string; value: string }) {
@@ -223,24 +239,51 @@ function LeadCard({
           {latestNote && (
             <div style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11.5, color: L.muted }}>
               <StickyNote style={{ width: 11, height: 11, flexShrink: 0, marginTop: 1 }} />
-              <span>{summaryLoading ? "Summarising…" : (noteSummary || latestNote.text.slice(0, 120))}</span>
+              <span style={{ flex: 1 }}>{summaryLoading ? "Summarising…" : (noteSummary || latestNote.text.slice(0, 120))}</span>
+              <CopyIcon field="notes" value={noteEntries.map((n) => (n.label ? `[${n.label}] ${n.text}` : n.text)).join("\n")} />
             </div>
           )}
-          {olderNotes.length > 0 && (
-            <div>
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowAllNotes((s) => !s); }}
-                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 10.5, fontWeight: 700, color: L.dimmed }}
-              >
-                {showAllNotes ? "Hide earlier notes" : `${olderNotes.length} earlier note${olderNotes.length !== 1 ? "s" : ""}`}
-              </button>
-              {showAllNotes && (
-                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
-                  {olderNotes.map((entry, i) => (
-                    <span key={i} style={{ fontSize: 11, color: L.dimmed, whiteSpace: "pre-wrap" }}>{entry.text}</span>
-                  ))}
-                </div>
+          {(olderNotes.length > 0 || lead.notes) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              {olderNotes.length > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowAllNotes((s) => !s); }}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 10.5, fontWeight: 700, color: L.dimmed }}
+                >
+                  {showAllNotes ? "Hide earlier notes" : `${olderNotes.length} earlier note${olderNotes.length !== 1 ? "s" : ""}`}
+                </button>
               )}
+              {lead.notes && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowRawNotes((s) => !s); }}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 10.5, fontWeight: 700, color: L.dimmed }}
+                >
+                  {showRawNotes ? "Hide raw notes" : "Raw notes"}
+                </button>
+              )}
+            </div>
+          )}
+          {showAllNotes && olderNotes.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {olderNotes.map((entry, i) => (
+                <span key={i} style={{ fontSize: 11, color: L.dimmed, whiteSpace: "pre-wrap" }}>{entry.text}</span>
+              ))}
+            </div>
+          )}
+          {showRawNotes && lead.notes && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, background: "#f8fafc", border: `1px solid ${L.border}`, padding: "6px 8px" }}>
+              <pre style={{ margin: 0, fontFamily: "inherit", fontSize: 11, color: L.dimmed, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{lead.notes}</pre>
+              <button
+                onClick={copyRawNotes}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700,
+                  color: copiedField === "rawNotes" ? "var(--green)" : L.muted, background: "#ffffff", border: `1px solid ${L.border}`,
+                  padding: "4px 8px", cursor: "pointer", alignSelf: "flex-end",
+                }}
+              >
+                {copiedField === "rawNotes" ? <Check style={{ width: 10, height: 10 }} /> : <Copy style={{ width: 10, height: 10 }} />}
+                {copiedField === "rawNotes" ? "Copied" : "Copy raw notes"}
+              </button>
             </div>
           )}
           {missingDetails && (
@@ -287,6 +330,19 @@ function LeadCard({
                 </div>
               )}
             </div>
+          )}
+          {lead.status === "booked" && (
+            <Link
+              href={`/dashboard/sales-calls?leadId=${lead.lead_id}`}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700,
+                color: "#15803d", background: "#dcfce7", border: "none", padding: "6px 10px",
+                cursor: "pointer", marginTop: 4, width: "100%", justifyContent: "center", textDecoration: "none",
+              }}
+            >
+              <ClipboardList style={{ width: 11, height: 11 }} /> Prep this call
+            </Link>
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onFollowUp(lead.lead_id); }}
