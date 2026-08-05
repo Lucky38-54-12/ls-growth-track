@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { ExternalLink } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -12,15 +13,45 @@ interface Prep {
   tailoredScript: string;
 }
 
+// tailoredScript comes back marked up with "# " (doc title), "## " (bold
+// heading/sub-label), and "• " (bullet) prefixes — the same convention
+// lib/googleDocs.ts's createDocFromMarkedText expects, so the on-screen
+// render and the Google Doc it can generate stay in sync off one source.
+function RenderedScript({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <div style={{ fontSize: 13.5, color: L.text, lineHeight: 1.6 }}>
+      {lines.map((line, i) => {
+        if (line.startsWith("# ")) {
+          return <div key={i} style={{ fontSize: 17, fontWeight: 800, marginTop: i === 0 ? 0 : 16, marginBottom: 4 }}>{line.slice(2)}</div>;
+        }
+        if (line.startsWith("## ")) {
+          return <div key={i} style={{ fontWeight: 800, marginTop: 14, marginBottom: 4 }}>{line.slice(3)}</div>;
+        }
+        if (line.startsWith("• ")) {
+          return <div key={i} style={{ display: "flex", gap: 6, marginBottom: 3 }}><span>•</span><span>{line.slice(2)}</span></div>;
+        }
+        if (!line.trim()) return <div key={i} style={{ height: 8 }} />;
+        return <div key={i} style={{ marginBottom: 3 }}>{line}</div>;
+      })}
+    </div>
+  );
+}
+
 export default function CallPrepPanel({ initialNotes = "" }: { initialNotes?: string }) {
   const [notes, setNotes] = useState(initialNotes);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [prep, setPrep] = useState<Prep | null>(null);
+  const [creatingDoc, setCreatingDoc] = useState(false);
+  const [docUrl, setDocUrl] = useState("");
+  const [docError, setDocError] = useState("");
 
   async function handleGenerate() {
     setGenerating(true);
     setError("");
+    setDocUrl("");
+    setDocError("");
     try {
       const res = await fetch("/api/sales-calls/prep", {
         method: "POST",
@@ -37,6 +68,32 @@ export default function CallPrepPanel({ initialNotes = "" }: { initialNotes?: st
       setError("Couldn't generate prep right now.");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handleSendToDoc() {
+    if (!prep) return;
+    setCreatingDoc(true);
+    setDocError("");
+    try {
+      const res = await fetch("/api/sales-calls/prep/doc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          markedText: prep.tailoredScript,
+          title: `Call Prep — ${prep.businessName || prep.prospectName || "Prospect"}`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDocError(data.error || "Couldn't create the doc.");
+        return;
+      }
+      setDocUrl(data.url);
+    } catch {
+      setDocError("Couldn't create the doc.");
+    } finally {
+      setCreatingDoc(false);
     }
   }
 
@@ -101,8 +158,26 @@ export default function CallPrepPanel({ initialNotes = "" }: { initialNotes?: st
             </div>
 
             <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 20 }}>
-              <div style={{ fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 12 }}>Tailored script</div>
-              <div style={{ fontSize: 13.5, color: L.text, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{prep.tailoredScript}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 10, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800 }}>Tailored script</div>
+                {docUrl ? (
+                  <a href={docUrl} target="_blank" rel="noopener noreferrer" className="btn-lift" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+                    <ExternalLink style={{ width: 12, height: 12 }} /> Open Google Doc
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSendToDoc}
+                    disabled={creatingDoc}
+                    className="btn-lift"
+                    style={{ padding: "6px 12px", background: creatingDoc ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: creatingDoc ? "default" : "pointer" }}
+                  >
+                    {creatingDoc ? "Sending…" : "Send to Google Doc"}
+                  </button>
+                )}
+              </div>
+              {docError && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "8px 12px", marginBottom: 12, fontSize: 12.5 }}>{docError}</div>}
+              <RenderedScript text={prep.tailoredScript} />
             </div>
           </>
         )}
