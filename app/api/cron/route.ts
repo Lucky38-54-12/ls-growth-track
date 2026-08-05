@@ -28,6 +28,17 @@ export async function GET(req: NextRequest) {
 
   const startedAt = Date.now();
   const sb = createSupabaseClient();
+
+  // Only leads attached to an active campaign can ever send (sendNextStepFor
+  // re-checks this too) — fetching and looping every lead in the table,
+  // campaign or not, meant the fixed 25s budget got eaten by real sends
+  // before the loop reached leads later in lead_id order, which starved
+  // them permanently since the scan starts from the same spot every day.
+  // Filtering to active-campaign leads up front keeps the whole reachable
+  // set small enough to actually get through every run.
+  const { data: activeCampaigns } = await sb.from("campaigns").select("id").eq("status", "active");
+  const activeCampaignIds = (activeCampaigns || []).map((c) => c.id);
+
   // Explicit order is required, not cosmetic: fetchAllRows pages this in
   // 1000-row chunks via .range(), and without ORDER BY, Postgres doesn't
   // guarantee the same row lands on the same page across separate requests
@@ -36,7 +47,10 @@ export async function GET(req: NextRequest) {
   // different page than the previous run. Sorting by lead_id makes paging
   // deterministic across runs, so a lead that's due either gets reached or
   // doesn't based on the time budget, never based on incidental row order.
-  const leads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("lead_id", { ascending: true }).range(from, to));
+  const leads = activeCampaignIds.length
+    ? await fetchAllRows<Lead>((from, to) =>
+        sb.from("leads").select("*").in("campaign_id", activeCampaignIds).order("lead_id", { ascending: true }).range(from, to))
+    : [];
 
   const today = new Date().toISOString().split("T")[0];
   let sent = 0, held = 0, notAFit = 0, processed = 0;
