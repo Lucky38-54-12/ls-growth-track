@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, Video, ArrowUpRight, MessageCircleHeart, Inbox, ShieldAlert } from "lucide-react";
+import { Calendar, Video, ArrowUpRight, MessageCircleHeart, Inbox, ShieldAlert, Info } from "lucide-react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calendar";
 import { nextStepFor, stillHeld } from "@/lib/leads";
@@ -24,6 +24,39 @@ const timeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric"
 
 function todayKey(): string {
   return dateKeyFmt.format(new Date());
+}
+
+function ClientDetailsPanel({ lead }: { lead: Lead }) {
+  return (
+    <div style={{ background: "#f8fafc", borderTop: `1px solid ${L.border}`, padding: "14px 18px 16px 42px" }}>
+      <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "12px 14px" }}>
+        <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 8 }}>Client Details</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", fontSize: 12.5, color: L.text }}>
+          <div><span style={{ color: L.dimmed }}>Company:</span> {lead.company || "—"}</div>
+          <div><span style={{ color: L.dimmed }}>Contact:</span> {lead.contact_name || "—"}</div>
+          <div><span style={{ color: L.dimmed }}>Phone:</span> {lead.phone || "—"}</div>
+          <div><span style={{ color: L.dimmed }}>Email:</span> {lead.email || "—"}</div>
+          <div><span style={{ color: L.dimmed }}>Trade:</span> {lead.trade || "—"}</div>
+          <div><span style={{ color: L.dimmed }}>Location:</span> {lead.location || "—"}</div>
+          <div><span style={{ color: L.dimmed }}>Status:</span> {lead.status.replace(/_/g, " ")}</div>
+          {lead.reply_category && <div><span style={{ color: L.dimmed }}>Reply:</span> {lead.reply_category.replace(/_/g, " ")}</div>}
+          {lead.post_call_outcome && <div><span style={{ color: L.dimmed }}>Call outcome:</span> {lead.post_call_outcome.replace(/_/g, " ")}</div>}
+          {lead.main_objection && <div><span style={{ color: L.dimmed }}>Objection:</span> {lead.main_objection}</div>}
+        </div>
+        {lead.notes?.trim() && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${L.border}` }}>
+            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 4 }}>Call notes / summary</div>
+            <p style={{ fontSize: 12.5, whiteSpace: "pre-wrap", color: L.text }}>{lead.notes}</p>
+          </div>
+        )}
+        <div style={{ marginTop: 10 }}>
+          <Link href={`/dashboard/leads/${lead.lead_id}/context`} style={{ fontSize: 11.5, color: "var(--blue)", textDecoration: "none", fontWeight: 700 }}>
+            Open full lead page →
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default async function TodayPage() {
@@ -117,26 +150,27 @@ export default async function TodayPage() {
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {repliedLeads.map(lead => (
-                <Link key={`reply-${lead.lead_id}`} href={`/dashboard/leads/${lead.lead_id}`} className="row-hover" style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none",
-                }}>
-                  <Inbox style={{ width: 14, height: 14, color: "#2563eb", flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {lead.contact_name || lead.company}
-                    </p>
-                    <p style={{ fontSize: 11.5, color: L.dimmed }}>Replied — {lead.company}{lead.reply_category ? ` · ${lead.reply_category.replace(/_/g, " ")}` : ""}</p>
-                  </div>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>Reply</span>
-                  <ArrowUpRight style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
-                </Link>
+                <details key={`reply-${lead.lead_id}`} style={{ borderBottom: `1px solid ${L.border}` }}>
+                  <summary className="row-hover" style={{
+                    listStyle: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, padding: "12px 18px",
+                  }}>
+                    <Inbox style={{ width: 14, height: 14, color: "#2563eb", flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {lead.contact_name || lead.company}
+                      </p>
+                      <p style={{ fontSize: 11.5, color: L.dimmed }}>Replied — {lead.company}{lead.reply_category ? ` · ${lead.reply_category.replace(/_/g, " ")}` : ""}</p>
+                    </div>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>Reply</span>
+                    <Info style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
+                  </summary>
+                  <ClientDetailsPanel lead={lead} />
+                </details>
               ))}
               {heldEmails.map(check => {
                 const lead = heldByLeadId.get(check.lead_id);
-                return (
-                  <Link key={`held-${check.id}`} href={lead ? `/dashboard/leads/${lead.lead_id}` : "#"} className="row-hover" style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none",
-                  }}>
+                const summaryRow = (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px" }}>
                     <ShieldAlert style={{ width: 14, height: 14, color: "#be123c", flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -147,8 +181,16 @@ export default async function TodayPage() {
                       </p>
                     </div>
                     <span style={{ fontSize: 10.5, fontWeight: 700, color: "#be123c", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>Held</span>
-                    <ArrowUpRight style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
-                  </Link>
+                    {lead ? <Info style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} /> : <ArrowUpRight style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />}
+                  </div>
+                );
+                return lead ? (
+                  <details key={`held-${check.id}`} style={{ borderBottom: `1px solid ${L.border}` }}>
+                    <summary className="row-hover" style={{ listStyle: "none", cursor: "pointer" }}>{summaryRow}</summary>
+                    <ClientDetailsPanel lead={lead} />
+                  </details>
+                ) : (
+                  <div key={`held-${check.id}`} style={{ borderBottom: `1px solid ${L.border}` }}>{summaryRow}</div>
                 );
               })}
             </div>
@@ -165,18 +207,21 @@ export default async function TodayPage() {
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {followUpsDue.map(lead => (
-                <Link key={`followup-${lead.lead_id}`} href={`/dashboard/leads/${lead.lead_id}`} className="row-hover" style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}`, textDecoration: "none",
-                }}>
-                  <Calendar style={{ width: 14, height: 14, color: "#b45309", flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : lead.company}
-                    </p>
-                    <p style={{ fontSize: 11.5, color: L.dimmed }}>{lead.company} — due {lead.follow_up_at}</p>
-                  </div>
-                  <ArrowUpRight style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
-                </Link>
+                <details key={`followup-${lead.lead_id}`} style={{ borderBottom: `1px solid ${L.border}` }}>
+                  <summary className="row-hover" style={{
+                    listStyle: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, padding: "12px 18px",
+                  }}>
+                    <Calendar style={{ width: 14, height: 14, color: "#b45309", flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : lead.company}
+                      </p>
+                      <p style={{ fontSize: 11.5, color: L.dimmed }}>{lead.company} — due {lead.follow_up_at}</p>
+                    </div>
+                    <Info style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
+                  </summary>
+                  <ClientDetailsPanel lead={lead} />
+                </details>
               ))}
             </div>
           </div>
@@ -298,6 +343,14 @@ export default async function TodayPage() {
                         </a>
                       )}
                       {lead && (
+                        <span className="pill-hover" style={{
+                          display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", fontSize: 11.5, fontWeight: 700,
+                          color: "var(--blue)", border: `1px solid ${L.border}`, flexShrink: 0, cursor: "pointer",
+                        }}>
+                          <Info style={{ width: 12, height: 12 }} /> Details
+                        </span>
+                      )}
+                      {lead && (
                         <Link href={`/dashboard/leads/${lead.lead_id}/context`} className="pill-hover" style={{
                           display: "flex", alignItems: "center", padding: "5px", border: `1px solid ${L.border}`, color: L.muted, flexShrink: 0,
                         }}>
@@ -315,24 +368,27 @@ export default async function TodayPage() {
                         <div style={{ flex: 1, height: 1, background: L.border }} />
                       </div>
                     )}
-                    {sentCount > 0 ? (
+                    {lead ? (
                       <details style={{ borderBottom: `1px solid ${L.border}` }}>
                         <summary style={{ listStyle: "none", cursor: "pointer" }}>{rowInner}</summary>
-                        <div style={{ background: "#f8fafc", borderTop: `1px solid ${L.border}`, padding: "4px 18px 12px 74px", display: "flex", flexDirection: "column", gap: 8 }}>
-                          {leadSends.map(send => (
-                            <details key={send.id} style={{ background: L.surface, border: `1px solid ${L.border}` }}>
-                              <summary style={{ padding: "8px 12px", cursor: "pointer", fontSize: 12.5, display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 6px", background: "#f1f5f9", color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{send.step}</span>
-                                <span style={{ fontWeight: 600, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{send.subject}</span>
-                                <span style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed, whiteSpace: "nowrap" }}>{formatDateTime(send.sent_at)}</span>
-                              </summary>
-                              <div
-                                style={{ padding: "12px 14px", borderTop: `1px solid ${L.border}`, background: "#fafafa", fontFamily: "Arial,Helvetica,sans-serif", fontSize: 13, color: L.text, lineHeight: 1.5 }}
-                                dangerouslySetInnerHTML={{ __html: stripTrackingForDisplay(send.body_html) }}
-                              />
-                            </details>
-                          ))}
-                        </div>
+                        <ClientDetailsPanel lead={lead} />
+                        {leadSends.length > 0 && (
+                          <div style={{ background: "#f8fafc", padding: "0 18px 16px 74px", display: "flex", flexDirection: "column", gap: 8 }}>
+                            {leadSends.map(send => (
+                              <details key={send.id} style={{ background: L.surface, border: `1px solid ${L.border}` }}>
+                                <summary style={{ padding: "8px 12px", cursor: "pointer", fontSize: 12.5, display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 6px", background: "#f1f5f9", color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{send.step}</span>
+                                  <span style={{ fontWeight: 600, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{send.subject}</span>
+                                  <span style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed, whiteSpace: "nowrap" }}>{formatDateTime(send.sent_at)}</span>
+                                </summary>
+                                <div
+                                  style={{ padding: "12px 14px", borderTop: `1px solid ${L.border}`, background: "#fafafa", fontFamily: "Arial,Helvetica,sans-serif", fontSize: 13, color: L.text, lineHeight: 1.5 }}
+                                  dangerouslySetInnerHTML={{ __html: stripTrackingForDisplay(send.body_html) }}
+                                />
+                              </details>
+                            ))}
+                          </div>
+                        )}
                       </details>
                     ) : (
                       <div style={{ borderBottom: `1px solid ${L.border}` }}>{rowInner}</div>
