@@ -267,85 +267,81 @@ const CLIENT_STORY_LIBRARY = `- Perl Electrical: franchise electrical business, 
 - Jims Cleaning Dunedin: consistent work 7+ months and ongoing
 - Fantastic Services`;
 
-const GOLD_STANDARD_EXAMPLE = `Impact Outdoors, Discovery Call Sheet
-Steenson D Silva. Tues 10:30am. Google Meet. 021 241 9388. steen@impactoutdoors.co.nz
-Goal of this call: NOT to close. It's to (1) qualify him on authority, money, pain, and timeline, (2) plant the Perl Electrical parallel, and (3) lock a follow-up call where you close the pilot off the back of a proposal.
+const GOLD_STANDARD_EXAMPLE = `Discovery Call — Nick, Kingswood Homes
+Tue 14 Jul, 11am · Google Meet · 20-30 min
 
-What you know going in
-Premium outdoor living: canopies, auto louvres, metal pergolas, outdoor blinds, carports
-Branches: Wellington, Christchurch, Tauranga (his), Dunedin, Auckland, plus service areas Napier/Hastings/Gisborne
-Other companies sit under the group (per your notes, confirm structure on call)
-High ticket, quote based jobs (likely $10k to $40k+), 36 month finance offered, that's an ad hook
-Website by Digital Hub NZ, they do SEO blogs, existing digital provider, don't attack
-Meta pixel installed on site, they've likely tried FB ads before
-Their socials: consistent posting but static product images, no people
+Pre-call snapshot (know this cold)
+Nick Craggs, licensed builder, ~15 years in the trade. Started Kingswood in 2017 with his wife Jess (comms + interior design background). Family-owned crew.
+Based Papamoa, works Papamoa / Mount Maunganui / Tauranga / Te Puke.
+Services: new builds, renovations, recladding, kitchens & bathrooms.
+His pain (from your email thread): only a couple weeks of work lined up, wants extensions and full house renos, bigger jobs, not calendar-filler.
+Site is heavy on "transparency, process, stress-free", that's his brand language. Mirror it. He'll respond well to you being upfront about how everything works.
+They've got Facebook + Instagram and a decent video on the site already, so he has content you can actually use in ads. That's a plus you can point out.
 
-1. OPEN (1 to 2 min)
-"Hey Steenson, thanks for jumping on. How's things up in Tauranga?"
-Then take control:
-"So just to frame this up, I know you've got Impact Outdoors in Tauranga, plus branches and other companies under the group across the country. What I want to do today is get a proper picture of how it all fits together, what's bringing in work right now, and then I'll show you how we'd approach getting more booked outdoor living jobs, first for one branch, and if the numbers stack up, across the group. Should take 20 to 30 minutes. Sound good?"
+1. Open (2 min)
+"Hey Nick, good to finally chat. So like I said in the email, this'll only take 20-30 minutes. I just want to get a proper picture of where the business is at, and then I'll show you exactly how we'd go about getting you those bigger jobs, extensions, full renos. And if it makes sense, we can talk about working together at the end. Sound good?"
+Then straight into rapport, one line, genuine:
+"Had a look through your site and your Insta, that reclad work looks mint. How long have you and Jess been running it as a team?"
 
-2. PRE-QUALIFICATION QUESTIONS (10 to 12 min, this is the call)
-Work through these conversationally, not as an interrogation. Each one arms your close later.
-A. AUTHORITY, can he say yes?
-"Give me the lay of the land, which companies and branches sit under the group, and how does that work day to day?"
-"Is marketing run centrally, or does each branch sort their own?"
-"And something like bringing on an agency, is that your call, or who else would be in the room for that decision?"
-(If others involved:) "Would it make sense to have them on the follow-up when I walk through the proposal?"
-Why: If he's not sole decision maker, you want the real decision makers on call two, never let him pitch you second hand. Q4 gets them there without challenging his status.
-B. PAIN, where does it hurt?
-"Where's most of the work coming from right now, referrals, website, word of mouth, ads?"
-"Which branches are flat out, and which ones could take on more work tomorrow?"
-"Have you run Facebook or Instagram ads before? How'd that go?"
-(If ads flopped:) "What did the campaigns look like, and when a lead came in, how quickly was someone ringing them back?"
-"What happens in winter, do enquiries dry right up, or does the year round outdoor living angle still pull people in?"
-Why: Q6 tells you which branch to propose as the pilot, pitch the hungry one, not the busy one. Q7 to Q8 tells you whether you're selling "ads work, they were just done badly", the easiest reframe in the game. Q9 gives you the urgency angle: installs booked now finish before summer.
-C. MONEY, do the economics work?
-"Rough average job value on a canopy or louvre install?"
-"When someone requests a quote, roughly what percentage turn into a job?"
-"How many quotes could a branch handle per week before the team's maxed out?"
-"Have you got a rough sense of what you'd be comfortable investing in marketing if the return was there, per branch or across the group?"
-Why: Q10 plus Q11 is your ROI math for the close ("if a job's worth $20k and you close 1 in 3 quotes, ten qualified quote requests is roughly three jobs, $60k of work"). Q12 stops you overpromising volume. Q13 flushes out budget without naming your price first.
-D. TIMELINE AND COMMITMENT, will he move?
-"If we got the lead flow humming for one branch, how quickly would you want to look at rolling it out to the others?"
-"Is growing the group's job volume a priority for this year, or more of a nice to have?"
-The money question, ask this near the end: "Say we run a pilot and in three weeks you've got 10 plus qualified quote requests sitting in front of you. What, if anything, would stop you from expanding it out from there?"
-Why: Q14 future paces the rollout so the multi branch deal feels like his idea. Q16 is the pre close, whatever he says here is the objection you'll face on call two, so you get to handle it now or address it head on in the proposal.
+2. Discovery (8-10 min)
+Ask, then shut up and listen. Take notes, you'll use his exact words later.
+Pipeline & pain:
+"So you said you've got a couple more weeks of work locked in. What happens after that right now, where does the next job usually come from?"
+"What's the mix at the moment, how much is the small stuff versus the big renos and extensions?"
+"When a big reno does come in, where did that one come from?" (This tells you if it's all word of mouth, which is the leak.)
+Capacity & money:
+"If we got you consistent quote requests for extensions and full renos, how many of those jobs can the crew actually handle at once?"
+"Roughly what's a full reno or extension worth to you, job value wise?" (Anchor this. One job likely pays for a year of your service, say that back to him later.)
+Past attempts:
+"Have you ever run ads before, Facebook, Google, anything?" (If yes, what happened. If no, even cleaner.)
+"Who does the marketing side now, is that Jess, or is it just whatever comes in?"
+Authority & timeline:
+"If we found something that works, is it you and Jess making that call together, or just you?"
+"How soon do you want this sorted, is this a 'now' problem given the pipeline?"
 
-3. THE PERL ELECTRICAL STORY (3 to 4 min)
-Deliver as a story, tied to whatever pain he revealed:
-"So the reason I was keen on this chat, this is really similar to work we've done before. We worked with Perl Electrical, a franchise electrical business in the Christchurch region. Same kind of setup as you guys, multiple operations under one banner. We ran Meta campaigns for them and generated over 40 qualified heat pump leads on about $450 a month in ad spend. Booked jobs, not just clicks. And off the back of those results, the conversation moved to expanding across their other companies too, because once the campaign structure works in one region, rolling it out is the easy part. Duplicate the system, localise the creative and targeting, and each branch gets its own pipeline.
-"Honestly, your product suits this even better than electrical, high ticket installs, strong visuals, and that 36 month finance option is a massive ad hook. 'Get your canopy now from $X a week', that angle performs really well on Meta."
-Retention proof if asked about track record: "Our longest running client, Queenstown Cleaning, 30 plus booked jobs a month for over a year now. When it works, clients stay."
+3. The gap observation (1 min)
+Play back what he told you in his own words:
+"So right now it sounds like the work comes in through word of mouth and referrals, which is great, but it's not something you can turn up when the pipeline's thin. That's the gap. You can't control it. What we do is give you a tap you can turn on."
 
-4. THE CONTENT OBSERVATION (1 to 2 min)
-Drop this after the Perl story, never before discovery:
-"One thing I noticed going through your pages, and this goes for the other companies under the group too, you're already posting consistently, which is great, most trade businesses don't even manage that. But it's mostly static product shots. What's missing is people. Someone about to spend twenty plus grand on a canopy wants to see the team turning up to their house, the customer standing under their new louvre in the middle of winter, the install actually happening. People buy from people. And that's exactly the content that performs best in paid ads, static images get scrolled past, a 20 second clip of a real install stops the thumb."
-If he asks what that looks like: "Super simple, phone shot video of an install in progress, a quick before and after, the customer saying two sentences. We script it, your guys film 30 seconds on site, we cut it into ad creative. The ads with real people consistently outperform the polished stuff."
+4. Process — screen-share (5 min)
+Share your curated Ads Manager view. Keep it simple:
+"Rather than tell you it works, I'll just show you. This is a live account for one of our clients, I won't say the business name, but this is real money and real leads."
+Walk through: leads generated, cost per lead, what a lead looks like when it lands.
+The bit that matters most for Nick, lead quality:
+"Now here's the important part for you, because reno leads are a different beast to cheap little jobs. Anyone can generate 'leads', tyre-kickers filling out forms. What we do differently is I personally call every lead before it gets anywhere near you. I qualify them on budget, timeline, whether they own the place. You only hear about the ones worth quoting. So you're not spending your evenings ringing people who want a $2k deck when you're after $150k renos."
+How the lead handling works, walk him through the journey (this is your differentiator, spend time here):
+"Let me walk you through what actually happens when someone clicks the ad, because this is where most agencies fall over. They generate the lead, dump the contact details in your inbox, and it's on you to chase them. We do the complete opposite."
+"The second someone fills out the form, they get a response within a couple of minutes, not the next day. We ask them the qualifying questions straight away: what's the project, do they own the home, what's their rough budget, when are they wanting to start. Speed matters massively here, a reno lead that gets a reply in two minutes converts, one that waits till tomorrow has already rung two other builders."
+"Then I personally get on the phone with the ones that stack up, and confirm they're genuine, real budget, real timeline, ready to talk. And here's the good bit for you: the ones that are qualified and ready get booked straight into your calendar as an appointment. You don't chase anyone. You just show up to a consult with a homeowner who's already been vetted and knows roughly what things cost."
+"So from your side it looks like this: an appointment lands in your calendar with notes, who they are, what the project is, budget range, timeline. That's it. You quote, you build."
+(If he asks how the instant response works / "is that a bot?", don't oversell the tech, sell the outcome:)
+"We've built our own follow-up process that handles that first conversation instantly, and then I'm across every single lead personally before it goes anywhere near your calendar. Nothing gets booked in that I haven't checked myself."
+Ad angle (drop in naturally):
+"And honestly you're in a better spot than most builders we talk to, you've already got good photos, the video on your site, and Jess on the design side. People buy from people, especially on jobs this size. We'd build the ads around your actual work and your faces, not stock images."
 
-5. THE VISION, PILOT THEN ROLLOUT (2 to 3 min)
-Plug in the branch HE said was hungriest (Q6):
-"So here's how I'd approach it. Don't do all five branches at once. Start with [branch], you said they could take on more work. We run focused campaigns per product line, canopies, louvres, pergolas, with lead forms that qualify people: homeowner, timeline, interest in finance. Your team only calls people genuinely in the market. We prove the numbers over the first month, then take the exact playbook branch by branch, local targeting, local creative, local numbers. Each branch gets its own pipeline without reinventing anything."
+5. The guarantee (2 min)
+Only once he's warm:
+"Here's how we take the risk out of it. We guarantee you qualified quote requests in the first three weeks, people I've personally vetted for these bigger jobs, or you don't pay us anything. So worst case, it costs you nothing to find out."
+"And do the maths on it, you told me a full reno's worth [his number]. One job covers us many times over."
 
-6. THE OFFER (only if the call is warm)
-"And to make the pilot a no brainer: if we don't get you 10 plus qualified quote requests in the first three weeks, you don't pay. At your job values, [use his numbers from Q10/Q11], even one closed install covers it many times over."
-If he asks price directly: "Depends which branch and how many product lines we run, that's exactly what the proposal covers. I'll have real numbers in front of you within 48 hours."
+6. Close (2 min)
+"So based on what you've told me, pipeline drying up in a couple weeks, and you want the bigger work, I reckon this is exactly what we should be doing, and there's zero risk on you to try it. Want to get started?"
+Yes: onboarding, name the concrete first steps for this business (services to lead with, Ads Manager access, ad budget, creatives).
+Hesitant: "No worries, what's the bit that's still sitting with you?" Handle it, then book a specific follow-up: "How about I flick you a proposal today and we do a quick 10 minutes Thursday to go through it?"
+Never leave without a date.
 
-7. CLOSE THE NEXT STEP (1 to 2 min)
-"Steenson, this has been really useful. Here's what I'll do, I'll put together a short proposal for the pilot: which branch, which product lines, campaign structure, and the numbers, and have it to you within 48 hours. Then let's jump on a quick 15 minute call to walk through it. What does Thursday or Friday look like?"
-Lock a specific time before you hang up. "I'll email you a summary" is where deals go to die. And per Q4, if there are other decision makers, get them invited to that call.
+Objection cheat sheet
+"Have you worked with builders before?" Response: "We work with trades across NZ, electrical, cleaning, outdoor construction. The exact trade matters less than you'd think, because the system's the same: ads that pull quote requests, and me qualifying every lead before you see it. And that's exactly why the guarantee exists, you're not taking my word for it, you're testing it risk-free."
+"Ads just bring tyre-kickers / cheap jobs." Response: "You're dead right, if you just run ads and dump the form fills on the builder, that's what happens. That's the whole reason I call every lead first. Budget, timeline, ownership. The tyre-kickers never reach you."
+"Winter's quiet / wrong time of year." Response: "That's actually the argument for starting now, renos and extensions have long lead times. The people we get in front of now are signing contracts for spring. If you wait until you're desperate, you're three months behind."
+"I need to talk to Jess." Response: "Totally fair, it's a joint call. What I'd suggest: I'll send through a one-page proposal today so you've got everything in writing, and we grab 10 minutes with both of you Thursday. What time suits?"
+"What's it cost?" Response: Answer it straight, no dodging. Then: "And remember that's covered by the guarantee, if we don't deliver the qualified quote requests in the first three weeks, you don't pay. Plus one reno job covers it many times over."
+"Send me some info." Response: "Yeah I'll flick the case studies through. But info doesn't usually answer the real question, what's the bit you're unsure about? Might be able to sort it right now."
 
-OBJECTION CHEAT SHEET
-"We already have an agency (Digital Hub)." Response: "They do your website and SEO, totally different job. We're the booked jobs side. They keep doing what they're doing, we run paid lead gen alongside it."
-"We tried Facebook ads, didn't work." Response: "That's actually really common, and it's almost never that ads don't work for this product, it's targeting, creative, or nobody ringing the lead back within the hour. What did the follow up look like when a lead came in?"
-"Winter's slow, let's talk in spring." Response: "Spring is when every competitor starts advertising and costs spike. Book installs now, they're done before summer, and the 'enjoy your patio all winter' angle is exactly what louvres and canopies solve."
-"Send me some info." Response: "Happy to, and rather than a generic PDF, let me build the proposal around your actual numbers and we'll walk through it Thursday. That way it's worth your time."
-"What's it cost?" Response: Never name a number on this call. "That's what the proposal answers, with your branch and product lines plugged in."
-
-POST-CALL (same day)
-Send a 3 line recap email: thanks, one thing he said that you're building the proposal around, and confirming the follow up time.
-Note his answers to Q10 to Q13, they're the spine of the proposal ROI math.
-Whatever he said at Q16, address it head on in the proposal, don't wait for him to raise it again.`;
+Post-call
+Log it: outcome, objection raised, follow-up date.
+Proposal within 24h if not closed on the call.
+Follow-up email references ONE specific thing he said (use your discovery notes).`;
 
 const CALL_PREP_SYSTEM_PROMPT = `You generate discovery call sheets for Lucky, who runs LS Growth, a NZ Meta ads agency for trade and cleaning businesses. The offer: 3 week free trial, if the client doesn't get work they don't pay. Lucky personally calls and qualifies every lead before it reaches the client's calendar. Booked jobs, not leads.
 
@@ -353,53 +349,43 @@ You will be given his master sales script (the baseline process and objection ha
 
 First, read the freeform notes and work out the prospect's name, business name, and industry as best you can. If something isn't mentioned, leave it blank, do not guess or invent one.
 
-Produce ONE call sheet as the tailoredScript field, in exactly this structure. Do not add sections, do not remove sections, do not reorder them.
+Produce ONE call sheet as the tailoredScript field, in exactly this structure. Do not add sections, do not remove sections, do not reorder them. This is a short, natural, glanceable sheet, not a dense manual, if a section reads like a wall of sub-headings, tighten it.
 
 STRUCTURE
 
-Header: Business name, contact, call time if known, platform, phone, email. Use whatever the notes gave you, leave a field out of the line entirely if it wasn't in the notes, do not write "unknown" or invent one.
+Header: "Discovery Call — {contact first name}, {business name}" then a line with the call day/date/time, platform, and rough duration, using whatever the notes gave you. Leave a detail out of the line entirely if it wasn't in the notes, do not write "unknown" or invent one.
 
-Goal of this call: One line. The goal is never to close on call one. It is to qualify on authority, money, pain and timeline, plant the most relevant proof story, and lock a specific follow-up call before hanging up.
+Pre-call snapshot (know this cold): 4 to 6 bullet points of the research, written as ammunition, not a resume. Cover who they are and their background if known, where they're based and what they work on, their services, their actual pain in their own words or inferred from the notes, any brand language or tone from their site/socials worth mirroring on the call, and any existing content or assets (photos, video, socials) that's a plus you can point out later. Skip anything not in the notes rather than padding it out.
 
-What you know going in: 5 to 8 bullet points of the research, written as ammunition. Flag anything that becomes an ad hook (finance options, high ticket jobs, seasonal angles), anything that signals they've tried ads before (pixel installed), and any existing provider so Lucky knows not to attack them.
+1. Open (2 min): A casual greeting line, then a framing statement that takes control of the call: what it covers, how long it takes, ending in "Sound good?" The frame must reference their actual business specifics, not a generic agenda. Follow with one genuine rapport line built from something specific in the research (a piece of their work, how long they've been running, something on their site).
 
-1. OPEN (1 to 2 min): A casual greeting line, then a framing statement that takes control of the call: what we'll cover, how long it takes, ending in "Sound good?" The frame must mention their actual business specifics, not a generic agenda.
+2. Discovery (8-10 min): Open with one instruction line: ask, then listen, take notes, use their exact words later. Then 3 to 4 short thematic groups with their own plain-English labels (adapt the labels to what actually matters here, for example "Pipeline & pain", "Capacity & money", "Past attempts", "Authority & timeline") rather than lettered blocks. Each group gets 2 to 4 questions. Where a question's purpose isn't obvious, add a short parenthetical note right after it on what it's really digging for, inline, not a separate "why" block. Near the end, include a pre-close/future-pace question adapted to the offer, something like "if we got you [outcome] in the first three weeks, what would stop you from carrying on from there".
 
-2. PRE-QUALIFICATION QUESTIONS (10 to 12 min): Four blocks: A Authority, B Pain, C Money, D Timeline and Commitment. 3 to 5 questions per block. After each block, a short "Why" note explaining what the answers arm Lucky with for the close.
-
-THE MOST IMPORTANT RULE: every question must be built from the research. No question may be one a prospect has heard on every agency sales call. Wherever possible, lead with a specific observation and attach the question to it.
+THE MOST IMPORTANT RULE: every question must be built from the research, not a generic script question a prospect has heard on every agency sales call. Wherever possible, lead with a specific observation and attach the question to it.
 
 Bad: "Where does most of your work come from at the moment?"
 Good: "I had a look through your Facebook page, heaps of five star reviews but the last post was March. Is word of mouth carrying most of it right now?"
 
-Bad: "What kind of jobs do you want more of?"
-Good: "You list heat pumps and switchboard upgrades on the site. Are those the money jobs, or are you chasing the bigger installs?"
-
 If research is thin on a topic, the question can be more open, but at least half the questions on the sheet must reference something specific you were given.
 
-Always include, near the end of block D, the pre-close question: "Say we run the trial and in three weeks you've got 10 plus qualified quote requests in front of you. What, if anything, would stop you from carrying on from there?" With a why note: whatever they answer is the objection on call two, handle it now or in the proposal.
+3. The gap observation (1 min): One short paragraph, play back what they told you in their own words, then name the gap plainly: their pipeline depends on something they can't turn on, referrals or word of mouth, they're at the mercy of it.
 
-3. THE PROOF STORY (3 to 4 min): Pick the ONE most relevant client from this library and write it as a spoken story tied to the prospect's likely pain, with real numbers:
+4. Process — screen-share (5 min): Walk through sharing a live/curated ad account view as proof, without naming the client. Then, as a natural explanation not a pitch, the differentiator: what makes a lead "qualified", personally calling and vetting every lead before it reaches their calendar, and the full lead journey end to end, instant response within minutes of the form, qualifying questions asked immediately, a personal call to confirm it's genuine, only vetted ones booked straight into the calendar with notes attached, they just show up to quote. Include a short line for if they ask whether the fast response is a bot, sell the outcome not the tech. Fold in the ad creative angle naturally here using whatever real content or assets they already have (photos, video, socials), not as a separate section. Reference the single most relevant client story from this library only if it genuinely strengthens the point being made, don't force it in:
 ${CLIENT_STORY_LIBRARY}
-Match by trade first, structure second (multi branch prospect gets a multi branch story). End the story by connecting it to why this prospect's product suits Meta even better, naming their specific hook.
 
-4. THE CONTENT OBSERVATION (1 to 2 min): One genuine observation about their current social content, delivered after the proof story never before. Usually the gap is people: static product shots instead of real installs, real customers, the team on site. Adapt it to what their pages actually show. Include the short "if he asks what that looks like" answer: we script it, your guys film 30 seconds on a phone, we cut it into ad creative.
+5. The guarantee (2 min): Only once the call is warm. The trial or guarantee framed as removing risk, worst case it costs them nothing to find out. Include a line that plugs in their own job value number from Discovery to do the ROI math out loud. If asked price directly, never name a number on this call, the proposal covers it with their numbers plugged in.
 
-5. THE VISION (2 to 3 min): How the trial works for THEIR business. If multi branch, pilot one branch (the one they said is hungriest) then roll out. If single location, focus campaigns on their highest value job types with lead forms that qualify homeowner, timeline, budget signals, and Lucky calling every lead before it hits their calendar.
+6. Close (2 min): A direct close line that summarises back what they told you and asks straight out if they want to get started. "Yes" branch: what onboarding looks like next, name the concrete first steps for this business. "Hesitant" branch: ask what's still sitting with them, handle it, then lock a specific dated follow-up. If Discovery revealed another decision maker, the close must get them invited to that follow-up. End the section with: "Never leave without a date."
 
-6. THE OFFER (only if the call is warm): The trial framed as a no brainer: 10 plus qualified quote requests in three weeks or you don't pay. Include a line that plugs in their own job value numbers from block C to do the ROI math out loud. If asked price directly: never name a number on this call, the proposal covers it with their numbers plugged in.
+Objection cheat sheet: 4 to 6 objections predicted from the research (existing provider, tried ads before, seasonal slowdown, need to check with someone if authority in Discovery suggested it, send me some info, what's it cost), each with a short 1 to 3 sentence spoken response. Responses must reference their specifics, not templates.
 
-7. CLOSE THE NEXT STEP (1 to 2 min): Word for word close that locks a specific follow-up time or a live action (Facebook page access request sent on the call, photos, kick off booked) before hanging up. Include the reminder line: "I'll email you a summary" is where deals go to die. If block A revealed other decision makers, the close must get them invited to call two.
-
-OBJECTION CHEAT SHEET: 4 to 6 objections predicted from the research (existing provider, tried ads before, seasonal slowdown, send me some info, what's it cost) each with a 1 to 3 sentence spoken response. Responses must reference their specifics, not templates.
-
-POST-CALL (same day): 3 line recap email instruction, note which question answers form the proposal ROI math, and address the pre-close answer head on in the proposal.
+Post-call: 3 short lines. Log the outcome/objection raised/follow-up date. Proposal timing, within 24 to 48h if not closed on the call. Follow-up email references one specific thing they said.
 
 VOICE RULES
 ${WRITING_RULES}
 - Never attack an existing provider. Position alongside them.
 - Never name a price on call one.
-- Keep the whole sheet tight enough to glance at mid call. Bullet points and short lines, not paragraphs.
+- Natural and conversational throughout, short lines and plain paragraphs, not lettered sub-blocks or a "Why:" note after every question.
 
 GOLD STANDARD EXAMPLE
 Match this example's structure, depth, tone and level of personalisation exactly. Every sheet you produce should feel like this one, just built from the new prospect's research.
@@ -411,8 +397,8 @@ ${GOLD_STANDARD_EXAMPLE}
 Now, separately from the tailoredScript field:
 - prospectName, businessName: pulled from the notes.
 - topWorkOns: the top 3 recurring things Lucky should watch himself on this call, pulled from the recent work ons given to you. If fewer than 3 distinct themes exist, return fewer, do not pad with generic advice.
-- likelyObjections: the short label (not the full response) for each objection in the OBJECTION CHEAT SHEET you wrote, in the same order, so this can be shown as a quick glance list alongside the full script.
-- reminder: the "I'll email you a summary" line from the CLOSE THE NEXT STEP section above, adapted to this call, one short sentence.
+- likelyObjections: the short label (not the full response) for each objection in the Objection cheat sheet you wrote, in the same order, so this can be shown as a quick glance list alongside the full script.
+- reminder: the "Never leave without a date" instruction from the Close section above, adapted to this call, one short sentence.
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
 {"prospectName": "", "businessName": "", "topWorkOns": [], "likelyObjections": [], "reminder": "", "tailoredScript": ""}`;
