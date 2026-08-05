@@ -445,7 +445,11 @@ ${input.recentObjections.length ? input.recentObjections.map((o) => `- ${o}`).jo
   // whole prep on a refusal.
   const msg = await client().beta.messages.create({
     model: "claude-fable-5",
-    max_tokens: 8192,
+    // 8192 was cutting the response off mid-JSON once the marked-up sheet
+    // (a "## " line for every heading/sub-label, not just major sections)
+    // pushed real output past it — a truncated string breaks parseJsonResponse
+    // with a confusing error instead of a clear "ran out of room" one.
+    max_tokens: 16000,
     system: CALL_PREP_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
     betas: ["server-side-fallback-2026-06-01"],
@@ -454,6 +458,9 @@ ${input.recentObjections.length ? input.recentObjections.map((o) => `- ${o}`).jo
 
   if (msg.stop_reason === "refusal") {
     throw new Error("Couldn't generate a prep for this one, try rephrasing the notes.");
+  }
+  if (msg.stop_reason === "max_tokens") {
+    throw new Error("The prep sheet ran out of room mid-generation, try again or trim the notes down a bit.");
   }
 
   const block = msg.content.find((b) => b.type === "text");
