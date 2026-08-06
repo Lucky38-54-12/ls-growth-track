@@ -300,14 +300,14 @@ export default async function TodayPage() {
                   const sentCount = leadSends.length;
 
                   const rowInner = (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", flexWrap: "wrap", rowGap: 8 }}>
                       <div style={{ width: 56, flexShrink: 0, fontSize: 13, fontWeight: 800, color: L.text }}>{timeStr}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ flex: "1 1 200px", minWidth: 160 }}>
+                        <p title={ev.summary || ev.attendeeName || ev.attendeeEmail} style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {ev.summary || ev.attendeeName || ev.attendeeEmail}
                         </p>
                         {subLine && (
-                          <p style={{ fontSize: 11.5, color: L.dimmed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subLine}</p>
+                          <p title={subLine} style={{ fontSize: 11.5, color: L.dimmed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subLine}</p>
                         )}
                       </div>
                       {lead && (
