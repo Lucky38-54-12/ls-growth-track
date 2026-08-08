@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sunrise, Users, Calendar, Columns3, Mail, LogOut, Menu, X } from "lucide-react";
+import { Sunrise, Users, Calendar, Columns3, Mail, MessageCircle, LogOut, Menu, X } from "lucide-react";
 
 const SIDEBAR_BG = "#ffffff";
 const SIDEBAR_BORDER = "#e2e8f0";
@@ -16,6 +16,7 @@ const NAV = [
   { href: "/portal/calendar", label: "Calendar", icon: Calendar },
   { href: "/portal", label: "Leads", icon: Users },
   { href: "/portal/email-sequence", label: "Email sequence", icon: Mail },
+  { href: "/portal/chat", label: "Chat", icon: MessageCircle },
 ];
 
 export default function PortalDashboardLayout({ children }: { children: React.ReactNode }) {

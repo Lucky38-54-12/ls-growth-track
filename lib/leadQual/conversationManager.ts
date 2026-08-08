@@ -29,12 +29,18 @@ export interface FacebookFormLeadInput {
   channelId?: string;
   leadgenId: string;
   fields: Record<string, string>;
+  // Set when importing a historical submission (see leadAdsBackfill.ts) so
+  // the lead reflects when it was actually submitted on Facebook, not when
+  // the backfill job happened to run. Also skips the Slack "new lead" ping,
+  // since a backfill run is dozens of old leads landing at once, not one
+  // new one.
+  submittedAt?: string;
 }
 
 // A Facebook Lead Ads submission already has everything a qualifying chat
 // spends nine exchanges gathering, so it skips runTurn entirely and lands
 // straight in lq_leads — there's no conversation to hold a script against.
-export async function createLeadFromFacebookForm({ clientId, channelId, leadgenId, fields }: FacebookFormLeadInput): Promise<void> {
+export async function createLeadFromFacebookForm({ clientId, channelId, leadgenId, fields, submittedAt }: FacebookFormLeadInput): Promise<void> {
   const sb = createSupabaseClient();
 
   const { data: conversation, error } = await sb
@@ -45,6 +51,7 @@ export async function createLeadFromFacebookForm({ clientId, channelId, leadgenI
       status: "qualified",
       extracted_fields: fields,
       contact: { leadgen_id: leadgenId, name: fields.name || null, email: fields.email || null, phone: fields.phone || null },
+      ...(submittedAt ? { started_at: submittedAt } : {}),
     })
     .select()
     .single();
@@ -57,7 +64,10 @@ export async function createLeadFromFacebookForm({ clientId, channelId, leadgenI
     contact_email: fields.email || null,
     pipeline_stage: "new_inquiry",
     booking_status: "not_applicable",
+    ...(submittedAt ? { created_at: submittedAt } : {}),
   });
+
+  if (submittedAt) return;
 
   const { data: client } = await sb.from("lq_clients").select("name").eq("id", clientId).single();
   await notifySlack(

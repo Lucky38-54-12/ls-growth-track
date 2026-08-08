@@ -79,6 +79,32 @@ function ClientDetailPageInner() {
     setFbConnected(true);
   }
 
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<string | null>(null);
+  const [backfillError, setBackfillError] = useState<string | null>(null);
+
+  async function handleBackfillLeads() {
+    setBackfilling(true);
+    setBackfillError(null);
+    setBackfillResult(null);
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${id}/backfill-leads`, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) {
+        setBackfillError(body.error || "Backfill failed");
+        return;
+      }
+      setBackfillResult(
+        `Checked ${body.formsFound} form(s), found ${body.leadsFound} lead(s) — imported ${body.leadsImported}, already had ${body.leadsSkipped}.`
+      );
+      loadLeads();
+    } catch {
+      setBackfillError("Something went wrong running the backfill.");
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
   const [description, setDescription] = useState("");
   const [services, setServices] = useState("");
   const [serviceAreas, setServiceAreas] = useState("");
@@ -287,6 +313,35 @@ function ClientDetailPageInner() {
       {fbConnected && (
         <div style={{ margin: "20px 28px 0", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", padding: "10px 14px", fontSize: 13, borderRadius: 8 }}>
           Facebook Page connected — Messenger leads for this page will now flow into this client&apos;s AI qualifier.
+        </div>
+      )}
+
+      <div style={{ margin: "20px 28px 0", background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>Backfill Facebook Lead Ad submissions</p>
+          <p style={{ fontSize: 12, color: L.muted }}>
+            Pulls in historical Lead Ad form submissions this client&apos;s connected Page received before now — requires the leads_retrieval permission to be approved.
+          </p>
+        </div>
+        <button
+          onClick={handleBackfillLeads}
+          disabled={backfilling}
+          style={{
+            flexShrink: 0, background: backfilling ? L.dimmed : "var(--red)", color: "#fff", border: "none",
+            padding: "8px 16px", fontSize: 12.5, fontWeight: 700, borderRadius: 8, cursor: backfilling ? "default" : "pointer",
+          }}
+        >
+          {backfilling ? "Backfilling…" : "Run backfill"}
+        </button>
+      </div>
+      {backfillResult && (
+        <div style={{ margin: "10px 28px 0", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", padding: "10px 14px", fontSize: 13, borderRadius: 8 }}>
+          {backfillResult}
+        </div>
+      )}
+      {backfillError && (
+        <div style={{ margin: "10px 28px 0", background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: "10px 14px", fontSize: 13, borderRadius: 8 }}>
+          {backfillError}
         </div>
       )}
 
