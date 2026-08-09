@@ -40,25 +40,37 @@ export async function resolveChannelByPageId(pageId: string): Promise<ResolvedCh
 // Subscribes this app to the Page's webhook fields via the Graph API —
 // this is the step that previously had to be clicked manually in the Meta
 // developer console ("Add Subscriptions") for every new client.
+//
+// subscribed_apps is a REPLACE, not a merge: whatever fields are in the POST
+// become the *entire* subscribed set, dropping anything not listed. Two
+// separate calls (messaging fields, then leadgen) used to run back-to-back
+// here, and the second call was silently wiping out the first — every
+// reconnect and every nightly resubscribe cron run left the page subscribed
+// to leadgen only, with Messenger dead. Must always be a single call with
+// every field the page should have.
+const MESSAGING_FIELDS = "messages,messaging_postbacks,messaging_optins,message_echoes";
+
 async function subscribeWebhookForPage(pageId: string, pageAccessToken: string): Promise<void> {
   const res = await fetch(
-    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins,message_echoes&access_token=${encodeURIComponent(pageAccessToken)}`,
+    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=${MESSAGING_FIELDS},leadgen&access_token=${encodeURIComponent(pageAccessToken)}`,
     { method: "POST" }
   );
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Webhook subscription failed: ${res.status} ${body}`);
-  }
+  if (res.ok) return;
 
   // leadgen (Facebook Lead Ads forms) needs the leads_retrieval permission,
   // which Meta gates behind Advanced Access App Review — a Page connected
   // via personal OAuth won't have it unless that review has gone through.
-  // The Messenger chat this exists for doesn't depend on it, so a client
-  // missing Lead Ads pull-in shouldn't block the whole connection.
-  await fetch(
-    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=leadgen&access_token=${encodeURIComponent(pageAccessToken)}`,
+  // The combined call above fails outright when that permission is missing,
+  // so fall back to messaging-only, which the Messenger chat this exists for
+  // doesn't depend on leadgen for.
+  const fallback = await fetch(
+    `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps?subscribed_fields=${MESSAGING_FIELDS}&access_token=${encodeURIComponent(pageAccessToken)}`,
     { method: "POST" }
-  ).catch(() => {});
+  );
+  if (!fallback.ok) {
+    const body = await fallback.text();
+    throw new Error(`Webhook subscription failed: ${fallback.status} ${body}`);
+  }
 }
 
 // Non-fatal — a client's Page connection shouldn't fail just because the
