@@ -9,7 +9,6 @@ export default function ProspectsTab({ initialProspects }: { initialProspects: P
   const [prospects, setProspects] = useState(initialProspects);
   const [q, setQ] = useState("");
   const [formOpen, setFormOpen] = useState(false);
-  const [pasteMode, setPasteMode] = useState(false);
 
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
@@ -19,6 +18,85 @@ export default function ProspectsTab({ initialProspects }: { initialProspects: P
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  interface ApolloPreview { id: string; firstName: string; lastNameMasked: string | null; title: string | null; company: string | null; hasEmail: boolean; hasDirectPhone: boolean }
+  interface ApolloRevealed { name: string; title: string | null; company: string | null; linkedin_url: string | null; email: string | null; location: string | null }
+
+  const [mode, setMode] = useState<"single" | "paste" | "apollo">("single");
+  const [apolloTitle, setApolloTitle] = useState("");
+  const [apolloKeyword, setApolloKeyword] = useState("");
+  const [apolloLocation, setApolloLocation] = useState("");
+  const [apolloResults, setApolloResults] = useState<ApolloPreview[]>([]);
+  const [apolloRevealed, setApolloRevealed] = useState<Record<string, ApolloRevealed>>({});
+  const [apolloRevealing, setApolloRevealing] = useState<Set<string>>(new Set());
+  const [apolloAdded, setApolloAdded] = useState<Set<string>>(new Set());
+  const [apolloSearching, setApolloSearching] = useState(false);
+
+  async function handleApolloSearch() {
+    setError(""); setApolloSearching(true); setApolloResults([]); setApolloRevealed({}); setApolloAdded(new Set());
+    try {
+      const res = await fetch("/api/growth-hub/apollo-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          personTitles: apolloTitle.trim() ? [apolloTitle.trim()] : undefined,
+          organizationKeywords: apolloKeyword.trim() || undefined,
+          locations: apolloLocation.trim() ? [apolloLocation.trim()] : undefined,
+          perPage: 15,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Apollo search failed");
+      setApolloResults(data.results || []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setApolloSearching(false);
+    }
+  }
+
+  // Spends one Apollo credit — only ever fired for a single person on
+  // explicit click, never automatically for a whole results page.
+  async function handleReveal(id: string) {
+    setError("");
+    setApolloRevealing(prev => new Set(prev).add(id));
+    try {
+      const res = await fetch("/api/growth-hub/apollo-reveal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Reveal failed");
+      setApolloRevealed(prev => ({ ...prev, [id]: data.person }));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setApolloRevealing(prev => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  }
+
+  async function handleAddRevealed(id: string) {
+    const r = apolloRevealed[id];
+    if (!r) return;
+    setError(""); setBusy(true);
+    try {
+      const res = await fetch("/api/growth-hub/prospects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: r.name, company: r.company, industry: apolloKeyword.trim() || null, linkedin_url: r.linkedin_url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add prospect");
+      const added = Array.isArray(data) ? data : [data];
+      setProspects(prev => [...added, ...prev]);
+      setApolloAdded(prev => new Set(prev).add(id));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -34,7 +112,8 @@ export default function ProspectsTab({ initialProspects }: { initialProspects: P
 
   function openAddForm() {
     setName(""); setCompany(""); setIndustry(""); setLinkedinUrl(""); setPasteText("");
-    setPasteMode(false); setError(""); setFormOpen(true);
+    setApolloTitle(""); setApolloKeyword(""); setApolloLocation(""); setApolloResults([]); setApolloRevealed({}); setApolloAdded(new Set());
+    setMode("single"); setError(""); setFormOpen(true);
   }
 
   async function handleToggleConnected(p: Prospect) {
@@ -70,14 +149,14 @@ export default function ProspectsTab({ initialProspects }: { initialProspects: P
   async function handleAdd() {
     setError(""); setBusy(true);
     try {
-      const body = pasteMode
+      const body = mode === "paste"
         ? parsePastedRows(pasteText)
         : { name, company: company || null, industry: industry || null, linkedin_url: linkedinUrl || null };
 
-      if (pasteMode && (body as unknown[]).length === 0) {
+      if (mode === "paste" && (body as unknown[]).length === 0) {
         throw new Error("Paste at least one row with a name");
       }
-      if (!pasteMode && !name.trim()) {
+      if (mode === "single" && !name.trim()) {
         throw new Error("Name is required");
       }
 
@@ -164,23 +243,24 @@ export default function ProspectsTab({ initialProspects }: { initialProspects: P
           onClick={() => setFormOpen(false)}
         >
           <div
-            style={{ width: "100%", maxWidth: 460, background: "#fff", margin: "0 16px", border: `1px solid ${L.border}`, borderRadius: 14, overflow: "hidden", boxShadow: "0 20px 48px rgba(15,23,42,0.22)" }}
+            style={{ width: "100%", maxWidth: mode === "apollo" ? 640 : 460, background: "#fff", margin: "0 16px", border: `1px solid ${L.border}`, borderRadius: 14, overflow: "hidden", boxShadow: "0 20px 48px rgba(15,23,42,0.22)" }}
             onClick={e => e.stopPropagation()}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
-              <p style={{ fontSize: 13, fontWeight: 800, color: L.text }}>Add prospect{pasteMode ? "s" : ""}</p>
+              <p style={{ fontSize: 13, fontWeight: 800, color: L.text }}>Add prospect{mode !== "single" ? "s" : ""}</p>
               <button onClick={() => setFormOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: L.dimmed, display: "flex", padding: 4 }}>
                 <X style={{ width: 14, height: 14 }} />
               </button>
             </div>
 
             <div style={{ padding: "10px 18px 0", display: "flex", gap: 6 }}>
-              <button onClick={() => setPasteMode(false)} className="pill-hover" style={{ padding: "5px 12px", fontSize: 11.5, fontWeight: 700, border: `1px solid ${!pasteMode ? "var(--red)" : L.border}`, background: !pasteMode ? "#fef2f2" : L.surface, color: !pasteMode ? "var(--red)" : L.muted, cursor: "pointer" }}>Single</button>
-              <button onClick={() => setPasteMode(true)} className="pill-hover" style={{ padding: "5px 12px", fontSize: 11.5, fontWeight: 700, border: `1px solid ${pasteMode ? "var(--red)" : L.border}`, background: pasteMode ? "#fef2f2" : L.surface, color: pasteMode ? "var(--red)" : L.muted, cursor: "pointer" }}>Bulk paste</button>
+              <button onClick={() => setMode("single")} className="pill-hover" style={{ padding: "5px 12px", fontSize: 11.5, fontWeight: 700, border: `1px solid ${mode === "single" ? "var(--red)" : L.border}`, background: mode === "single" ? "#fef2f2" : L.surface, color: mode === "single" ? "var(--red)" : L.muted, cursor: "pointer" }}>Single</button>
+              <button onClick={() => setMode("paste")} className="pill-hover" style={{ padding: "5px 12px", fontSize: 11.5, fontWeight: 700, border: `1px solid ${mode === "paste" ? "var(--red)" : L.border}`, background: mode === "paste" ? "#fef2f2" : L.surface, color: mode === "paste" ? "var(--red)" : L.muted, cursor: "pointer" }}>Bulk paste</button>
+              <button onClick={() => setMode("apollo")} className="pill-hover" style={{ padding: "5px 12px", fontSize: 11.5, fontWeight: 700, border: `1px solid ${mode === "apollo" ? "var(--red)" : L.border}`, background: mode === "apollo" ? "#fef2f2" : L.surface, color: mode === "apollo" ? "var(--red)" : L.muted, cursor: "pointer" }}>Search Apollo</button>
             </div>
 
-            <div style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {pasteMode ? (
+            <div style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10, maxHeight: 440, overflowY: "auto" }}>
+              {mode === "paste" ? (
                 <div>
                   <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, display: "block", marginBottom: 5 }}>
                     Paste rows — Name, Company, Industry, LinkedIn URL
@@ -194,6 +274,81 @@ export default function ProspectsTab({ initialProspects }: { initialProspects: P
                   />
                   <p style={{ fontSize: 11, color: L.dimmed, marginTop: 4 }}>One prospect per line, pasted straight from a spreadsheet or Apollo export.</p>
                 </div>
+              ) : mode === "apollo" ? (
+                <>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 140px" }}>
+                      <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, display: "block", marginBottom: 5 }}>Job title</label>
+                      <input value={apolloTitle} onChange={e => setApolloTitle(e.target.value)} placeholder="Owner" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    <div style={{ flex: "1 1 140px" }}>
+                      <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, display: "block", marginBottom: 5 }}>Industry / keyword</label>
+                      <input value={apolloKeyword} onChange={e => setApolloKeyword(e.target.value)} placeholder="cleaning franchise" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    <div style={{ flex: "1 1 140px" }}>
+                      <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, display: "block", marginBottom: 5 }}>Location</label>
+                      <input value={apolloLocation} onChange={e => setApolloLocation(e.target.value)} placeholder="New Zealand" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleApolloSearch}
+                    disabled={apolloSearching || (!apolloTitle.trim() && !apolloKeyword.trim())}
+                    style={{ alignSelf: "flex-start", padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#fff", background: "var(--red)", border: "none", cursor: apolloSearching ? "wait" : "pointer", opacity: apolloSearching || (!apolloTitle.trim() && !apolloKeyword.trim()) ? 0.6 : 1 }}
+                  >
+                    {apolloSearching ? "Searching…" : "Search"}
+                  </button>
+
+                  {apolloResults.length > 0 && (
+                    <div style={{ border: `1px solid ${L.border}` }}>
+                      <p style={{ fontSize: 10.5, color: L.dimmed, padding: "6px 10px", borderBottom: `1px solid ${L.border}`, background: "#f8fafc" }}>
+                        Names are masked until revealed — revealing spends 1 Apollo credit per person.
+                      </p>
+                      {apolloResults.map((r, i) => {
+                        const revealed = apolloRevealed[r.id];
+                        const revealing = apolloRevealing.has(r.id);
+                        const added = apolloAdded.has(r.id);
+                        return (
+                          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderBottom: i < apolloResults.length - 1 ? `1px solid ${L.border}` : "none", fontSize: 12.5 }}>
+                            <span style={{ flex: 1 }}>
+                              {revealed ? (
+                                <>
+                                  <span style={{ fontWeight: 700, color: L.text }}>{revealed.name}</span>
+                                  <span style={{ color: L.muted }}>{revealed.title ? ` — ${revealed.title}` : ""}{revealed.company ? ` @ ${revealed.company}` : ""}</span>
+                                  {revealed.email && <span style={{ color: L.dimmed }}>{" · "}{revealed.email}</span>}
+                                </>
+                              ) : (
+                                <>
+                                  <span style={{ fontWeight: 700, color: L.text }}>{r.firstName} {r.lastNameMasked || ""}</span>
+                                  <span style={{ color: L.muted }}>{r.title ? ` — ${r.title}` : ""}{r.company ? ` @ ${r.company}` : ""}</span>
+                                </>
+                              )}
+                            </span>
+                            {revealed ? (
+                              <button
+                                onClick={() => handleAddRevealed(r.id)}
+                                disabled={busy || added}
+                                style={{ padding: "5px 10px", fontSize: 11.5, fontWeight: 700, color: added ? L.dimmed : "#fff", background: added ? L.surface : "var(--red)", border: added ? `1px solid ${L.border}` : "none", cursor: added ? "default" : "pointer" }}
+                              >
+                                {added ? "Added" : "Add"}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleReveal(r.id)}
+                                disabled={revealing}
+                                style={{ padding: "5px 10px", fontSize: 11.5, fontWeight: 700, color: L.muted, background: L.surface, border: `1px solid ${L.border}`, cursor: revealing ? "wait" : "pointer" }}
+                              >
+                                {revealing ? "Revealing…" : "Reveal"}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {!apolloSearching && apolloResults.length === 0 && (
+                    <p style={{ fontSize: 11.5, color: L.dimmed }}>Search by job title and/or industry keyword — e.g. title "Owner", keyword "cleaning franchise".</p>
+                  )}
+                </>
               ) : (
                 <>
                   <div>
@@ -218,10 +373,16 @@ export default function ProspectsTab({ initialProspects }: { initialProspects: P
             </div>
 
             <div style={{ padding: "12px 18px", borderTop: `1px solid ${L.border}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button onClick={() => setFormOpen(false)} style={{ padding: "8px 16px", fontSize: 12, fontWeight: 600, color: L.muted, background: "#fff", border: `1px solid ${L.border}`, cursor: "pointer" }}>Cancel</button>
-              <button onClick={handleAdd} disabled={busy} style={{ padding: "8px 18px", fontSize: 12, fontWeight: 700, background: "var(--red)", color: "#fff", border: "none", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}>
-                {busy ? "Saving..." : "Add"}
-              </button>
+              {mode === "apollo" ? (
+                <button onClick={() => setFormOpen(false)} style={{ padding: "8px 16px", fontSize: 12, fontWeight: 600, color: L.muted, background: "#fff", border: `1px solid ${L.border}`, cursor: "pointer" }}>Done</button>
+              ) : (
+                <>
+                  <button onClick={() => setFormOpen(false)} style={{ padding: "8px 16px", fontSize: 12, fontWeight: 600, color: L.muted, background: "#fff", border: `1px solid ${L.border}`, cursor: "pointer" }}>Cancel</button>
+                  <button onClick={handleAdd} disabled={busy} style={{ padding: "8px 18px", fontSize: 12, fontWeight: 700, background: "var(--red)", color: "#fff", border: "none", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}>
+                    {busy ? "Saving..." : "Add"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
