@@ -1,5 +1,5 @@
 import { createLeadFromFacebookForm, runTurn } from "@/lib/leadQual/conversationManager";
-import { fetchLeadgenDetails, parseLeadgenFields, resolveChannelByPageId, sendMessengerReply, verifyMetaSignature } from "@/lib/leadQual/meta";
+import { fetchLeadgenDetails, humanRepliedOnFacebook, parseLeadgenFields, resolveChannelByPageId, sendMessengerReply, verifyMetaSignature } from "@/lib/leadQual/meta";
 import { createSupabaseClient } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -157,7 +157,41 @@ export async function POST(request: NextRequest) {
           // paused_at is re-checked one last time right before the message
           // actually goes out to Messenger.
           const { data: stillActive } = await sb.from("lq_conversations").select("paused_at").eq("id", result.conversationId).single();
-          if (!stillActive?.paused_at) {
+
+          // Hard rule: never talk over a human, and never rely solely on
+          // paused_at to know one's there — that flag only gets set if the
+          // echo webhook event for their reply actually arrived, which is
+          // exactly what silently failed once already (see humanRepliedOnFacebook's
+          // comment). This asks Facebook's own thread directly, right before
+          // sending, regardless of what our own state thinks.
+          let humanTookOver = !!stillActive?.paused_at;
+          if (!humanTookOver) {
+            try {
+              const { data: recentAssistantMsgs } = await sb
+                .from("lq_messages")
+                .select("content")
+                .eq("conversation_id", result.conversationId)
+                .eq("role", "assistant")
+                .order("created_at", { ascending: false })
+                .limit(5);
+              const knownTexts = (recentAssistantMsgs || []).map((m) => m.content);
+              const verify = await humanRepliedOnFacebook(event.recipient.id, event.sender.id, channel.pageAccessToken, knownTexts);
+              if (verify.humanReplied) {
+                humanTookOver = true;
+                console.error("lead-qual: human reply detected on Facebook that never reached our webhook, staying silent", {
+                  conversationId: result.conversationId,
+                  message: verify.message,
+                });
+                await sb.from("lq_conversations").update({ paused_at: new Date().toISOString(), status: "needs_human" }).eq("id", result.conversationId);
+              }
+            } catch (err) {
+              // The check itself failing (Graph API hiccup) shouldn't block
+              // every reply forever — fall back to the paused_at result above.
+              console.error("lead-qual meta webhook humanRepliedOnFacebook check failed", err);
+            }
+          }
+
+          if (!humanTookOver) {
             await sendMessengerReply(channel.pageAccessToken, event.sender.id, result.reply);
           }
         }

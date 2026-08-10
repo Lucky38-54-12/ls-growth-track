@@ -112,6 +112,50 @@ export async function connectMessengerPage(clientId: string, pageId: string, pag
   }
 }
 
+// Every other "don't talk over a human" check (isHumanStaffEcho, paused_at)
+// depends on Meta's echo webhook event actually arriving — which is exactly
+// what silently failed for a Katie's Elite Cleaning lead (Ying Wood): staff
+// replied manually in the Page inbox, the echo never reached us (mid-outage),
+// paused_at never got set, and the AI carried on qualifying her days later as
+// if no one had said a word — flatly contradicting the quote staff had
+// already given her. This is the hard backstop: right before actually
+// sending, ask Facebook's own thread — the one source of truth that doesn't
+// depend on our webhook — whether the Page has said anything we don't
+// recognize as our own. If so, treat it as a human takeover regardless of
+// what paused_at says.
+export async function humanRepliedOnFacebook(
+  pageId: string,
+  psid: string,
+  pageAccessToken: string,
+  knownAssistantTexts: string[]
+): Promise<{ humanReplied: boolean; message?: string }> {
+  const convRes = await fetch(
+    `https://graph.facebook.com/v20.0/${pageId}/conversations?fields=participants&limit=10&access_token=${encodeURIComponent(pageAccessToken)}`
+  );
+  const convBody = await convRes.json();
+  if (convBody.error) throw new Error(`humanRepliedOnFacebook conversations lookup failed: ${JSON.stringify(convBody.error)}`);
+
+  const thread = (convBody.data || []).find((c: { participants?: { data?: { id: string }[] } }) =>
+    (c.participants?.data || []).some((p) => p.id === psid)
+  );
+  if (!thread) return { humanReplied: false }; // no thread yet (brand new lead) — nothing to check against
+
+  const msgRes = await fetch(
+    `https://graph.facebook.com/v20.0/${thread.id}/messages?fields=from,message&limit=5&access_token=${encodeURIComponent(pageAccessToken)}`
+  );
+  const msgBody = await msgRes.json();
+  if (msgBody.error) throw new Error(`humanRepliedOnFacebook messages lookup failed: ${JSON.stringify(msgBody.error)}`);
+
+  const normalized = knownAssistantTexts.map((t) => t.trim());
+  for (const msg of msgBody.data || []) {
+    if (msg.from?.id !== pageId) break; // walked past the lead's own most recent message, nothing further back matters
+    if (msg.message && !normalized.includes(msg.message.trim())) {
+      return { humanReplied: true, message: msg.message };
+    }
+  }
+  return { humanReplied: false };
+}
+
 export async function sendMessengerReply(pageAccessToken: string, recipientPsid: string, text: string): Promise<void> {
   const res = await fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${encodeURIComponent(pageAccessToken)}`, {
     method: "POST",
