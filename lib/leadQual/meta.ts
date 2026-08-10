@@ -140,18 +140,29 @@ export async function humanRepliedOnFacebook(
   );
   if (!thread) return { humanReplied: false }; // no thread yet (brand new lead) — nothing to check against
 
+  // Facebook returns newest-first. Must find the single most recent message
+  // the PAGE itself sent, however many lead-only messages sit on top of it —
+  // not just the messages at the very top of the list. A lead who goes quiet
+  // for weeks after a human quoted them, then messages back once more,
+  // pushes that human message below their own most recent one; stopping at
+  // the first non-Page message (the old, buggy version of this check) walks
+  // right past it and misses the human takeover entirely. This is exactly
+  // what happened with Marcus Vize Senior (Katie's Elite Cleaning): staff
+  // quoted him in person on Aug 1, he replied three weeks later, and this
+  // check's earlier version only looked at his own most recent message
+  // before giving up, never seeing the staff quote sitting just below it.
   const msgRes = await fetch(
-    `https://graph.facebook.com/v20.0/${thread.id}/messages?fields=from,message&limit=5&access_token=${encodeURIComponent(pageAccessToken)}`
+    `https://graph.facebook.com/v20.0/${thread.id}/messages?fields=from,message&limit=25&access_token=${encodeURIComponent(pageAccessToken)}`
   );
   const msgBody = await msgRes.json();
   if (msgBody.error) throw new Error(`humanRepliedOnFacebook messages lookup failed: ${JSON.stringify(msgBody.error)}`);
 
   const normalized = knownAssistantTexts.map((t) => t.trim());
-  for (const msg of msgBody.data || []) {
-    if (msg.from?.id !== pageId) break; // walked past the lead's own most recent message, nothing further back matters
-    if (msg.message && !normalized.includes(msg.message.trim())) {
-      return { humanReplied: true, message: msg.message };
-    }
+  const lastPageMessage = (msgBody.data || []).find(
+    (msg: { from?: { id?: string }; message?: string }) => msg.from?.id === pageId
+  );
+  if (lastPageMessage?.message && !normalized.includes(lastPageMessage.message.trim())) {
+    return { humanReplied: true, message: lastPageMessage.message };
   }
   return { humanReplied: false };
 }
