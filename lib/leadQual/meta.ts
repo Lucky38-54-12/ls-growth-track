@@ -167,6 +167,74 @@ export async function humanRepliedOnFacebook(
   return { humanReplied: false };
 }
 
+export interface HumanTakeover {
+  clientName: string;
+  conversationId: string;
+  message: string;
+}
+
+// humanRepliedOnFacebook only ever runs when a lead messages back in, so a
+// conversation a human quietly took over stays invisible in our own system
+// until (if ever) that lead sends another message. 15 of Katie's Elite
+// Cleaning's conversations were found sitting in exactly this state on
+// 2026-08-10, discovered only by manually running this same check against
+// every conversation — nothing caught them automatically. Folded into the
+// daily cron so this happens on its own from now on instead of relying on
+// someone remembering to check.
+export async function reconcileHumanTakeovers(): Promise<HumanTakeover[]> {
+  const sb = createSupabaseClient();
+  const { data: channels } = await sb
+    .from("lq_channels")
+    .select("id, external_page_id, credentials, client_id, lq_clients(name)")
+    .eq("type", "messenger");
+
+  const takeovers: HumanTakeover[] = [];
+
+  for (const channel of channels || []) {
+    const clientName = (channel.lq_clients as unknown as { name: string } | null)?.name || "unknown client";
+    let token: string;
+    try {
+      token = decryptSecret(channel.credentials as unknown as Buffer);
+    } catch {
+      continue; // dead/undecryptable token — channel-health check already surfaces this separately
+    }
+
+    const { data: convos } = await sb
+      .from("lq_conversations")
+      .select("id, contact")
+      .eq("client_id", channel.client_id)
+      .eq("channel_id", channel.id)
+      .is("paused_at", null)
+      .neq("status", "needs_human");
+
+    for (const convo of convos || []) {
+      const psid = (convo.contact as { psid?: string } | null)?.psid;
+      if (!psid) continue;
+
+      const { data: assistantMsgs } = await sb
+        .from("lq_messages")
+        .select("content")
+        .eq("conversation_id", convo.id)
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      const knownTexts = (assistantMsgs || []).map((m) => m.content);
+
+      try {
+        const verify = await humanRepliedOnFacebook(channel.external_page_id, psid, token, knownTexts);
+        if (verify.humanReplied) {
+          await sb.from("lq_conversations").update({ paused_at: new Date().toISOString(), status: "needs_human" }).eq("id", convo.id);
+          takeovers.push({ clientName, conversationId: convo.id, message: verify.message || "" });
+        }
+      } catch (err) {
+        console.error("reconcileHumanTakeovers check failed for conversation", convo.id, err);
+      }
+    }
+  }
+
+  return takeovers;
+}
+
 export async function sendMessengerReply(pageAccessToken: string, recipientPsid: string, text: string): Promise<void> {
   const res = await fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${encodeURIComponent(pageAccessToken)}`, {
     method: "POST",

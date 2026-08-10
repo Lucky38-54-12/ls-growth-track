@@ -10,7 +10,7 @@ import { escalateStaleReplies } from "@/lib/staleReplies";
 import { sendDueProposalFollowups } from "@/lib/proposalFollowup";
 import { sendColdCallNudges } from "@/lib/coldCallNudges";
 import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
-import { checkMessengerChannelHealth, resubscribeAllMessengerChannels } from "@/lib/leadQual/meta";
+import { checkMessengerChannelHealth, reconcileHumanTakeovers, resubscribeAllMessengerChannels } from "@/lib/leadQual/meta";
 import { notifySlack } from "@/lib/slackNotify";
 
 export const dynamic = "force-dynamic";
@@ -113,6 +113,23 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     results.messengerHealth = { error: e instanceof Error ? e.message : "messenger health check failed" };
+  }
+
+  try {
+    // Catches conversations a human quietly took over that humanRepliedOnFacebook
+    // (the per-message hard rule in the webhook) never got a chance to see,
+    // because that check only fires when the lead messages back in. Without
+    // this, a human-handled conversation just sits unpaused indefinitely.
+    const takeovers = await reconcileHumanTakeovers();
+    results.humanTakeovers = { count: takeovers.length };
+    if (takeovers.length > 0) {
+      await notifySlack(
+        `🙋 Found ${takeovers.length} lead-qual conversation(s) a human already replied to that weren't marked paused — locked to needs_human now:\n` +
+        takeovers.map((t) => `• *${t.clientName}* (${t.conversationId}): "${t.message.slice(0, 100)}"`).join("\n")
+      );
+    }
+  } catch (e) {
+    results.humanTakeovers = { error: e instanceof Error ? e.message : "human takeover reconciliation failed" };
   }
 
   return NextResponse.json(results);

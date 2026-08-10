@@ -185,9 +185,17 @@ export async function POST(request: NextRequest) {
                 await sb.from("lq_conversations").update({ paused_at: new Date().toISOString(), status: "needs_human" }).eq("id", result.conversationId);
               }
             } catch (err) {
-              // The check itself failing (Graph API hiccup) shouldn't block
-              // every reply forever — fall back to the paused_at result above.
-              console.error("lead-qual meta webhook humanRepliedOnFacebook check failed", err);
+              // Fail CLOSED, not open: this check exists specifically because
+              // trusting our own state (paused_at) once let the AI talk over
+              // a human twice already. If the one thing that actually verifies
+              // against Facebook can't run, silently sending anyway defeats
+              // the entire point of the check — better to skip one reply and
+              // flag it for a human than risk contradicting one who already
+              // replied. Marked needs_human so it surfaces for review rather
+              // than silently vanishing.
+              humanTookOver = true;
+              console.error("lead-qual meta webhook humanRepliedOnFacebook check failed, staying silent (fail closed)", err);
+              await sb.from("lq_conversations").update({ status: "needs_human" }).eq("id", result.conversationId);
             }
           }
 
