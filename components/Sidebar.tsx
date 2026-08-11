@@ -3,20 +3,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, Users, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, Megaphone, Mailbox, Settings, Bot, BarChart3, Zap, Rows3, PhoneCall, Rocket, Flame, Menu, X, Sparkles, LineChart, ListChecks,
+  LayoutDashboard, Users, Phone, Calendar, Sun, Inbox, ScanSearch, Mailbox, Settings, Bot, Zap, Rows3, PhoneCall, Rocket, Flame, Menu, X, Sparkles, LineChart, ListChecks,
 } from "lucide-react";
 
 const NAV = [
   { href: "/dashboard/today", label: "Today", icon: Sun },
   { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
-  { href: "/dashboard/email-pipeline", label: "Email Pipeline", icon: Rows3 },
+  { href: "/dashboard/email-outreach", label: "Email Outreach", icon: Rows3 },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/lead-qual", label: "Onboarding", icon: Bot },
   { href: "/dashboard/sales-calls", label: "Sales", icon: PhoneCall },
   { href: "/dashboard/discovery-pipeline", label: "Discovery Pipeline", icon: Flame },
   { href: "/dashboard/growth-hub", label: "Growth Hub", icon: Rocket },
-  { href: "/dashboard/campaigns", label: "Campaigns", icon: Megaphone },
-  { href: "/dashboard/campaign-tracking", label: "Campaign Tracking", icon: BarChart3 },
   { href: "/dashboard/automations", label: "Automations", icon: Zap },
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
@@ -26,7 +24,6 @@ const NAV = [
   { href: "/dashboard/scraper", label: "Scraper", icon: ScanSearch },
   { href: "/dashboard/ad-research", label: "Ad Research", icon: Sparkles },
   { href: "/dashboard/meta-ads", label: "Meta Ads Performance", icon: LineChart },
-  { href: "/dashboard/warm", label: "Email Tracking", icon: MailOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

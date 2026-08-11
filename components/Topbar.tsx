@@ -1,24 +1,22 @@
 "use client";
-import { Bell, Search, X, LayoutDashboard, Users, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, Megaphone, Mailbox, Bot, Rows3, PhoneCall, Rocket, Flame } from "lucide-react";
+import { Bell, Search, X, LayoutDashboard, Users, Phone, Calendar, Sun, Inbox, ScanSearch, Mailbox, Bot, Rows3, PhoneCall, Rocket, Flame } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 const SEARCH_ITEMS = [
   { label: "Today", href: "/dashboard/today", icon: Sun },
   { label: "Pipeline", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Email Pipeline", href: "/dashboard/email-pipeline", icon: Rows3 },
+  { label: "Email Outreach", href: "/dashboard/email-outreach", icon: Rows3 },
   { label: "Contacts", href: "/dashboard/contacts", icon: Users },
   { label: "Onboarding", href: "/dashboard/lead-qual", icon: Bot },
   { label: "Sales", href: "/dashboard/sales-calls", icon: PhoneCall },
   { label: "Discovery Pipeline", href: "/dashboard/discovery-pipeline", icon: Flame },
   { label: "Growth Hub", href: "/dashboard/growth-hub", icon: Rocket },
-  { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar },
   { label: "Inbox", href: "/dashboard/inbox", icon: Inbox },
   { label: "Outreach Inbox", href: "/dashboard/outreach-inbox", icon: Mailbox },
   { label: "Cold Call", href: "/dashboard/cold-call", icon: Phone },
   { label: "Scraper", href: "/dashboard/scraper", icon: ScanSearch },
-  { label: "Email Tracking", href: "/dashboard/warm", icon: MailOpen },
 ];
 
 export default function Topbar({ title, subtitle }: { title: string; subtitle?: string }) {
