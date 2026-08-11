@@ -9,7 +9,6 @@ interface AdIdea {
   headline: string;
   angle: string;
   offer: string | null;
-  platform: string;
   format: string;
   why_it_works: string;
   source_url: string | null;
@@ -54,7 +53,7 @@ export default function AdResearchPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-      <Topbar title="Ad Research" subtitle="Find ad angles that are working for a given trade/niche" />
+      <Topbar title="Ad Research" subtitle="Find Meta (Facebook/Instagram) ad angles that are working for a given trade/niche" />
 
       <div style={{ maxWidth: 900, margin: "28px auto", padding: "0 28px", display: "flex", flexDirection: "column", gap: 20, width: "100%" }}>
 
@@ -100,7 +99,7 @@ export default function AdResearchPage() {
                 {loading ? "Researching…" : "Find Working Ads"}
               </button>
               <span style={{ fontSize: 12, color: L.dimmed }}>
-                Searches ad libraries and the web — usually takes 20-40s.
+                Searches Meta Ad Library and the web — usually takes 20-40s.
               </span>
             </div>
           </form>
@@ -132,8 +131,6 @@ export default function AdResearchPage() {
                   </div>
 
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10, fontSize: 12, color: L.muted }}>
-                    <span>{ad.platform}</span>
-                    <span>·</span>
                     <span>{ad.format}</span>
                     {ad.offer && <><span>·</span><span>Offer: {ad.offer}</span></>}
                   </div>

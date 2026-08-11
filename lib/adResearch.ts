@@ -4,7 +4,6 @@ export interface AdIdea {
   headline: string;
   angle: string;
   offer: string | null;
-  platform: string;
   format: string;
   why_it_works: string;
   source_url: string | null;
@@ -27,15 +26,14 @@ function parseJsonResponse<T>(text: string): T {
   }
 }
 
-const SYSTEM_PROMPT = `You research paid ads for Lucky from LS Growth, a lead generation agency that runs Facebook/Instagram and Google ads for trade and home service businesses in NZ and Australia. He gives you a trade/niche (optionally with a sub-focus and location) and wants to know what ad angles, hooks, and offers are actually being run right now for that niche, so he can adapt the best ones for his own clients' campaigns.
+const SYSTEM_PROMPT = `You research paid Meta ads for Lucky from LS Growth, a lead generation agency that runs Meta ads for trade and home service businesses in NZ and Australia. He gives you a trade/niche (optionally with a sub-focus and location) and wants to know what ad angles, hooks, and offers are actually working right now on the Meta paid ads side for that niche, so he can adapt the best ones for his own clients' campaigns.
 
-Use the web_search tool to find real, current examples. Good sources: Meta Ad Library (facebook.com/ads/library — search by the trade/niche and country), Google Ads Transparency Center (adstransparency.google.com), agency case studies or blog posts about trade/home-service ad campaigns, and competitor landing pages or Facebook pages running ads. Do several searches with different phrasings (e.g. "electrician facebook ads library nz", "bathroom renovation ads examples", "[niche] ad library", "[niche] facebook ad case study") before answering — don't stop after one search.
+Use the web_search tool to find real, current examples, focused only on Meta paid ads — not Google or other platforms. Good sources: Meta Ad Library (facebook.com/ads/library — search by the trade/niche and country), agency case studies or blog posts specifically about Meta ad campaigns for trades/home services, and competitor pages running Meta ads. Do several searches with different phrasings (e.g. "electrician meta ads library nz", "bathroom renovation meta ads examples", "[niche] meta ad library", "[niche] meta ads case study") before answering — don't stop after one search.
 
 For each ad example you find, extract:
 - headline: the actual hook/headline text if you found real copy, otherwise your best reconstruction of the angle as a short headline
 - angle: the psychological/marketing angle in a few words (e.g. "urgency + free quote", "before/after social proof", "price transparency")
 - offer: the specific offer/CTA if there is one (e.g. "free quote within 24hrs"), or null
-- platform: where you found or believe it runs (Facebook, Instagram, Google Search, etc.)
 - format: image, video, carousel, before/after photo, testimonial, etc — best guess if not stated
 - why_it_works: one sentence on why this angle likely converts for this niche
 - source_url: the URL you found it or evidence of it at, or null if you're inferring a common pattern rather than citing one specific ad
@@ -46,7 +44,7 @@ Only report source_url and source_business when you actually found that specific
 Aim for 6-10 ad ideas, ordered with the strongest / most well-evidenced first.
 
 After searching, respond with ONLY a JSON object as your final message, no markdown fences, no other text:
-{"summary": "2-3 sentence overview of what's working in this niche right now", "ads": [{"headline": "...", "angle": "...", "offer": "..." or null, "platform": "...", "format": "...", "why_it_works": "...", "source_url": "..." or null, "source_business": "..." or null}]}`;
+{"summary": "2-3 sentence overview of what's working in this niche right now", "ads": [{"headline": "...", "angle": "...", "offer": "..." or null, "format": "...", "why_it_works": "...", "source_url": "..." or null, "source_business": "..." or null}]}`;
 
 export async function findWorkingAds(niche: string, location: string): Promise<AdResearchResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -79,7 +77,6 @@ Find ads that are currently working for this niche and give me ideas I can adapt
       headline: a.headline || "",
       angle: a.angle || "",
       offer: a.offer || null,
-      platform: a.platform || "",
       format: a.format || "",
       why_it_works: a.why_it_works || "",
       source_url: a.source_url || null,
