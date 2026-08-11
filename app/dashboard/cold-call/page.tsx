@@ -27,6 +27,7 @@ export default function ColdCallPage() {
   const [email, setEmail] = useState("");
   const [trade, setTrade] = useState("");
   const [location, setLocation] = useState("");
+  const [phone, setPhone] = useState("");
 
   const [callNotes, setCallNotes] = useState("");
   const [meetingDateTime, setMeetingDateTime] = useState("");
@@ -103,6 +104,7 @@ export default function ColdCallPage() {
       setEmail(result.email || "");
       setTrade(result.trade || "");
       setLocation(result.location || "");
+      setPhone(result.phone || "");
       setMeetingDateTime(result.meetingDateTime || "");
       setSubject(result.subject);
       setBodyHtml(result.bodyHtml);
@@ -147,7 +149,7 @@ export default function ColdCallPage() {
     const leadRes = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ company, contact_name: contactName, email, trade, location, source: "cold_call", sendInitialEmail: false }),
+      body: JSON.stringify({ company, contact_name: contactName, email, trade, location, phone, source: "cold_call", sendInitialEmail: false }),
     });
     const leadData = await leadRes.json();
     if (leadData.error) { setLoading(false); setError(leadData.error); return; }
@@ -263,6 +265,10 @@ export default function ColdCallPage() {
                         <label>Location</label>
                         <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Auckland NZ" />
                       </div>
+                    </div>
+                    <div>
+                      <label>Phone</label>
+                      <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 021 123 4567" />
                     </div>
                   </div>
                 </div>

@@ -10,6 +10,7 @@ import { escalateStaleReplies } from "@/lib/staleReplies";
 import { sendDueProposalFollowups } from "@/lib/proposalFollowup";
 import { sendColdCallNudges } from "@/lib/coldCallNudges";
 import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
+import { sendLowQueueNudge } from "@/lib/callQueueNudge";
 import { checkMessengerChannelHealth, reconcileHumanTakeovers, resubscribeAllMessengerChannels } from "@/lib/leadQual/meta";
 import { notifySlack } from "@/lib/slackNotify";
 
@@ -93,6 +94,12 @@ export async function GET(req: NextRequest) {
     results.weeklyDigest = await sendWeeklyDigestIfDue(sb);
   } catch (e) {
     results.weeklyDigest = { error: e instanceof Error ? e.message : "weekly digest failed" };
+  }
+
+  try {
+    results.callQueueNudge = await sendLowQueueNudge(sb);
+  } catch (e) {
+    results.callQueueNudge = { error: e instanceof Error ? e.message : "call queue nudge failed" };
   }
 
   try {

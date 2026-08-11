@@ -24,6 +24,13 @@ export default function ScraperPage() {
   const logRef   = useRef<HTMLDivElement>(null);
   const esRef    = useRef<EventSource | null>(null);
 
+  // Prefill from the Call Queue's "running low — scrape more" link
+  // (?q=<trade city>), without pulling in useSearchParams/Suspense.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setQuery(q);
+  }, []);
+
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [log]);

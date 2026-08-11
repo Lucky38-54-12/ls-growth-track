@@ -22,7 +22,16 @@ export const BOOKING_URL = process.env.BOOKING_URL || "https://lsgrowth.agency/b
 // A plain personal name costs nothing (the from address and domain, which
 // are what actually carry SPF/DKIM auth, are unchanged) and is a safer bet.
 const BULK_FROM = "Lucky <outreach@lsgrowth.agency>";
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Constructed lazily, not at module scope — this file gets imported (and
+// therefore evaluated) by every route that touches it during Next's build-time
+// "collecting page data" pass, including ones that never send bulk email. A
+// missing RESEND_API_KEY in that environment used to throw at import time and
+// fail the whole build rather than just the one send call that needed it.
+let resend: Resend | null = null;
+function getResend(): Resend {
+  if (!resend) resend = new Resend(process.env.RESEND_API_KEY);
+  return resend;
+}
 
 function getTransport() {
   return nodemailer.createTransport({
@@ -47,7 +56,7 @@ function getZohoTransport() {
 }
 
 async function sendBulkMail(opts: { to: string; subject: string; html: string; text: string }) {
-  const { error } = await resend.emails.send({
+  const { error } = await getResend().emails.send({
     from: BULK_FROM,
     to: opts.to,
     subject: opts.subject,

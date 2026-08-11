@@ -272,3 +272,123 @@ export function groupBySegment(items: { trade: string; location: string }[]): Se
     return b.count - a.count;
   });
 }
+
+// --- Call Queue: which trade+city segments already have enough live
+// meetings that further cold-calling there is a waste, and which leads
+// should surface as "call this next". ---
+
+// A trade+city counts as saturated while it has this many leads sitting in
+// a "meeting is live or won" status. Deliberately excludes no_show/no_close
+// (a meeting that fell through) so a segment automatically re-opens for
+// calling once its meetings stop panning out — matches how Lucky actually
+// wants to work a market: back off once you've got meetings, come back if
+// they don't convert.
+// lead.status is typed as LeadStatus but the cold-call flow (see
+// coldCallStatus.ts) actually writes several extra free-text values the
+// union doesn't declare (meeting_booked, called, emailed, ...) — use plain
+// strings here so those values still type-check.
+export const SATURATING_STATUSES = new Set<string>([
+  "meeting_booked",
+  "booked",
+  "rebooked",
+  "proposal_sent",
+  "closed",
+]);
+
+export const DEFAULT_SATURATION_THRESHOLD = 3;
+
+// A fresh (non-saturated) segment counts as "running low" once it's down to
+// this many un-called leads left — shared by the Call Queue page's badge and
+// the daily low-queue Slack nudge so the two never disagree on the number.
+export const LOW_QUEUE_THRESHOLD = 5;
+
+// Statuses where a lead is done being called — never belongs in the queue
+// regardless of segment saturation.
+const QUEUE_EXCLUDED_STATUSES = new Set<string>([
+  "not_interested",
+  "bounced",
+  "closed",
+  "no_close",
+]);
+
+export interface SegmentSaturation extends Segment {
+  saturated: boolean;
+}
+
+// Live meeting count per trade+city segment. Only leads in SATURATING_STATUSES
+// count — a segment with 3 booked meetings that all no-show drops back to 0.
+export function computeSegmentSaturation(
+  leads: { trade: string; location: string; status: string }[],
+  threshold: number = DEFAULT_SATURATION_THRESHOLD
+): Map<string, SegmentSaturation> {
+  const map = new Map<string, SegmentSaturation>();
+  for (const lead of leads) {
+    if (!SATURATING_STATUSES.has(lead.status)) continue;
+    const trade = (lead.trade || "").trim();
+    const location = (lead.location || "").trim();
+    const key = segmentKey(trade, location);
+    const entry = map.get(key);
+    if (entry) entry.count++;
+    else map.set(key, { key, trade, location, count: 1, saturated: false });
+  }
+  for (const entry of map.values()) entry.saturated = entry.count >= threshold;
+  return map;
+}
+
+export interface CallQueueGroup {
+  key: string;
+  trade: string;
+  location: string;
+  leads: Lead[];
+}
+
+export interface CallQueue {
+  // Leads with a follow_up_at date that's due (today or earlier), oldest first.
+  callbacksDue: Lead[];
+  // Never-called leads, grouped by trade+city, saturated segments filtered out.
+  freshBySegment: CallQueueGroup[];
+  // Saturated segments, for a "why aren't these showing" summary — includes
+  // how many never-called leads are sitting dormant behind the saturation.
+  saturatedSegments: (SegmentSaturation & { dormantCount: number })[];
+}
+
+export function buildCallQueue(
+  leads: Lead[],
+  threshold: number = DEFAULT_SATURATION_THRESHOLD,
+  today: string = new Date().toISOString().split("T")[0]
+): CallQueue {
+  const saturation = computeSegmentSaturation(leads, threshold);
+
+  const callbacksDue = leads
+    .filter((l) => l.follow_up_at && l.follow_up_at <= today && !QUEUE_EXCLUDED_STATUSES.has(l.status))
+    .sort((a, b) => (a.follow_up_at as string).localeCompare(b.follow_up_at as string));
+
+  const freshLeads = leads.filter((l) => l.status === "not_contacted");
+
+  const freshGroups = new Map<string, CallQueueGroup>();
+  const dormantCounts = new Map<string, number>();
+  for (const lead of freshLeads) {
+    const trade = (lead.trade || "").trim();
+    const location = (lead.location || "").trim();
+    const key = segmentKey(trade, location);
+    if (saturation.get(key)?.saturated) {
+      dormantCounts.set(key, (dormantCounts.get(key) || 0) + 1);
+      continue;
+    }
+    let group = freshGroups.get(key);
+    if (!group) {
+      group = { key, trade, location, leads: [] };
+      freshGroups.set(key, group);
+    }
+    group.leads.push(lead);
+  }
+
+  const freshBySegment = Array.from(freshGroups.values()).sort((a, b) => b.leads.length - a.leads.length);
+
+  const saturatedSegments = Array.from(saturation.values())
+    .filter((s) => s.saturated)
+    .map((s) => ({ ...s, dormantCount: dormantCounts.get(s.key) || 0 }))
+    .sort((a, b) => b.count - a.count);
+
+  return { callbacksDue, freshBySegment, saturatedSegments };
+}

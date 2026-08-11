@@ -37,7 +37,7 @@ export default async function ColdCallPipelinePage() {
 
       <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px" }}>
         {queueCount > 0 && (
-          <Link href="/dashboard/cold-call" className="card-hover" style={{
+          <Link href="/dashboard/call-queue" className="card-hover" style={{
             display: "flex", alignItems: "center", gap: 12,
             background: "#fef2f2", border: "1px solid #fecaca", padding: "12px 16px", textDecoration: "none", marginBottom: 16,
           }}>

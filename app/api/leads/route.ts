@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     email,
     trade: body.trade || "",
     location: body.location || "",
+    phone: body.phone || "",
     status: body.source === "cold_call" ? "called" : "not_contacted",
     date_added: today,
     date_contacted: null,
