@@ -1,8 +1,7 @@
 import { Suspense } from "react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import { Lead, EmailEvent, EmailSend, EngagementSummary } from "@/lib/types";
-import { Phone, Calendar, Video } from "lucide-react";
+import { Calendar, Video } from "lucide-react";
 import Topbar from "@/components/Topbar";
 import PipelineBoard from "@/components/PipelineBoard";
 import BackfillNamesButton from "@/components/BackfillNamesButton";
@@ -27,11 +26,7 @@ const COLD_CALL_COLUMNS: { key: string; label: string }[] = [
   { key: "no_close", label: "No Close" },
 ];
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: { segment?: string };
-}) {
+export default async function DashboardPage() {
   const sb = createSupabaseClient();
 
   const [leads, { data: events }, { data: sends }, todaysMeetings, { count: namesRemaining }] = await Promise.all([
@@ -66,16 +61,7 @@ export default async function DashboardPage({
   const coldCallLeads = allLeads.filter(l => l.source === "cold_call");
   const pipelineLeads = coldCallLeads.filter(l => l.status !== "not_contacted" && !l.post_call_stage);
 
-  // Trade/city segments become filter pills instead of separate stacked
-  // boards — clicking one narrows the single board down to just that group.
-  const segments = groupBySegment(pipelineLeads).map(s => ({ key: s.key, label: segmentLabel(s.trade, s.location), count: s.count }));
-  const activeSegment = searchParams?.segment || "";
-  const visibleLeads = activeSegment
-    ? pipelineLeads.filter(l => segmentKey(l.trade, l.location) === activeSegment)
-    : pipelineLeads;
-  const activeLabel = activeSegment ? (segments.find(s => s.key === activeSegment)?.label || "Cold Call Leads") : "All Cold Call Leads";
-
-  const sections = [{ key: activeSegment || "all", label: activeLabel, leads: visibleLeads }];
+  const sections = [{ key: "all", label: "All Cold Call Leads", leads: pipelineLeads }];
   const columns = COLD_CALL_COLUMNS;
 
   return (
@@ -111,27 +97,7 @@ export default async function DashboardPage({
           </Link>
         )}
 
-        {/* Segment filter pills — click one to narrow the board to just that trade/city */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <Link href="/dashboard" className="btn-lift" style={{
-            display: "flex", alignItems: "center", gap: 6,
-            background: !activeSegment ? "var(--blue)" : L.surface,
-            color: !activeSegment ? "#fff" : L.muted,
-            border: !activeSegment ? "none" : `1px solid ${L.border}`,
-            padding: "8px 14px", fontSize: 11.5, fontWeight: 700, textDecoration: "none", flexShrink: 0,
-          }}>
-            <Phone style={{ width: 13, height: 13 }} /> All ({pipelineLeads.length})
-          </Link>
-          {segments.map(s => (
-            <Link key={s.key} href={`/dashboard?segment=${encodeURIComponent(s.key)}`} className="pill-hover" style={{
-              padding: "8px 14px",
-              background: activeSegment === s.key ? "var(--blue)" : L.surface,
-              color: activeSegment === s.key ? "#fff" : L.muted,
-              border: activeSegment === s.key ? "none" : `1px solid ${L.border}`,
-              fontSize: 11.5, fontWeight: 600, textDecoration: "none", transition: "all 0.15s",
-            }}>{s.label} ({s.count})</Link>
-          ))}
-          <div style={{ flex: 1 }} />
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <BackfillNamesButton totalRemaining={namesRemaining || 0} />
         </div>
 
