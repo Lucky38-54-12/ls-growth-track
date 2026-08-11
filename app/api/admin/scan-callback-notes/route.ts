@@ -39,14 +39,14 @@ function looksLikeDeferredInterest(company: string, outcome: string, callBack: s
   return INTEREST_HINTS.some((hint) => blob.includes(hint));
 }
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, retries = 4): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
     } catch (e) {
       const message = e instanceof Error ? e.message : "";
       if (attempt >= retries || !message.includes("Quota exceeded")) throw e;
-      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      await new Promise((r) => setTimeout(r, 2500 * (attempt + 1)));
     }
   }
 }
@@ -90,6 +90,7 @@ export async function GET(req: NextRequest) {
     spaces: "drive",
     fields: "files(id, name)",
     pageSize: 200,
+    orderBy: "name",
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
     corpora: "allDrives",
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest) {
   // Read every sheet in the batch, capped at a small concurrency — fully
   // serial blew the 60s function timeout, fully parallel blew the Sheets
   // API per-minute read quota.
-  await mapWithConcurrency(batch, 4, async (file) => {
+  await mapWithConcurrency(batch, 2, async (file) => {
     if (!file.id) return;
     try {
       const [title, rows] = await Promise.all([
