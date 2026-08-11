@@ -4,7 +4,6 @@ import { groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import { Lead, EmailEvent, EmailSend, EngagementSummary } from "@/lib/types";
 import { Phone, Calendar, Video } from "lucide-react";
 import Topbar from "@/components/Topbar";
-import PipelineStats from "@/components/PipelineStats";
 import PipelineBoard from "@/components/PipelineBoard";
 import BackfillNamesButton from "@/components/BackfillNamesButton";
 import FlashMessage from "./FlashMessage";
@@ -111,8 +110,6 @@ export default async function DashboardPage({
             </div>
           </Link>
         )}
-
-        <PipelineStats allLeads={pipelineLeads} />
 
         {/* Segment filter pills — click one to narrow the board to just that trade/city */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
