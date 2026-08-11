@@ -57,7 +57,7 @@ function btnStyle(variant: "primary" | "ghost" | "danger" | "outline"): React.CS
   return { ...base, background: "transparent", color: L.muted };
 }
 
-export default function MailboxView({ account, title, subtitle }: { account: Account; title: string; subtitle: string }) {
+export default function MailboxView({ account, title, subtitle, embedded }: { account: Account; title: string; subtitle: string; embedded?: boolean }) {
   const [tab, setTab] = useState<Mailbox>("inbox");
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -234,7 +234,7 @@ export default function MailboxView({ account, title, subtitle }: { account: Acc
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: embedded ? "72vh" : "100vh", border: embedded ? `1px solid ${L.border}` : "none" }}>
       <style suppressHydrationWarning>{`
         @media (max-width: 760px) {
           .mailbox-body { flex-direction: column; }
@@ -246,7 +246,7 @@ export default function MailboxView({ account, title, subtitle }: { account: Acc
           .mailbox-compose { width: calc(100vw - 24px) !important; right: 12px !important; left: 12px !important; }
         }
       `}</style>
-      <Topbar title={title} subtitle={`${subtitle} — ${unread > 0 ? `${unread} unread` : "all read"}`} />
+      {!embedded && <Topbar title={title} subtitle={`${subtitle} — ${unread > 0 ? `${unread} unread` : "all read"}`} />}
 
       <div className={`mailbox-body${selectedUid ? " has-selection" : ""}`} style={{ flex: 1, display: "flex", minHeight: 0 }}>
         {/* Message list */}

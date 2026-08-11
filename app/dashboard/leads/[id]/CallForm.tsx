@@ -16,7 +16,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "sequence_complete", label: "Sequence complete" },
 ];
 
-export default function CallForm({ lead, events, sends }: { lead: Lead; events: EmailEvent[]; sends: EmailSend[] }) {
+export default function CallForm({ lead, events, sends, sourceSheetUrl }: { lead: Lead; events: EmailEvent[]; sends: EmailSend[]; sourceSheetUrl: string | null }) {
   const router = useRouter();
   const [callNotes, setCallNotes] = useState("");
   const [meetingDateTime, setMeetingDateTime] = useState("");
@@ -66,6 +66,13 @@ export default function CallForm({ lead, events, sends }: { lead: Lead; events: 
       <Topbar title="LOG CALL" subtitle={[lead.company, lead.phone, lead.contact_name, lead.email].filter(Boolean).join(" · ")} />
 
       <div style={{ maxWidth: 720, margin: "32px auto", padding: "0 28px" }}>
+        {sourceSheetUrl && (
+          <div style={{ marginBottom: 18 }}>
+            <a href={sourceSheetUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, color: L.muted, textDecoration: "underline" }}>
+              Source sheet for {lead.trade}{lead.location ? ` · ${lead.location}` : ""} →
+            </a>
+          </div>
+        )}
         {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 0, marginBottom: 18, fontSize: 14 }}>{error}</div>}
 
         <form onSubmit={handleSubmit}>

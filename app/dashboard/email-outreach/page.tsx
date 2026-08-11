@@ -9,6 +9,7 @@ import SectionTabs from "@/components/SectionTabs";
 import EmailPipelineBoard, { EmailColumn } from "@/components/EmailPipelineBoard";
 import ActivateCampaignButton from "@/components/ActivateCampaignButton";
 import CampaignPreviewButton from "@/components/CampaignPreviewButton";
+import MailboxView from "@/components/MailboxView";
 import { Users, Clock, Mail, TrendingUp, Building2, ChevronRight } from "lucide-react";
 
 export const revalidate = 0;
@@ -286,6 +287,13 @@ export default async function EmailOutreachPage({
         ))}
       </div>
 
+      <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: "14px 18px", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted }}>Personal Sends</span>
+        <span style={{ fontSize: 13, color: L.text }}><b style={{ fontWeight: 800 }}>{personalSent}</b> sent</span>
+        <span style={{ fontSize: 13, color: L.text }}><b style={{ fontWeight: 800 }}>{personalOpened}</b> opened ({personalOpenRate}%)</span>
+        <span style={{ fontSize: 13, color: L.text }}><b style={{ fontWeight: 800 }}>{personalClicked}</b> clicked</span>
+      </div>
+
       {campaignsWithMembers.length === 0 && unassignedLeads.length === 0 ? (
         <div className="surface-card" style={{ padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
           No campaign leads yet — activate a campaign from the Campaigns tab to see leads here.
@@ -536,6 +544,10 @@ export default async function EmailOutreachPage({
     </div>
   );
 
+  const inboxTab = (
+    <MailboxView account="zoho" title="Outreach Inbox" subtitle="Outreach (lucky@lsgrowth.agency)" embedded />
+  );
+
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
       <Topbar title="Email Outreach" subtitle="Campaigns, pipeline, activity, and personal sends — all in one place" />
@@ -549,6 +561,7 @@ export default async function EmailOutreachPage({
             { id: "campaigns", label: "Campaigns", content: campaignsTab },
             { id: "activity", label: "Activity", content: activityTab },
             { id: "personal", label: "Personal Sends", content: personalTab },
+            { id: "inbox", label: "Inbox", content: inboxTab },
           ]}
         />
       </div>

@@ -64,7 +64,6 @@ export default async function DashboardPage({
   // pages (Email Outreach, Email Tracking). Uncalled prospects live in the
   // Call Queue, not here; this is everyone actually called, emailed, or booked.
   const coldCallLeads = allLeads.filter(l => l.source === "cold_call");
-  const callQueueLeads = coldCallLeads.filter(l => l.status === "not_contacted");
   const pipelineLeads = coldCallLeads.filter(l => l.status !== "not_contacted" && !l.post_call_stage);
 
   // Trade/city segments become filter pills instead of separate stacked
@@ -113,20 +112,6 @@ export default async function DashboardPage({
         )}
 
         <PipelineStats allLeads={pipelineLeads} />
-
-        {callQueueLeads.length > 0 && (
-          <Link href="/dashboard/cold-call" className="card-hover" style={{
-            display: "flex", alignItems: "center", gap: 12,
-            background: "#fef2f2", border: "1px solid #fecaca", padding: "12px 16px", textDecoration: "none",
-          }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Phone style={{ width: 15, height: 15, color: "var(--red)" }} />
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 800, color: "var(--red)" }}>
-              {callQueueLeads.length} prospect{callQueueLeads.length !== 1 ? "s" : ""} not called yet
-            </span>
-          </Link>
-        )}
 
         {/* Segment filter pills — click one to narrow the board to just that trade/city */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

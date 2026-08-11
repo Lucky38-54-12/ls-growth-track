@@ -1,6 +1,5 @@
-"use client";
-import MailboxView from "@/components/MailboxView";
+import { redirect } from "next/navigation";
 
-export default function OutreachInboxPage() {
-  return <MailboxView account="zoho" title="Outreach Inbox" subtitle="Outreach (lucky@lsgrowth.agency)" />;
+export default function OutreachInboxRedirect() {
+  redirect("/dashboard/email-outreach?tab=inbox");
 }
