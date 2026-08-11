@@ -28,19 +28,26 @@ const DATE_PRESETS = [
   { value: "maximum", label: "All time" },
 ];
 
+const ACCOUNTS = [
+  { value: "587704705727466", label: "LS Growth" },
+  { value: "1410791492649615", label: "HRC" },
+  { value: "206264138206064", label: "Katies Cleaning" },
+];
+
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function MetaAdsPage() {
+  const [account, setAccount] = useState(ACCOUNTS[0].value);
   const [datePreset, setDatePreset] = useState("last_30d");
   const [campaigns, setCampaigns] = useState<CampaignInsight[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async (preset: string) => {
+  const load = useCallback(async (acc: string, preset: string) => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/meta-ads/insights?date_preset=${preset}`);
+      const res = await fetch(`/api/meta-ads/insights?account=${acc}&date_preset=${preset}`);
       const data = await res.json();
       if (data.error) { setError(data.error); setCampaigns(null); return; }
       setCampaigns(data.campaigns);
@@ -51,7 +58,7 @@ export default function MetaAdsPage() {
     }
   }, []);
 
-  useEffect(() => { load(datePreset); }, [datePreset, load]);
+  useEffect(() => { load(account, datePreset); }, [account, datePreset, load]);
 
   const totals = campaigns?.reduce((acc, c) => ({
     spend: acc.spend + c.spend,
@@ -66,16 +73,25 @@ export default function MetaAdsPage() {
 
       <div style={{ maxWidth: 1100, margin: "28px auto", padding: "0 28px", display: "flex", flexDirection: "column", gap: 20, width: "100%" }}>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <select
-            value={datePreset}
-            onChange={e => setDatePreset(e.target.value)}
-            style={{ padding: "8px 12px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
-          >
-            {DATE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 10 }}>
+            <select
+              value={account}
+              onChange={e => setAccount(e.target.value)}
+              style={{ padding: "8px 12px", border: `1px solid ${L.border}`, fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
+            >
+              {ACCOUNTS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+            </select>
+            <select
+              value={datePreset}
+              onChange={e => setDatePreset(e.target.value)}
+              style={{ padding: "8px 12px", border: `1px solid ${L.border}`, fontSize: 13, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
+            >
+              {DATE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
           <button
-            onClick={() => load(datePreset)}
+            onClick={() => load(account, datePreset)}
             disabled={loading}
             style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${L.border}`, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: L.muted, cursor: loading ? "default" : "pointer" }}
           >
