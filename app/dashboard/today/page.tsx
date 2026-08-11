@@ -2,9 +2,9 @@ import Link from "next/link";
 import { Calendar, Video, ArrowUpRight, MessageCircleHeart, Inbox, ShieldAlert, Info } from "lucide-react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calendar";
-import { nextStepFor, stillHeld } from "@/lib/leads";
+import { nextStepFor } from "@/lib/leads";
 import { formatDateTime } from "@/lib/format";
-import { Lead, EmailEvent, EmailSend, RevenueClient, RevenueGoal, EmailCheck } from "@/lib/types";
+import { Lead, EmailEvent, EmailSend, RevenueClient, RevenueGoal } from "@/lib/types";
 import { stripTrackingForDisplay } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
 import MeetingReminderButton from "@/components/MeetingReminderButton";
@@ -62,15 +62,12 @@ function ClientDetailsPanel({ lead }: { lead: Lead }) {
 export default async function TodayPage() {
   const sb = createSupabaseClient();
 
-  const [leads, { data: sends }, { data: events }, { data: revenueClients }, { data: revenueGoal }, { data: heldChecks }] = await Promise.all([
+  const [leads, { data: sends }, { data: events }, { data: revenueClients }, { data: revenueGoal }] = await Promise.all([
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
     sb.from("revenue_clients").select("*").order("added_at", { ascending: false }),
     sb.from("revenue_goal").select("*").eq("id", 1).maybeSingle(),
-    // cold_call_followup holds live on the Cold Call page instead (that's
-    // where they're generated and reviewed), not in this global panel.
-    sb.from("email_checks").select("*").eq("verdict", "rejected").eq("sent", false).neq("step", "cold_call_followup").order("created_at", { ascending: false }).limit(20),
   ]);
 
   const allLeads = leads;
@@ -78,7 +75,6 @@ export default async function TodayPage() {
   const allEvents = (events || []) as EmailEvent[];
   const allRevenueClients = (revenueClients || []) as RevenueClient[];
   const monthlyGoal = Number((revenueGoal as RevenueGoal | null)?.monthly_goal ?? 3000);
-  const heldEmails = stillHeld((heldChecks || []) as EmailCheck[], allSends);
 
   // Next 7 days of calendar events, for the calendar overview panel.
   let upcomingEvents: CalendarEvent[] = [];
@@ -104,8 +100,7 @@ export default async function TodayPage() {
   // Email-outreach replies already surface in the Email Pipeline's own Replied
   // column, so only cold-call replies belong in this cross-pipeline panel.
   const repliedLeads = pipelineLeads.filter(l => l.status === "replied" && l.source === "cold_call");
-  const heldByLeadId = new Map(allLeads.map(l => [l.lead_id, l]));
-  const needsAttentionCount = repliedLeads.length + heldEmails.length;
+  const needsAttentionCount = repliedLeads.length;
 
   // Leads explicitly snoozed to a future date (e.g. "booked out until
   // September") via the Remind Me field on the lead page — surfaces here
@@ -137,7 +132,7 @@ export default async function TodayPage() {
         {needsAttentionCount === 0 ? (
           <div className="surface-card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 10, background: "#f0fdf4", borderColor: "#bbf7d0" }}>
             <MessageCircleHeart style={{ width: 15, height: 15, color: "#16a34a", flexShrink: 0 }} />
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#166534" }}>All caught up — no replies waiting and nothing held for review.</span>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#166534" }}>All caught up — no replies waiting.</span>
             <div style={{ marginLeft: "auto" }}><CheckRepliesButton /></div>
           </div>
         ) : (
@@ -167,32 +162,6 @@ export default async function TodayPage() {
                   <ClientDetailsPanel lead={lead} />
                 </details>
               ))}
-              {heldEmails.map(check => {
-                const lead = heldByLeadId.get(check.lead_id);
-                const summaryRow = (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px" }}>
-                    <ShieldAlert style={{ width: 14, height: 14, color: "#be123c", flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {lead?.company || check.lead_id}
-                      </p>
-                      <p style={{ fontSize: 11.5, color: L.dimmed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        Held ({check.step}) — {(check.mechanical_fails?.[0] || check.judgment_flags?.[0] || check.reasoning || "flagged by AI check")}
-                      </p>
-                    </div>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#be123c", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>Held</span>
-                    {lead ? <Info style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} /> : <ArrowUpRight style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />}
-                  </div>
-                );
-                return lead ? (
-                  <details key={`held-${check.id}`} style={{ borderBottom: `1px solid ${L.border}` }}>
-                    <summary className="row-hover" style={{ listStyle: "none", cursor: "pointer" }}>{summaryRow}</summary>
-                    <ClientDetailsPanel lead={lead} />
-                  </details>
-                ) : (
-                  <div key={`held-${check.id}`} style={{ borderBottom: `1px solid ${L.border}` }}>{summaryRow}</div>
-                );
-              })}
             </div>
           </div>
         )}
