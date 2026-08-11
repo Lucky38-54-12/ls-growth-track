@@ -18,6 +18,8 @@ interface AdIdea {
 interface AdResearchResult {
   summary: string;
   ads: AdIdea[];
+  source: "live_ad_library" | "ai_web_search";
+  researchedAt?: string;
 }
 
 export default function AdResearchPage() {
@@ -115,7 +117,18 @@ export default function AdResearchPage() {
           <>
             {result.summary && (
               <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 20 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted, marginBottom: 10 }}>Summary</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: L.muted }}>Summary</div>
+                  {result.source === "live_ad_library" ? (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                      Real live ads{result.researchedAt ? ` · pulled ${new Date(result.researchedAt).toLocaleDateString()}` : ""}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: L.dimmed, background: "#f8fafc", border: `1px solid ${L.border}`, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                      AI-inferred, not verified live ads
+                    </span>
+                  )}
+                </div>
                 <p style={{ fontSize: 14, color: L.text, lineHeight: 1.6 }}>{result.summary}</p>
               </div>
             )}

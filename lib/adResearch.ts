@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { createSupabaseClient } from "@/lib/supabase";
 
 export interface AdIdea {
   headline: string;
@@ -13,6 +14,31 @@ export interface AdIdea {
 export interface AdResearchResult {
   summary: string;
   ads: AdIdea[];
+  source: "live_ad_library" | "ai_web_search";
+  researchedAt?: string;
+}
+
+function normalizeKey(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// Real ad data (actual live ads, pulled by hand from the Meta Ad Library —
+// see supabase_migration_ad_research_cache.sql for why this can't be fetched
+// live on every request: Meta's Ad Library API doesn't cover NZ/AU commercial
+// ads, and the public site's real results sit behind an authenticated
+// session we don't run unattended). Falls back to the AI web-search summary
+// for any niche/location that hasn't been researched this way yet.
+async function findCachedRealAds(niche: string, location: string): Promise<AdResearchResult | null> {
+  const sb = createSupabaseClient();
+  const { data } = await sb
+    .from("ad_research_cache")
+    .select("summary, ads, researched_at")
+    .eq("niche_key", normalizeKey(niche))
+    .eq("location_key", normalizeKey(location || "New Zealand"))
+    .maybeSingle();
+
+  if (!data) return null;
+  return { summary: data.summary, ads: data.ads as AdIdea[], source: "live_ad_library", researchedAt: data.researched_at };
 }
 
 function parseJsonResponse<T>(text: string): T {
@@ -47,6 +73,9 @@ After searching, respond with ONLY a JSON object as your final message, no markd
 {"summary": "2-3 sentence overview of what's working in this niche right now", "ads": [{"headline": "...", "angle": "...", "offer": "..." or null, "format": "...", "why_it_works": "...", "source_url": "..." or null, "source_business": "..." or null}]}`;
 
 export async function findWorkingAds(niche: string, location: string): Promise<AdResearchResult> {
+  const cached = await findCachedRealAds(niche, location);
+  if (cached) return cached;
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
 
@@ -82,5 +111,6 @@ Find ads that are currently working for this niche and give me ideas I can adapt
       source_url: a.source_url || null,
       source_business: a.source_business || null,
     })),
+    source: "ai_web_search",
   };
 }
