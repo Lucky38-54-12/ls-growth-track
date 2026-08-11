@@ -18,13 +18,52 @@ const INTEREST_HINTS = [
   "later", "months", "month", "weeks", "next year", "call later", "revisit",
 ];
 
-function looksLikeDeferredInterest(outcome: string, callBack: string, notes: string): boolean {
+// Some sheets have leftover unfilled template rows where every cell still
+// holds its own column header text ("Business Name", "Outcome", "Call back",
+// ...) — those literal header echoes aren't real call data, and "Call back"
+// alone would otherwise match INTEREST_HINTS every time.
+function isPlaceholderRow(company: string, outcome: string, callBack: string): boolean {
+  const c = company.trim().toLowerCase();
+  const o = outcome.trim().toLowerCase();
+  const cb = callBack.trim().toLowerCase();
+  return c === "business name" || o === "outcome" || cb === "call back";
+}
+
+function looksLikeDeferredInterest(company: string, outcome: string, callBack: string, notes: string): boolean {
+  if (isPlaceholderRow(company, outcome, callBack)) return false;
   const blob = `${outcome} ${callBack} ${notes}`.toLowerCase();
   if (!blob.trim()) return false;
   // Explicit "not interested" / dead-end outcomes never count, even if a stray
   // word like "later" appears in the notes.
   if (/(not interested|no thanks|do not call|dnc|wrong number|disconnected|bad number)/.test(blob)) return false;
   return INTEREST_HINTS.some((hint) => blob.includes(hint));
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "";
+      if (attempt >= retries || !message.includes("Quota exceeded")) throw e;
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+}
+
+// Google Sheets read quota is per-minute, not per-request — reading 20
+// spreadsheets fully in parallel blew through it. Cap concurrency instead.
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
 }
 
 function getDriveAuth() {
@@ -71,17 +110,18 @@ export async function GET(req: NextRequest) {
   }[] = [];
   const errors: string[] = [];
 
-  // Read every sheet in the batch in parallel — serially this blew the
-  // 60s function timeout once there were more than a couple dozen sheets.
-  await Promise.all(batch.map(async (file) => {
+  // Read every sheet in the batch, capped at a small concurrency — fully
+  // serial blew the 60s function timeout, fully parallel blew the Sheets
+  // API per-minute read quota.
+  await mapWithConcurrency(batch, 4, async (file) => {
     if (!file.id) return;
     try {
       const [title, rows] = await Promise.all([
-        getSheetTitle(file.id).catch(() => file.name || file.id!),
-        readLeadSheet(file.id),
+        withRetry(() => getSheetTitle(file.id!)).catch(() => file.name || file.id!),
+        withRetry(() => readLeadSheet(file.id!)),
       ]);
       for (const row of rows) {
-        if (looksLikeDeferredInterest(row.outcome, row.callBack, row.notes)) {
+        if (looksLikeDeferredInterest(row.company, row.outcome, row.callBack, row.notes)) {
           matches.push({
             sheetTitle: title,
             sheetId: file.id,
@@ -98,7 +138,7 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       errors.push(`${file.name || file.id}: ${e instanceof Error ? e.message : "read failed"}`);
     }
-  }));
+  });
 
   const nextOffset = offset + limit;
   return NextResponse.json({
