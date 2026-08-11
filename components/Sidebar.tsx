@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, Users, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, Megaphone, Mailbox, Settings, Bot, BarChart3, Zap, Rows3, PhoneCall, Rocket, Flame, Menu, X, Sparkles,
+  LayoutDashboard, Users, MailOpen, Phone, Calendar, Sun, Inbox, ScanSearch, Megaphone, Mailbox, Settings, Bot, BarChart3, Zap, Rows3, PhoneCall, Rocket, Flame, Menu, X, Sparkles, LineChart,
 } from "lucide-react";
 
 const NAV = [
@@ -24,6 +24,7 @@ const NAV = [
   { href: "/dashboard/cold-call", label: "Cold Call", icon: Phone },
   { href: "/dashboard/scraper", label: "Scraper", icon: ScanSearch },
   { href: "/dashboard/ad-research", label: "Ad Research", icon: Sparkles },
+  { href: "/dashboard/meta-ads", label: "Meta Ads Performance", icon: LineChart },
   { href: "/dashboard/warm", label: "Email Tracking", icon: MailOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
