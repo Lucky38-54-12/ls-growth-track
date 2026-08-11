@@ -41,6 +41,8 @@ export async function GET(req: NextRequest) {
   }
 
   const folderId = req.nextUrl.searchParams.get("folderId") || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+  const offset = Number(req.nextUrl.searchParams.get("offset") || "0");
+  const limit = Number(req.nextUrl.searchParams.get("limit") || "20");
 
   const auth = getDriveAuth();
   const drive = google.drive({ version: "v3", auth: auth as any });
@@ -54,6 +56,7 @@ export async function GET(req: NextRequest) {
     corpora: "allDrives",
   });
   const files = list.data.files || [];
+  const batch = files.slice(offset, offset + limit);
 
   const matches: {
     sheetTitle: string;
@@ -68,8 +71,10 @@ export async function GET(req: NextRequest) {
   }[] = [];
   const errors: string[] = [];
 
-  for (const file of files) {
-    if (!file.id) continue;
+  // Read every sheet in the batch in parallel — serially this blew the
+  // 60s function timeout once there were more than a couple dozen sheets.
+  await Promise.all(batch.map(async (file) => {
+    if (!file.id) return;
     try {
       const [title, rows] = await Promise.all([
         getSheetTitle(file.id).catch(() => file.name || file.id!),
@@ -93,7 +98,16 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       errors.push(`${file.name || file.id}: ${e instanceof Error ? e.message : "read failed"}`);
     }
-  }
+  }));
 
-  return NextResponse.json({ sheetsScanned: files.length, matchesFound: matches.length, matches, errors });
+  const nextOffset = offset + limit;
+  return NextResponse.json({
+    totalSheets: files.length,
+    processed: `${offset}-${Math.min(nextOffset, files.length)}`,
+    done: nextOffset >= files.length,
+    nextOffset: nextOffset >= files.length ? null : nextOffset,
+    matchesFound: matches.length,
+    matches,
+    errors,
+  });
 }
