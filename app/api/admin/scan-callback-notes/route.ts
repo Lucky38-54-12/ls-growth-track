@@ -37,13 +37,7 @@ function getDriveAuth() {
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
   if (secret !== process.env.CRON_SECRET) {
-    // TEMP DEBUG — remove once CRON_SECRET mismatch is diagnosed. Never
-    // returns either actual secret, only lengths, to confirm which value
-    // the deployed function actually sees vs what was sent.
-    return NextResponse.json({
-      error: "Unauthorized",
-      debug: { envSecretLength: process.env.CRON_SECRET?.length ?? null, sentLength: secret?.length ?? null },
-    }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const folderId = req.nextUrl.searchParams.get("folderId") || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;

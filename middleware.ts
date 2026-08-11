@@ -38,7 +38,12 @@ export async function middleware(req: NextRequest) {
 
   if (
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/")) ||
-    pathname.startsWith("/api/cron")
+    pathname.startsWith("/api/cron") ||
+    // Gates itself on CRON_SECRET rather than the dashboard session cookie —
+    // needs to be callable from outside a logged-in browser session. Other
+    // /api/admin/* routes stay behind the session cookie (some, like
+    // bulk-sheet-sync, have no auth check of their own).
+    pathname === "/api/admin/scan-callback-notes"
   ) {
     return NextResponse.next();
   }
