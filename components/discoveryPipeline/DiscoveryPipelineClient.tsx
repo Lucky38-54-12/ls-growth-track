@@ -3,8 +3,6 @@ import { useRef, useState } from "react";
 import { CheckCircle2, Circle } from "lucide-react";
 import { Lead, PostCallOutcome } from "@/lib/types";
 import { advance, currentStep, firstTouchpointDate, TouchpointResult } from "@/lib/followUpCadence";
-import { CallStats } from "@/lib/salesCallsStats";
-import StatsBar from "@/components/salesCalls/StatsBar";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -86,10 +84,9 @@ function btnStyle(bg: string): React.CSSProperties {
 interface Props {
   initialAwaitingOutcome: Lead[];
   initialGraduated: Lead[];
-  stats: CallStats;
 }
 
-export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initialGraduated, stats }: Props) {
+export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initialGraduated }: Props) {
   const [awaiting, setAwaiting] = useState<Lead[]>(initialAwaitingOutcome);
   const [leads, setLeads] = useState<Lead[]>(initialGraduated);
   const draggingId = useRef<string | null>(null);
@@ -174,8 +171,6 @@ export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initia
 
   return (
     <div style={{ padding: "24px 28px 60px" }}>
-      <StatsBar stats={stats} />
-
       {/* Today */}
       <Section title="Today" count={dueToday.length}>
         {dueToday.length === 0 ? (
@@ -211,16 +206,12 @@ export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initia
         )}
       </Section>
 
-      {/* Awaiting outcome */}
-      <Section title="Awaiting Outcome" count={awaiting.length}>
-        {awaiting.length === 0 ? (
-          <p style={{ fontSize: 13, color: L.muted }}>No sales calls waiting to be logged.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {awaiting.map((lead) => <AwaitingOutcomeCard key={lead.lead_id} lead={lead} onLog={logSalesCallDone} />)}
-          </div>
-        )}
-      </Section>
+      {/* Awaiting outcome — people you've had a meeting with, waiting for the outcome to be logged */}
+      {awaiting.length > 0 && (
+        <div style={{ marginBottom: 28, display: "flex", flexDirection: "column", gap: 10 }}>
+          {awaiting.map((lead) => <AwaitingOutcomeCard key={lead.lead_id} lead={lead} onLog={logSalesCallDone} />)}
+        </div>
+      )}
 
       {/* Pipeline kanban — drag a card between columns */}
       <Section title="Pipeline" count={leads.length}>
