@@ -26,6 +26,7 @@ const DAYS_REENROLL_HAS_SOMEONE = 90; // if they replied "has_someone"
 const TERMINAL_STATUSES = new Set<LeadStatus>([
   "replied",
   "booked",
+  "discovery_done",
   "not_interested",
   "bounced",
 ]);

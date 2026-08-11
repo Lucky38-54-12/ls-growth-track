@@ -16,7 +16,8 @@ export type LeadStatus =
   | "proposal_sent"
   | "closed"
   | "no_close"
-  | "thinking_about_it";
+  | "thinking_about_it"
+  | "discovery_done";
 
 export type ReplyCategory = "interested" | "bad_timing" | "not_interested" | "has_someone";
 

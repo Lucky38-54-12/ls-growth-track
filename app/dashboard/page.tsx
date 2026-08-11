@@ -20,6 +20,7 @@ const COLD_CALL_COLUMNS: { key: string; label: string }[] = [
   { key: "contacted", label: "Email Sent" },
   { key: "thinking_about_it", label: "Thinking About It" },
   { key: "booked", label: "Meeting Booked" },
+  { key: "discovery_done", label: "Meeting Done" },
   { key: "no_show", label: "No Show" },
   { key: "rebooked", label: "Rebooked" },
   { key: "proposal_sent", label: "Proposal Sent" },
