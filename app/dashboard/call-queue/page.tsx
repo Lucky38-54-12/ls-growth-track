@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Phone, PhoneCall, Clock, Ban } from "lucide-react";
+import { Phone, PhoneCall, Clock, Ban, Flame } from "lucide-react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { Lead } from "@/lib/types";
 import { buildCallQueue, segmentLabel, LOW_QUEUE_THRESHOLD } from "@/lib/leads";
 import Topbar from "@/components/Topbar";
+import WarmLeadRow, { WarmLead } from "@/components/WarmLeadRow";
 
 export const revalidate = 0;
 
@@ -14,6 +15,13 @@ export default async function CallQueuePage() {
   const leads = await fetchAllRows<Lead>((from, to) =>
     sb.from("leads").select("*").eq("source", "cold_call").order("date_added", { ascending: true }).range(from, to)
   );
+  const { data: warmLeadRows } = await sb.from("warm_leads").select("*").eq("called", false).order("created_at", { ascending: true });
+  const warmLeads = (warmLeadRows || []) as WarmLead[];
+  const warmBySegment = new Map<string, WarmLead[]>();
+  for (const w of warmLeads) {
+    const key = segmentLabel(w.trade, w.location);
+    warmBySegment.set(key, [...(warmBySegment.get(key) || []), w]);
+  }
 
   const queue = buildCallQueue(leads);
   const totalFresh = queue.freshBySegment.reduce((sum, g) => sum + g.leads.length, 0);
@@ -37,6 +45,38 @@ export default async function CallQueuePage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {queue.callbacksDue.map((lead) => (
                 <QueueRow key={lead.lead_id} lead={lead} note={`Follow up was due ${lead.follow_up_at}`} overdue />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Warm leads — genuine interest surfaced from the old cold-call sheets */}
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <Flame style={{ width: 14, height: 14, color: "var(--red)" }} />
+            <span style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text, fontWeight: 800 }}>
+              Warm Leads — {warmLeads.length}
+            </span>
+          </div>
+          <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 18 }}>
+            Pulled from old cold-call sheets — people who showed real interest but weren't ready yet. Mark called once you've followed up.
+          </p>
+          {warmLeads.length === 0 ? (
+            <p style={{ color: L.muted, fontSize: 13 }}>None left to follow up on.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+              {Array.from(warmBySegment.entries()).map(([label, group]) => (
+                <div key={label}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: L.text }}>{label}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: L.dimmed }}>{group.length}</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {group.map((w) => (
+                      <WarmLeadRow key={w.id} lead={w} />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
