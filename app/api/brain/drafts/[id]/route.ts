@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { sendGmailFollowup } from "@/lib/email";
+import { statusTimestampUpdates } from "@/lib/leads";
 import { Lead } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,33 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const { data: updated, error: updateError } = await sb.from("chat_drafts")
       .update({ status: "sent", decided_at: new Date().toISOString() })
+      .eq("id", params.id).select().single();
+    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return NextResponse.json({ draft: updated });
+  }
+
+  // A lead_update draft actually writes to the real lead row on approval —
+  // same "approval is the real action" principle as the email kind above.
+  // Notes are appended (dated), never overwrite what's already there.
+  if (draft.kind === "lead_update" && draft.lead_id) {
+    const { data: lead, error: leadError } = await sb.from("leads").select("id, notes, status").eq("id", draft.lead_id).maybeSingle();
+    if (leadError) return NextResponse.json({ error: leadError.message }, { status: 500 });
+    if (!lead) return NextResponse.json({ error: "The lead this update was proposed for no longer exists." }, { status: 400 });
+
+    const payload = (draft.payload || {}) as { status?: string; notes?: string; follow_up_at?: string };
+    const leadUpdate: Record<string, unknown> = {};
+    if (payload.status) Object.assign(leadUpdate, { status: payload.status, ...statusTimestampUpdates(payload.status) });
+    if (payload.notes) {
+      const dated = `[${new Date().toISOString().split("T")[0]}] ${payload.notes}`;
+      leadUpdate.notes = lead.notes ? `${lead.notes}\n${dated}` : dated;
+    }
+    if (payload.follow_up_at) leadUpdate.follow_up_at = payload.follow_up_at;
+
+    const { error: applyError } = await sb.from("leads").update(leadUpdate).eq("id", draft.lead_id);
+    if (applyError) return NextResponse.json({ error: applyError.message }, { status: 500 });
+
+    const { data: updated, error: updateError } = await sb.from("chat_drafts")
+      .update({ status: "applied", decided_at: new Date().toISOString() })
       .eq("id", params.id).select().single();
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
     return NextResponse.json({ draft: updated });

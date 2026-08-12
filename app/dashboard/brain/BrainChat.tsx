@@ -80,7 +80,7 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
             <div key={d.id} style={{ background: "#fffbeb", border: "1px solid #fde68a", padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#92400e" }}>
-                  {d.kind === "email" ? "Draft email" : "Draft note"}{d.lead ? ` · ${d.lead.company}` : ""}
+                  {d.kind === "email" ? "Draft email" : d.kind === "lead_update" ? "Update lead" : "Draft note"}{d.lead ? ` · ${d.lead.company}` : ""}
                 </div>
               </div>
               <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text, marginBottom: 6 }}>{d.title}</p>

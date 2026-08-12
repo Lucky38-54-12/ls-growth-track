@@ -6,7 +6,7 @@ export const revalidate = 0;
 
 export interface ChatDraft {
   id: string;
-  kind: "email" | "note";
+  kind: "email" | "note" | "lead_update";
   title: string;
   content: string;
   status: string;
