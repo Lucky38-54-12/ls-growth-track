@@ -4,6 +4,7 @@ import { sendGmailFollowup } from "@/lib/email";
 import { statusTimestampUpdates } from "@/lib/leads";
 import { createBooking } from "@/lib/calendar";
 import { findSheetRowByCompany, getRawRange, updateSheetCell } from "@/lib/sheets-connector";
+import { recordLearningFromDecision } from "@/lib/brainLearnings";
 import { Lead } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const sb = createSupabaseClient();
   const body = await req.json();
   const decision = body.decision;
+  const reason: string | undefined = typeof body.reason === "string" ? body.reason : undefined;
 
   if (decision !== "approved" && decision !== "rejected") {
     return NextResponse.json({ error: "decision must be 'approved' or 'rejected'." }, { status: 400 });
@@ -27,6 +29,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .update({ status: "rejected", decided_at: new Date().toISOString() })
       .eq("id", params.id).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await recordLearningFromDecision(sb, { kind: draft.kind, content: draft.content, decision: "rejected", reason });
     return NextResponse.json({ draft: data });
   }
 
@@ -51,6 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .update({ status: "sent", decided_at: new Date().toISOString() })
       .eq("id", params.id).select().single();
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    await recordLearningFromDecision(sb, { kind: draft.kind, content: draft.content, decision: "approved", reason });
     return NextResponse.json({ draft: updated });
   }
 
@@ -78,6 +82,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .update({ status: "applied", decided_at: new Date().toISOString() })
       .eq("id", params.id).select().single();
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    await recordLearningFromDecision(sb, { kind: draft.kind, content: draft.content, decision: "approved", reason });
     return NextResponse.json({ draft: updated });
   }
 
@@ -94,6 +99,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .update({ status: "applied", decided_at: new Date().toISOString() })
       .eq("id", params.id).select().single();
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    await recordLearningFromDecision(sb, { kind: draft.kind, content: draft.content, decision: "approved", reason });
     return NextResponse.json({ draft: updated });
   }
 
@@ -126,6 +132,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .update({ status: "applied", decided_at: new Date().toISOString() })
       .eq("id", params.id).select().single();
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    await recordLearningFromDecision(sb, { kind: draft.kind, content: draft.content, decision: "approved", reason });
     return NextResponse.json({ draft: updated });
   }
 
@@ -133,5 +140,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .update({ status: "approved", decided_at: new Date().toISOString() })
     .eq("id", params.id).select().single();
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+  await recordLearningFromDecision(sb, { kind: draft.kind, content: draft.content, decision: "approved", reason });
   return NextResponse.json({ draft: updated });
 }

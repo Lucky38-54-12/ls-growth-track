@@ -5,6 +5,7 @@ import { listCalendarEvents } from "./calendar";
 import { readLeadSheet, getSheetTitle, hasCallInfo } from "./sheets";
 import { searchInboxByKeyword } from "./gmail";
 import { getCampaignInsights } from "./metaAds";
+import { getRecentLearnings } from "./brainLearnings";
 import { Lead } from "./types";
 
 interface AutomationRow {
@@ -259,6 +260,19 @@ async function summarizeCampaignsAndRevenue(sb: ReturnType<typeof createSupabase
   ].join("\n");
 }
 
+// Insights distilled from Lucky's own approve/reject decisions (see
+// lib/brainLearnings.ts) — a second, AI-populated source alongside the
+// hand-written Agency Brain, fed into every future call the same way.
+async function summarizeLearnings(sb: ReturnType<typeof createSupabaseClient>): Promise<string> {
+  try {
+    const learnings = await getRecentLearnings(sb, 40);
+    if (learnings.length === 0) return "";
+    return learnings.map((l) => `- ${l.insight}`).join("\n");
+  } catch {
+    return "";
+  }
+}
+
 async function metaAdsSummary(): Promise<string> {
   try {
     const adAccountId = process.env.META_AD_ACCOUNT_ID;
@@ -284,7 +298,7 @@ async function metaAdsSummary(): Promise<string> {
 export async function buildBrainContext(userQuestion: string): Promise<string> {
   const sb = createSupabaseClient();
 
-  const [leadsSummary, matchedLeads, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, salesCallsSummary, campaignsSummary] = await Promise.all([
+  const [leadsSummary, matchedLeads, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, salesCallsSummary, campaignsSummary, learningsSummary] = await Promise.all([
     summarizeLeads(sb).catch(() => "Lead data unavailable."),
     matchingLeads(sb, userQuestion).catch(() => ""),
     summarizeAutomations(sb).catch(() => "Automation data unavailable."),
@@ -295,6 +309,7 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     metaAdsSummary(),
     summarizeSalesCalls(sb).catch(() => "Sales call data unavailable."),
     summarizeCampaignsAndRevenue(sb).catch(() => "Campaign/revenue data unavailable."),
+    summarizeLearnings(sb),
   ]);
 
   const todayLabel = new Intl.DateTimeFormat("en-NZ", {
@@ -313,6 +328,7 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     adsSummary ? `META ADS (last 30 days):\n${adsSummary}` : "",
     `SALES CALLS & SCRIPT:\n${salesCallsSummary}`,
     `CAMPAIGNS & REVENUE:\n${campaignsSummary}`,
+    learningsSummary ? `LEARNED FROM EXPERIENCE (distilled from Lucky's past approve/reject decisions — treat these as standing preferences, not one-off notes):\n${learningsSummary}` : "",
   ].filter(Boolean);
 
   return sections.join("\n\n---\n\n");

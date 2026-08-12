@@ -31,13 +31,18 @@ export default function ApprovalQueue({ initialDrafts, emptyMessage }: { initial
   useEffect(() => setDrafts(initialDrafts), [initialDrafts]);
 
   async function decide(draftId: string, decision: "approved" | "rejected") {
+    // Optional — a reason on reject is the single richest signal for the
+    // Brain to actually learn from, so it's worth a light prompt rather than
+    // a silent click. Blank/cancelled just skips it, same as before.
+    const reason = decision === "rejected" ? window.prompt("Why? (optional — helps it learn for next time)") || undefined : undefined;
+
     setBusyDraftId(draftId);
     setError("");
     try {
       const res = await fetch(`/api/brain/drafts/${draftId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
+        body: JSON.stringify({ decision, reason }),
       });
       const data = await res.json();
       if (!res.ok) {
