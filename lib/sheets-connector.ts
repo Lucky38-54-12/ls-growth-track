@@ -150,6 +150,33 @@ export async function updateSheetCell(
   });
 }
 
+export async function getRawRange(spreadsheetId: string, range: string): Promise<string[][]> {
+  const auth = getServiceAccountAuth();
+  const sheets = google.sheets({ version: "v4", auth: auth as any });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+  return (res.data.values || []) as string[][];
+}
+
+// Finds the 1-based sheet row (matching readLeadSheet's A2:I layout, so row 2
+// is the first data row) whose company column (A) matches — read fresh right
+// before a write, never a row index computed earlier, since the sheet can
+// change between when a Brain action is proposed and when it's approved.
+export async function findSheetRowByCompany(spreadsheetId: string, company: string): Promise<number | null> {
+  const rows = await getRawRange(spreadsheetId, "A2:A");
+  const target = company.trim().toLowerCase();
+  for (let i = 0; i < rows.length; i++) {
+    if ((rows[i][0] || "").trim().toLowerCase() === target) return i + 2;
+  }
+  // Fall back to a substring match if nothing matched exactly — sheet
+  // company names are hand-typed and often slightly different from how a
+  // lead's name gets referenced in chat.
+  for (let i = 0; i < rows.length; i++) {
+    const cell = (rows[i][0] || "").trim().toLowerCase();
+    if (cell && (cell.includes(target) || target.includes(cell))) return i + 2;
+  }
+  return null;
+}
+
 export async function listSheetsInFolder(folderId: string): Promise<{ id: string; title: string }[]> {
   const auth = getServiceAccountAuth();
   const drive = google.drive({ version: "v3", auth: auth as any });

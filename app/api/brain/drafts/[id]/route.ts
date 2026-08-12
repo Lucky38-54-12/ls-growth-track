@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { sendGmailFollowup } from "@/lib/email";
 import { statusTimestampUpdates } from "@/lib/leads";
+import { createBooking } from "@/lib/calendar";
+import { findSheetRowByCompany, getRawRange, updateSheetCell } from "@/lib/sheets-connector";
 import { Lead } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +73,54 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const { error: applyError } = await sb.from("leads").update(leadUpdate).eq("id", draft.lead_id);
     if (applyError) return NextResponse.json({ error: applyError.message }, { status: 500 });
+
+    const { data: updated, error: updateError } = await sb.from("chat_drafts")
+      .update({ status: "applied", decided_at: new Date().toISOString() })
+      .eq("id", params.id).select().single();
+    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return NextResponse.json({ draft: updated });
+  }
+
+  // A calendar_booking draft creates the real event on approval.
+  if (draft.kind === "calendar_booking") {
+    const payload = (draft.payload || {}) as { summary: string; attendeeEmail: string; attendeeName?: string; startISO: string; durationMinutes?: number };
+    try {
+      await createBooking(payload);
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to create the calendar event." }, { status: 502 });
+    }
+
+    const { data: updated, error: updateError } = await sb.from("chat_drafts")
+      .update({ status: "applied", decided_at: new Date().toISOString() })
+      .eq("id", params.id).select().single();
+    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    return NextResponse.json({ draft: updated });
+  }
+
+  // A sheet_update draft writes to the real Google Sheet on approval. The
+  // row is re-located right now (never trusting a row index computed when
+  // the draft was proposed) and only the columns Lucky actually asked to
+  // change are overwritten — the rest of that row's F:I values are read
+  // first and carried through untouched.
+  if (draft.kind === "sheet_update") {
+    const payload = (draft.payload || {}) as { sheetId: string; company: string; dateCalled?: string; outcome?: string; callBack?: string; notes?: string };
+    try {
+      const row = await findSheetRowByCompany(payload.sheetId, payload.company);
+      if (row === null) {
+        return NextResponse.json({ error: `Couldn't find "${payload.company}" in that sheet anymore — it may have moved or been removed. Nothing was changed.` }, { status: 400 });
+      }
+      const [current] = await getRawRange(payload.sheetId, `F${row}:I${row}`);
+      const [curDateCalled, curOutcome, curCallBack, curNotes] = current || [];
+      const nextRow = [
+        payload.dateCalled ?? curDateCalled ?? "",
+        payload.outcome ?? curOutcome ?? "",
+        payload.callBack ?? curCallBack ?? "",
+        payload.notes ?? curNotes ?? "",
+      ];
+      await updateSheetCell(payload.sheetId, `F${row}:I${row}`, [nextRow]);
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to update the sheet." }, { status: 502 });
+    }
 
     const { data: updated, error: updateError } = await sb.from("chat_drafts")
       .update({ status: "applied", decided_at: new Date().toISOString() })

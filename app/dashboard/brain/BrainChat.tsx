@@ -6,6 +6,20 @@ import { ChatDraft } from "./page";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
+const KIND_LABEL: Record<string, string> = {
+  email: "Draft email",
+  note: "Draft note",
+  lead_update: "Update lead",
+  calendar_booking: "Book meeting",
+  sheet_update: "Update sheet",
+};
+
+const APPROVE_LABEL: Record<string, string> = {
+  email: "Approve & send",
+  calendar_booking: "Approve & book",
+  sheet_update: "Approve & update",
+};
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -80,7 +94,7 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
             <div key={d.id} style={{ background: "#fffbeb", border: "1px solid #fde68a", padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#92400e" }}>
-                  {d.kind === "email" ? "Draft email" : d.kind === "lead_update" ? "Update lead" : "Draft note"}{d.lead ? ` · ${d.lead.company}` : ""}
+                  {KIND_LABEL[d.kind] || "Draft"}{d.lead ? ` · ${d.lead.company}` : ""}
                 </div>
               </div>
               <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text, marginBottom: 6 }}>{d.title}</p>
@@ -94,7 +108,7 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
                   className="btn-lift"
                   style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "#16a34a", color: "#fff", border: "none", fontSize: 12.5, fontWeight: 700, cursor: busyDraftId === d.id ? "default" : "pointer" }}
                 >
-                  <Check style={{ width: 13, height: 13 }} /> {d.kind === "email" ? "Approve & send" : "Approve"}
+                  <Check style={{ width: 13, height: 13 }} /> {APPROVE_LABEL[d.kind] || "Approve"}
                 </button>
                 <button
                   onClick={() => decide(d.id, "rejected")}

@@ -151,7 +151,7 @@ async function matchingSheets(sb: ReturnType<typeof createSupabaseClient>, userQ
     if (sheets.length === 0) return "No tracked sheets.";
 
     const overview = sheets
-      .map((s) => `${s.trade_default || "?"} / ${s.location_default || "?"} — last synced ${s.last_synced_at ? new Date(s.last_synced_at).toLocaleDateString("en-NZ") : "never"}`)
+      .map((s) => `sheet_id: ${s.sheet_id} | ${s.trade_default || "?"} / ${s.location_default || "?"} — last synced ${s.last_synced_at ? new Date(s.last_synced_at).toLocaleDateString("en-NZ") : "never"}`)
       .join("\n");
 
     const words = questionWords(userQuestion);
@@ -174,7 +174,7 @@ async function matchingSheets(sb: ReturnType<typeof createSupabaseClient>, userQ
           try {
             const [title, rows] = await Promise.all([getSheetTitle(s.sheet_id), readLeadSheet(s.sheet_id)]);
             const called = rows.filter(hasCallInfo).length;
-            return `${title || s.sheet_id} (${s.trade_default}/${s.location_default}): ${called} of ${rows.length} called`;
+            return `${title || s.sheet_id} (sheet_id: ${s.sheet_id}, ${s.trade_default}/${s.location_default}): ${called} of ${rows.length} called`;
           } catch {
             return "";
           }
@@ -244,7 +244,12 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     metaAdsSummary(),
   ]);
 
+  const todayLabel = new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit",
+  }).format(new Date());
+
   const sections = [
+    `TODAY: ${todayLabel} (NZ time) — use this to resolve any relative date/time reference (e.g. "Thursday 2pm") into a real ISO datetime.`,
     `LEAD PIPELINE SNAPSHOT:\n${leadsSummary}`,
     matchedLeads ? `LEADS MATCHING THIS QUESTION (use the exact lead_id here when drafting an email):\n${matchedLeads}` : "",
     `AUTOMATIONS STATUS:\n${automationsSummary}`,
