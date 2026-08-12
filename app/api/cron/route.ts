@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { sendNextStepFor } from "@/lib/sendPipeline";
+import { reportAutomationStatus } from "@/lib/automationStatus";
 import { Lead } from "@/lib/types";
 
 // Vercel Hobby kills functions well before a large due-batch (each lead costs
@@ -75,6 +76,14 @@ export async function GET(req: NextRequest) {
       });
     }
   }
+
+  await reportAutomationStatus(
+    sb,
+    "campaign-send-pipeline",
+    errors.length > 0 ? "error" : "ok",
+    `Processed ${processed} of ${leads.length} due leads: ${sent} sent, ${held} held, ${notAFit} not-a-fit, ${errors.length} failed.` +
+      (ranOutOfTime ? " Ran out of time budget — remainder picks up next run." : "")
+  );
 
   return NextResponse.json({
     sent, failed: errors.length, held, notAFit, errors, date: today,

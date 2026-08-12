@@ -14,6 +14,7 @@ import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
 import { sendLowQueueNudge } from "@/lib/callQueueNudge";
 import { checkMessengerChannelHealth, reconcileHumanTakeovers, resubscribeAllMessengerChannels } from "@/lib/leadQual/meta";
 import { notifySlack } from "@/lib/slackNotify";
+import { reportAutomationStatus } from "@/lib/automationStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,12 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     results.humanTakeovers = { error: e instanceof Error ? e.message : "human takeover reconciliation failed" };
   }
+
+  const failedTasks = Object.entries(results).filter(([, v]) => v && typeof v === "object" && "error" in v);
+  const summary = failedTasks.length > 0
+    ? `${Object.keys(results).length - failedTasks.length}/${Object.keys(results).length} tasks ok. Failed: ${failedTasks.map(([k]) => k).join(", ")}.`
+    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation).`;
+  await reportAutomationStatus(sb, "daily-maintenance", failedTasks.length > 0 ? "error" : "ok", summary);
 
   return NextResponse.json(results);
 }

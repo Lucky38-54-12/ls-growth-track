@@ -5,6 +5,8 @@ import { SSP_LINE, buildPerlLine } from "@/lib/proofPoints";
 import { buildFinalEmailHtml } from "@/lib/email";
 import { checkFixedTemplateGate } from "@/lib/sendPipeline";
 import { notifySlack } from "@/lib/slackNotify";
+import { reportAutomationStatus } from "@/lib/automationStatus";
+import { createSupabaseClient } from "@/lib/supabase";
 import { Lead } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -164,6 +166,15 @@ export async function GET(req: NextRequest) {
       failures.map((f) => `• *${f.name}*: ${f.detail}`).join("\n")
     );
   }
+
+  await reportAutomationStatus(
+    createSupabaseClient(),
+    "send-pipeline-smoke-test",
+    allPassed ? "ok" : "error",
+    allPassed
+      ? `All ${results.length} checks passed — send pipeline healthy.`
+      : `${failures.length}/${results.length} checks failed: ${failures.map((f) => f.name).join(", ")}.`
+  );
 
   return NextResponse.json({ passed: allPassed, results }, { status: allPassed ? 200 : 500 });
 }
