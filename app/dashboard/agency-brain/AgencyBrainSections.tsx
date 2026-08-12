@@ -53,7 +53,7 @@ function SectionCard({ section }: { section: AgencyBrainSection }) {
           disabled={!dirty || saving}
           className="btn-lift"
           style={{
-            padding: "8px 16px", background: !dirty ? "#e2e8f0" : saving ? "#fca5a5" : "var(--red)", color: !dirty ? L.muted : "#fff",
+            padding: "8px 16px", background: !dirty ? "#e2e8f0" : saving ? "#fca5a5" : "var(--accent)", color: !dirty ? L.muted : "#fff",
             border: "none", fontSize: 13, fontWeight: 700, cursor: !dirty || saving ? "default" : "pointer",
           }}
         >{saving ? "Saving…" : "Save"}</button>

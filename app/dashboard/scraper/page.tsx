@@ -195,7 +195,7 @@ export default function ScraperPage() {
                 <button
                   type="submit"
                   className="btn-lift"
-                  style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--red)", color: "#fff", border: "none", padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--accent)", color: "#fff", border: "none", padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
                 >
                   <Play style={{ width: 13, height: 13 }} />
                   Run Scraper
@@ -248,7 +248,7 @@ export default function ScraperPage() {
               <p style={{ fontSize: 13, color: L.muted, marginBottom: 14 }}>
                 Leads pushed to your Google Sheet. Click below to bring them into the dashboard and put this
                 sheet on daily auto-sync — see all auto-synced sheets on the{" "}
-                <a href="/dashboard/import" style={{ color: "var(--red)", fontWeight: 600 }}>Lead Sheets</a> page.
+                <a href="/dashboard/import" style={{ color: "var(--accent)", fontWeight: 600 }}>Lead Sheets</a> page.
               </p>
             )}
             {success && !sheetId && (

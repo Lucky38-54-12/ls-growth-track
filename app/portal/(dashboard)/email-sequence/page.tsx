@@ -144,7 +144,7 @@ export default function PortalEmailSequencePage() {
 
 function StatCard({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
   return (
-    <div style={{ background: highlight ? "var(--red)" : L.surface, border: `1px solid ${highlight ? "var(--red)" : L.border}`, padding: "14px 16px" }}>
+    <div style={{ background: highlight ? "var(--accent)" : L.surface, border: `1px solid ${highlight ? "var(--accent)" : L.border}`, padding: "14px 16px" }}>
       <p style={{ fontSize: 10.5, fontWeight: 700, color: highlight ? "rgba(255,255,255,0.85)" : L.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
         {label}
       </p>

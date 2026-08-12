@@ -26,9 +26,9 @@ export default function SectionTabs({ tabs, defaultTab }: { tabs: Tab[]; default
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "10px 16px",
                 fontSize: 13, fontWeight: 700,
-                color: isActive ? "var(--red)" : L.muted,
+                color: isActive ? "var(--accent)" : L.muted,
                 background: "none", border: "none",
-                borderBottom: `2px solid ${isActive ? "var(--red)" : "transparent"}`,
+                borderBottom: `2px solid ${isActive ? "var(--accent)" : "transparent"}`,
                 cursor: "pointer", whiteSpace: "nowrap",
                 marginBottom: -1,
               }}
@@ -37,7 +37,7 @@ export default function SectionTabs({ tabs, defaultTab }: { tabs: Tab[]; default
               {typeof tab.badge === "number" && tab.badge > 0 && (
                 <span style={{
                   fontSize: 10, fontWeight: 800, padding: "1px 6px",
-                  background: isActive ? "var(--red)" : "#f1f5f9",
+                  background: isActive ? "var(--accent)" : "#f1f5f9",
                   color: isActive ? "#fff" : L.text,
                 }}>
                   {tab.badge}

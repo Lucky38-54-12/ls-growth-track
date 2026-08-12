@@ -147,7 +147,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
             onClick={handleVerifyClick}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
-              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
+              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--accent)",
               border: "none", borderRadius: 0, padding: "12px 16px", cursor: "pointer",
             }}
           >
@@ -227,7 +227,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
             onClick={() => setStep("login")}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
-              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
+              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--accent)",
               border: "none", borderRadius: 0, padding: "11px 16px", cursor: "pointer", marginTop: 8,
             }}
           >
@@ -316,7 +316,7 @@ function LoginStep({ client, resolvedClientId, onBack }: { client: ClientInfo; r
             disabled={sending || !email.trim()}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
-              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
+              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--accent)",
               border: "none", borderRadius: 0, padding: "11px 16px", cursor: sending ? "default" : "pointer",
             }}
           >
@@ -369,7 +369,7 @@ function ConnectRow({
 function PrimaryAction({ connected, href, onNext }: { connected: boolean; href: string; onNext: () => void }) {
   const style: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", boxSizing: "border-box",
-    fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
+    fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--accent)",
     border: "none", borderRadius: 0, padding: "11px 16px", cursor: "pointer", marginTop: 8, textDecoration: "none",
   };
   if (connected) {
@@ -395,7 +395,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
     <div style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: 18, marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: done ? 0 : 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 0, background: "#fef2f2", color: "var(--red)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 0, background: "var(--accent-tint)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Megaphone style={{ width: 18, height: 18 }} />
           </div>
           <div>
@@ -446,7 +446,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
             onClick={onConfirm}
             disabled={confirming}
             style={{
-              width: "100%", fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--red)",
+              width: "100%", fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--accent)",
               border: "none", borderRadius: 0, padding: "9px 16px", cursor: confirming ? "default" : "pointer",
             }}
           >
@@ -460,7 +460,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
 
 const spinnerStyle: React.CSSProperties = {
   width: 28, height: 28, borderRadius: "50%",
-  border: "3px solid #fecdd3", borderTopColor: "var(--red)",
+  border: "3px solid #fecdd3", borderTopColor: "var(--accent)",
   animation: "connect-spin 0.8s linear infinite",
 };
 

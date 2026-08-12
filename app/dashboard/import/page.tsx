@@ -148,7 +148,7 @@ export default function ImportPage() {
             <div>
               <button type="submit" disabled={adding} className="btn-lift" style={{
                 padding: "11px 24px",
-                background: adding ? "#fca5a5" : "var(--red)", color: "#fff",
+                background: adding ? "#fca5a5" : "var(--accent)", color: "#fff",
                 border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: adding ? "default" : "pointer",
               }}>
                 {adding ? "Adding…" : "Add sheet"}

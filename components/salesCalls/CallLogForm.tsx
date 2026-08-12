@@ -203,7 +203,7 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
         onClick={handleSave}
         disabled={saving}
         className="btn-lift"
-        style={{ padding: "11px 24px", background: saving ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 14, fontWeight: 700, cursor: saving ? "default" : "pointer" }}
+        style={{ padding: "11px 24px", background: saving ? "#fca5a5" : "var(--accent)", color: "#fff", border: "none", fontSize: 14, fontWeight: 700, cursor: saving ? "default" : "pointer" }}
       >
         {saving ? "Logging call…" : "Log this call"}
       </button>
@@ -224,7 +224,7 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
               onClick={handleGenerateRecap}
               disabled={generatingRecap}
               className="btn-lift"
-              style={{ padding: "10px 20px", background: generatingRecap ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: generatingRecap ? "default" : "pointer" }}
+              style={{ padding: "10px 20px", background: generatingRecap ? "#fca5a5" : "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: generatingRecap ? "default" : "pointer" }}
             >
               {generatingRecap ? "Generating…" : "Generate recap email"}
             </button>
@@ -257,8 +257,8 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ display: "block", marginBottom: 6 }}>Where are they at?</label>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button type="button" onClick={() => setDecisionStatus("ready")} style={{ flex: 1, padding: "8px 12px", background: decisionStatus === "ready" ? "var(--red)" : "#f8fafc", color: decisionStatus === "ready" ? "#fff" : L.text, border: `1px solid ${decisionStatus === "ready" ? "var(--red)" : L.border}`, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Ready to move forward</button>
-                    <button type="button" onClick={() => setDecisionStatus("thinking")} style={{ flex: 1, padding: "8px 12px", background: decisionStatus === "thinking" ? "var(--red)" : "#f8fafc", color: decisionStatus === "thinking" ? "#fff" : L.text, border: `1px solid ${decisionStatus === "thinking" ? "var(--red)" : L.border}`, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Still deciding</button>
+                    <button type="button" onClick={() => setDecisionStatus("ready")} style={{ flex: 1, padding: "8px 12px", background: decisionStatus === "ready" ? "var(--accent)" : "#f8fafc", color: decisionStatus === "ready" ? "#fff" : L.text, border: `1px solid ${decisionStatus === "ready" ? "var(--accent)" : L.border}`, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Ready to move forward</button>
+                    <button type="button" onClick={() => setDecisionStatus("thinking")} style={{ flex: 1, padding: "8px 12px", background: decisionStatus === "thinking" ? "var(--accent)" : "#f8fafc", color: decisionStatus === "thinking" ? "#fff" : L.text, border: `1px solid ${decisionStatus === "thinking" ? "var(--accent)" : L.border}`, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Still deciding</button>
                   </div>
                 </div>
 
@@ -277,7 +277,7 @@ export default function CallLogForm({ onSaved }: { onSaved: (call: SalesCall, pr
                     onClick={handleSendRecap}
                     disabled={sendingRecap}
                     className="btn-lift"
-                    style={{ padding: "10px 20px", background: sendingRecap ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sendingRecap ? "default" : "pointer" }}
+                    style={{ padding: "10px 20px", background: sendingRecap ? "#fca5a5" : "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sendingRecap ? "default" : "pointer" }}
                   >
                     {sendingRecap ? "Sending…" : recapEmail ? "Add client & send recap" : "Add client"}
                   </button>

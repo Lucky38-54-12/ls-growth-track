@@ -119,7 +119,7 @@ export default function CallPrepPanel({ initialNotes = "" }: { initialNotes?: st
             onClick={handleGenerate}
             disabled={generating}
             className="btn-lift"
-            style={{ padding: "10px 20px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
+            style={{ padding: "10px 20px", background: generating ? "#fca5a5" : "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
           >
             {generating ? "Prepping…" : "Generate prep for this call"}
           </button>
@@ -170,7 +170,7 @@ export default function CallPrepPanel({ initialNotes = "" }: { initialNotes?: st
                     onClick={handleSendToDoc}
                     disabled={creatingDoc}
                     className="btn-lift"
-                    style={{ padding: "6px 12px", background: creatingDoc ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: creatingDoc ? "default" : "pointer" }}
+                    style={{ padding: "6px 12px", background: creatingDoc ? "#fca5a5" : "var(--accent)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: creatingDoc ? "default" : "pointer" }}
                   >
                     {creatingDoc ? "Sending…" : "Send to Google Doc"}
                   </button>

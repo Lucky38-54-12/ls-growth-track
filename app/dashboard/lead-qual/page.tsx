@@ -128,7 +128,7 @@ function LeadQualPageInner() {
             onClick={() => setTab(t.key)}
             style={{
               padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none",
-              background: tab === t.key ? "var(--red)" : "#e2e8f0",
+              background: tab === t.key ? "var(--accent)" : "#e2e8f0",
               color: tab === t.key ? "#fff" : L.muted,
             }}
           >
@@ -200,7 +200,7 @@ function LeadQualPageInner() {
             type="submit"
             style={{
               display: "flex", alignItems: "center", gap: 6,
-              background: "var(--red)", color: "#fff", border: "none",
+              background: "var(--accent)", color: "#fff", border: "none",
               padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer",
             }}
           >
@@ -250,7 +250,7 @@ function LeadQualPageInner() {
                           type="button"
                           onClick={() => saveEmail(client.id)}
                           disabled={savingEmail}
-                          style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", background: "var(--red)", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
+                          style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", background: "var(--accent)", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
                         >
                           {savingEmail ? "Saving…" : "Save"}
                         </button>
@@ -266,7 +266,7 @@ function LeadQualPageInner() {
                       <button
                         type="button"
                         onClick={() => startEditEmail(client)}
-                        style={{ fontSize: 11.5, color: client.email ? L.muted : "var(--red)", background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 2 }}
+                        style={{ fontSize: 11.5, color: client.email ? L.muted : "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 2 }}
                       >
                         {client.email ? `📧 ${client.email} (booking alerts)` : "+ Add email for booking alerts"}
                       </button>
@@ -293,8 +293,8 @@ function LeadQualPageInner() {
                         href={`/api/lead-qual/oauth/facebook?clientId=${client.id}`}
                         style={{
                           display: "flex", alignItems: "center", gap: 6,
-                          fontSize: 12.5, fontWeight: 700, color: "var(--red)",
-                          border: "1px solid var(--red)", borderRadius: 8,
+                          fontSize: 12.5, fontWeight: 700, color: "var(--accent)",
+                          border: "1px solid var(--accent)", borderRadius: 8,
                           padding: "6px 12px", background: "none", textDecoration: "none",
                         }}
                       >
@@ -307,8 +307,8 @@ function LeadQualPageInner() {
                         onClick={() => handleCopyLink(client.id)}
                         style={{
                           display: "flex", alignItems: "center", gap: 6,
-                          fontSize: 12.5, fontWeight: 700, color: copiedId === client.id ? "#15803d" : "var(--red)",
-                          border: `1px solid ${copiedId === client.id ? "#15803d" : "var(--red)"}`, borderRadius: 8,
+                          fontSize: 12.5, fontWeight: 700, color: copiedId === client.id ? "#15803d" : "var(--accent)",
+                          border: `1px solid ${copiedId === client.id ? "#15803d" : "var(--accent)"}`, borderRadius: 8,
                           padding: "6px 12px", background: "none", cursor: "pointer",
                         }}
                       >

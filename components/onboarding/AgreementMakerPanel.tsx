@@ -52,7 +52,7 @@ export default function AgreementMakerPanel() {
             onClick={handleGenerate}
             disabled={generating || !notes.trim()}
             className="btn-lift"
-            style={{ padding: "10px 20px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: generating || !notes.trim() ? "default" : "pointer", opacity: !notes.trim() ? 0.6 : 1 }}
+            style={{ padding: "10px 20px", background: generating ? "#fca5a5" : "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: generating || !notes.trim() ? "default" : "pointer", opacity: !notes.trim() ? 0.6 : 1 }}
           >
             {generating ? "Generating…" : "Generate agreement"}
           </button>

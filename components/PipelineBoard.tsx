@@ -355,7 +355,7 @@ function LeadCard({
             <Sparkles style={{ width: 11, height: 11 }} /> Craft Follow-Up Email
           </button>
           <Link href={`/dashboard/leads/${lead.lead_id}`} style={{
-            display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: "var(--red)", marginTop: 4, textDecoration: "none",
+            display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: "var(--accent)", marginTop: 4, textDecoration: "none",
           }}>
             Open full record <ExternalLink style={{ width: 11, height: 11 }} />
           </Link>
@@ -391,8 +391,8 @@ function KanbanColumn({
       </div>
       <div style={{
         display: "flex", flexDirection: "column", gap: 8, minHeight: 80, padding: 4,
-        background: isDragOver ? "#fef2f2" : "transparent",
-        border: isDragOver ? "1px dashed var(--red)" : "1px dashed transparent",
+        background: isDragOver ? "var(--accent-tint)" : "transparent",
+        border: isDragOver ? "1px dashed var(--accent)" : "1px dashed transparent",
         transition: "background 0.1s, border 0.1s",
       }}>
         {leads.length === 0 ? (

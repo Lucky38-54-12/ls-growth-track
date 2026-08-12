@@ -34,7 +34,7 @@ export default async function CallQueuePage() {
         {/* Callbacks due */}
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-            <Clock style={{ width: 14, height: 14, color: "var(--red)" }} />
+            <Clock style={{ width: 14, height: 14, color: "var(--accent)" }} />
             <span style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text, fontWeight: 800 }}>
               Call Back — {queue.callbacksDue.length}
             </span>
@@ -53,7 +53,7 @@ export default async function CallQueuePage() {
         {/* Warm leads — genuine interest surfaced from the old cold-call sheets */}
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <Flame style={{ width: 14, height: 14, color: "var(--red)" }} />
+            <Flame style={{ width: 14, height: 14, color: "var(--accent)" }} />
             <span style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text, fontWeight: 800 }}>
               Warm Leads — {warmLeads.length}
             </span>
@@ -85,14 +85,14 @@ export default async function CallQueuePage() {
         {/* Fresh leads by segment */}
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-            <PhoneCall style={{ width: 14, height: 14, color: "var(--red)" }} />
+            <PhoneCall style={{ width: 14, height: 14, color: "var(--accent)" }} />
             <span style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text, fontWeight: 800 }}>
               New Leads To Call — {totalFresh}
             </span>
           </div>
           {queue.freshBySegment.length === 0 ? (
             <p style={{ color: L.muted, fontSize: 13 }}>
-              No fresh leads waiting. Run the <Link href="/dashboard/scraper" style={{ color: "var(--red)" }}>Scraper</Link> to add more.
+              No fresh leads waiting. Run the <Link href="/dashboard/scraper" style={{ color: "var(--accent)" }}>Scraper</Link> to add more.
             </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
@@ -174,7 +174,7 @@ function QueueRow({ lead, note, overdue }: { lead: Lead; note?: string; overdue?
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: "var(--red)", fontWeight: 700, fontSize: 13.5 }}>
+        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: "var(--accent)", fontWeight: 700, fontSize: 13.5 }}>
           {lead.company}
         </Link>
         <div style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>
@@ -187,7 +187,7 @@ function QueueRow({ lead, note, overdue }: { lead: Lead; note?: string; overdue?
         {lead.phone && (
           <a
             href={`tel:${lead.phone}`}
-            style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--red)", color: "#fff", padding: "6px 12px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+            style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--accent)", color: "#fff", padding: "6px 12px", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
           >
             <Phone style={{ width: 12, height: 12 }} />
             {lead.phone}

@@ -51,7 +51,7 @@ export default function Topbar({ title, subtitle }: { title: string; subtitle?: 
       }}>
         {/* Left */}
         <div style={{ display: "flex", alignItems: "stretch", gap: 14, minWidth: 0 }}>
-          <div style={{ width: 4, borderRadius: 2, background: "var(--red)", alignSelf: "stretch", flexShrink: 0 }} />
+          <div style={{ width: 4, borderRadius: 2, background: "var(--accent)", alignSelf: "stretch", flexShrink: 0 }} />
           <div style={{ minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
             <h1 style={{ fontSize: 19, fontWeight: 800, color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.04em", lineHeight: 1, whiteSpace: "nowrap" }}>
               {title}
@@ -131,8 +131,8 @@ export default function Topbar({ title, subtitle }: { title: string; subtitle?: 
                     className="row-hover"
                     style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", textDecoration: "none" }}
                   >
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Icon style={{ width: 14, height: 14, color: "var(--red)" }} />
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--accent-tint)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Icon style={{ width: 14, height: 14, color: "var(--accent)" }} />
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{label}</div>
                   </Link>

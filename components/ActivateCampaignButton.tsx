@@ -29,7 +29,7 @@ export default function ActivateCampaignButton({ campaignId, leadCount }: { camp
       <button
         onClick={activate}
         disabled={loading}
-        style={{ background: "var(--red)", color: "#fff", border: "none", padding: "7px 14px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer", opacity: loading ? 0.6 : 1 }}
+        style={{ background: "var(--accent)", color: "#fff", border: "none", padding: "7px 14px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer", opacity: loading ? 0.6 : 1 }}
       >
         {loading ? "Activating…" : "Activate Campaign"}
       </button>

@@ -273,7 +273,7 @@ export default function MetaAdsPage() {
                                       {analysis.ideas.map((idea, i) => (
                                         <div key={i} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14 }}>
                                           <div style={{ fontSize: 13, fontWeight: 700, color: L.text, marginBottom: 6, lineHeight: 1.4 }}>&ldquo;{idea.headline}&rdquo;</div>
-                                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>{idea.angle}</div>
+                                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>{idea.angle}</div>
                                           <p style={{ fontSize: 12, color: L.muted, lineHeight: 1.5, margin: 0 }}>{idea.why}</p>
                                         </div>
                                       ))}

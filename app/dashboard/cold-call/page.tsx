@@ -228,7 +228,7 @@ export default function ColdCallPage() {
                 onClick={handleGenerate}
                 disabled={generating}
                 className="btn-lift"
-                style={{ display: "inline-block", padding: "10px 20px", background: generating ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
+                style={{ display: "inline-block", padding: "10px 20px", background: generating ? "#fca5a5" : "var(--accent)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer" }}
               >
                 {generating ? "Generating…" : "Generate email from notes"}
               </button>
@@ -283,7 +283,7 @@ export default function ColdCallPage() {
 
                 <div style={{ display: "flex", gap: 12 }}>
                   <button type="submit" disabled={loading} className="btn-lift" style={{
-                    padding: "11px 24px", background: loading ? "#fca5a5" : "var(--red)", color: "#fff",
+                    padding: "11px 24px", background: loading ? "#fca5a5" : "var(--accent)", color: "#fff",
                     border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
                   }}>
                     {loading ? "Sending…" : "Save & send now"}
@@ -325,7 +325,7 @@ export default function ColdCallPage() {
                 type="submit"
                 disabled={noteLoading}
                 className="btn-lift"
-                style={{ display: "inline-block", padding: "10px 20px", background: noteLoading ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: noteLoading ? "default" : "pointer" }}
+                style={{ display: "inline-block", padding: "10px 20px", background: noteLoading ? "#fca5a5" : "var(--accent)", color: "#fff", border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: noteLoading ? "default" : "pointer" }}
               >
                 {noteLoading ? "Saving…" : "Save note & add to pipeline"}
               </button>
@@ -355,7 +355,7 @@ export default function ColdCallPage() {
                     onClick={() => swapLandingPage(p.key)}
                     style={{
                       padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none", borderRadius: 0,
-                      background: selectedPage === p.key ? "var(--red)" : "#f1f5f9",
+                      background: selectedPage === p.key ? "var(--accent)" : "#f1f5f9",
                       color: selectedPage === p.key ? "#fff" : L.muted,
                     }}
                   >{p.label}</button>

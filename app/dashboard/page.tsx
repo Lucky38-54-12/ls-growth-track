@@ -104,7 +104,7 @@ export default async function DashboardPage() {
         {/* Kanban board */}
         {pipelineLeads.length === 0 ? (
           <div className="surface-card" style={{ padding: 32, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
-            No cold-call leads yet — run the <Link href="/dashboard/scraper" style={{ color: "var(--red)", fontWeight: 700 }}>Scraper</Link> to add some.
+            No cold-call leads yet — run the <Link href="/dashboard/scraper" style={{ color: "var(--accent)", fontWeight: 700 }}>Scraper</Link> to add some.
           </div>
         ) : (
           <PipelineBoard sections={sections} columns={columns} engagement={engagement} sends={sendsByLead} activeSource="cold_call" />

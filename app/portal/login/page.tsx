@@ -79,7 +79,7 @@ function PortalLoginInner() {
                 disabled={sending}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
-                  fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--red)",
+                  fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--accent)",
                   border: "none", borderRadius: 0, padding: "12px 16px", cursor: sending ? "default" : "pointer",
                 }}
               >

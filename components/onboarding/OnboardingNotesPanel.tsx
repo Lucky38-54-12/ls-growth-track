@@ -74,7 +74,7 @@ export default function OnboardingNotesPanel() {
           onClick={handleSave}
           disabled={saving || !draft.trim()}
           className="btn-lift"
-          style={{ padding: "10px 20px", background: saving ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: saving || !draft.trim() ? "default" : "pointer", opacity: !draft.trim() ? 0.6 : 1 }}
+          style={{ padding: "10px 20px", background: saving ? "#fca5a5" : "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: saving || !draft.trim() ? "default" : "pointer", opacity: !draft.trim() ? 0.6 : 1 }}
         >
           {saving ? "Saving…" : "Save note"}
         </button>

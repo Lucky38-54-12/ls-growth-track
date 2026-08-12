@@ -119,7 +119,7 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
             <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "80%" }}>
               <div style={{
                 padding: "10px 14px", fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap",
-                background: m.role === "user" ? "var(--red)" : "#f1f5f9",
+                background: m.role === "user" ? "var(--accent)" : "#f1f5f9",
                 color: m.role === "user" ? "#fff" : L.text,
               }}>
                 {m.content}
@@ -144,7 +144,7 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
             onClick={send}
             disabled={sending || !input.trim()}
             className="btn-lift"
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 18px", background: "var(--red)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || !input.trim() ? "default" : "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 18px", background: "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || !input.trim() ? "default" : "pointer" }}
           >
             <Send style={{ width: 14, height: 14 }} /> Send
           </button>

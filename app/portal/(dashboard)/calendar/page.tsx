@@ -126,7 +126,7 @@ export default function PortalCalendarPage() {
                       background: inMonth ? "#fff" : "#f8fafc",
                     }}
                   >
-                    <p style={{ fontSize: 11.5, fontWeight: isToday ? 800 : 600, color: isToday ? "var(--red)" : inMonth ? L.text : "#cbd5e1", marginBottom: 4 }}>
+                    <p style={{ fontSize: 11.5, fontWeight: isToday ? 800 : 600, color: isToday ? "var(--accent)" : inMonth ? L.text : "#cbd5e1", marginBottom: 4 }}>
                       {day.getDate()}
                     </p>
                     {dayJobs.slice(0, 2).map((j) => (

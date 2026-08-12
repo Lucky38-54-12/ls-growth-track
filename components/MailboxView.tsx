@@ -51,7 +51,7 @@ function btnStyle(variant: "primary" | "ghost" | "danger" | "outline"): React.CS
     fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer",
     border: "none", letterSpacing: "0.02em",
   };
-  if (variant === "primary") return { ...base, background: "var(--red)", color: "#fff" };
+  if (variant === "primary") return { ...base, background: "var(--accent)", color: "#fff" };
   if (variant === "danger")  return { ...base, background: "#fee2e2", color: "#dc2626" };
   if (variant === "outline") return { ...base, background: L.surface, color: L.muted, border: `1px solid ${L.border}` };
   return { ...base, background: "transparent", color: L.muted };
@@ -221,9 +221,9 @@ export default function MailboxView({ account, title, subtitle, embedded }: { ac
   const tabStyle = (active: boolean) => ({
     display: "flex", alignItems: "center", gap: 6,
     padding: "6px 12px", fontSize: 12, fontWeight: 700,
-    background: active ? "#fef2f2" : "transparent",
-    color: active ? "var(--red)" : L.muted,
-    border: "none", borderBottom: active ? "2px solid var(--red)" : "2px solid transparent",
+    background: active ? "var(--accent-tint)" : "transparent",
+    color: active ? "var(--accent)" : L.muted,
+    border: "none", borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
     cursor: "pointer", letterSpacing: "0.04em",
   } as React.CSSProperties);
 
@@ -256,7 +256,7 @@ export default function MailboxView({ account, title, subtitle, embedded }: { ac
             <button style={tabStyle(tab === "inbox")} onClick={() => setTab("inbox")}>
               <Inbox style={{ width: 13, height: 13 }} />
               INBOX
-              {unread > 0 && <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 5px", background: "var(--red)", color: "#fff", borderRadius: 99 }}>{unread}</span>}
+              {unread > 0 && <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 5px", background: "var(--accent)", color: "#fff", borderRadius: 99 }}>{unread}</span>}
             </button>
             <button style={tabStyle(tab === "sent")} onClick={() => setTab("sent")}>
               <Send style={{ width: 13, height: 13 }} />
@@ -273,7 +273,7 @@ export default function MailboxView({ account, title, subtitle, embedded }: { ac
             <button
               onClick={() => setComposeOpen(true)}
               title="Compose"
-              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--red)", padding: "0 10px", display: "flex", alignItems: "center" }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--accent)", padding: "0 10px", display: "flex", alignItems: "center" }}
             >
               <Pencil style={{ width: 13, height: 13 }} />
             </button>
@@ -298,8 +298,8 @@ export default function MailboxView({ account, title, subtitle, embedded }: { ac
                     style={{
                       display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 14px",
                       borderBottom: `1px solid ${L.border}`, cursor: "pointer",
-                      background: isSelected ? "#fef2f2" : seen ? L.surface : "#f0f7ff",
-                      borderLeft: isSelected ? "2px solid var(--red)" : "2px solid transparent",
+                      background: isSelected ? "var(--accent-tint)" : seen ? L.surface : "#f0f7ff",
+                      borderLeft: isSelected ? "2px solid var(--accent)" : "2px solid transparent",
                     }}
                   >
                     <div style={{

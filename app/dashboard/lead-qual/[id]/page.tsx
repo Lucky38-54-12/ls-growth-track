@@ -327,7 +327,7 @@ function ClientDetailPageInner() {
           onClick={handleBackfillLeads}
           disabled={backfilling}
           style={{
-            flexShrink: 0, background: backfilling ? L.dimmed : "var(--red)", color: "#fff", border: "none",
+            flexShrink: 0, background: backfilling ? L.dimmed : "var(--accent)", color: "#fff", border: "none",
             padding: "8px 16px", fontSize: 12.5, fontWeight: 700, borderRadius: 8, cursor: backfilling ? "default" : "pointer",
           }}
         >
@@ -357,7 +357,7 @@ function ClientDetailPageInner() {
                 onClick={handleAutofill}
                 disabled={autofilling}
                 style={{
-                  flexShrink: 0, background: autofilling ? L.dimmed : "var(--red)", color: "#fff", border: "none",
+                  flexShrink: 0, background: autofilling ? L.dimmed : "var(--accent)", color: "#fff", border: "none",
                   padding: "7px 14px", fontSize: 12.5, fontWeight: 700, borderRadius: 8, cursor: autofilling ? "default" : "pointer",
                 }}
               >
@@ -382,7 +382,7 @@ function ClientDetailPageInner() {
                 onClick={handleAutofillFromWebsite}
                 disabled={autofillingSite || !websiteUrl.trim()}
                 style={{
-                  flexShrink: 0, background: autofillingSite || !websiteUrl.trim() ? L.dimmed : "var(--red)", color: "#fff", border: "none",
+                  flexShrink: 0, background: autofillingSite || !websiteUrl.trim() ? L.dimmed : "var(--accent)", color: "#fff", border: "none",
                   padding: "5px 12px", fontSize: 11.5, fontWeight: 700, borderRadius: 8, cursor: autofillingSite || !websiteUrl.trim() ? "default" : "pointer",
                 }}
               >
@@ -463,7 +463,7 @@ function ClientDetailPageInner() {
             ))}
             <button
               onClick={() => setFaqs((f) => [...f, { question: "", answer: "" }])}
-              style={{ fontSize: 12, color: "var(--red)", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}
+              style={{ fontSize: 12, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}
             >
               + Add FAQ
             </button>
@@ -482,7 +482,7 @@ function ClientDetailPageInner() {
             <button
               onClick={handleSaveConfig}
               disabled={saving}
-              style={{ marginTop: 12, background: "var(--red)", color: "#fff", border: "none", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              style={{ marginTop: 12, background: "var(--accent)", color: "#fff", border: "none", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
             >
               {saving ? "Saving…" : "Save config"}
             </button>
@@ -505,7 +505,7 @@ function ClientDetailPageInner() {
                   key={i}
                   style={{
                     alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                    background: m.role === "user" ? "var(--red)" : "#f1f5f9",
+                    background: m.role === "user" ? "var(--accent)" : "#f1f5f9",
                     color: m.role === "user" ? "#fff" : L.text,
                     padding: "8px 12px", borderRadius: 12, fontSize: 13, maxWidth: "85%",
                   }}
@@ -526,7 +526,7 @@ function ClientDetailPageInner() {
               <button
                 type="submit"
                 disabled={chatBusy}
-                style={{ background: "var(--red)", color: "#fff", border: "none", width: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+                style={{ background: "var(--accent)", color: "#fff", border: "none", width: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
               >
                 <Send style={{ width: 14, height: 14 }} />
               </button>

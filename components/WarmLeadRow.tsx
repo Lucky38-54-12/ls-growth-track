@@ -42,7 +42,7 @@ export default function WarmLeadRow({ lead }: { lead: WarmLead }) {
         {lead.phone && (
           <a
             href={`tel:${lead.phone}`}
-            style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--red)", color: "#fff", padding: "6px 12px", fontSize: 12, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}
+            style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--accent)", color: "#fff", padding: "6px 12px", fontSize: 12, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}
           >
             <Phone style={{ width: 12, height: 12 }} />
             {lead.phone}

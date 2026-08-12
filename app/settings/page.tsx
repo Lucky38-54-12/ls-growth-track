@@ -30,7 +30,7 @@ export default function SettingsPage() {
           disabled={loggingOut}
           style={{
             padding: "10px 16px",
-            background: "var(--red)",
+            background: "var(--accent)",
             color: "white",
             border: "none",
             borderRadius: 6,

@@ -89,7 +89,7 @@ export default function SalesCallsClient({
               onClick={() => setTab(t.key)}
               style={{
                 padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none",
-                background: tab === t.key ? "var(--red)" : "#f1f5f9",
+                background: tab === t.key ? "var(--accent)" : "#f1f5f9",
                 color: tab === t.key ? "#fff" : L.muted,
               }}
             >

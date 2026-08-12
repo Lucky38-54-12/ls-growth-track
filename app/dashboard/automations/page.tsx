@@ -63,7 +63,7 @@ function AutomationCard({ automation: a }: { automation: Automation }) {
           <p style={{ fontSize: 12.5, color: L.muted, marginTop: 6, lineHeight: 1.5 }}>{a.description}</p>
         </div>
         {a.external_url && (
-          <a href={a.external_url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color: "var(--red)", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+          <a href={a.external_url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
             View <ExternalLink style={{ width: 11, height: 11 }} />
           </a>
         )}

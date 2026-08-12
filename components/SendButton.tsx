@@ -39,7 +39,7 @@ export default function SendButton({ due, leadIds, label }: { due: number; leadI
           className="btn-lift"
           style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "11px 20px", background: loading || due === 0 ? "#fca5a5" : "var(--red)",
+            padding: "11px 20px", background: loading || due === 0 ? "#fca5a5" : "var(--accent)",
             color: "#fff", border: "none", borderRadius: 0, cursor: loading || due === 0 ? "default" : "pointer",
             fontSize: 14, fontWeight: 700,
           }}

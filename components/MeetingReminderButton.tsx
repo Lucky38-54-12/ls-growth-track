@@ -112,7 +112,7 @@ export default function MeetingReminderButton({ to, defaultSubject, defaultBody 
                 disabled={state === "sending" || state === "done"}
                 style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", fontSize: 12, fontWeight: 700,
-                  background: state === "done" ? "var(--green, #16a34a)" : "var(--red)", color: "#fff",
+                  background: state === "done" ? "var(--green, #16a34a)" : "var(--accent)", color: "#fff",
                   border: "none", cursor: state === "sending" ? "wait" : "pointer", opacity: state === "sending" ? 0.7 : 1,
                 }}
               >

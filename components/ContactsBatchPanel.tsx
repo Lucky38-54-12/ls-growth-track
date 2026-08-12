@@ -150,7 +150,7 @@ export default function ContactsBatchPanel({
           <span style={{ fontSize: 12.5, fontWeight: 600, color: "#fff" }}>{selected.size} selected</span>
           <button
             onClick={() => setModalOpen(true)}
-            style={{ background: "var(--red)", color: "#fff", border: "none", padding: "7px 14px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer" }}
+            style={{ background: "var(--accent)", color: "#fff", border: "none", padding: "7px 14px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer" }}
           >
             Start Campaign
           </button>
@@ -192,7 +192,7 @@ export default function ContactsBatchPanel({
               <button
                 onClick={startCampaign}
                 disabled={submitting}
-                style={{ background: "var(--red)", color: "#fff", border: "none", padding: "7px 14px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
+                style={{ background: "var(--accent)", color: "#fff", border: "none", padding: "7px 14px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer", opacity: submitting ? 0.6 : 1 }}
               >
                 {submitting ? "Creating…" : "Create draft"}
               </button>

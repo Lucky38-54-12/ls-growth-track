@@ -24,9 +24,9 @@ export default function StatsBar({ stats }: { stats: CallStats }) {
             <p style={{ fontSize: hero ? 10 : 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: hero ? "rgba(255,255,255,0.85)" : L.muted }}>{label}</p>
             <div style={{
               width: hero ? 32 : 28, height: hero ? 32 : 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              background: hero ? "rgba(255,255,255,0.18)" : "#fef2f2",
+              background: hero ? "rgba(255,255,255,0.18)" : "var(--accent-tint)",
             }}>
-              <Icon style={{ width: hero ? 16 : 14, height: hero ? 16 : 14, color: hero ? "#fff" : "var(--red)" }} />
+              <Icon style={{ width: hero ? 16 : 14, height: hero ? 16 : 14, color: hero ? "#fff" : "var(--accent)" }} />
             </div>
           </div>
           <div style={{ fontSize: hero ? 44 : 36, fontWeight: 800, color: hero ? "#fff" : L.text, lineHeight: 1, marginBottom: 5, letterSpacing: "-0.02em" }}>{value}</div>

@@ -172,9 +172,9 @@ export default async function ContactsPage({
               return (
                 <Link key={f.key} href={`/dashboard/contacts${qs ? `?${qs}` : ""}`} style={{
                   padding: "5px 12px", fontSize: 11, fontWeight: 600, textDecoration: "none",
-                  border: `1px solid ${active ? "var(--red)" : L.border}`,
-                  background: active ? "#fef2f2" : L.surface,
-                  color: active ? "var(--red)" : L.muted,
+                  border: `1px solid ${active ? "var(--accent)" : L.border}`,
+                  background: active ? "var(--accent-tint)" : L.surface,
+                  color: active ? "var(--accent)" : L.muted,
                   transition: "all 0.15s",
                 }}>{f.label}</Link>
               );

@@ -153,7 +153,7 @@ export default function FollowUpModal({
               disabled={state === "sending"}
               style={{
                 display: "flex", alignItems: "center", gap: 6, padding: "8px 16px",
-                background: state === "sending" ? L.border : "var(--red)", color: "#fff",
+                background: state === "sending" ? L.border : "var(--accent)", color: "#fff",
                 border: "none", cursor: state === "sending" ? "default" : "pointer",
                 fontSize: 13, fontWeight: 700,
               }}

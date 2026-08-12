@@ -140,7 +140,7 @@ export default function CallForm({ lead, events, sends, sourceSheetUrl }: { lead
 
           <div style={{ display: "flex", gap: 12 }}>
             <button type="submit" disabled={loading} className="btn-lift" style={{
-              padding: "11px 24px", background: loading ? "#fca5a5" : "var(--red)", color: "#fff",
+              padding: "11px 24px", background: loading ? "#fca5a5" : "var(--accent)", color: "#fff",
               border: "none", borderRadius: 0, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
             }}>{loading ? "Saving…" : "Save & send"}</button>
             <a href="/dashboard" className="btn-lift" style={{
@@ -277,7 +277,7 @@ function TextNotesCard({ leadId, initialTextNotes }: { leadId: string; initialTe
         disabled={saving || !draft.trim()}
         className="btn-lift"
         style={{
-          marginTop: 10, padding: "8px 16px", background: saving ? "#fca5a5" : "var(--red)", color: "#fff",
+          marginTop: 10, padding: "8px 16px", background: saving ? "#fca5a5" : "var(--accent)", color: "#fff",
           border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: saving ? "default" : "pointer",
         }}
       >{saving ? "Saving…" : "Add note"}</button>

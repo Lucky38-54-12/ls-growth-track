@@ -108,7 +108,7 @@ export default function PortalLeadsPage() {
         style={{
           position: "relative",
           overflow: "hidden",
-          background: "linear-gradient(120deg, #0f172a 0%, var(--red) 160%)",
+          background: "linear-gradient(120deg, #0f172a 0%, var(--accent) 160%)",
           color: "#fff",
           padding: "28px 32px",
           display: "flex",
@@ -164,8 +164,8 @@ export default function PortalLeadsPage() {
                     style={{
                       padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer",
                       background: filter === f.key ? "#fff" : "#f1f5f9",
-                      color: filter === f.key ? "var(--red)" : L.muted,
-                      border: filter === f.key ? "1px solid var(--red)" : "1px solid transparent",
+                      color: filter === f.key ? "var(--accent)" : L.muted,
+                      border: filter === f.key ? "1px solid var(--accent)" : "1px solid transparent",
                       borderRadius: 4,
                     }}
                   >
@@ -181,7 +181,7 @@ export default function PortalLeadsPage() {
                   {selected.size} selected
                   <button
                     onClick={() => setSelected(new Set())}
-                    style={{ background: "none", border: "none", color: "var(--red)", fontWeight: 700, cursor: "pointer", fontSize: 13, padding: 0 }}
+                    style={{ background: "none", border: "none", color: "var(--accent)", fontWeight: 700, cursor: "pointer", fontSize: 13, padding: 0 }}
                   >
                     Clear
                   </button>

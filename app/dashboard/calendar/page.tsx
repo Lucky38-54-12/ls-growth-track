@@ -134,13 +134,13 @@ export default function CalendarPage() {
                   className="row-hover calendar-day-cell"
                   style={{
                     minHeight: 92, padding: 8, borderBottom: `1px solid ${L.border}`, borderRight: `1px solid ${L.border}`,
-                    background: isSelected ? "#fef2f2" : L.surface, opacity: inMonth ? 1 : 0.4, cursor: "pointer",
+                    background: isSelected ? "var(--accent-tint)" : L.surface, opacity: inMonth ? 1 : 0.4, cursor: "pointer",
                   }}
                 >
                   <span style={{
                     display: "inline-flex", alignItems: "center", justifyContent: "center",
                     width: 22, height: 22, fontSize: 12, fontWeight: isToday ? 800 : 600,
-                    color: isToday ? "#fff" : L.text, background: isToday ? "var(--red)" : "transparent",
+                    color: isToday ? "#fff" : L.text, background: isToday ? "var(--accent)" : "transparent",
                     borderRadius: isToday ? "50%" : 0,
                   }}>{d.getDate()}</span>
                   <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -166,7 +166,7 @@ export default function CalendarPage() {
             <h3 style={{ fontSize: 13, fontWeight: 800, color: L.text }}>
               {new Date(`${selected}T00:00:00`).toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" })}
             </h3>
-            {selected === todayKey && <p style={{ fontSize: 11, color: "var(--red)", fontWeight: 700, marginTop: 2 }}>Today</p>}
+            {selected === todayKey && <p style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700, marginTop: 2 }}>Today</p>}
           </div>
           <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             {loading ? (

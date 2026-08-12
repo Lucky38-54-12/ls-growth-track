@@ -95,7 +95,7 @@ export default function AdResearchPage() {
                 type="submit"
                 disabled={loading}
                 className="btn-lift"
-                style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--red)", color: "#fff", border: "none", padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}
+                style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--accent)", color: "#fff", border: "none", padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}
               >
                 <Sparkles style={{ width: 13, height: 13 }} />
                 {loading ? "Researching…" : "Find Working Ads"}
@@ -138,7 +138,7 @@ export default function AdResearchPage() {
                 <div key={i} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 18 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: L.text, lineHeight: 1.4 }}>{ad.headline}</div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "var(--red)", border: "1px solid var(--red)", padding: "2px 8px", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", border: "1px solid var(--accent)", padding: "2px 8px", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                       {ad.angle}
                     </span>
                   </div>
@@ -156,7 +156,7 @@ export default function AdResearchPage() {
                     <div style={{ fontSize: 12, color: L.dimmed, display: "flex", alignItems: "center", gap: 6 }}>
                       {ad.source_business && <span>{ad.source_business}</span>}
                       {ad.source_url && (
-                        <a href={ad.source_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--red)", display: "flex", alignItems: "center", gap: 4 }}>
+                        <a href={ad.source_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", display: "flex", alignItems: "center", gap: 4 }}>
                           Source <ExternalLink style={{ width: 10, height: 10 }} />
                         </a>
                       )}

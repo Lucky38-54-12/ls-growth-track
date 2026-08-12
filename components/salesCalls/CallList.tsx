@@ -197,7 +197,7 @@ export default function CallList({ calls, onUpdated }: { calls: SalesCall[]; onU
                     type="button"
                     onClick={() => saveEdit(c.id)}
                     disabled={saving}
-                    style={{ padding: "8px 16px", background: saving ? "#fca5a5" : "var(--red)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: saving ? "default" : "pointer" }}
+                    style={{ padding: "8px 16px", background: saving ? "#fca5a5" : "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: saving ? "default" : "pointer" }}
                   >
                     {saving ? "Saving…" : "Save"}
                   </button>

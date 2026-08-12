@@ -71,7 +71,7 @@ function ChatInput({
             disabled={sending || !input.trim()}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34,
-              color: "#fff", background: "var(--red)", border: "none", borderRadius: "50%",
+              color: "#fff", background: "var(--accent)", border: "none", borderRadius: "50%",
               cursor: sending || !input.trim() ? "not-allowed" : "pointer", opacity: sending || !input.trim() ? 0.5 : 1,
             }}
           >
@@ -137,7 +137,7 @@ export default function PortalChatPage() {
             <div style={{ textAlign: "center", marginBottom: 22 }}>
               <div
                 style={{
-                  width: 44, height: 44, borderRadius: "50%", background: "var(--red)", display: "flex",
+                  width: 44, height: 44, borderRadius: "50%", background: "var(--accent)", display: "flex",
                   alignItems: "center", justifyContent: "center", margin: "0 auto 14px",
                 }}
               >
@@ -188,7 +188,7 @@ export default function PortalChatPage() {
                 fontSize: 14,
                 lineHeight: 1.5,
                 whiteSpace: "pre-wrap",
-                background: m.role === "user" ? "var(--red)" : L.surface,
+                background: m.role === "user" ? "var(--accent)" : L.surface,
                 color: m.role === "user" ? "#fff" : L.text,
                 border: m.role === "user" ? "none" : `1px solid ${L.border}`,
                 borderRadius: 4,

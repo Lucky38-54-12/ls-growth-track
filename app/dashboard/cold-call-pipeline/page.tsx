@@ -56,7 +56,7 @@ export default async function ColdCallPipelinePage() {
           </div>
           {calledLeads.length === 0 ? (
             <p style={{ color: L.muted, fontSize: 13 }}>
-              No cold-call leads yet — run the <Link href="/dashboard/scraper" style={{ color: "var(--red)" }}>Scraper</Link> to add some.
+              No cold-call leads yet — run the <Link href="/dashboard/scraper" style={{ color: "var(--accent)" }}>Scraper</Link> to add some.
             </p>
           ) : (
             <div style={{ overflowX: "auto" }}>
@@ -75,7 +75,7 @@ export default async function ColdCallPipelinePage() {
                   return (
                     <tr key={lead.lead_id}>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>
-                        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: "var(--red)" }}>{lead.company}</Link>
+                        <Link href={`/dashboard/leads/${lead.lead_id}`} style={{ color: "var(--accent)" }}>{lead.company}</Link>
                       </td>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13, color: L.muted }}>{lead.contact_name}</td>
                       <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13, color: L.muted }}>{lead.trade || "—"}</td>

@@ -81,7 +81,7 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
                   display: "flex", alignItems: "center", gap: 12, padding: "12px 12px", marginBottom: 4,
                   fontSize: 15, fontWeight: active ? 700 : 500, textDecoration: "none",
                   color: active ? "#fff" : SIDEBAR_TEXT,
-                  background: active ? "var(--red)" : "transparent",
+                  background: active ? "var(--accent)" : "transparent",
                   borderRadius: 4,
                 }}
               >

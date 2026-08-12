@@ -118,7 +118,7 @@ function LeadCard({
             </div>
           )}
           <Link href={`/dashboard/leads/${lead.lead_id}`} style={{
-            display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: "var(--red)", marginTop: 4, textDecoration: "none",
+            display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: "var(--accent)", marginTop: 4, textDecoration: "none",
           }}>
             Open full record <ExternalLink style={{ width: 11, height: 11 }} />
           </Link>

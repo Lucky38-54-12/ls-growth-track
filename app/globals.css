@@ -1,6 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@400;600;700;800&display=swap');
 
 :root {
+  /* LS Growth's real brand color (matches the actual logo and the
+     marketing site at lsgrowth.agency) — --red stays defined below as a
+     genuinely separate danger/error color, it was never the brand color. */
+  --accent: #0080e0;
+  --accent-dark: #006bbf;
+  --accent-light: #40c0f0;
+  --accent-tint: #eaf6ff;
+
   --red: #dc2626;
   --blue: #2563eb;
   --green: #16a34a;
@@ -42,6 +50,14 @@ body {
   font-family: var(--font-inter), "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Sora was already imported above but never applied — matches the display
+   font the marketing site uses for every heading. */
+h1, h2, h3, h4 {
+  font-family: "Sora", var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 /* Sensible defaults so elements that don't set their own radius still look
@@ -102,7 +118,7 @@ a.card-hover, div.card-hover, .surface-card.card-hover {
 a.card-hover:hover, div.card-hover:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
-  border-color: var(--red);
+  border-color: var(--accent);
 }
 
 .btn-lift {
@@ -122,9 +138,9 @@ a.card-hover:hover, div.card-hover:hover {
   border-radius: 999px;
 }
 .pill-hover:hover {
-  background-color: #fef2f2 !important;
-  border-color: var(--red) !important;
-  color: var(--red) !important;
+  background-color: var(--accent-tint) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
 }
 
 .row-hover:hover {

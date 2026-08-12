@@ -149,10 +149,10 @@ export default function OnboardingChecklist({ client, steps }: { client: Onboard
           <div style={{ marginTop: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: L.muted }}>{complete ? "Onboarding complete!" : `${done.length} of ${total} steps done`}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: complete ? "#16a34a" : "var(--red)" }}>{pct}%</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: complete ? "#16a34a" : "var(--accent)" }}>{pct}%</span>
             </div>
             <div style={{ height: 8, background: "#f1f5f9", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${pct}%`, background: complete ? "#16a34a" : "var(--red)", borderRadius: 4, transition: "width 0.3s ease" }} />
+              <div style={{ height: "100%", width: `${pct}%`, background: complete ? "#16a34a" : "var(--accent)", borderRadius: 4, transition: "width 0.3s ease" }} />
             </div>
           </div>
         )}
@@ -184,7 +184,7 @@ export default function OnboardingChecklist({ client, steps }: { client: Onboard
             <button
               onClick={() => setStatus("ready")}
               disabled={switchingStatus}
-              style={{ marginTop: 16, padding: "9px 16px", background: "var(--red)", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              style={{ marginTop: 16, padding: "9px 16px", background: "var(--accent)", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
             >
               {switchingStatus ? "Updating…" : "Mark as ready to move forward"}
             </button>
@@ -314,7 +314,7 @@ export default function OnboardingChecklist({ client, steps }: { client: Onboard
         <button
           onClick={logCall}
           disabled={sendingCall || !callNotes.trim()}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", background: sendingCall ? "#fca5a5" : "var(--red)", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 700, cursor: sendingCall || !callNotes.trim() ? "default" : "pointer", opacity: !callNotes.trim() ? 0.5 : 1 }}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", background: sendingCall ? "#fca5a5" : "var(--accent)", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 700, cursor: sendingCall || !callNotes.trim() ? "default" : "pointer", opacity: !callNotes.trim() ? 0.5 : 1 }}
         >
           {sendingCall ? "Sending…" : "Generate & send follow-up"}
         </button>

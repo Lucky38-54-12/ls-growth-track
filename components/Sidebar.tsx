@@ -66,8 +66,8 @@ export default function Sidebar() {
         {/* Brand */}
         <div style={{ height: 64, display: "flex", alignItems: "center", gap: 10, padding: "0 16px", borderBottom: "1px solid #e6eaf0" }}>
           <div style={{
-            width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #fff 0%, #fef2f2 100%)",
-            border: "1px solid #fee2e2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #fff 0%, var(--accent-tint) 100%)",
+            border: "1px solid #d6ecfb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
             <img src="/logo.png" alt="LS Growth" style={{ width: 22, height: 22, objectFit: "contain" }} />
           </div>
@@ -75,7 +75,7 @@ export default function Sidebar() {
             <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: "0.03em", lineHeight: 1, color: "#0f172a", textTransform: "uppercase" }}>
               L&amp;S Growth
             </div>
-            <div style={{ fontSize: 10, color: "var(--red)", fontWeight: 600, letterSpacing: "0.04em", marginTop: 3 }}>Outreach Agency</div>
+            <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600, letterSpacing: "0.04em", marginTop: 3 }}>Outreach Agency</div>
           </div>
         </div>
 
@@ -89,14 +89,14 @@ export default function Sidebar() {
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "9px 10px",
                 fontSize: 13, fontWeight: active ? 700 : 500,
-                background: active ? "linear-gradient(135deg, #fef2f2 0%, #fff5f5 100%)" : "transparent",
-                color: active ? "var(--red)" : "#475569",
+                background: active ? "linear-gradient(135deg, var(--accent-tint) 0%, #f5fbff 100%)" : "transparent",
+                color: active ? "var(--accent)" : "#475569",
                 borderRadius: 8,
-                boxShadow: active ? "0 1px 3px rgba(220,38,38,0.12)" : "none",
+                boxShadow: active ? "0 1px 3px rgba(0,128,224,0.12)" : "none",
                 marginBottom: 2, textDecoration: "none",
                 transition: "all 0.15s",
               }}>
-                <Icon style={{ width: 15, height: 15, color: active ? "var(--red)" : "#94a3b8", flexShrink: 0 }} />
+                <Icon style={{ width: 15, height: 15, color: active ? "var(--accent)" : "#94a3b8", flexShrink: 0 }} />
                 {label}
               </Link>
             );
@@ -106,7 +106,7 @@ export default function Sidebar() {
         {/* Footer */}
         <div style={{ padding: 10, borderTop: "1px solid #e6eaf0" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, background: "#f8fafc" }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, var(--red), #b91c1c)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>LS</div>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg, var(--accent), var(--accent-dark))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>LS</div>
             <div style={{ fontSize: 11, fontWeight: 600, color: "#0f172a" }}>LS Growth Agency</div>
           </div>
         </div>

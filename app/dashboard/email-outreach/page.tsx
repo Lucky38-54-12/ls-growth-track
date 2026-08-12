@@ -468,7 +468,7 @@ export default async function EmailOutreachPage({
                       {ev?.clicks > 0 && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#fce7f3", color: "#9d174d" }}>{ev.clicks} click{ev.clicks !== 1 ? "s" : ""}</span>}
                       {(lead?.status === "replied" || lead?.status === "booked") && <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", background: "#dcfce7", color: "#15803d" }}>{lead.status === "booked" ? "Booked" : "Replied"}</span>}
                     </div>
-                    <Link href={`/dashboard/leads/${leadId}`} style={{ fontSize: 11, color: "var(--red)", flexShrink: 0 }}>Open lead →</Link>
+                    <Link href={`/dashboard/leads/${leadId}`} style={{ fontSize: 11, color: "var(--accent)", flexShrink: 0 }}>Open lead →</Link>
                   </summary>
                   <div style={{ borderTop: `1px solid ${L.border}` }}>
                     {leadRows.map((send) => (
@@ -521,7 +521,7 @@ export default async function EmailOutreachPage({
                   <tr key={row.id}>
                     <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 12.5, color: L.muted, whiteSpace: "nowrap" }}>{formatDateTime(row.sent_at)}</td>
                     <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontWeight: 700, fontSize: 13.5 }}>
-                      <Link href={`/dashboard/leads/${row.lead_id}`} style={{ color: "var(--red)" }}>{row.company}</Link>
+                      <Link href={`/dashboard/leads/${row.lead_id}`} style={{ color: "var(--accent)" }}>{row.company}</Link>
                     </td>
                     <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13, color: L.muted }}>{row.contact_name}</td>
                     <td style={{ padding: "10px 12px", borderBottom: `1px solid ${L.border}`, fontSize: 13.5 }}>{row.subject}</td>

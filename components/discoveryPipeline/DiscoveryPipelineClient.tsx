@@ -230,8 +230,8 @@ export default function DiscoveryPipelineClient({ initialAwaitingOutcome, initia
               </div>
               <div style={{
                 display: "flex", flexDirection: "column", gap: 8, minHeight: 80, padding: 4,
-                background: dragOverKey === col.key ? "#fef2f2" : "transparent",
-                border: dragOverKey === col.key ? "1px dashed var(--red)" : "1px dashed transparent",
+                background: dragOverKey === col.key ? "var(--accent-tint)" : "transparent",
+                border: dragOverKey === col.key ? "1px dashed var(--accent)" : "1px dashed transparent",
                 transition: "background 0.1s, border 0.1s",
               }}>
                 {grouped[col.key].length === 0 ? (

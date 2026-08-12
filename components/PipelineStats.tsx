@@ -38,9 +38,9 @@ export default function PipelineStats({ allLeads }: { allLeads: Lead[] }) {
             <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: green ? "rgba(255,255,255,0.8)" : L.muted }}>{label}</p>
             <div style={{
               width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              background: green ? "rgba(255,255,255,0.18)" : "#fef2f2",
+              background: green ? "rgba(255,255,255,0.18)" : "var(--accent-tint)",
             }}>
-              <Icon style={{ width: 14, height: 14, color: green ? "#fff" : "var(--red)" }} />
+              <Icon style={{ width: 14, height: 14, color: green ? "#fff" : "var(--accent)" }} />
             </div>
           </div>
           <div style={{ fontSize: 36, fontWeight: 800, color: green ? "#fff" : L.text, lineHeight: 1, marginBottom: 5, letterSpacing: "-0.02em" }}>{value}</div>
