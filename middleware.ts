@@ -43,7 +43,8 @@ export async function middleware(req: NextRequest) {
     // needs to be callable from outside a logged-in browser session. Other
     // /api/admin/* routes stay behind the session cookie (some, like
     // bulk-sheet-sync, have no auth check of their own).
-    pathname === "/api/admin/scan-callback-notes"
+    pathname === "/api/admin/scan-callback-notes" ||
+    pathname === "/api/admin/rank-sheets-today"
   ) {
     return NextResponse.next();
   }
