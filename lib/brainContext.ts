@@ -1,6 +1,10 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { getHealthSnapshot, computeSegmentSaturation } from "./leads";
 import { searchDriveDocs, readGoogleDocText } from "./googleDocs";
+import { listCalendarEvents } from "./calendar";
+import { readLeadSheet, getSheetTitle, hasCallInfo } from "./sheets";
+import { searchInboxByKeyword } from "./gmail";
+import { getCampaignInsights } from "./metaAds";
 import { Lead } from "./types";
 
 interface AutomationRow {
@@ -108,6 +112,120 @@ async function relevantDriveDocs(userQuestion: string): Promise<string> {
   }
 }
 
+function questionWords(userQuestion: string): string[] {
+  return userQuestion.replace(/[^a-zA-Z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length >= 3);
+}
+
+async function upcomingCalendarSummary(): Promise<string> {
+  try {
+    const now = new Date();
+    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const events = await listCalendarEvents(now.toISOString(), in7Days.toISOString());
+    if (events.length === 0) return "Nothing on the calendar in the next 7 days.";
+    return events
+      .map((e) => {
+        const when = e.allDay
+          ? e.startISO.slice(0, 10)
+          : new Date(e.startISO).toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+        const who = e.attendeeName || e.attendeeEmail ? ` with ${e.attendeeName || e.attendeeEmail}` : "";
+        return `${when}: ${e.summary}${who}`;
+      })
+      .join("\n");
+  } catch {
+    // Calendar auth/quota issues should never block the rest of the answer.
+    return "";
+  }
+}
+
+// tracked_sheets is cheap (one Supabase query, no Google API call) so every
+// active sheet is always listed. Full sheet content (a real Sheets API call,
+// which has a documented per-minute quota this app has hit before) is only
+// read for the handful of sheets the question actually seems to be about.
+async function matchingSheets(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string): Promise<string> {
+  try {
+    const { data } = await sb
+      .from("tracked_sheets")
+      .select("sheet_id, trade_default, location_default, last_synced_at")
+      .eq("active", true);
+    const sheets = data || [];
+    if (sheets.length === 0) return "No tracked sheets.";
+
+    const overview = sheets
+      .map((s) => `${s.trade_default || "?"} / ${s.location_default || "?"} — last synced ${s.last_synced_at ? new Date(s.last_synced_at).toLocaleDateString("en-NZ") : "never"}`)
+      .join("\n");
+
+    const words = questionWords(userQuestion);
+    const matched = words.length
+      ? sheets
+          .filter((s) =>
+            words.some(
+              (w) =>
+                (s.trade_default || "").toLowerCase().includes(w.toLowerCase()) ||
+                (s.location_default || "").toLowerCase().includes(w.toLowerCase())
+            )
+          )
+          .slice(0, 2)
+      : [];
+
+    let detail = "";
+    if (matched.length > 0) {
+      const details = await Promise.all(
+        matched.map(async (s) => {
+          try {
+            const [title, rows] = await Promise.all([getSheetTitle(s.sheet_id), readLeadSheet(s.sheet_id)]);
+            const called = rows.filter(hasCallInfo).length;
+            return `${title || s.sheet_id} (${s.trade_default}/${s.location_default}): ${called} of ${rows.length} called`;
+          } catch {
+            return "";
+          }
+        })
+      );
+      detail = details.filter(Boolean).join("\n");
+    }
+
+    return [`Active tracked sheets:\n${overview}`, detail ? `Matched sheet detail:\n${detail}` : ""].filter(Boolean).join("\n\n");
+  } catch {
+    return "";
+  }
+}
+
+// Only searches by subject keyword and only fetches envelope data (never
+// fetchMessageDetail, which marks messages as read) — asking the brain a
+// question must never silently mark a real unread email as read.
+async function inboxSearchSummary(userQuestion: string): Promise<string> {
+  try {
+    const words = questionWords(userQuestion);
+    if (words.length === 0) return "";
+    const query = [...words].sort((a, b) => b.length - a.length)[0];
+    const results = await searchInboxByKeyword(query);
+    if (results.length === 0) return "";
+    return results
+      .slice(0, 3)
+      .map((m) => `"${m.subject}" from ${m.from || m.fromEmail} on ${new Date(m.date).toLocaleDateString("en-NZ")}${m.seen ? "" : " (unread)"}`)
+      .join("\n");
+  } catch {
+    return "";
+  }
+}
+
+async function metaAdsSummary(): Promise<string> {
+  try {
+    const adAccountId = process.env.META_AD_ACCOUNT_ID;
+    if (!adAccountId) return "";
+    const campaigns = await getCampaignInsights(adAccountId, "last_30d");
+    if (campaigns.length === 0) return "No active Meta Ads campaigns.";
+    return campaigns
+      .slice(0, 10)
+      .map(
+        (c) =>
+          `${c.name} (${c.status}): $${c.spend.toFixed(0)} spent, ${c.results ?? "?"} ${c.resultType || "results"}${c.costPerResult ? ` at $${c.costPerResult.toFixed(0)} each` : ""}`
+      )
+      .join("\n");
+  } catch {
+    return "";
+  }
+}
+
 // Assembles everything the /dashboard/brain chat needs to answer a question
 // or draft something, beyond what withWritingStyle() already adds (voice
 // rules + Agency Brain sections) — one context block, built fresh per
@@ -115,11 +233,15 @@ async function relevantDriveDocs(userQuestion: string): Promise<string> {
 export async function buildBrainContext(userQuestion: string): Promise<string> {
   const sb = createSupabaseClient();
 
-  const [leadsSummary, matchedLeads, automationsSummary, driveDocs] = await Promise.all([
+  const [leadsSummary, matchedLeads, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary] = await Promise.all([
     summarizeLeads(sb).catch(() => "Lead data unavailable."),
     matchingLeads(sb, userQuestion).catch(() => ""),
     summarizeAutomations(sb).catch(() => "Automation data unavailable."),
     relevantDriveDocs(userQuestion),
+    upcomingCalendarSummary(),
+    matchingSheets(sb, userQuestion),
+    inboxSearchSummary(userQuestion),
+    metaAdsSummary(),
   ]);
 
   const sections = [
@@ -127,6 +249,10 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     matchedLeads ? `LEADS MATCHING THIS QUESTION (use the exact lead_id here when drafting an email):\n${matchedLeads}` : "",
     `AUTOMATIONS STATUS:\n${automationsSummary}`,
     driveDocs ? `RELEVANT GOOGLE DOCS (found via live Drive search, may not be exhaustive):\n${driveDocs}` : "",
+    calendarSummary ? `CALENDAR (next 7 days):\n${calendarSummary}` : "",
+    sheetsSummary ? `COLD-CALL SHEETS:\n${sheetsSummary}` : "",
+    inboxSummary ? `INBOX SEARCH RESULTS (subject match, may not be exhaustive):\n${inboxSummary}` : "",
+    adsSummary ? `META ADS (last 30 days):\n${adsSummary}` : "",
   ].filter(Boolean);
 
   return sections.join("\n\n---\n\n");
