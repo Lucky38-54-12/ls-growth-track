@@ -194,6 +194,19 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
             onNext={() => setStep("ads")}
           />
 
+          {!calendarDone && (
+            <button
+              type="button"
+              onClick={() => setStep("ads")}
+              style={{
+                display: "block", width: "100%", textAlign: "center", background: "none", border: "none",
+                fontSize: 12.5, fontWeight: 700, color: L.muted, cursor: "pointer", padding: "10px 0 0",
+              }}
+            >
+              Skip for now — I&apos;ll connect it later
+            </button>
+          )}
+
           <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: L.muted, marginTop: 14 }}>
             <Lock style={{ width: 12, height: 12 }} /> Secured by Google&apos;s own login, LS Growth never sees your password.
           </p>
