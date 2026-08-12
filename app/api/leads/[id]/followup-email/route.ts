@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     ? `This email follows a call that just happened. Use the call notes to write a post-call follow-up that reflects what was actually discussed.`
     : `Write a re-engagement follow-up based on the history below.`;
 
-  const prompt = withWritingStyle(`You are writing a follow-up email for Lucky at LS Growth Agency. LS Growth gets trade businesses more booked jobs — specific jobs, real revenue, never describe the mechanism or process.
+  const prompt = await withWritingStyle(`You are writing a follow-up email for Lucky at LS Growth Agency. LS Growth gets trade businesses more booked jobs — specific jobs, real revenue, never describe the mechanism or process.
 
 Today: ${today}
 ${context}

@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { fetchWebsiteSnippet } from "./website";
 import { PERL_WHITELIST, PerlJobType, ALLOWED_CASE_STUDY_NAMES, ALLOWED_PROOF_SENTENCES } from "./proofPoints";
 import { SequenceStep } from "./emailTemplates";
+import { getAgencyBrainContext } from "./agencyBrain";
 
 // Lucky's explicit voice rules (2026-07-15) — every prompt that writes text
 // a lead or client actually reads must load and follow this file, not just
@@ -22,10 +23,22 @@ function loadWritingStyle(): string {
   return cachedWritingStyle;
 }
 
-export function withWritingStyle(systemPrompt: string): string {
+export async function withWritingStyle(systemPrompt: string): Promise<string> {
   const style = loadWritingStyle();
-  if (!style) return systemPrompt;
-  return `${systemPrompt}\n\nLUCKY'S WRITING STYLE — mandatory, follow exactly for every sentence you write:\n${style}`;
+  let result = systemPrompt;
+  if (style) result += `\n\nLUCKY'S WRITING STYLE — mandatory, follow exactly for every sentence you write:\n${style}`;
+
+  // Agency Brain: how LS Growth actually operates, edited via
+  // /dashboard/agency-brain — never crashes generation if the table isn't
+  // reachable, since voice rules alone are enough to fall back on.
+  try {
+    const brain = await getAgencyBrainContext();
+    if (brain) result += `\n\nHOW LS GROWTH OPERATES — background context, follow any explicit rules here:\n${brain}`;
+  } catch {
+    // continue without agency brain context
+  }
+
+  return result;
 }
 
 // Leads imported without a real contact name get stored as the literal
@@ -423,7 +436,7 @@ ${canSearch ? "\nNo website text or notes are available — search the web for t
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: [{ type: "text", text: withWritingStyle(PERSONALIZATION_SYSTEM_PROMPT), cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: await withWritingStyle(PERSONALIZATION_SYSTEM_PROMPT), cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
     ...(canSearch ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 } as const] } : {}),
   });
@@ -605,7 +618,7 @@ Meeting time: ${input.meetingTime}`;
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: withWritingStyle(MEETING_SYSTEM_PROMPT),
+    system: await withWritingStyle(MEETING_SYSTEM_PROMPT),
     messages: [{ role: "user", content: userPrompt }],
   });
 
@@ -644,7 +657,7 @@ async function runMeetingEmailPrompt(systemPrompt: string, userPrompt: string): 
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
-    system: withWritingStyle(systemPrompt),
+    system: await withWritingStyle(systemPrompt),
     messages: [{ role: "user", content: userPrompt }],
   });
 
