@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const sheetIds: string[] = body.sheetIds || [];
   const prefix: string = body.prefix || "📞 TODAY — ";
+  const action: "add" | "remove" = body.action === "remove" ? "remove" : "add";
   if (!sheetIds.length) return NextResponse.json({ error: "sheetIds required" }, { status: 400 });
 
   const auth = getDriveAuth();
@@ -33,6 +34,18 @@ export async function POST(req: NextRequest) {
     try {
       const file = await drive.files.get({ fileId: id, fields: "name", supportsAllDrives: true });
       const currentName = file.data.name || "";
+
+      if (action === "remove") {
+        if (!currentName.startsWith(prefix)) {
+          results.push({ id, from: currentName, to: currentName });
+          continue;
+        }
+        const newName = currentName.slice(prefix.length);
+        await drive.files.update({ fileId: id, requestBody: { name: newName }, supportsAllDrives: true });
+        results.push({ id, from: currentName, to: newName });
+        continue;
+      }
+
       if (currentName.startsWith(prefix)) {
         results.push({ id, from: currentName, to: currentName });
         continue;
