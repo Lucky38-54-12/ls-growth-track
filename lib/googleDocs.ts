@@ -74,3 +74,60 @@ export async function createDocFromMarkedText(title: string, markedText: string)
   return `https://docs.google.com/document/d/${docId}/edit`;
 }
 
+export interface DriveDocMatch {
+  id: string;
+  name: string;
+  url: string;
+}
+
+// Live full-text search over every Google Doc the service account can see —
+// used by the /dashboard/brain chat to find planning docs relevant to
+// whatever Lucky just asked, instead of maintaining a separate index of doc
+// content that would drift out of date the moment he edits a doc.
+export async function searchDriveDocs(query: string, limit: number = 5): Promise<DriveDocMatch[]> {
+  const auth = getAuth();
+  const drive = google.drive({ version: "v3", auth });
+
+  // Drive's fullText search treats the query as a single phrase, and fails
+  // outright on a query containing an apostrophe or quote unless it's
+  // escaped — strip anything that isn't a word character so a natural
+  // question like "what's our onboarding policy?" doesn't 400.
+  const safeQuery = query.replace(/['"\\]/g, " ").trim();
+  if (!safeQuery) return [];
+
+  const list = await drive.files.list({
+    q: `fullText contains '${safeQuery}' and mimeType='application/vnd.google-apps.document' and trashed=false`,
+    spaces: "drive",
+    fields: "files(id, name)",
+    pageSize: limit,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+    corpora: "allDrives",
+  });
+
+  return (list.data.files || [])
+    .filter((f) => f.id && f.name)
+    .map((f) => ({ id: f.id as string, name: f.name as string, url: `https://docs.google.com/document/d/${f.id}/edit` }));
+}
+
+// Pulls a Google Doc's plain text content out of its structural elements —
+// docs.documents.get returns a nested body.content tree (paragraphs made of
+// text runs), not flat text, so this walks it and joins every run.
+export async function readGoogleDocText(docId: string, maxChars: number = 6000): Promise<string> {
+  const auth = getAuth();
+  const docs = google.docs({ version: "v1", auth });
+
+  const doc = await docs.documents.get({ documentId: docId });
+  const content = doc.data.body?.content || [];
+
+  let text = "";
+  for (const element of content) {
+    for (const run of element.paragraph?.elements || []) {
+      if (run.textRun?.content) text += run.textRun.content;
+    }
+  }
+
+  text = text.trim();
+  return text.length > maxChars ? text.slice(0, maxChars) + "\n...(truncated)" : text;
+}
+

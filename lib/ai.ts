@@ -569,7 +569,7 @@ Facebook: ${input.facebook || "none found"}`;
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 300,
-    system: COLD_CALL_PREP_SYSTEM_PROMPT,
+    system: await withWritingStyle(COLD_CALL_PREP_SYSTEM_PROMPT),
     messages: [{ role: "user", content: userPrompt }],
   });
 

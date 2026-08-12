@@ -3,10 +3,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, Users, Phone, Calendar, Sun, Inbox, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Flame, Menu, X, Sparkles, LineChart, ListChecks, UserX, BrainCircuit,
+  LayoutDashboard, Users, Phone, Calendar, Sun, Inbox, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Flame, Menu, X, Sparkles, LineChart, ListChecks, UserX, BrainCircuit, Brain,
 } from "lucide-react";
 
 const NAV = [
+  { href: "/dashboard/brain", label: "Brain", icon: Brain },
   { href: "/dashboard/today", label: "Today", icon: Sun },
   { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
   { href: "/dashboard/email-outreach", label: "Email Outreach", icon: Rows3 },
