@@ -14,7 +14,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const sb = createSupabaseClient();
   const body = await req.json();
-  const ALLOWED = ["reply_category", "notes", "status"];
+  const ALLOWED = ["reply_category", "notes", "status", "text_notes"];
   const update: Record<string, unknown> = {};
   for (const key of ALLOWED) {
     if (key in body) update[key] = body[key];

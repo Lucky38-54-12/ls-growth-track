@@ -158,6 +158,8 @@ export default function CallForm({ lead, events, sends, sourceSheetUrl }: { lead
           </div>
         )}
 
+        <TextNotesCard leadId={lead.lead_id} initialTextNotes={lead.text_notes} />
+
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginTop: 20 }}>
           <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 10 }}>
             Sent emails — {sends.length}
@@ -225,6 +227,64 @@ export default function CallForm({ lead, events, sends, sourceSheetUrl }: { lead
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Text/WhatsApp exchanges never make it into the app any other way — this is
+// a manual log (not automated, WhatsApp has no personal-account API worth
+// trusting), but it means the full picture for a lead — sheet notes, call
+// notes, emails, and texts — actually lives in one place instead of split
+// across your phone.
+function TextNotesCard({ leadId, initialTextNotes }: { leadId: string; initialTextNotes: string | null }) {
+  const [log, setLog] = useState(initialTextNotes || "");
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleAdd() {
+    if (!draft.trim() || saving) return;
+    setSaving(true);
+    const timestamp = new Date().toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    const entry = `[${timestamp}] ${draft.trim()}`;
+    const nextLog = log ? `${entry}\n\n${log}` : entry;
+    const res = await fetch(`/api/leads/${leadId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text_notes: nextLog }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      setLog(nextLog);
+      setDraft("");
+    }
+  }
+
+  return (
+    <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginTop: 20 }}>
+      <div style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, fontWeight: 800, marginBottom: 4 }}>Text / WhatsApp notes</div>
+      <p style={{ fontSize: 13, color: L.muted, marginBottom: 12 }}>
+        Paste or jot down the key bit from a text/WhatsApp exchange so it's part of this lead's record, same as call notes and emails.
+      </p>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={3}
+        placeholder="What did they say over text/WhatsApp?"
+      />
+      <button
+        type="button"
+        onClick={handleAdd}
+        disabled={saving || !draft.trim()}
+        className="btn-lift"
+        style={{
+          marginTop: 10, padding: "8px 16px", background: saving ? "#fca5a5" : "var(--red)", color: "#fff",
+          border: "none", borderRadius: 0, fontSize: 13, fontWeight: 700, cursor: saving ? "default" : "pointer",
+        }}
+      >{saving ? "Saving…" : "Add note"}</button>
+
+      {log && (
+        <p style={{ fontSize: 13, whiteSpace: "pre-wrap", color: L.text, marginTop: 18, paddingTop: 18, borderTop: `1px solid ${L.border}` }}>{log}</p>
+      )}
     </div>
   );
 }

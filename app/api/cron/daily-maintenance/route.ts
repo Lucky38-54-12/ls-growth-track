@@ -9,6 +9,7 @@ import { dispatchDueNurtureEmails } from "@/lib/leadQual/nurtureEmail";
 import { escalateStaleReplies } from "@/lib/staleReplies";
 import { sendDueProposalFollowups } from "@/lib/proposalFollowup";
 import { sendColdCallNudges } from "@/lib/coldCallNudges";
+import { sendDueNoShowFollowups } from "@/lib/noShowSequence";
 import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
 import { sendLowQueueNudge } from "@/lib/callQueueNudge";
 import { checkMessengerChannelHealth, reconcileHumanTakeovers, resubscribeAllMessengerChannels } from "@/lib/leadQual/meta";
@@ -88,6 +89,12 @@ export async function GET(req: NextRequest) {
     results.coldCallNudges = await sendColdCallNudges();
   } catch (e) {
     results.coldCallNudges = { error: e instanceof Error ? e.message : "cold-call nudge dispatch failed" };
+  }
+
+  try {
+    results.noShowFollowups = await sendDueNoShowFollowups();
+  } catch (e) {
+    results.noShowFollowups = { error: e instanceof Error ? e.message : "no-show follow-up dispatch failed" };
   }
 
   try {

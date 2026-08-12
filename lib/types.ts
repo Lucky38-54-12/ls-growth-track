@@ -60,6 +60,10 @@ export interface Lead {
   ads_manager_access: boolean;
   agreement_signed: boolean;
   campaign_live: boolean;
+  text_notes: string | null;
+  no_show_at: string | null;
+  no_show_sequence_step: number;
+  no_show_last_sent_at: string | null;
 }
 
 export type PostCallOutcome = "hot" | "warm" | "closed_won";

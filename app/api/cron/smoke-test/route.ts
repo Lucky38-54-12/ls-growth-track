@@ -62,6 +62,10 @@ function fakeLead(overrides: Partial<Lead>): Lead {
     ads_manager_access: false,
     agreement_signed: false,
     campaign_live: false,
+    text_notes: null,
+    no_show_at: null,
+    no_show_sequence_step: 0,
+    no_show_last_sent_at: null,
     ...overrides,
   };
 }
