@@ -208,6 +208,57 @@ async function inboxSearchSummary(userQuestion: string): Promise<string> {
   }
 }
 
+// Sales calls, the current master script, and open recurring patterns — none
+// of this reached the brain before, so a request like "update the sales
+// script" had nothing to work from and no way to actually propose a change.
+async function summarizeSalesCalls(sb: ReturnType<typeof createSupabaseClient>): Promise<string> {
+  const [{ data: calls }, { data: currentVersion }, { data: patterns }] = await Promise.all([
+    sb.from("sales_calls").select("id, call_date, prospect_name, business_name, outcome, main_objection, next_step_booked, next_step_detail, went_well, work_ons").order("call_date", { ascending: false }).limit(20),
+    sb.from("sales_script_versions").select("version, content, changelog").eq("is_current", true).maybeSingle(),
+    sb.from("sales_pattern_tracker").select("id, pattern_summary, status, cost, occurrences, fix_applied_at, fix_landing_status").eq("status", "open").order("occurrences", { ascending: false }),
+  ]);
+
+  const recentCalls = (calls || [])
+    .map((c) => `id: ${c.id} | ${c.call_date} | ${c.prospect_name || "?"} (${c.business_name || "?"}) | outcome: ${c.outcome}${c.main_objection ? ` | objection: ${c.main_objection}` : ""}${c.next_step_booked ? ` | next step: ${c.next_step_detail}` : ""}${c.went_well ? ` | went well: ${c.went_well}` : ""}${c.work_ons ? ` | work on: ${c.work_ons}` : ""}`)
+    .join("\n");
+
+  const openPatterns = (patterns || [])
+    .map((p) => `id: ${p.id} | "${p.pattern_summary}" | cost: ${p.cost} | occurrences: ${p.occurrences}${p.fix_applied_at ? ` | fix applied, landing status: ${p.fix_landing_status}` : " | no fix applied yet"}`)
+    .join("\n");
+
+  return [
+    `Current master script (version ${currentVersion?.version ?? "none"}):\n${currentVersion?.content?.trim() ? currentVersion.content : "No script saved yet."}`,
+    `Recent logged calls (most recent first, use the exact id if referencing one):\n${recentCalls || "None logged yet."}`,
+    `Open recurring patterns (things the script hasn't fixed yet):\n${openPatterns || "None open."}`,
+  ].join("\n\n");
+}
+
+async function summarizeCampaignsAndRevenue(sb: ReturnType<typeof createSupabaseClient>): Promise<string> {
+  const [{ data: campaigns }, { data: revenueClients }, { data: revenueGoal }, { data: warmLeads }] = await Promise.all([
+    sb.from("campaigns").select("id, name, status, activated_at"),
+    sb.from("revenue_clients").select("amount, added_at"),
+    sb.from("revenue_goal").select("monthly_goal").eq("id", 1).maybeSingle(),
+    sb.from("warm_leads").select("id").eq("called", false),
+  ]);
+
+  const campaignLines = (campaigns || [])
+    .map((c) => `${c.name} (${c.status})`)
+    .join(", ");
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthTotal = (revenueClients || [])
+    .filter((r) => new Date(r.added_at) >= monthStart)
+    .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+  const goal = Number(revenueGoal?.monthly_goal ?? 0);
+
+  return [
+    `Campaigns: ${campaignLines || "none"}`,
+    `Revenue this month: $${monthTotal.toFixed(0)}${goal ? ` of $${goal.toFixed(0)} goal` : ""}`,
+    `Uncalled warm leads: ${(warmLeads || []).length}`,
+  ].join("\n");
+}
+
 async function metaAdsSummary(): Promise<string> {
   try {
     const adAccountId = process.env.META_AD_ACCOUNT_ID;
@@ -233,7 +284,7 @@ async function metaAdsSummary(): Promise<string> {
 export async function buildBrainContext(userQuestion: string): Promise<string> {
   const sb = createSupabaseClient();
 
-  const [leadsSummary, matchedLeads, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary] = await Promise.all([
+  const [leadsSummary, matchedLeads, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, salesCallsSummary, campaignsSummary] = await Promise.all([
     summarizeLeads(sb).catch(() => "Lead data unavailable."),
     matchingLeads(sb, userQuestion).catch(() => ""),
     summarizeAutomations(sb).catch(() => "Automation data unavailable."),
@@ -242,6 +293,8 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     matchingSheets(sb, userQuestion),
     inboxSearchSummary(userQuestion),
     metaAdsSummary(),
+    summarizeSalesCalls(sb).catch(() => "Sales call data unavailable."),
+    summarizeCampaignsAndRevenue(sb).catch(() => "Campaign/revenue data unavailable."),
   ]);
 
   const todayLabel = new Intl.DateTimeFormat("en-NZ", {
@@ -258,6 +311,8 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     sheetsSummary ? `COLD-CALL SHEETS:\n${sheetsSummary}` : "",
     inboxSummary ? `INBOX SEARCH RESULTS (subject match, may not be exhaustive):\n${inboxSummary}` : "",
     adsSummary ? `META ADS (last 30 days):\n${adsSummary}` : "",
+    `SALES CALLS & SCRIPT:\n${salesCallsSummary}`,
+    `CAMPAIGNS & REVENUE:\n${campaignsSummary}`,
   ].filter(Boolean);
 
   return sections.join("\n\n---\n\n");

@@ -20,16 +20,17 @@ interface ChatTurn {
 
 const BRAIN_SYSTEM_PROMPT = `You are Lucky's business brain for LS Growth Agency — a single place he asks questions about the business and gets you to draft things, instead of digging through Supabase, Gmail, or Google Docs himself.
 
-You'll be given, below your own instructions: how LS Growth operates (Agency Brain), a live snapshot of the lead pipeline, the status of running automations, any Google Docs a live search found relevant to his question, what's on his Calendar for the next 7 days, the cold-call Sheets that are tracked (with called/not-called counts for any that match his question), any inbox emails matching his question by subject, and Meta Ads campaign performance for the last 30 days. Use whatever is actually relevant, ignore the rest. If something isn't covered by any of this, say so plainly rather than guessing.
+You'll be given, below your own instructions: how LS Growth operates (Agency Brain), a live snapshot of the lead pipeline, the status of running automations, any Google Docs a live search found relevant to his question, what's on his Calendar for the next 7 days, the cold-call Sheets that are tracked (with called/not-called counts for any that match his question), any inbox emails matching his question by subject, Meta Ads campaign performance for the last 30 days, his sales calls log plus the current master sales script and any open recurring patterns the script hasn't fixed yet, and campaign/revenue status. Use whatever is actually relevant, ignore the rest. If something isn't covered by any of this, say so plainly rather than guessing.
 
-You can do five things:
+You can do six things:
 1. Just answer the question, conversationally, like a sharp operator who actually knows the business.
 2. If Lucky is asking you to draft something (a follow-up email to a specific lead, or a note/plan for something else), write the actual draft — never claim you can't draft things.
 3. If Lucky is asking you to change a real lead record (its status, add a note, set a follow-up date), propose that as a lead_update.
 4. If Lucky is asking you to book a meeting, propose that as a calendar_booking.
 5. If Lucky is asking you to mark a cold-call sheet row as called/update its outcome, propose that as a sheet_update.
+6. If Lucky is asking you to write or update the sales script (fix an objection, tighten a section, address an open pattern), propose that as a script_proposal — write the FULL updated script as newContent, based on the current master script given to you below plus whatever change he's asking for, not a fragment.
 
-Never claim you can't do 2-5 — propose it properly and let the approval queue handle safety; nothing you draft or propose is ever applied automatically, it lands in a queue on the page for Lucky to approve or reject himself.
+Never claim you can't do 2-6 — propose it properly and let the approval queue handle safety; nothing you draft or propose is ever applied automatically, it lands in a queue on the page for Lucky to approve or reject himself.
 
 An email or lead_update always needs a real lead identified by its lead_id (the exact slug shown in the pipeline data, e.g. "acme-electrical", not the display company name) — if you can't tell which lead he means, ask instead of guessing.
 
@@ -39,10 +40,12 @@ For a calendar_booking, "calendar" holds: summary (short title), attendeeEmail, 
 
 For a sheet_update, "sheet" holds: sheetId (the exact sheet_id shown in the COLD-CALL SHEETS context, never invent one — if you don't see the right sheet's id there, say so instead of guessing), company (the exact company name to match in that sheet), and any of dateCalled/outcome/callBack/notes that Lucky wants set. Only include what he actually asked to change.
 
-Respond with ONLY a JSON object, no markdown fences, no other text:
-{"reply": "your conversational answer, always present", "draft": {"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}}}
+For a script_proposal, "script" holds: summary (one or two sentences on what changed and why), newContent (the complete script text with the change applied — start from the current master script given to you in SALES CALLS & SCRIPT and edit it, never write a fresh script from scratch or return a partial snippet).
 
-Only include the one object ("fields", "calendar", or "sheet") that matches the draft's kind — omit the others. Omit "draft" entirely if you're not drafting/proposing anything this turn — most replies won't have one.`;
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"reply": "your conversational answer, always present", "draft": {"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}}}
+
+Only include the one object ("fields", "calendar", "sheet", or "script") that matches the draft's kind — omit the others. Omit "draft" entirely if you're not drafting/proposing anything this turn — most replies won't have one.`;
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -81,6 +84,7 @@ export async function POST(req: NextRequest) {
       fields?: { status?: string; notes?: string; follow_up_at?: string };
       calendar?: { summary?: string; attendeeEmail?: string; attendeeName?: string; startISO?: string; durationMinutes?: number };
       sheet?: { sheetId?: string; company?: string; dateCalled?: string; outcome?: string; callBack?: string; notes?: string };
+      script?: { summary?: string; newContent?: string };
     };
   };
   try {
@@ -94,7 +98,7 @@ export async function POST(req: NextRequest) {
   let draftCreated = false;
 
   const draft = parsed.draft;
-  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update"]);
+  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal"]);
   if (draft?.kind && KNOWN_KINDS.has(draft.kind)) {
     let leadUuid: string | null = null;
     if (draft.kind === "email" || draft.kind === "lead_update") {
@@ -173,6 +177,28 @@ export async function POST(req: NextRequest) {
       ].filter(Boolean);
 
       const { error } = await sb.from("chat_drafts").insert({ kind: "sheet_update", title: `Update sheet row: ${payload.company}`, content: summaryLines.join("\n"), payload });
+      draftCreated = !error;
+    } else if (draft.kind === "script_proposal") {
+      const script = draft.script || {};
+      if (!script.newContent?.trim()) {
+        return NextResponse.json({ reply, draftCreated: false, error: "Model proposed a script change with no content — ignored." });
+      }
+
+      // script_proposal writes straight into sales_script_proposals, the
+      // same table/queue the automated post-call standing review uses — so
+      // it shows up on /dashboard/sales-calls and applying it (a new
+      // sales_script_versions row) reuses that existing approval endpoint
+      // rather than duplicating the apply logic here.
+      const { data: currentVersion } = await sb.from("sales_script_versions").select("version").eq("is_current", true).maybeSingle();
+      const { error } = await sb.from("sales_script_proposals").insert({
+        call_id: null,
+        based_on_version: currentVersion?.version || 0,
+        status: "pending",
+        needs_changes: true,
+        summary: stripDashes(script.summary || "Script update proposed via Brain chat."),
+        diffs: [],
+        new_content: stripDashes(script.newContent.trim()),
+      });
       draftCreated = !error;
     } else {
       const { error } = await sb.from("chat_drafts").insert({
