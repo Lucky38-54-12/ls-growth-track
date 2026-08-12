@@ -46,7 +46,8 @@ export async function middleware(req: NextRequest) {
     pathname === "/api/admin/scan-callback-notes" ||
     pathname === "/api/admin/rank-sheets-today" ||
     pathname === "/api/admin/rename-sheets" ||
-    pathname === "/api/admin/notify"
+    pathname === "/api/admin/notify" ||
+    pathname === "/api/admin/automation-status"
   ) {
     return NextResponse.next();
   }
