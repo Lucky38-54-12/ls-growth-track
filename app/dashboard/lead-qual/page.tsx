@@ -26,6 +26,7 @@ interface LqClient {
   email: string | null;
   status: string;
   ads_manager_access_confirmed_at: string | null;
+  page_access_confirmed_at: string | null;
   // lq_calendar_connections.client_id is unique, so PostgREST embeds this as
   // a single object, not an array.
   lq_calendar_connections: { google_account_email: string; connected_at: string } | null;
@@ -288,6 +289,13 @@ function LeadQualPageInner() {
                       <Megaphone style={{ width: 14, height: 14 }} />
                       {client.ads_manager_access_confirmed_at ? "Ads access claimed" : "Ads access not confirmed"}
                     </span>
+                    <span
+                      title="Self-reported by the client, not verified — Connect Facebook below to confirm it actually landed"
+                      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: client.page_access_confirmed_at ? "#15803d" : L.dimmed }}
+                    >
+                      <MessageCircle style={{ width: 14, height: 14 }} />
+                      {client.page_access_confirmed_at ? "Page access claimed" : "Page access not confirmed"}
+                    </span>
                     {!fbConnection && (
                       <a
                         href={`/api/lead-qual/oauth/facebook?clientId=${client.id}`}
@@ -301,7 +309,7 @@ function LeadQualPageInner() {
                         <MessageCircle style={{ width: 13, height: 13 }} /> Connect Facebook
                       </a>
                     )}
-                    {(!fbConnection || !connection || !client.ads_manager_access_confirmed_at) && (
+                    {(!fbConnection || !connection || !client.ads_manager_access_confirmed_at || !client.page_access_confirmed_at) && (
                       <button
                         type="button"
                         onClick={() => handleCopyLink(client.id)}

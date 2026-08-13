@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, XCircle, ShieldCheck, Lock, Megaphone, Copy, Check, ArrowRight, ArrowLeft, Link2, Mail, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, ShieldCheck, Lock, Megaphone, MessageCircle, Copy, Check, ArrowRight, ArrowLeft, Link2, Mail, AlertTriangle } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -11,6 +11,13 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 // Suite), so this just needs to be correct, not secret.
 const LS_GROWTH_BUSINESS_NAME = "LS Growth Agency";
 const LS_GROWTH_BUSINESS_ID = "1348658683829583";
+
+// Facebook Page admin roles are tied to a specific Facebook account, not a
+// Business Manager ID — this is the account Lucky personally logs into when
+// he runs the agency-side "Connect Facebook" OAuth (lib/leadQual/facebookOAuth.ts),
+// so this is who the client actually needs to add.
+const LUCKY_FACEBOOK_NAME = "Lucky Singh";
+const LUCKY_FACEBOOK_URL = "https://www.facebook.com/lucky.singh.332313/";
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
@@ -26,6 +33,7 @@ interface ClientInfo {
   email: string | null;
   calendarConnected: boolean;
   adsAccessConfirmed: boolean;
+  pageAccessConfirmed: boolean;
 }
 
 export default function ConnectFlow({ routeClientId }: { routeClientId?: string }) {
@@ -47,7 +55,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
   const [client, setClient] = useState<ClientInfo | null>(null);
   // One thing at a time — landing back from Google's redirect should reopen
   // on whichever step that was, not wherever the state otherwise defaults to.
-  const [step, setStep] = useState<"calendar" | "ads" | "login">("calendar");
+  const [step, setStep] = useState<"calendar" | "ads" | "page" | "login">("calendar");
 
   // Landed via a direct /connect/[clientId] link — the link is already
   // sitting in the address bar, so pre-fill it into the box exactly as if
@@ -113,8 +121,20 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
     setAdsJustConfirmed(true);
   }
 
+  const [pageConfirming, setPageConfirming] = useState(false);
+  const [pageJustConfirmed, setPageJustConfirmed] = useState(false);
+
+  async function handleConfirmPageAccess() {
+    if (!resolvedClientId) return;
+    setPageConfirming(true);
+    await fetch(`/api/lead-qual/public/${resolvedClientId}/confirm-page-access`, { method: "POST" });
+    setPageConfirming(false);
+    setPageJustConfirmed(true);
+  }
+
   const calendarDone = !!client?.calendarConnected || !!calendarConnected;
   const adsDone = !!client?.adsAccessConfirmed || adsJustConfirmed;
+  const pageDone = !!client?.pageAccessConfirmed || pageJustConfirmed;
 
   return (
     <Shell>
@@ -165,7 +185,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
 
       {phase === "found" && client && step === "calendar" && (
         <div>
-          <StepHeader client={client} step={1} of={3} />
+          <StepHeader client={client} step={1} of={4} />
 
           <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Connect your Calendar</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
@@ -226,7 +246,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
             <ArrowLeft style={{ width: 13, height: 13 }} /> Back
           </button>
 
-          <StepHeader client={client} step={2} of={3} />
+          <StepHeader client={client} step={2} of={4} />
 
           <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Ads Manager access</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
@@ -234,6 +254,42 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
           </p>
 
           <AdsAccessCard done={adsDone} confirming={adsConfirming} onConfirm={handleConfirmAdsAccess} />
+
+          <button
+            type="button"
+            onClick={() => setStep("page")}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
+              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--accent)",
+              border: "none", borderRadius: 0, padding: "11px 16px", cursor: "pointer", marginTop: 8,
+            }}
+          >
+            Next <ArrowRight style={{ width: 15, height: 15 }} />
+          </button>
+        </div>
+      )}
+
+      {phase === "found" && client && step === "page" && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setStep("ads")}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: L.muted,
+              background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 18,
+            }}
+          >
+            <ArrowLeft style={{ width: 13, height: 13 }} /> Back
+          </button>
+
+          <StepHeader client={client} step={3} of={4} />
+
+          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Facebook Page access</h1>
+          <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
+            So we can manage your Page, messages and leads.
+          </p>
+
+          <PageAccessCard done={pageDone} confirming={pageConfirming} onConfirm={handleConfirmPageAccess} />
 
           <button
             type="button"
@@ -250,7 +306,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
       )}
 
       {phase === "found" && client && step === "login" && (
-        <LoginStep client={client} resolvedClientId={resolvedClientId} onBack={() => setStep("ads")} />
+        <LoginStep client={client} resolvedClientId={resolvedClientId} onBack={() => setStep("page")} />
       )}
     </Shell>
   );
@@ -294,7 +350,7 @@ function LoginStep({ client, resolvedClientId, onBack }: { client: ClientInfo; r
         <ArrowLeft style={{ width: 13, height: 13 }} /> Back
       </button>
 
-      <StepHeader client={client} step={3} of={3} />
+      <StepHeader client={client} step={4} of={4} />
 
       <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Set up your login</h1>
       <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
@@ -464,6 +520,82 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
             }}
           >
             {confirming ? "Saving…" : "I've added LS Growth as a partner"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PageAccessCard({ done, confirming, onConfirm }: { done: boolean; confirming: boolean; onConfirm: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(LUCKY_FACEBOOK_URL);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div style={{ background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: 18, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: done ? 0 : 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 0, background: "var(--accent-tint)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <MessageCircle style={{ width: 18, height: 18 }} />
+          </div>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: L.text }}>Facebook Page</p>
+            <p style={{ fontSize: 12.5, color: L.muted }}>So we can manage your Page, messages and leads.</p>
+          </div>
+        </div>
+        {done && (
+          <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#15803d", flexShrink: 0 }}>
+            <CheckCircle2 style={{ width: 16, height: 16 }} /> Marked done
+          </span>
+        )}
+      </div>
+
+      {!done && (
+        <>
+          <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 10, lineHeight: 1.6 }}>
+            Facebook doesn&apos;t let us request this one with a click either, you&apos;ll need to add Lucky as an admin on your Page yourself:
+          </p>
+          <ol style={{ fontSize: 12.5, color: L.text, lineHeight: 1.9, paddingLeft: 18, marginBottom: 12 }}>
+            <li>Go to your Facebook Page &rarr; <strong>Settings → Page access</strong> (or <strong>Page roles</strong> on the classic Pages experience)</li>
+            <li>Click <strong>Add</strong> under people with Facebook access</li>
+            <li>Search for <strong>{LUCKY_FACEBOOK_NAME}</strong>, or open his profile link below and add him from there</li>
+            <li>Give him <strong>full control / admin</strong> access and confirm</li>
+          </ol>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: "8px 10px", marginBottom: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{LUCKY_FACEBOOK_NAME} — Facebook profile</p>
+              <a href={LUCKY_FACEBOOK_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", wordBreak: "break-all" }}>{LUCKY_FACEBOOK_URL}</a>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopy}
+              style={{
+                display: "flex", alignItems: "center", gap: 5, flexShrink: 0,
+                fontSize: 12, fontWeight: 700, color: copied ? "#15803d" : L.text,
+                background: "#fff", border: `1px solid ${L.border}`, borderRadius: 0, padding: "6px 10px", cursor: "pointer",
+              }}
+            >
+              {copied ? <Check style={{ width: 13, height: 13 }} /> : <Copy style={{ width: 13, height: 13 }} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={confirming}
+            style={{
+              width: "100%", fontSize: 13, fontWeight: 700, color: "#fff", background: "var(--accent)",
+              border: "none", borderRadius: 0, padding: "9px 16px", cursor: confirming ? "default" : "pointer",
+            }}
+          >
+            {confirming ? "Saving…" : "I've added Lucky as an admin"}
           </button>
         </>
       )}
