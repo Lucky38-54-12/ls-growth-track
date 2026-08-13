@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Loader2, Paperclip, X, FileText, Image as ImageIcon, Plus, MessageSquare, Trash2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { ArrowUp, Loader2, Paperclip, X, FileText, Image as ImageIcon, Plus, MessageSquare, Trash2 } from "lucide-react";
 import { ChatDraft } from "@/lib/chatDrafts";
 import { BrainAttachment, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS_PER_MESSAGE, isAllowedAttachmentType } from "@/lib/brainAttachments";
 import ApprovalQueue from "@/components/ApprovalQueue";
 
-const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
+const L = { surface: "#ffffff", border: "#e5e7eb", text: "#111827", muted: "#6b7280", dimmed: "#9ca3af", panel: "#fafafa" };
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -24,6 +26,24 @@ interface ConversationSummary {
   updated_at: string;
 }
 
+// Renders an assistant reply's markdown (bold, headings, bullet/numbered
+// lists, links) as real formatted text instead of a flat pre-wrap block —
+// the model's replies read like ordinary prose with structure, so they
+// should render that way instead of showing literal "**" and "- " markers.
+const markdownComponents = {
+  p: (props: React.HTMLAttributes<HTMLParagraphElement>) => <p style={{ margin: "0 0 10px", lineHeight: 1.65 }} {...props} />,
+  h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => <h1 style={{ fontSize: 17, fontWeight: 800, margin: "16px 0 8px" }} {...props} />,
+  h2: (props: React.HTMLAttributes<HTMLHeadingElement>) => <h2 style={{ fontSize: 15, fontWeight: 800, margin: "14px 0 6px" }} {...props} />,
+  h3: (props: React.HTMLAttributes<HTMLHeadingElement>) => <h3 style={{ fontSize: 13.5, fontWeight: 800, margin: "12px 0 6px" }} {...props} />,
+  ul: (props: React.HTMLAttributes<HTMLUListElement>) => <ul style={{ margin: "0 0 10px", paddingLeft: 20, lineHeight: 1.65 }} {...props} />,
+  ol: (props: React.HTMLAttributes<HTMLOListElement>) => <ol style={{ margin: "0 0 10px", paddingLeft: 20, lineHeight: 1.65 }} {...props} />,
+  li: (props: React.HTMLAttributes<HTMLLIElement>) => <li style={{ marginBottom: 3 }} {...props} />,
+  strong: (props: React.HTMLAttributes<HTMLElement>) => <strong style={{ fontWeight: 700 }} {...props} />,
+  a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a style={{ color: "var(--accent)", textDecoration: "underline" }} target="_blank" rel="noreferrer" {...props} />,
+  code: (props: React.HTMLAttributes<HTMLElement>) => <code style={{ background: "#f1f5f9", padding: "1px 5px", borderRadius: 4, fontSize: "0.9em" }} {...props} />,
+  hr: () => <hr style={{ border: "none", borderTop: `1px solid ${L.border}`, margin: "12px 0" }} />,
+};
+
 export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[] }) {
   const router = useRouter();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -38,8 +58,10 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
   const dragDepth = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const TEXTAREA_MAX_HEIGHT = 200;
+  const activeTitle = conversations.find((c) => c.id === conversationId)?.title || "New chat";
 
   function resizeTextarea(el: HTMLTextAreaElement | null) {
     if (!el) return;
@@ -60,6 +82,10 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
   useEffect(() => {
     loadConversations();
   }, []);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, sending]);
 
   async function openConversation(id: string) {
     if (id === conversationId) return;
@@ -201,34 +227,36 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
     }
   }
 
+  const canSend = !sending && (!!input.trim() || attachments.length > 0) && !attachments.some((a) => a.uploading);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", fontSize: 14 }}>{error}</div>}
+      {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 10, fontSize: 14 }}>{error}</div>}
 
       <ApprovalQueue initialDrafts={initialDrafts} />
 
-      <div style={{ display: "flex", gap: 16, height: 560 }}>
-        <div style={{ width: 220, flexShrink: 0, background: L.surface, border: `1px solid ${L.border}`, display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: 10, borderBottom: `1px solid ${L.border}` }}>
+      <div style={{ display: "flex", gap: 16, height: 680 }}>
+        <div style={{ width: 240, flexShrink: 0, background: L.panel, border: `1px solid ${L.border}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ padding: 12 }}>
             <button
               onClick={startNewChat}
-              style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "8px 10px", background: "#f1f5f9", border: `1px solid ${L.border}`, fontSize: 12.5, fontWeight: 700, color: L.text, cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "9px 12px", background: "#fff", border: `1px solid ${L.border}`, borderRadius: 10, fontSize: 12.5, fontWeight: 700, color: L.text, cursor: "pointer" }}
             >
               <Plus style={{ width: 13, height: 13 }} /> New chat
             </button>
           </div>
-          <div style={{ flex: 1, overflowY: "auto" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 8px" }}>
             {conversations.length === 0 && (
-              <p style={{ fontSize: 11.5, color: L.dimmed, padding: "10px 12px" }}>No past chats yet.</p>
+              <p style={{ fontSize: 11.5, color: L.dimmed, padding: "6px 8px" }}>No past chats yet.</p>
             )}
             {conversations.map((c) => (
               <div
                 key={c.id}
                 onClick={() => openConversation(c.id)}
                 style={{
-                  display: "flex", alignItems: "center", gap: 6, padding: "9px 10px", cursor: "pointer", fontSize: 12,
-                  background: c.id === conversationId ? "#f1f5f9" : "transparent",
-                  borderBottom: `1px solid ${L.border}`,
+                  display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", cursor: "pointer", fontSize: 12, borderRadius: 8, marginBottom: 2,
+                  background: c.id === conversationId ? "#fff" : "transparent",
+                  boxShadow: c.id === conversationId ? `0 0 0 1px ${L.border}` : "none",
                 }}
               >
                 <MessageSquare style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
@@ -250,43 +278,53 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          style={{ flex: 1, background: L.surface, border: `1px dashed ${dragActive ? "var(--accent)" : "transparent"}`, outline: `1px solid ${L.border}`, outlineOffset: -1, display: "flex", flexDirection: "column", minWidth: 0, position: "relative" }}
+          style={{
+            flex: 1, background: L.surface, borderRadius: 14, display: "flex", flexDirection: "column", minWidth: 0, position: "relative",
+            border: `1px solid ${dragActive ? "var(--accent)" : L.border}`,
+          }}
         >
+          <div style={{ padding: "14px 22px", borderBottom: `1px solid ${L.border}`, fontSize: 14, fontWeight: 800, color: L.text }}>
+            {activeTitle}
+          </div>
+
           {dragActive && (
-            <div style={{ position: "absolute", inset: 0, background: "rgba(59,130,246,0.06)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1, pointerEvents: "none" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: `1px solid var(--accent)`, padding: "10px 18px", fontSize: 13, fontWeight: 700, color: L.text }}>
+            <div style={{ position: "absolute", inset: 0, background: "rgba(59,130,246,0.06)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1, pointerEvents: "none", borderRadius: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: `1px solid var(--accent)`, borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 700, color: L.text }}>
                 <Paperclip style={{ width: 14, height: 14 }} /> Drop to attach
               </div>
             </div>
           )}
-          <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+
+          <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
             {loadingThread && (
               <div style={{ display: "flex", alignItems: "center", gap: 6, color: L.dimmed, fontSize: 12.5 }}>
                 <Loader2 style={{ width: 13, height: 13, animation: "spin 1s linear infinite" }} /> Loading…
               </div>
             )}
             {!loadingThread && messages.length === 0 && (
-              <p style={{ fontSize: 13, color: L.dimmed }}>Ask about the pipeline, automations, or your Google Docs — attach a PDF or image with the paperclip, or ask it to draft a follow-up for a specific lead.</p>
+              <p style={{ fontSize: 13.5, color: L.dimmed, maxWidth: 480 }}>Ask about the pipeline, automations, or your Google Docs — attach a PDF or image with the paperclip, or ask it to draft a follow-up for a specific lead.</p>
             )}
             {!loadingThread && messages.map((m, i) => (
-              <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "80%" }}>
-                {!!m.attachmentNames?.length && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 4, justifyContent: "flex-end" }}>
-                    {m.attachmentNames.map((name, j) => (
-                      <span key={j} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: L.muted, background: "#f1f5f9", border: `1px solid ${L.border}`, padding: "3px 8px" }}>
-                        <FileText style={{ width: 11, height: 11 }} /> {name}
-                      </span>
-                    ))}
+              m.role === "user" ? (
+                <div key={i} style={{ alignSelf: "flex-end", maxWidth: "78%" }}>
+                  {!!m.attachmentNames?.length && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 5, justifyContent: "flex-end" }}>
+                      {m.attachmentNames.map((name, j) => (
+                        <span key={j} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: L.muted, background: L.panel, border: `1px solid ${L.border}`, borderRadius: 8, padding: "3px 8px" }}>
+                          <FileText style={{ width: 11, height: 11 }} /> {name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ padding: "11px 16px", fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap", background: L.panel, color: L.text, borderRadius: 16, borderBottomRightRadius: 4 }}>
+                    {m.content}
                   </div>
-                )}
-                <div style={{
-                  padding: "10px 14px", fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap",
-                  background: m.role === "user" ? "var(--accent)" : "#f1f5f9",
-                  color: m.role === "user" ? "#fff" : L.text,
-                }}>
-                  {m.content}
                 </div>
-              </div>
+              ) : (
+                <div key={i} style={{ alignSelf: "flex-start", maxWidth: "88%", fontSize: 13.5, color: L.text }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{m.content}</ReactMarkdown>
+                </div>
+              )
             ))}
             {sending && (
               <div style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6, color: L.dimmed, fontSize: 12.5 }}>
@@ -294,59 +332,68 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
               </div>
             )}
           </div>
-          {attachments.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "10px 16px 0" }}>
-              {attachments.map((a, i) => (
-                <span key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: L.text, background: "#f1f5f9", border: `1px solid ${L.border}`, padding: "4px 8px 4px 10px" }}>
-                  {a.mediaType.startsWith("image/") ? <ImageIcon style={{ width: 12, height: 12 }} /> : <FileText style={{ width: 12, height: 12 }} />}
-                  {a.name}
-                  {a.uploading ? <Loader2 style={{ width: 11, height: 11, animation: "spin 1s linear infinite" }} /> : (
-                    <button onClick={() => removeAttachment(a)} style={{ display: "flex", border: "none", background: "none", cursor: "pointer", padding: 0, color: L.muted }}>
-                      <X style={{ width: 12, height: 12 }} />
-                    </button>
-                  )}
-                </span>
-              ))}
+
+          <div style={{ padding: "0 22px 18px" }}>
+            {attachments.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                {attachments.map((a, i) => (
+                  <span key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: L.text, background: L.panel, border: `1px solid ${L.border}`, borderRadius: 8, padding: "4px 8px 4px 10px" }}>
+                    {a.mediaType.startsWith("image/") ? <ImageIcon style={{ width: 12, height: 12 }} /> : <FileText style={{ width: 12, height: 12 }} />}
+                    {a.name}
+                    {a.uploading ? <Loader2 style={{ width: 11, height: 11, animation: "spin 1s linear infinite" }} /> : (
+                      <button onClick={() => removeAttachment(a)} style={{ display: "flex", border: "none", background: "none", cursor: "pointer", padding: 0, color: L.muted }}>
+                        <X style={{ width: 12, height: 12 }} />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 4, border: `1px solid ${L.border}`, borderRadius: 22, padding: "6px 8px 6px 8px", background: "#fff" }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.csv,.json,application/pdf,image/*,text/plain,text/markdown,text/csv,application/json"
+                onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = ""; }}
+                style={{ display: "none" }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending || attachments.length >= MAX_ATTACHMENTS_PER_MESSAGE}
+                title="Attach a file"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, flexShrink: 0, borderRadius: "50%", border: "none", background: "transparent", color: L.muted, cursor: sending ? "default" : "pointer" }}
+              >
+                <Paperclip style={{ width: 16, height: 16 }} />
+              </button>
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => { setInput(e.target.value); resizeTextarea(e.target); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                onPaste={handlePaste}
+                placeholder="Write a message…"
+                rows={1}
+                style={{
+                  flex: 1, border: "none", padding: "8px 4px", fontSize: 13.5, outline: "none",
+                  resize: "none", fontFamily: "inherit", lineHeight: 1.4, maxHeight: TEXTAREA_MAX_HEIGHT, overflowY: "auto", background: "transparent",
+                }}
+              />
+              <button
+                onClick={send}
+                disabled={!canSend}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, flexShrink: 0, borderRadius: "50%", border: "none",
+                  background: canSend ? "var(--accent)" : "#e5e7eb", color: "#fff", cursor: canSend ? "pointer" : "default",
+                }}
+              >
+                <ArrowUp style={{ width: 16, height: 16 }} />
+              </button>
             </div>
-          )}
-          <div style={{ display: "flex", gap: 10, padding: 16, borderTop: `1px solid ${L.border}`, alignItems: "flex-end" }}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.csv,.json,application/pdf,image/*,text/plain,text/markdown,text/csv,application/json"
-              onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = ""; }}
-              style={{ display: "none" }}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={sending || attachments.length >= MAX_ATTACHMENTS_PER_MESSAGE}
-              title="Attach a file"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, flexShrink: 0, border: `1px solid ${L.border}`, background: "#fff", color: L.muted, cursor: sending ? "default" : "pointer" }}
-            >
-              <Paperclip style={{ width: 15, height: 15 }} />
-            </button>
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => { setInput(e.target.value); resizeTextarea(e.target); }}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              onPaste={handlePaste}
-              placeholder="Ask the brain something… (Shift+Enter for a new line, or drop/paste a file)"
-              rows={1}
-              style={{
-                flex: 1, border: `1px solid ${L.border}`, padding: "10px 12px", fontSize: 13.5, outline: "none",
-                resize: "none", fontFamily: "inherit", lineHeight: 1.4, maxHeight: TEXTAREA_MAX_HEIGHT, overflowY: "auto",
-              }}
-            />
-            <button
-              onClick={send}
-              disabled={sending || (!input.trim() && attachments.length === 0)}
-              className="btn-lift"
-              style={{ display: "flex", alignItems: "center", gap: 6, height: 40, flexShrink: 0, padding: "0 18px", background: "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || (!input.trim() && attachments.length === 0) ? "default" : "pointer" }}
-            >
-              <Send style={{ width: 14, height: 14 }} /> Send
-            </button>
+            <p style={{ textAlign: "center", fontSize: 10.5, color: L.dimmed, margin: "8px 0 0" }}>
+              The Brain can make mistakes — double check anything before approving it.
+            </p>
           </div>
         </div>
       </div>
