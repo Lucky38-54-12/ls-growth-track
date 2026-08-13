@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, Users, Phone, Calendar, Sun, Inbox, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Flame, Menu, X, Sparkles, LineChart, ListChecks, UserX, BrainCircuit, Brain, CheckCheck,
+  LayoutDashboard, Users, Phone, Calendar, Sun, Inbox, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Flame, Menu, X, Sparkles, LineChart, ListChecks, UserX, Brain, CheckCheck,
 } from "lucide-react";
 
 const NAV = [
@@ -25,7 +25,6 @@ const NAV = [
   { href: "/dashboard/scraper", label: "Scraper", icon: ScanSearch },
   { href: "/dashboard/ad-research", label: "Ad Research", icon: Sparkles },
   { href: "/dashboard/meta-ads", label: "Meta Ads Performance", icon: LineChart },
-  { href: "/dashboard/agency-brain", label: "Agency Brain", icon: BrainCircuit },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
