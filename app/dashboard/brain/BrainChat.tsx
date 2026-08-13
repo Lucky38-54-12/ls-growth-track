@@ -34,6 +34,8 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const dragDepth = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -135,6 +137,37 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
     setAttachments((a) => a.filter((x) => x !== target));
   }
 
+  // Drag depth counted rather than just on/off — a drag over a child element
+  // fires leave-then-enter on the parent, which would otherwise flicker the
+  // drop overlay off mid-drag.
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+    dragDepth.current += 1;
+    setDragActive(true);
+  }
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+  }
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragActive(false);
+  }
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragActive(false);
+    handleFilesSelected(e.dataTransfer.files);
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    if (e.clipboardData.files.length > 0) {
+      e.preventDefault();
+      handleFilesSelected(e.clipboardData.files);
+    }
+  }
+
   async function send() {
     const message = input.trim();
     const readyAttachments = attachments.filter((a) => !a.uploading);
@@ -212,7 +245,20 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
           </div>
         </div>
 
-        <div style={{ flex: 1, background: L.surface, border: `1px solid ${L.border}`, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <div
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          style={{ flex: 1, background: L.surface, border: `1px dashed ${dragActive ? "var(--accent)" : "transparent"}`, outline: `1px solid ${L.border}`, outlineOffset: -1, display: "flex", flexDirection: "column", minWidth: 0, position: "relative" }}
+        >
+          {dragActive && (
+            <div style={{ position: "absolute", inset: 0, background: "rgba(59,130,246,0.06)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1, pointerEvents: "none" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: `1px solid var(--accent)`, padding: "10px 18px", fontSize: 13, fontWeight: 700, color: L.text }}>
+                <Paperclip style={{ width: 14, height: 14 }} /> Drop to attach
+              </div>
+            </div>
+          )}
           <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
             {loadingThread && (
               <div style={{ display: "flex", alignItems: "center", gap: 6, color: L.dimmed, fontSize: 12.5 }}>
@@ -285,7 +331,8 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
               value={input}
               onChange={(e) => { setInput(e.target.value); resizeTextarea(e.target); }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Ask the brain something… (Shift+Enter for a new line)"
+              onPaste={handlePaste}
+              placeholder="Ask the brain something… (Shift+Enter for a new line, or drop/paste a file)"
               rows={1}
               style={{
                 flex: 1, border: `1px solid ${L.border}`, padding: "10px 12px", fontSize: 13.5, outline: "none",
