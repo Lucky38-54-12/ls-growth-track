@@ -26,6 +26,15 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
   const [error, setError] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const TEXTAREA_MAX_HEIGHT = 200;
+
+  function resizeTextarea(el: HTMLTextAreaElement | null) {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`;
+  }
 
   async function handleFilesSelected(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -75,6 +84,7 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
     setMessages([...history, { role: "user", content: message || "(attached file, no message)", attachmentNames: readyAttachments.map((a) => a.name) }]);
     setAttachments([]);
     setSending(true);
+    requestAnimationFrame(() => resizeTextarea(textareaRef.current));
     try {
       const res = await fetch("/api/brain/chat", {
         method: "POST",
@@ -147,7 +157,7 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
             ))}
           </div>
         )}
-        <div style={{ display: "flex", gap: 10, padding: 16, borderTop: `1px solid ${L.border}` }}>
+        <div style={{ display: "flex", gap: 10, padding: 16, borderTop: `1px solid ${L.border}`, alignItems: "flex-end" }}>
           <input
             ref={fileInputRef}
             type="file"
@@ -160,22 +170,27 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
             onClick={() => fileInputRef.current?.click()}
             disabled={sending || attachments.length >= MAX_ATTACHMENTS_PER_MESSAGE}
             title="Attach a file"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 40, border: `1px solid ${L.border}`, background: "#fff", color: L.muted, cursor: sending ? "default" : "pointer" }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, flexShrink: 0, border: `1px solid ${L.border}`, background: "#fff", color: L.muted, cursor: sending ? "default" : "pointer" }}
           >
             <Paperclip style={{ width: 15, height: 15 }} />
           </button>
-          <input
+          <textarea
+            ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); resizeTextarea(e.target); }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Ask the brain something…"
-            style={{ flex: 1, border: `1px solid ${L.border}`, padding: "10px 12px", fontSize: 13.5, outline: "none" }}
+            placeholder="Ask the brain something… (Shift+Enter for a new line)"
+            rows={1}
+            style={{
+              flex: 1, border: `1px solid ${L.border}`, padding: "10px 12px", fontSize: 13.5, outline: "none",
+              resize: "none", fontFamily: "inherit", lineHeight: 1.4, maxHeight: TEXTAREA_MAX_HEIGHT, overflowY: "auto",
+            }}
           />
           <button
             onClick={send}
             disabled={sending || (!input.trim() && attachments.length === 0)}
             className="btn-lift"
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 18px", background: "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || (!input.trim() && attachments.length === 0) ? "default" : "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 6, height: 40, flexShrink: 0, padding: "0 18px", background: "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || (!input.trim() && attachments.length === 0) ? "default" : "pointer" }}
           >
             <Send style={{ width: 14, height: 14 }} /> Send
           </button>
