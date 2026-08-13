@@ -16,9 +16,13 @@ const VALID_LEAD_STATUSES: readonly LeadStatus[] = [
 
 export const dynamic = "force-dynamic";
 
-interface ChatTurn {
-  role: "user" | "assistant";
-  content: string;
+interface ParsedDraft {
+  kind?: string; leadId?: string; subject?: string; title?: string; content?: string;
+  fields?: { status?: string; notes?: string; follow_up_at?: string };
+  calendar?: { summary?: string; attendeeEmail?: string; attendeeName?: string; startISO?: string; durationMinutes?: number };
+  sheet?: { sheetId?: string; company?: string; dateCalled?: string; outcome?: string; callBack?: string; notes?: string };
+  script?: { summary?: string; newContent?: string };
+  agreement?: { title?: string; markedText?: string };
 }
 
 const BRAIN_SYSTEM_PROMPT = `You are Lucky's business brain for LS Growth Agency — a single place he asks questions about the business and gets you to draft things, instead of digging through Supabase, Gmail, or Google Docs himself.
@@ -55,6 +59,176 @@ Respond with ONLY a JSON object, no markdown fences, no other text:
 
 Only include the one object ("fields", "calendar", "sheet", "script", or "agreement") that matches the draft's kind — omit the others. Omit "draft" entirely if you're not drafting/proposing anything this turn — most replies won't have one.`;
 
+// Applies whatever the model proposed (if anything) and returns the final
+// reply text plus whether a draft/action actually landed. Kept separate
+// from POST so every code path funnels through one return, letting POST
+// persist the turn (see persistTurn below) no matter which branch fired.
+async function resolveDraft(
+  sb: ReturnType<typeof createSupabaseClient>,
+  initialReply: string,
+  draft: ParsedDraft | undefined
+): Promise<{ reply: string; draftCreated: boolean; error?: string }> {
+  let reply = initialReply;
+  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal", "agreement_doc"]);
+  if (!draft?.kind || !KNOWN_KINDS.has(draft.kind)) return { reply, draftCreated: false };
+
+  let leadUuid: string | null = null;
+  if (draft.kind === "email" || draft.kind === "lead_update") {
+    if (!draft.leadId) return { reply, draftCreated: false, error: `Model tried to ${draft.kind === "email" ? "draft an email" : "update a lead"} with no lead_id — ignored.` };
+    const { data: lead } = await sb.from("leads").select("id").eq("lead_id", draft.leadId).maybeSingle();
+    if (!lead) return { reply, draftCreated: false, error: `Model referenced unknown lead_id "${draft.leadId}" — ignored.` };
+    leadUuid = lead.id;
+  }
+
+  if (draft.kind === "lead_update") {
+    const fields = draft.fields || {};
+    const payload: { status?: LeadStatus; notes?: string; follow_up_at?: string } = {};
+    if (fields.status && (VALID_LEAD_STATUSES as readonly string[]).includes(fields.status)) payload.status = fields.status as LeadStatus;
+    if (fields.notes?.trim()) payload.notes = stripDashes(fields.notes.trim());
+    if (fields.follow_up_at?.trim()) payload.follow_up_at = fields.follow_up_at.trim();
+
+    if (Object.keys(payload).length === 0) {
+      return { reply, draftCreated: false, error: "Model proposed a lead update with no valid fields — ignored." };
+    }
+
+    const summaryLines = [
+      payload.status ? `Set status to ${payload.status}.` : "",
+      payload.notes ? `Add note: ${payload.notes}` : "",
+      payload.follow_up_at ? `Set follow-up date to ${payload.follow_up_at}.` : "",
+    ].filter(Boolean);
+
+    const { error } = await sb.from("chat_drafts").insert({
+      kind: "lead_update",
+      title: "Update lead",
+      lead_id: leadUuid,
+      content: summaryLines.join("\n"),
+      payload,
+    });
+    return { reply, draftCreated: !error };
+  }
+
+  if (draft.kind === "calendar_booking") {
+    const cal = draft.calendar || {};
+    const start = cal.startISO ? new Date(cal.startISO) : null;
+    if (!cal.summary || !cal.attendeeEmail || !start || isNaN(start.getTime()) || start.getTime() < Date.now()) {
+      return { reply, draftCreated: false, error: "Model proposed a calendar booking with missing/invalid fields — ignored." };
+    }
+    const payload = {
+      summary: stripDashes(cal.summary),
+      attendeeEmail: cal.attendeeEmail.trim(),
+      attendeeName: cal.attendeeName?.trim() || "",
+      startISO: start.toISOString(),
+      durationMinutes: cal.durationMinutes || 30,
+    };
+    const when = start.toLocaleString("en-NZ", { weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    const content = `${payload.summary}\nWith: ${payload.attendeeName || payload.attendeeEmail}\nWhen: ${when} (${payload.durationMinutes} min)`;
+
+    const { error } = await sb.from("chat_drafts").insert({ kind: "calendar_booking", title: payload.summary, content, payload });
+    return { reply, draftCreated: !error };
+  }
+
+  if (draft.kind === "sheet_update") {
+    const sheet = draft.sheet || {};
+    if (!sheet.sheetId || !sheet.company?.trim()) {
+      return { reply, draftCreated: false, error: "Model proposed a sheet update with no sheetId/company — ignored." };
+    }
+    const { data: tracked } = await sb.from("tracked_sheets").select("sheet_id").eq("sheet_id", sheet.sheetId).eq("active", true).maybeSingle();
+    if (!tracked) return { reply, draftCreated: false, error: `Model referenced unknown/inactive sheet_id "${sheet.sheetId}" — ignored.` };
+
+    const payload: { sheetId: string; company: string; dateCalled?: string; outcome?: string; callBack?: string; notes?: string } = {
+      sheetId: sheet.sheetId,
+      company: sheet.company.trim(),
+    };
+    if (sheet.dateCalled?.trim()) payload.dateCalled = sheet.dateCalled.trim();
+    if (sheet.outcome?.trim()) payload.outcome = stripDashes(sheet.outcome.trim());
+    if (sheet.callBack?.trim()) payload.callBack = sheet.callBack.trim();
+    if (sheet.notes?.trim()) payload.notes = stripDashes(sheet.notes.trim());
+
+    const summaryLines = [
+      `Sheet row for ${payload.company}:`,
+      payload.dateCalled ? `Date called: ${payload.dateCalled}` : "",
+      payload.outcome ? `Outcome: ${payload.outcome}` : "",
+      payload.callBack ? `Call back: ${payload.callBack}` : "",
+      payload.notes ? `Notes: ${payload.notes}` : "",
+    ].filter(Boolean);
+
+    const { error } = await sb.from("chat_drafts").insert({ kind: "sheet_update", title: `Update sheet row: ${payload.company}`, content: summaryLines.join("\n"), payload });
+    return { reply, draftCreated: !error };
+  }
+
+  if (draft.kind === "script_proposal") {
+    const script = draft.script || {};
+    if (!script.newContent?.trim()) {
+      return { reply, draftCreated: false, error: "Model proposed a script change with no content — ignored." };
+    }
+
+    // script_proposal writes straight into sales_script_proposals, the same
+    // table/queue the automated post-call standing review uses — so it
+    // shows up on /dashboard/sales-calls and applying it (a new
+    // sales_script_versions row) reuses that existing approval endpoint
+    // rather than duplicating the apply logic here.
+    const { data: currentVersion } = await sb.from("sales_script_versions").select("version").eq("is_current", true).maybeSingle();
+    const { error } = await sb.from("sales_script_proposals").insert({
+      call_id: null,
+      based_on_version: currentVersion?.version || 0,
+      status: "pending",
+      needs_changes: true,
+      summary: stripDashes(script.summary || "Script update proposed via Brain chat."),
+      diffs: [],
+      new_content: stripDashes(script.newContent.trim()),
+    });
+    return { reply, draftCreated: !error };
+  }
+
+  if (draft.kind === "agreement_doc") {
+    const agreement = draft.agreement || {};
+    if (!agreement.markedText?.trim()) {
+      return { reply, draftCreated: false, error: "Model tried to create an agreement doc with no content — ignored." };
+    }
+
+    // Creates the real Google Doc immediately rather than queuing it for
+    // approval — nothing is sent to anyone, it's a private doc only Lucky
+    // can see, same reasoning as the existing call-prep doc creation.
+    try {
+      const url = await createDocFromMarkedText(agreement.title || "Client Agreement", agreement.markedText.trim());
+      return { reply: `${reply}\n\nDoc created: ${url}`, draftCreated: false };
+    } catch (e) {
+      return { reply, draftCreated: false, error: e instanceof Error ? e.message : "Failed to create the agreement doc." };
+    }
+  }
+
+  const { error } = await sb.from("chat_drafts").insert({
+    kind: draft.kind,
+    title: draft.kind === "email" ? stripDashes(draft.subject || "Follow-up") : (draft.title || "Note"),
+    lead_id: leadUuid,
+    content: stripDashes(draft.content || ""),
+  });
+  return { reply, draftCreated: !error };
+}
+
+// Persists both sides of the turn to brain_messages so old threads survive a
+// refresh and can be reopened (see supabase_migration_brain_conversations.sql).
+// The title is set from the first user message once, then left alone.
+async function persistTurn(
+  sb: ReturnType<typeof createSupabaseClient>,
+  conversationId: string,
+  userMessage: string,
+  attachmentNames: string[],
+  assistantReply: string
+) {
+  await sb.from("brain_messages").insert([
+    { conversation_id: conversationId, role: "user", content: userMessage, attachment_names: attachmentNames },
+    { conversation_id: conversationId, role: "assistant", content: assistantReply, attachment_names: [] },
+  ]);
+
+  const { data: convo } = await sb.from("brain_conversations").select("title").eq("id", conversationId).maybeSingle();
+  const updates: { updated_at: string; title?: string } = { updated_at: new Date().toISOString() };
+  if (!convo?.title || convo.title === "New chat") {
+    updates.title = userMessage.slice(0, 60) + (userMessage.length > 60 ? "…" : "");
+  }
+  await sb.from("brain_conversations").update(updates).eq("id", conversationId);
+}
+
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
@@ -62,10 +236,23 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const attachments: BrainAttachment[] = Array.isArray(body.attachments) ? body.attachments.slice(0, MAX_ATTACHMENTS_PER_MESSAGE) : [];
   const message: string = (body.message || "").trim() || (attachments.length ? "Take a look at the attached file(s)." : "");
-  const history: ChatTurn[] = Array.isArray(body.history) ? body.history : [];
   if (!message) return NextResponse.json({ error: "message is required" }, { status: 400 });
 
   const sb = createSupabaseClient();
+
+  let conversationId: string = body.conversationId || "";
+  if (!conversationId) {
+    const { data: created, error } = await sb.from("brain_conversations").insert({ title: "New chat" }).select("id").single();
+    if (error || !created) return NextResponse.json({ error: "Could not start a new conversation." }, { status: 500 });
+    conversationId = created.id;
+  }
+
+  const { data: priorRows } = await sb
+    .from("brain_messages")
+    .select("role, content")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+  const history = (priorRows || []) as { role: "user" | "assistant"; content: string }[];
 
   const [systemPrompt, contextBlock, attachmentBlocks] = await Promise.all([
     withWritingStyle(BRAIN_SYSTEM_PROMPT),
@@ -85,157 +272,22 @@ export async function POST(req: NextRequest) {
   });
 
   const textBlock = response.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") return NextResponse.json({ error: "No response from Claude" }, { status: 502 });
+  if (!textBlock || textBlock.type !== "text") return NextResponse.json({ conversationId, error: "No response from Claude" }, { status: 502 });
 
-  let parsed: {
-    reply?: string;
-    draft?: {
-      kind?: string; leadId?: string; subject?: string; title?: string; content?: string;
-      fields?: { status?: string; notes?: string; follow_up_at?: string };
-      calendar?: { summary?: string; attendeeEmail?: string; attendeeName?: string; startISO?: string; durationMinutes?: number };
-      sheet?: { sheetId?: string; company?: string; dateCalled?: string; outcome?: string; callBack?: string; notes?: string };
-      script?: { summary?: string; newContent?: string };
-      agreement?: { title?: string; markedText?: string };
-    };
-  };
+  let parsed: { reply?: string; draft?: ParsedDraft };
   try {
     parsed = parseJsonResponse(textBlock.text);
   } catch {
     // Fall back to the raw text as a plain reply rather than dropping the turn.
-    return NextResponse.json({ reply: textBlock.text.trim(), draftCreated: false });
+    const rawReply = textBlock.text.trim();
+    await persistTurn(sb, conversationId, message, attachments.map((a) => a.name), rawReply);
+    return NextResponse.json({ conversationId, reply: rawReply, draftCreated: false });
   }
 
-  let reply = stripDashes(parsed.reply || textBlock.text.trim());
-  let draftCreated = false;
+  const initialReply = stripDashes(parsed.reply || textBlock.text.trim());
+  const { reply, draftCreated, error } = await resolveDraft(sb, initialReply, parsed.draft);
 
-  const draft = parsed.draft;
-  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal", "agreement_doc"]);
-  if (draft?.kind && KNOWN_KINDS.has(draft.kind)) {
-    let leadUuid: string | null = null;
-    if (draft.kind === "email" || draft.kind === "lead_update") {
-      if (!draft.leadId) return NextResponse.json({ reply, draftCreated: false, error: `Model tried to ${draft.kind === "email" ? "draft an email" : "update a lead"} with no lead_id — ignored.` });
-      const { data: lead } = await sb.from("leads").select("id").eq("lead_id", draft.leadId).maybeSingle();
-      if (!lead) return NextResponse.json({ reply, draftCreated: false, error: `Model referenced unknown lead_id "${draft.leadId}" — ignored.` });
-      leadUuid = lead.id;
-    }
+  await persistTurn(sb, conversationId, message, attachments.map((a) => a.name), reply);
 
-    if (draft.kind === "lead_update") {
-      const fields = draft.fields || {};
-      const payload: { status?: LeadStatus; notes?: string; follow_up_at?: string } = {};
-      if (fields.status && (VALID_LEAD_STATUSES as readonly string[]).includes(fields.status)) payload.status = fields.status as LeadStatus;
-      if (fields.notes?.trim()) payload.notes = stripDashes(fields.notes.trim());
-      if (fields.follow_up_at?.trim()) payload.follow_up_at = fields.follow_up_at.trim();
-
-      if (Object.keys(payload).length === 0) {
-        return NextResponse.json({ reply, draftCreated: false, error: "Model proposed a lead update with no valid fields — ignored." });
-      }
-
-      const summaryLines = [
-        payload.status ? `Set status to ${payload.status}.` : "",
-        payload.notes ? `Add note: ${payload.notes}` : "",
-        payload.follow_up_at ? `Set follow-up date to ${payload.follow_up_at}.` : "",
-      ].filter(Boolean);
-
-      const { error } = await sb.from("chat_drafts").insert({
-        kind: "lead_update",
-        title: "Update lead",
-        lead_id: leadUuid,
-        content: summaryLines.join("\n"),
-        payload,
-      });
-      draftCreated = !error;
-    } else if (draft.kind === "calendar_booking") {
-      const cal = draft.calendar || {};
-      const start = cal.startISO ? new Date(cal.startISO) : null;
-      if (!cal.summary || !cal.attendeeEmail || !start || isNaN(start.getTime()) || start.getTime() < Date.now()) {
-        return NextResponse.json({ reply, draftCreated: false, error: "Model proposed a calendar booking with missing/invalid fields — ignored." });
-      }
-      const payload = {
-        summary: stripDashes(cal.summary),
-        attendeeEmail: cal.attendeeEmail.trim(),
-        attendeeName: cal.attendeeName?.trim() || "",
-        startISO: start.toISOString(),
-        durationMinutes: cal.durationMinutes || 30,
-      };
-      const when = start.toLocaleString("en-NZ", { weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-      const content = `${payload.summary}\nWith: ${payload.attendeeName || payload.attendeeEmail}\nWhen: ${when} (${payload.durationMinutes} min)`;
-
-      const { error } = await sb.from("chat_drafts").insert({ kind: "calendar_booking", title: payload.summary, content, payload });
-      draftCreated = !error;
-    } else if (draft.kind === "sheet_update") {
-      const sheet = draft.sheet || {};
-      if (!sheet.sheetId || !sheet.company?.trim()) {
-        return NextResponse.json({ reply, draftCreated: false, error: "Model proposed a sheet update with no sheetId/company — ignored." });
-      }
-      const { data: tracked } = await sb.from("tracked_sheets").select("sheet_id").eq("sheet_id", sheet.sheetId).eq("active", true).maybeSingle();
-      if (!tracked) return NextResponse.json({ reply, draftCreated: false, error: `Model referenced unknown/inactive sheet_id "${sheet.sheetId}" — ignored.` });
-
-      const payload: { sheetId: string; company: string; dateCalled?: string; outcome?: string; callBack?: string; notes?: string } = {
-        sheetId: sheet.sheetId,
-        company: sheet.company.trim(),
-      };
-      if (sheet.dateCalled?.trim()) payload.dateCalled = sheet.dateCalled.trim();
-      if (sheet.outcome?.trim()) payload.outcome = stripDashes(sheet.outcome.trim());
-      if (sheet.callBack?.trim()) payload.callBack = sheet.callBack.trim();
-      if (sheet.notes?.trim()) payload.notes = stripDashes(sheet.notes.trim());
-
-      const summaryLines = [
-        `Sheet row for ${payload.company}:`,
-        payload.dateCalled ? `Date called: ${payload.dateCalled}` : "",
-        payload.outcome ? `Outcome: ${payload.outcome}` : "",
-        payload.callBack ? `Call back: ${payload.callBack}` : "",
-        payload.notes ? `Notes: ${payload.notes}` : "",
-      ].filter(Boolean);
-
-      const { error } = await sb.from("chat_drafts").insert({ kind: "sheet_update", title: `Update sheet row: ${payload.company}`, content: summaryLines.join("\n"), payload });
-      draftCreated = !error;
-    } else if (draft.kind === "script_proposal") {
-      const script = draft.script || {};
-      if (!script.newContent?.trim()) {
-        return NextResponse.json({ reply, draftCreated: false, error: "Model proposed a script change with no content — ignored." });
-      }
-
-      // script_proposal writes straight into sales_script_proposals, the
-      // same table/queue the automated post-call standing review uses — so
-      // it shows up on /dashboard/sales-calls and applying it (a new
-      // sales_script_versions row) reuses that existing approval endpoint
-      // rather than duplicating the apply logic here.
-      const { data: currentVersion } = await sb.from("sales_script_versions").select("version").eq("is_current", true).maybeSingle();
-      const { error } = await sb.from("sales_script_proposals").insert({
-        call_id: null,
-        based_on_version: currentVersion?.version || 0,
-        status: "pending",
-        needs_changes: true,
-        summary: stripDashes(script.summary || "Script update proposed via Brain chat."),
-        diffs: [],
-        new_content: stripDashes(script.newContent.trim()),
-      });
-      draftCreated = !error;
-    } else if (draft.kind === "agreement_doc") {
-      const agreement = draft.agreement || {};
-      if (!agreement.markedText?.trim()) {
-        return NextResponse.json({ reply, draftCreated: false, error: "Model tried to create an agreement doc with no content — ignored." });
-      }
-
-      // Creates the real Google Doc immediately rather than queuing it for
-      // approval — nothing is sent to anyone, it's a private doc only Lucky
-      // can see, same reasoning as the existing call-prep doc creation.
-      try {
-        const url = await createDocFromMarkedText(agreement.title || "Client Agreement", agreement.markedText.trim());
-        reply = `${reply}\n\nDoc created: ${url}`;
-      } catch (e) {
-        return NextResponse.json({ reply, draftCreated: false, error: e instanceof Error ? e.message : "Failed to create the agreement doc." });
-      }
-    } else {
-      const { error } = await sb.from("chat_drafts").insert({
-        kind: draft.kind,
-        title: draft.kind === "email" ? stripDashes(draft.subject || "Follow-up") : (draft.title || "Note"),
-        lead_id: leadUuid,
-        content: stripDashes(draft.content || ""),
-      });
-      draftCreated = !error;
-    }
-  }
-
-  return NextResponse.json({ reply, draftCreated });
+  return NextResponse.json({ conversationId, reply, draftCreated, error });
 }
