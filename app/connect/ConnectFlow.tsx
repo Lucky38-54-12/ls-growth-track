@@ -6,16 +6,10 @@ import { CheckCircle2, XCircle, ShieldCheck, Lock, Megaphone, MessageCircle, Cop
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
-// The Business Manager clients add as a partner to grant ad account access —
-// there's no OAuth flow for this (Meta requires it done by hand in Business
-// Suite), so this just needs to be correct, not secret.
-const LS_GROWTH_BUSINESS_NAME = "LS Growth Agency";
-const LS_GROWTH_BUSINESS_ID = "1348658683829583";
-
-// Facebook Page admin roles are tied to a specific Facebook account, not a
-// Business Manager ID — this is the account Lucky personally logs into when
-// he runs the agency-side "Connect Facebook" OAuth (lib/leadQual/facebookOAuth.ts),
-// so this is who the client actually needs to add.
+// Both ad account access and Page admin access are granted to Lucky
+// personally (not the "LS Growth Agency" Business Manager/Business ID) —
+// this is the Facebook account he actually logs into for both, so it's who
+// the client needs to add in each case.
 const LUCKY_FACEBOOK_NAME = "Lucky Singh";
 const LUCKY_FACEBOOK_URL = "https://www.facebook.com/lucky.singh.332313/";
 
@@ -455,7 +449,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
-    navigator.clipboard.writeText(LS_GROWTH_BUSINESS_ID);
+    navigator.clipboard.writeText(LUCKY_FACEBOOK_URL);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -482,19 +476,19 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
       {!done && (
         <>
           <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 10, lineHeight: 1.6 }}>
-            Meta doesn&apos;t let us request this one with a click, you&apos;ll need to add us as a partner yourself in Meta Business Suite:
+            Meta doesn&apos;t let us request this one with a click, you&apos;ll need to add Lucky directly yourself in Meta Business Suite — as a <strong>person</strong> on the ad account, not a business partner:
           </p>
           <ol style={{ fontSize: 12.5, color: L.text, lineHeight: 1.9, paddingLeft: 18, marginBottom: 12 }}>
             <li>Go to <strong>business.facebook.com/settings</strong> and open your Business Settings</li>
             <li><strong>Accounts → Ad accounts</strong>, select your ad account</li>
-            <li>Click <strong>Assign partner</strong>, and paste in the Business ID below</li>
-            <li>Give <strong>full control</strong> (or advertiser access) and confirm</li>
+            <li>Click the <strong>People</strong> tab (not Partners) → <strong>Assign people</strong></li>
+            <li>Search for <strong>{LUCKY_FACEBOOK_NAME}</strong>, or paste his profile link below, and give him <strong>full control</strong> (or advertiser) access</li>
           </ol>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: "8px 10px", marginBottom: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{LS_GROWTH_BUSINESS_NAME} — Business ID</p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "monospace" }}>{LS_GROWTH_BUSINESS_ID}</p>
+              <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{LUCKY_FACEBOOK_NAME} — Facebook profile</p>
+              <a href={LUCKY_FACEBOOK_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", wordBreak: "break-all" }}>{LUCKY_FACEBOOK_URL}</a>
             </div>
             <button
               type="button"
@@ -519,7 +513,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
               border: "none", borderRadius: 0, padding: "9px 16px", cursor: confirming ? "default" : "pointer",
             }}
           >
-            {confirming ? "Saving…" : "I've added LS Growth as a partner"}
+            {confirming ? "Saving…" : "I've added Lucky to my ad account"}
           </button>
         </>
       )}
