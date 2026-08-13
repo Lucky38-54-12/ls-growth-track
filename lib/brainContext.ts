@@ -337,6 +337,18 @@ async function metaAdsSummary(): Promise<string> {
   }
 }
 
+// Bounds any one context section to SECTION_TIMEOUT_MS so a single slow/hung
+// external API (Gmail, Drive, Sheets, Calendar and Meta Ads have all been
+// slow at points) can't drag the whole /api/brain/chat request past the
+// serverless function's time budget — a request stuck for minutes either
+// gets killed by the platform or abandoned by the browser, and either way
+// the client only ever sees the generic "Couldn't reach the brain" error
+// instead of a real answer built from whatever context did come back in time.
+const SECTION_TIMEOUT_MS = 8000;
+function withTimeout<T>(promise: Promise<T>, fallback: T, ms = SECTION_TIMEOUT_MS): Promise<T> {
+  return Promise.race([promise, new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))]);
+}
+
 // Assembles everything the /dashboard/brain chat needs to answer a question
 // or draft something, beyond what withWritingStyle() already adds (voice
 // rules + Agency Brain sections) — one context block, built fresh per
@@ -345,18 +357,18 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
   const sb = createSupabaseClient();
 
   const [leadsSummary, matchedLeads, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate] = await Promise.all([
-    summarizeLeads(sb).catch(() => "Lead data unavailable."),
-    matchingLeads(sb, userQuestion).catch(() => ""),
-    summarizeAutomations(sb).catch(() => "Automation data unavailable."),
-    relevantDriveDocs(userQuestion),
-    upcomingCalendarSummary(),
-    matchingSheets(sb, userQuestion),
-    inboxSearchSummary(userQuestion),
-    metaAdsSummary(),
-    summarizeSalesCalls(sb).catch(() => "Sales call data unavailable."),
-    summarizeCampaignsAndRevenue(sb).catch(() => "Campaign/revenue data unavailable."),
-    summarizeLearnings(sb),
-    agreementTemplateSummary(sb, userQuestion).catch(() => ""),
+    withTimeout(summarizeLeads(sb).catch(() => "Lead data unavailable."), "Lead data unavailable."),
+    withTimeout(matchingLeads(sb, userQuestion).catch(() => ""), ""),
+    withTimeout(summarizeAutomations(sb).catch(() => "Automation data unavailable."), "Automation data unavailable."),
+    withTimeout(relevantDriveDocs(userQuestion), ""),
+    withTimeout(upcomingCalendarSummary(), ""),
+    withTimeout(matchingSheets(sb, userQuestion), ""),
+    withTimeout(inboxSearchSummary(userQuestion), ""),
+    withTimeout(metaAdsSummary(), ""),
+    withTimeout(summarizeSalesCalls(sb).catch(() => "Sales call data unavailable."), "Sales call data unavailable."),
+    withTimeout(summarizeCampaignsAndRevenue(sb).catch(() => "Campaign/revenue data unavailable."), "Campaign/revenue data unavailable."),
+    withTimeout(summarizeLearnings(sb), ""),
+    withTimeout(agreementTemplateSummary(sb, userQuestion).catch(() => ""), ""),
   ]);
 
   const todayLabel = new Intl.DateTimeFormat("en-NZ", {

@@ -17,6 +17,7 @@ const VALID_LEAD_STATUSES: readonly LeadStatus[] = [
 ];
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 interface ParsedDraft {
   kind?: string; leadId?: string; subject?: string; title?: string; content?: string;
