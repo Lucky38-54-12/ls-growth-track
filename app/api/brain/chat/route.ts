@@ -17,7 +17,12 @@ const VALID_LEAD_STATUSES: readonly LeadStatus[] = [
 ];
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// 60s wasn't enough for call_prep/agreement_doc specifically — those run a
+// second full Claude call (generateCallPrep, up to 16k tokens, with its own
+// fallback model) plus several sequential Google Docs/Drive API calls after
+// the main turn already completed, and can legitimately take over a minute
+// with nothing actually wrong. 180s gives that pipeline real headroom.
+export const maxDuration = 180;
 
 interface ParsedDraft {
   kind?: string; leadId?: string; subject?: string; title?: string; content?: string;
