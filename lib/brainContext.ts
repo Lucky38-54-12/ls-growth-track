@@ -234,6 +234,26 @@ async function summarizeSalesCalls(sb: ReturnType<typeof createSupabaseClient>):
   ].join("\n\n");
 }
 
+// The one canonical example of what an LS Growth client agreement looks
+// like (Lucky's own Google Doc) — read live rather than copied in, so
+// editing the doc is the only thing needed to change what the brain bases
+// new agreements on. Only pulled in when the question actually looks like
+// it's about an agreement/contract, same reasoning as the other
+// keyword-gated sections: it's a large doc and most questions don't need it.
+const AGREEMENT_TEMPLATE_DOC_ID = "1_AFoqdSBkeaJ4sOX55d_c1JAw4jNGNtPsbFXpyxstD4";
+
+async function agreementTemplateSummary(userQuestion: string): Promise<string> {
+  const words = questionWords(userQuestion).map((w) => w.toLowerCase());
+  const relevant = ["agreement", "contract", "onboarding", "onboard", "sign", "signed", "deal", "terms", "proposal"].some((k) => words.includes(k));
+  if (!relevant) return "";
+  try {
+    const text = await readGoogleDocText(AGREEMENT_TEMPLATE_DOC_ID, 8000);
+    return text || "";
+  } catch {
+    return "";
+  }
+}
+
 async function summarizeCampaignsAndRevenue(sb: ReturnType<typeof createSupabaseClient>): Promise<string> {
   const [{ data: campaigns }, { data: revenueClients }, { data: revenueGoal }, { data: warmLeads }] = await Promise.all([
     sb.from("campaigns").select("id, name, status, activated_at"),
@@ -298,7 +318,7 @@ async function metaAdsSummary(): Promise<string> {
 export async function buildBrainContext(userQuestion: string): Promise<string> {
   const sb = createSupabaseClient();
 
-  const [leadsSummary, matchedLeads, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, salesCallsSummary, campaignsSummary, learningsSummary] = await Promise.all([
+  const [leadsSummary, matchedLeads, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate] = await Promise.all([
     summarizeLeads(sb).catch(() => "Lead data unavailable."),
     matchingLeads(sb, userQuestion).catch(() => ""),
     summarizeAutomations(sb).catch(() => "Automation data unavailable."),
@@ -310,6 +330,7 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     summarizeSalesCalls(sb).catch(() => "Sales call data unavailable."),
     summarizeCampaignsAndRevenue(sb).catch(() => "Campaign/revenue data unavailable."),
     summarizeLearnings(sb),
+    agreementTemplateSummary(userQuestion).catch(() => ""),
   ]);
 
   const todayLabel = new Intl.DateTimeFormat("en-NZ", {
@@ -329,6 +350,7 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     `SALES CALLS & SCRIPT:\n${salesCallsSummary}`,
     `CAMPAIGNS & REVENUE:\n${campaignsSummary}`,
     learningsSummary ? `LEARNED FROM EXPERIENCE (distilled from Lucky's past approve/reject decisions — treat these as standing preferences, not one-off notes):\n${learningsSummary}` : "",
+    agreementTemplate ? `AGREEMENT TEMPLATE (the real example of what an LS Growth client agreement looks like — use its structure and wording as the pattern when drafting a new one, filling in this specific deal's details):\n${agreementTemplate}` : "",
   ].filter(Boolean);
 
   return sections.join("\n\n---\n\n");

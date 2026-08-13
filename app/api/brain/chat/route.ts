@@ -3,6 +3,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createSupabaseClient } from "@/lib/supabase";
 import { withWritingStyle, parseJsonResponse, stripDashes } from "@/lib/ai";
 import { buildBrainContext } from "@/lib/brainContext";
+import { buildAttachmentBlocks } from "@/lib/brainDocuments";
+import { BrainAttachment, MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/brainAttachments";
+import { createDocFromMarkedText } from "@/lib/googleDocs";
 import { LeadStatus } from "@/lib/types";
 
 const VALID_LEAD_STATUSES: readonly LeadStatus[] = [
@@ -22,6 +25,8 @@ const BRAIN_SYSTEM_PROMPT = `You are Lucky's business brain for LS Growth Agency
 
 You'll be given, below your own instructions: how LS Growth operates (Agency Brain), a live snapshot of the lead pipeline, the status of running automations, any Google Docs a live search found relevant to his question, what's on his Calendar for the next 7 days, the cold-call Sheets that are tracked (with called/not-called counts for any that match his question), any inbox emails matching his question by subject, Meta Ads campaign performance for the last 30 days, his sales calls log plus the current master sales script and any open recurring patterns the script hasn't fixed yet, and campaign/revenue status. Use whatever is actually relevant, ignore the rest. If something isn't covered by any of this, say so plainly rather than guessing.
 
+Lucky can also attach files (PDFs, images, text) directly to a message — when he does, they appear as real document/image content right above his message text in this turn, already provided in full, not something to fetch or ask for. Read them and use them like anything else given to you: answer questions about them, pull real numbers/names/quotes from them, or use them as the source when he asks you to draft something. Never claim you can't see an attached file.
+
 You can do six things:
 1. Just answer the question, conversationally, like a sharp operator who actually knows the business.
 2. If Lucky is asking you to draft something (a follow-up email to a specific lead, or a note/plan for something else), write the actual draft — never claim you can't draft things.
@@ -29,8 +34,9 @@ You can do six things:
 4. If Lucky is asking you to book a meeting, propose that as a calendar_booking.
 5. If Lucky is asking you to mark a cold-call sheet row as called/update its outcome, propose that as a sheet_update.
 6. If Lucky is asking you to write or update the sales script (fix an objection, tighten a section, address an open pattern), propose that as a script_proposal — write the FULL updated script as newContent, based on the current master script given to you below plus whatever change he's asking for, not a fragment.
+7. If Lucky gives you the details of a deal he just closed or agreed (client name, price, terms, whatever came up on the call) and wants an agreement/contract drafted, propose that as agreement_doc — this actually creates a real new Google Doc immediately (not queued for approval, since nothing is sent anywhere), and the link goes straight back to him in your reply.
 
-Never claim you can't do 2-6 — propose it properly and let the approval queue handle safety; nothing you draft or propose is ever applied automatically, it lands in a queue on the page for Lucky to approve or reject himself.
+Never claim you can't do 2-7 — propose it properly and let the approval queue handle safety; nothing you draft or propose is ever applied automatically, it lands in a queue on the page for Lucky to approve or reject himself.
 
 An email or lead_update always needs a real lead identified by its lead_id (the exact slug shown in the pipeline data, e.g. "acme-electrical", not the display company name) — if you can't tell which lead he means, ask instead of guessing.
 
@@ -42,25 +48,29 @@ For a sheet_update, "sheet" holds: sheetId (the exact sheet_id shown in the COLD
 
 For a script_proposal, "script" holds: summary (one or two sentences on what changed and why), newContent (the complete script text with the change applied — start from the current master script given to you in SALES CALLS & SCRIPT and edit it, never write a fresh script from scratch or return a partial snippet).
 
-Respond with ONLY a JSON object, no markdown fences, no other text:
-{"reply": "your conversational answer, always present", "draft": {"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}}}
+For an agreement_doc, "agreement" holds: title (e.g. "LS Growth Agreement — Acme Electrical"), markedText (the full document, written in the AGREEMENT TEMPLATE's own structure and wording given to you below, with only the deal-specific details — client/business name, price, terms, dates, whatever Lucky told you was agreed — filled in or changed. Mark it up exactly like the template: "# " for the title line only, "## " for each section heading, plain text for everything else, no other markdown, no asterisks). If Lucky hasn't actually given you the deal specifics yet, ask for them instead of inventing placeholder values — never fabricate a price, date, or term that wasn't actually said. If no AGREEMENT TEMPLATE was given to you below, say you don't have the template loaded instead of writing one from scratch.
 
-Only include the one object ("fields", "calendar", "sheet", or "script") that matches the draft's kind — omit the others. Omit "draft" entirely if you're not drafting/proposing anything this turn — most replies won't have one.`;
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"reply": "your conversational answer, always present", "draft": {"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}}}
+
+Only include the one object ("fields", "calendar", "sheet", "script", or "agreement") that matches the draft's kind — omit the others. Omit "draft" entirely if you're not drafting/proposing anything this turn — most replies won't have one.`;
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
 
   const body = await req.json().catch(() => ({}));
-  const message: string = (body.message || "").trim();
+  const attachments: BrainAttachment[] = Array.isArray(body.attachments) ? body.attachments.slice(0, MAX_ATTACHMENTS_PER_MESSAGE) : [];
+  const message: string = (body.message || "").trim() || (attachments.length ? "Take a look at the attached file(s)." : "");
   const history: ChatTurn[] = Array.isArray(body.history) ? body.history : [];
   if (!message) return NextResponse.json({ error: "message is required" }, { status: 400 });
 
   const sb = createSupabaseClient();
 
-  const [systemPrompt, contextBlock] = await Promise.all([
+  const [systemPrompt, contextBlock, attachmentBlocks] = await Promise.all([
     withWritingStyle(BRAIN_SYSTEM_PROMPT),
     buildBrainContext(message),
+    buildAttachmentBlocks(attachments).catch(() => []),
   ]);
 
   const client = new Anthropic({ apiKey });
@@ -70,7 +80,7 @@ export async function POST(req: NextRequest) {
     system: `${systemPrompt}\n\n---\n\n${contextBlock}`,
     messages: [
       ...history.map((turn) => ({ role: turn.role, content: turn.content })),
-      { role: "user" as const, content: message },
+      { role: "user" as const, content: [...attachmentBlocks, { type: "text" as const, text: message }] },
     ],
   });
 
@@ -85,6 +95,7 @@ export async function POST(req: NextRequest) {
       calendar?: { summary?: string; attendeeEmail?: string; attendeeName?: string; startISO?: string; durationMinutes?: number };
       sheet?: { sheetId?: string; company?: string; dateCalled?: string; outcome?: string; callBack?: string; notes?: string };
       script?: { summary?: string; newContent?: string };
+      agreement?: { title?: string; markedText?: string };
     };
   };
   try {
@@ -94,11 +105,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reply: textBlock.text.trim(), draftCreated: false });
   }
 
-  const reply = stripDashes(parsed.reply || textBlock.text.trim());
+  let reply = stripDashes(parsed.reply || textBlock.text.trim());
   let draftCreated = false;
 
   const draft = parsed.draft;
-  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal"]);
+  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal", "agreement_doc"]);
   if (draft?.kind && KNOWN_KINDS.has(draft.kind)) {
     let leadUuid: string | null = null;
     if (draft.kind === "email" || draft.kind === "lead_update") {
@@ -200,6 +211,21 @@ export async function POST(req: NextRequest) {
         new_content: stripDashes(script.newContent.trim()),
       });
       draftCreated = !error;
+    } else if (draft.kind === "agreement_doc") {
+      const agreement = draft.agreement || {};
+      if (!agreement.markedText?.trim()) {
+        return NextResponse.json({ reply, draftCreated: false, error: "Model tried to create an agreement doc with no content — ignored." });
+      }
+
+      // Creates the real Google Doc immediately rather than queuing it for
+      // approval — nothing is sent to anyone, it's a private doc only Lucky
+      // can see, same reasoning as the existing call-prep doc creation.
+      try {
+        const url = await createDocFromMarkedText(agreement.title || "Client Agreement", agreement.markedText.trim());
+        reply = `${reply}\n\nDoc created: ${url}`;
+      } catch (e) {
+        return NextResponse.json({ reply, draftCreated: false, error: e instanceof Error ? e.message : "Failed to create the agreement doc." });
+      }
     } else {
       const { error } = await sb.from("chat_drafts").insert({
         kind: draft.kind,

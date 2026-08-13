@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, Paperclip, X, FileText, Image as ImageIcon } from "lucide-react";
 import { ChatDraft } from "@/lib/chatDrafts";
+import { BrainAttachment, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS_PER_MESSAGE, isAllowedAttachmentType } from "@/lib/brainAttachments";
 import ApprovalQueue from "@/components/ApprovalQueue";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
@@ -10,6 +11,11 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  attachmentNames?: string[];
+}
+
+interface PendingAttachment extends BrainAttachment {
+  uploading: boolean;
 }
 
 export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[] }) {
@@ -18,20 +24,62 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFilesSelected(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setError("");
+    const room = MAX_ATTACHMENTS_PER_MESSAGE - attachments.length;
+    const picked = Array.from(files).slice(0, Math.max(room, 0));
+    if (picked.length < files.length) setError(`Only ${MAX_ATTACHMENTS_PER_MESSAGE} attachments per message.`);
+
+    for (const file of picked) {
+      if (!isAllowedAttachmentType(file.type)) {
+        setError(`"${file.name}" isn't a supported file type (PDF, image, or text).`);
+        continue;
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setError(`"${file.name}" is too big (max ${Math.floor(MAX_ATTACHMENT_BYTES / 1024 / 1024)}MB).`);
+        continue;
+      }
+
+      const placeholder: PendingAttachment = { url: "", name: file.name, mediaType: file.type, uploading: true };
+      setAttachments((a) => [...a, placeholder]);
+
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch("/api/brain/upload", { method: "POST", body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed.");
+        setAttachments((a) => a.map((x) => (x === placeholder ? { url: data.url, name: data.name, mediaType: data.mediaType, uploading: false } : x)));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : `Couldn't upload "${file.name}".`);
+        setAttachments((a) => a.filter((x) => x !== placeholder));
+      }
+    }
+  }
+
+  function removeAttachment(target: PendingAttachment) {
+    setAttachments((a) => a.filter((x) => x !== target));
+  }
 
   async function send() {
     const message = input.trim();
-    if (!message || sending) return;
+    const readyAttachments = attachments.filter((a) => !a.uploading);
+    if ((!message && readyAttachments.length === 0) || sending || attachments.some((a) => a.uploading)) return;
     setInput("");
     setError("");
     const history = messages;
-    setMessages([...history, { role: "user", content: message }]);
+    setMessages([...history, { role: "user", content: message || "(attached file, no message)", attachmentNames: readyAttachments.map((a) => a.name) }]);
+    setAttachments([]);
     setSending(true);
     try {
       const res = await fetch("/api/brain/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history }),
+        body: JSON.stringify({ message, history, attachments: readyAttachments.map(({ url, name, mediaType }) => ({ url, name, mediaType })) }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -56,10 +104,19 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
       <div style={{ background: L.surface, border: `1px solid ${L.border}`, display: "flex", flexDirection: "column", height: 560 }}>
         <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
           {messages.length === 0 && (
-            <p style={{ fontSize: 13, color: L.dimmed }}>Ask about the pipeline, automations, or your Google Docs — or ask it to draft a follow-up for a specific lead.</p>
+            <p style={{ fontSize: 13, color: L.dimmed }}>Ask about the pipeline, automations, or your Google Docs — attach a PDF or image with the paperclip, or ask it to draft a follow-up for a specific lead.</p>
           )}
           {messages.map((m, i) => (
             <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "80%" }}>
+              {!!m.attachmentNames?.length && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 4, justifyContent: "flex-end" }}>
+                  {m.attachmentNames.map((name, j) => (
+                    <span key={j} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: L.muted, background: "#f1f5f9", border: `1px solid ${L.border}`, padding: "3px 8px" }}>
+                      <FileText style={{ width: 11, height: 11 }} /> {name}
+                    </span>
+                  ))}
+                </div>
+              )}
               <div style={{
                 padding: "10px 14px", fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap",
                 background: m.role === "user" ? "var(--accent)" : "#f1f5f9",
@@ -75,7 +132,38 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
             </div>
           )}
         </div>
+        {attachments.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "10px 16px 0" }}>
+            {attachments.map((a, i) => (
+              <span key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: L.text, background: "#f1f5f9", border: `1px solid ${L.border}`, padding: "4px 8px 4px 10px" }}>
+                {a.mediaType.startsWith("image/") ? <ImageIcon style={{ width: 12, height: 12 }} /> : <FileText style={{ width: 12, height: 12 }} />}
+                {a.name}
+                {a.uploading ? <Loader2 style={{ width: 11, height: 11, animation: "spin 1s linear infinite" }} /> : (
+                  <button onClick={() => removeAttachment(a)} style={{ display: "flex", border: "none", background: "none", cursor: "pointer", padding: 0, color: L.muted }}>
+                    <X style={{ width: 12, height: 12 }} />
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
         <div style={{ display: "flex", gap: 10, padding: 16, borderTop: `1px solid ${L.border}` }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.csv,.json,application/pdf,image/*,text/plain,text/markdown,text/csv,application/json"
+            onChange={(e) => { handleFilesSelected(e.target.files); e.target.value = ""; }}
+            style={{ display: "none" }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending || attachments.length >= MAX_ATTACHMENTS_PER_MESSAGE}
+            title="Attach a file"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 40, border: `1px solid ${L.border}`, background: "#fff", color: L.muted, cursor: sending ? "default" : "pointer" }}
+          >
+            <Paperclip style={{ width: 15, height: 15 }} />
+          </button>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -85,9 +173,9 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
           />
           <button
             onClick={send}
-            disabled={sending || !input.trim()}
+            disabled={sending || (!input.trim() && attachments.length === 0)}
             className="btn-lift"
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 18px", background: "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || !input.trim() ? "default" : "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 18px", background: "var(--accent)", color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: sending || (!input.trim() && attachments.length === 0) ? "default" : "pointer" }}
           >
             <Send style={{ width: 14, height: 14 }} /> Send
           </button>
