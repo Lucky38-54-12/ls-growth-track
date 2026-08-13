@@ -8,10 +8,11 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 
 // Both ad account access and Page admin access are granted to Lucky
 // personally (not the "LS Growth Agency" Business Manager/Business ID) —
-// this is the Facebook account he actually logs into for both, so it's who
-// the client needs to add in each case.
-const LUCKY_FACEBOOK_NAME = "Lucky Singh";
-const LUCKY_FACEBOOK_URL = "https://www.facebook.com/lucky.singh.332313/";
+// via Facebook's "+ Add person" email invite, the smoothest option for a
+// client who doesn't already have any relationship with LS Growth's
+// Business Manager (name/profile search only surfaces people you're already
+// connected to in some way).
+const LUCKY_FACEBOOK_EMAIL = "lsgrowthagency.co@gmail.com";
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
@@ -209,16 +210,22 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
           />
 
           {!calendarDone && (
-            <button
-              type="button"
-              onClick={() => setStep("ads")}
-              style={{
-                display: "block", width: "100%", textAlign: "center", background: "none", border: "none",
-                fontSize: 12.5, fontWeight: 700, color: L.muted, cursor: "pointer", padding: "10px 0 0",
-              }}
-            >
-              Skip for now — I&apos;ll connect it later
-            </button>
+            <>
+              <p style={{ fontSize: 12, color: L.muted, textAlign: "center", marginTop: 12, marginBottom: 2 }}>
+                Having trouble connecting?
+              </p>
+              <button
+                type="button"
+                onClick={() => setStep("ads")}
+                style={{
+                  display: "block", width: "100%", textAlign: "center", background: "none", border: "none",
+                  fontSize: 12.5, fontWeight: 700, color: L.muted, cursor: "pointer", padding: "2px 0 0",
+                  textDecoration: "underline",
+                }}
+              >
+                You can skip this for now
+              </button>
+            </>
           )}
 
           <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: L.muted, marginTop: 14 }}>
@@ -449,7 +456,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
-    navigator.clipboard.writeText(LUCKY_FACEBOOK_URL);
+    navigator.clipboard.writeText(LUCKY_FACEBOOK_EMAIL);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -476,19 +483,19 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
       {!done && (
         <>
           <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 10, lineHeight: 1.6 }}>
-            Meta doesn&apos;t let us request this one with a click, you&apos;ll need to add Lucky directly yourself in Meta Business Suite — as a <strong>person</strong> on the ad account, not a business partner:
+            Meta doesn&apos;t let us request this one with a click, you&apos;ll need to invite Lucky directly yourself in Meta Business Suite:
           </p>
           <ol style={{ fontSize: 12.5, color: L.text, lineHeight: 1.9, paddingLeft: 18, marginBottom: 12 }}>
             <li>Go to <strong>business.facebook.com/settings</strong> and open your Business Settings</li>
             <li><strong>Accounts → Ad accounts</strong>, select your ad account</li>
-            <li>Click the <strong>People</strong> tab (not Partners) → <strong>Assign people</strong></li>
-            <li>Search for <strong>{LUCKY_FACEBOOK_NAME}</strong>, or paste his profile link below, and give him <strong>full control</strong> (or advertiser) access</li>
+            <li>Click the <strong>People</strong> tab (not Partners) → <strong>+ Add person</strong></li>
+            <li>Enter the email below and give him <strong>full control</strong> (or advertiser) access</li>
           </ol>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: "8px 10px", marginBottom: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{LUCKY_FACEBOOK_NAME} — Facebook profile</p>
-              <a href={LUCKY_FACEBOOK_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", wordBreak: "break-all" }}>{LUCKY_FACEBOOK_URL}</a>
+              <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>Lucky&apos;s email</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "monospace" }}>{LUCKY_FACEBOOK_EMAIL}</p>
             </div>
             <button
               type="button"
@@ -513,7 +520,7 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
               border: "none", borderRadius: 0, padding: "9px 16px", cursor: confirming ? "default" : "pointer",
             }}
           >
-            {confirming ? "Saving…" : "I've added Lucky to my ad account"}
+            {confirming ? "Saving…" : "I've invited Lucky to my ad account"}
           </button>
         </>
       )}
@@ -525,7 +532,7 @@ function PageAccessCard({ done, confirming, onConfirm }: { done: boolean; confir
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
-    navigator.clipboard.writeText(LUCKY_FACEBOOK_URL);
+    navigator.clipboard.writeText(LUCKY_FACEBOOK_EMAIL);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -552,19 +559,19 @@ function PageAccessCard({ done, confirming, onConfirm }: { done: boolean; confir
       {!done && (
         <>
           <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 10, lineHeight: 1.6 }}>
-            Facebook doesn&apos;t let us request this one with a click either, you&apos;ll need to add Lucky as an admin on your Page yourself:
+            Facebook doesn&apos;t let us request this one with a click either, you&apos;ll need to invite Lucky as an admin on your Page yourself:
           </p>
           <ol style={{ fontSize: 12.5, color: L.text, lineHeight: 1.9, paddingLeft: 18, marginBottom: 12 }}>
             <li>Go to your Facebook Page &rarr; <strong>Settings → Page access</strong> (or <strong>Page roles</strong> on the classic Pages experience)</li>
-            <li>Click <strong>Add</strong> under people with Facebook access</li>
-            <li>Search for <strong>{LUCKY_FACEBOOK_NAME}</strong>, or open his profile link below and add him from there</li>
+            <li>Click <strong>Add person</strong> under people with Facebook access</li>
+            <li>Enter the email below and add him</li>
             <li>Give him <strong>full control / admin</strong> access and confirm</li>
           </ol>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: "8px 10px", marginBottom: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>{LUCKY_FACEBOOK_NAME} — Facebook profile</p>
-              <a href={LUCKY_FACEBOOK_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", wordBreak: "break-all" }}>{LUCKY_FACEBOOK_URL}</a>
+              <p style={{ fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>Lucky&apos;s email</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "monospace" }}>{LUCKY_FACEBOOK_EMAIL}</p>
             </div>
             <button
               type="button"
