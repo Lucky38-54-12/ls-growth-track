@@ -206,7 +206,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
           <PrimaryAction
             connected={calendarDone}
             href={`/api/lead-qual/oauth/google?clientId=${resolvedClientId}`}
-            onNext={() => setStep("ads")}
+            onNext={() => setStep("page")}
           />
 
           {!calendarDone && (
@@ -216,7 +216,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
               </p>
               <button
                 type="button"
-                onClick={() => setStep("ads")}
+                onClick={() => setStep("page")}
                 style={{
                   display: "block", width: "100%", textAlign: "center", background: "none", border: "none",
                   fontSize: 12.5, fontWeight: 700, color: L.muted, cursor: "pointer", padding: "2px 0 0",
@@ -234,7 +234,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
         </div>
       )}
 
-      {phase === "found" && client && step === "ads" && (
+      {phase === "found" && client && step === "page" && (
         <div>
           <button
             type="button"
@@ -249,16 +249,16 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
 
           <StepHeader client={client} step={2} of={4} />
 
-          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Ads Manager access</h1>
+          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Facebook Page access</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
-            So we can set up and run your ad campaigns.
+            So we can manage your Page, messages and leads.
           </p>
 
-          <AdsAccessCard done={adsDone} confirming={adsConfirming} onConfirm={handleConfirmAdsAccess} />
+          <PageAccessCard done={pageDone} confirming={pageConfirming} onConfirm={handleConfirmPageAccess} />
 
           <button
             type="button"
-            onClick={() => setStep("page")}
+            onClick={() => setStep("ads")}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
               fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--accent)",
@@ -270,11 +270,11 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
         </div>
       )}
 
-      {phase === "found" && client && step === "page" && (
+      {phase === "found" && client && step === "ads" && (
         <div>
           <button
             type="button"
-            onClick={() => setStep("ads")}
+            onClick={() => setStep("page")}
             style={{
               display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: L.muted,
               background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 18,
@@ -285,12 +285,12 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
 
           <StepHeader client={client} step={3} of={4} />
 
-          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Facebook Page access</h1>
+          <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Ads Manager access</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
-            So we can manage your Page, messages and leads.
+            So we can set up and run your ad campaigns.
           </p>
 
-          <PageAccessCard done={pageDone} confirming={pageConfirming} onConfirm={handleConfirmPageAccess} />
+          <AdsAccessCard done={adsDone} confirming={adsConfirming} onConfirm={handleConfirmAdsAccess} />
 
           <button
             type="button"
@@ -307,7 +307,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
       )}
 
       {phase === "found" && client && step === "login" && (
-        <LoginStep client={client} resolvedClientId={resolvedClientId} onBack={() => setStep("page")} />
+        <LoginStep client={client} resolvedClientId={resolvedClientId} onBack={() => setStep("ads")} />
       )}
     </Shell>
   );
@@ -483,13 +483,13 @@ function AdsAccessCard({ done, confirming, onConfirm }: { done: boolean; confirm
       {!done && (
         <>
           <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 10, lineHeight: 1.6 }}>
-            Meta doesn&apos;t let us request this one with a click, you&apos;ll need to invite Lucky directly yourself in Meta Business Suite:
+            Meta doesn&apos;t let us request this one with a click, you&apos;ll need to add Lucky yourself in Meta Business Suite:
           </p>
           <ol style={{ fontSize: 12.5, color: L.text, lineHeight: 1.9, paddingLeft: 18, marginBottom: 12 }}>
             <li>Go to <strong>business.facebook.com/settings</strong> and open your Business Settings</li>
             <li><strong>Accounts → Ad accounts</strong>, select your ad account</li>
-            <li>Click the <strong>People</strong> tab (not Partners) → <strong>+ Add person</strong></li>
-            <li>Enter the email below and give him <strong>full control</strong> (or advertiser) access</li>
+            <li>Click the <strong>People</strong> tab (not Partners) → <strong>Assign people</strong> — if you did the Facebook Page step already, <strong>Lucky Singh</strong> should already show up in the list, just tick him and give him <strong>full control</strong></li>
+            <li>Not showing up? Click <strong>+ Add person</strong> instead and enter the email below</li>
           </ol>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: "8px 10px", marginBottom: 12 }}>
