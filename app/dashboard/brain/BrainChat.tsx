@@ -44,13 +44,13 @@ const markdownComponents = {
   hr: () => <hr style={{ border: "none", borderTop: `1px solid ${L.border}`, margin: "12px 0" }} />,
 };
 
-export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[] }) {
+export default function BrainChat({ initialDrafts, initialInput }: { initialDrafts: ChatDraft[]; initialInput?: string }) {
   const router = useRouter();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialInput || "");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -86,6 +86,13 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
+
+  useEffect(() => {
+    resizeTextarea(textareaRef.current);
+    // Only needs to run once, for a prefilled initialInput (e.g. "Prep this
+    // call" from the pipeline) — resizeTextarea itself handles later typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function openConversation(id: string) {
     if (id === conversationId) return;

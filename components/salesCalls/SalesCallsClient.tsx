@@ -1,21 +1,23 @@
 "use client";
 import { useState } from "react";
 import { SalesCall, ScriptVersion, ScriptProposal, PatternTracker } from "@/lib/types";
-import { computePatterns, CallPatterns } from "@/lib/salesCallsStats";
-import CallLogForm from "./CallLogForm";
+import { CallPatterns } from "@/lib/salesCallsStats";
 import CallList from "./CallList";
 import MasterScriptPanel from "./MasterScriptPanel";
-import CallPrepPanel from "./CallPrepPanel";
 import PatternsPanel from "./PatternsPanel";
 import { Download, Cloud } from "lucide-react";
 
 const L = { border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
+// "Log a Call" and "Call Prep" moved into the Brain chat (paste a
+// transcript or ask it to prep you for a call — see app/api/brain/chat)
+// which runs the exact same lib/logSalesCall.ts and lib/prepSalesCall.ts
+// logic these tabs used to call directly. This page is now just the record
+// of what that produced: history, the evolving script, and the patterns
+// it's tracking.
 const TABS = [
-  { key: "log", label: "Log a Call" },
   { key: "history", label: "Call History" },
   { key: "script", label: "Master Script" },
-  { key: "prep", label: "Call Prep" },
   { key: "patterns", label: "Patterns" },
 ] as const;
 
@@ -28,37 +30,22 @@ interface Props {
   initialPendingProposals: ScriptProposal[];
   initialPatterns: CallPatterns;
   scriptPatterns: PatternTracker[];
-  initialTab?: TabKey;
-  initialPrepNotes?: string;
 }
 
 export default function SalesCallsClient({
-  initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialPatterns,
-  scriptPatterns, initialTab = "log", initialPrepNotes = "",
+  initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialPatterns, scriptPatterns,
 }: Props) {
-  const [tab, setTab] = useState<TabKey>(initialTab);
+  const [tab, setTab] = useState<TabKey>("history");
   const [calls, setCalls] = useState<SalesCall[]>(initialCalls);
   const [versions, setVersions] = useState<ScriptVersion[]>(initialVersions);
   const [currentVersion, setCurrentVersion] = useState<ScriptVersion | null>(initialCurrentVersion);
   const [pendingProposals, setPendingProposals] = useState<ScriptProposal[]>(initialPendingProposals);
-  const [patterns, setPatterns] = useState<CallPatterns>(initialPatterns);
+  const [patterns] = useState<CallPatterns>(initialPatterns);
   const [backingUp, setBackingUp] = useState(false);
   const [backupResult, setBackupResult] = useState("");
 
-  function handleCallSaved(call: SalesCall, proposal: ScriptProposal | null, backupUrl: string | null) {
-    const nextCalls = [call, ...calls];
-    setCalls(nextCalls);
-    setPatterns(computePatterns(nextCalls));
-    if (proposal) setPendingProposals((p) => [proposal, ...p]);
-    setBackupResult(backupUrl ? `Backed up. Sheet: ${backupUrl}` : "");
-    // Stay on Log a Call — the recap and agreement actions live right here
-    // now, switching away would hide them the moment they'd be useful.
-  }
-
   function handleCallUpdated(updated: SalesCall) {
-    const nextCalls = calls.map((c) => (c.id === updated.id ? updated : c));
-    setCalls(nextCalls);
-    setPatterns(computePatterns(nextCalls));
+    setCalls((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
   }
 
   async function handleBackup() {
@@ -123,7 +110,6 @@ export default function SalesCallsClient({
         </div>
       )}
 
-      {tab === "log" && <CallLogForm onSaved={handleCallSaved} />}
       {tab === "history" && <CallList calls={calls} onUpdated={handleCallUpdated} />}
       {tab === "script" && (
         <MasterScriptPanel
@@ -136,7 +122,6 @@ export default function SalesCallsClient({
           onProposalsChange={setPendingProposals}
         />
       )}
-      {tab === "prep" && <CallPrepPanel initialNotes={initialPrepNotes} />}
       {tab === "patterns" && <PatternsPanel patterns={patterns} />}
     </div>
   );

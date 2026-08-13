@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { generateCallPrep } from "@/lib/salesCallsAi";
-import { recentWorkOnThemes, recentObjectionThemes } from "@/lib/salesCallsStats";
-import { SalesCall } from "@/lib/types";
+import { createSupabaseClient } from "@/lib/supabase";
+import { prepSalesCall } from "@/lib/prepSalesCall";
 
 export const dynamic = "force-dynamic";
 
@@ -16,23 +14,12 @@ export async function POST(req: NextRequest) {
   }
 
   const sb = createSupabaseClient();
-  const { data: currentVersion, error: versionError } = await sb.from("sales_script_versions").select("*").eq("is_current", true).maybeSingle();
-  if (versionError) return NextResponse.json({ error: versionError.message }, { status: 500 });
-  if (!currentVersion) return NextResponse.json({ error: "No master script found yet." }, { status: 404 });
-
-  const calls = await fetchAllRows<SalesCall>((from, to) =>
-    sb.from("sales_calls").select("*").order("created_at", { ascending: false }).range(from, to));
-
   try {
-    const prep = await generateCallPrep({
-      notes: notes || "",
-      masterScript: currentVersion.content,
-      recentWorkOns: recentWorkOnThemes(calls),
-      recentObjections: recentObjectionThemes(calls),
-    });
+    const prep = await prepSalesCall(sb, notes || "");
     return NextResponse.json(prep);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 502 });
+    const status = message === "No master script found yet." ? 404 : 502;
+    return NextResponse.json({ error: message }, { status });
   }
 }

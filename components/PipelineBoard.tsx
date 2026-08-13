@@ -333,7 +333,7 @@ function LeadCard({
           )}
           {lead.status === "booked" && (
             <Link
-              href={`/dashboard/sales-calls?leadId=${lead.lead_id}`}
+              href={`/dashboard/brain?prepLeadId=${lead.lead_id}`}
               onClick={(e) => e.stopPropagation()}
               style={{
                 display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700,

@@ -7,6 +7,7 @@ import { buildAttachmentBlocks } from "@/lib/brainDocuments";
 import { BrainAttachment, MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/brainAttachments";
 import { createDocFromMarkedText } from "@/lib/googleDocs";
 import { logSalesCall } from "@/lib/logSalesCall";
+import { prepSalesCall } from "@/lib/prepSalesCall";
 import { LeadStatus } from "@/lib/types";
 
 const VALID_LEAD_STATUSES: readonly LeadStatus[] = [
@@ -25,6 +26,7 @@ interface ParsedDraft {
   script?: { summary?: string; newContent?: string };
   agreement?: { title?: string; markedText?: string };
   call?: { rawSummary?: string; yourTake?: string };
+  callPrep?: { notes?: string };
 }
 
 const BRAIN_SYSTEM_PROMPT = `You are Lucky's business brain for LS Growth Agency — a single place he asks questions about the business and gets you to draft things, instead of digging through Supabase, Gmail, or Google Docs himself.
@@ -35,7 +37,7 @@ Before asking Lucky who someone is, actually check what you were given: LEADS MA
 
 Lucky can also attach files (PDFs, images, text) directly to a message — when he does, they appear as real document/image content right above his message text in this turn, already provided in full, not something to fetch or ask for. Read them and use them like anything else given to you: answer questions about them, pull real numbers/names/quotes from them, or use them as the source when he asks you to draft something. Never claim you can't see an attached file.
 
-You can do seven things:
+You can do nine things:
 1. Just answer the question, conversationally, like a sharp operator who actually knows the business.
 2. If Lucky is asking you to draft something (a follow-up email to a specific lead, or a note/plan for something else), write the actual draft — never claim you can't draft things.
 3. If Lucky is asking you to change a real lead record (its status, add a note, set a follow-up date), propose that as a lead_update.
@@ -43,9 +45,10 @@ You can do seven things:
 5. If Lucky is asking you to mark a cold-call sheet row as called/update its outcome, propose that as a sheet_update.
 6. If Lucky is asking you to write or update the sales script (fix an objection, tighten a section, address an open pattern), propose that as a script_proposal — write the FULL updated script as newContent, based on the current master script given to you below plus whatever change he's asking for, not a fragment.
 7. If Lucky gives you the details of a deal he just closed or agreed (client name, price, terms, whatever came up on the call) and wants an agreement/contract drafted, propose that as agreement_doc — this actually creates a real new Google Doc immediately (not queued for approval, since nothing is sent anywhere), and the link goes straight back to him in your reply.
-8. If Lucky pastes a raw notetaker summary/transcript of a sales call (with or without also saying "log this call"), propose that as log_call — this is the same thing the "Log a Call" page does: parses it, saves the real call record immediately, and runs the standing script review against every logged call, which may itself raise a script_proposal on top. Recognize this pattern yourself — a pasted block that reads like a call transcript/summary (a conversation between him and a prospect, an outcome, objections) is log_call even if he doesn't explicitly say "log this call".
+8. If Lucky pastes a raw notetaker summary/transcript of a sales call (with or without also saying "log this call"), propose that as log_call — this is the same thing the old "Log a Call" page did: parses it, saves the real call record immediately, and runs the standing script review against every logged call, which may itself raise a script_proposal on top. Recognize this pattern yourself — a pasted block that reads like a call transcript/summary (a conversation between him and a prospect, an outcome, objections) is log_call even if he doesn't explicitly say "log this call".
+9. If Lucky asks you to prep him for an upcoming call (whether or not he gives you notes on the prospect), propose that as call_prep — this is the same thing the old "Call Prep" tab did: generates a tailored call sheet off the master script and his recent patterns, creates it as a real Google Doc immediately, and the link goes straight back to him in your reply.
 
-Never claim you can't do 2-8 — propose it properly; script_proposal, agreement_doc, and log_call apply immediately since none of them send anything externally and are all easy to correct after the fact, everything else lands in a queue on the page for Lucky to approve or reject himself.
+Never claim you can't do 2-9 — propose it properly; script_proposal, agreement_doc, log_call, and call_prep apply immediately since none of them send anything externally and are all easy to correct after the fact, everything else lands in a queue on the page for Lucky to approve or reject himself.
 
 An email or lead_update always needs a real lead identified by its lead_id (the exact slug shown in the pipeline data, e.g. "acme-electrical", not the display company name) — if you can't tell which lead he means, ask instead of guessing.
 
@@ -61,10 +64,12 @@ For an agreement_doc, "agreement" holds: title (e.g. "LS Growth Agreement — Ac
 
 For a log_call, "call" holds: rawSummary (the raw notes/transcript Lucky pasted, copied verbatim, word for word — never summarize or clean it up yourself, the real parsing happens after this), yourTake (Lucky's own honest read of the call — where he mucked up, what he'd change — ONLY if he actually wrote that himself somewhere in his message, separate from the pasted transcript; leave it "" if he only pasted the transcript with nothing of his own added, never invent this on his behalf).
 
-Respond with ONLY a JSON object, no markdown fences, no other text:
-{"reply": "your conversational answer, always present", "draft": {"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}}}
+For a call_prep, "callPrep" holds: notes (everything Lucky told you about the upcoming prospect — business name, contact, services, pain points, anything he pasted or described — as one freeform block, in his own words/whatever he gave you, not reformatted. Leave it "" if he asked for a prep without giving you anything on the prospect yet, that's fine, the prep just comes out more generic).
 
-Only include the one object ("fields", "calendar", "sheet", "script", "agreement", or "call") that matches the draft's kind — omit the others. Omit "draft" entirely if you're not drafting/proposing anything this turn — most replies won't have one.`;
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"reply": "your conversational answer, always present", "draft": {"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call" or "call_prep", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}, "callPrep": {"notes": "..."}}}
+
+Only include the one object ("fields", "calendar", "sheet", "script", "agreement", "call", or "callPrep") that matches the draft's kind — omit the others. Omit "draft" entirely if you're not drafting/proposing anything this turn — most replies won't have one.`;
 
 // Applies whatever the model proposed (if anything) and returns the final
 // reply text plus whether a draft/action actually landed. Kept separate
@@ -76,7 +81,7 @@ async function resolveDraft(
   draft: ParsedDraft | undefined
 ): Promise<{ reply: string; draftCreated: boolean; error?: string }> {
   let reply = initialReply;
-  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal", "agreement_doc", "log_call"]);
+  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal", "agreement_doc", "log_call", "call_prep"]);
   if (!draft?.kind || !KNOWN_KINDS.has(draft.kind)) return { reply, draftCreated: false };
 
   let leadUuid: string | null = null;
@@ -221,6 +226,24 @@ async function resolveDraft(
       return { reply: `${reply}\n\n${outcomeLine}${proposalLine}`, draftCreated: false };
     } catch (e) {
       return { reply, draftCreated: false, error: e instanceof Error ? e.message : "Failed to log that call." };
+    }
+  }
+
+  if (draft.kind === "call_prep") {
+    const callPrep = draft.callPrep || {};
+
+    // Same shared-logic reasoning as log_call — lib/prepSalesCall.ts is the
+    // exact function the "Call Prep" tab's generate button calls, then the
+    // doc gets created the same way that tab's "Create Doc" button does.
+    try {
+      const prep = await prepSalesCall(sb, callPrep.notes?.trim() || "");
+      const title = `Call Prep — ${prep.businessName || prep.prospectName || "Prospect"}`;
+      const url = await createDocFromMarkedText(title, prep.tailoredScript);
+      const workOnsLine = prep.topWorkOns.length ? `\nWatch yourself on: ${prep.topWorkOns.join("; ")}` : "";
+      const objectionsLine = prep.likelyObjections.length ? `\nLikely objections: ${prep.likelyObjections.join("; ")}` : "";
+      return { reply: `${reply}\n\nPrep doc created: ${url}${workOnsLine}${objectionsLine}`, draftCreated: false };
+    } catch (e) {
+      return { reply, draftCreated: false, error: e instanceof Error ? e.message : "Failed to generate the call prep." };
     }
   }
 
