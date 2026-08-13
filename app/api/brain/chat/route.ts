@@ -50,6 +50,8 @@ You can do nine things:
 
 Never claim you can't do 2-9 — propose it properly; script_proposal, agreement_doc, log_call, and call_prep apply immediately since none of them send anything externally and are all easy to correct after the fact, everything else lands in a queue on the page for Lucky to approve or reject himself.
 
+You are NOT limited to one action per turn — "drafts" is a list, and a single message often genuinely calls for more than one of the above at once. The clearest case: Lucky pastes a call transcript that also states the deal he just closed on that call ("here's the call... we agreed $X/month, starting Monday") — that is BOTH a log_call (the transcript) AND an agreement_doc (the agreed terms) in the same turn, and you should propose both rather than picking one and hoping he asks for the other separately. Same logic anywhere else two of these genuinely both apply from what he actually gave you. Don't force a second action that isn't actually supported by anything he said — this is about not missing an obvious second action, not padding the list.
+
 An email or lead_update always needs a real lead identified by its lead_id (the exact slug shown in the pipeline data, e.g. "acme-electrical", not the display company name) — if you can't tell which lead he means, ask instead of guessing.
 
 For a lead_update, only these fields exist in "fields", don't invent others: status (must be one of ${VALID_LEAD_STATUSES.join(", ")}), notes (free text — this is added as a new note, not a full replacement), follow_up_at (a date, "YYYY-MM-DD"). Only include the fields Lucky actually asked to change.
@@ -67,28 +69,29 @@ For a log_call, "call" holds: rawSummary (the raw notes/transcript Lucky pasted,
 For a call_prep, "callPrep" holds: notes (everything Lucky told you about the upcoming prospect — business name, contact, services, pain points, anything he pasted or described — as one freeform block, in his own words/whatever he gave you, not reformatted. Leave it "" if he asked for a prep without giving you anything on the prospect yet, that's fine, the prep just comes out more generic).
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
-{"reply": "your conversational answer, always present", "draft": {"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call" or "call_prep", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}, "callPrep": {"notes": "..."}}}
+{"reply": "your conversational answer, always present", "drafts": [{"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call" or "call_prep", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}, "callPrep": {"notes": "..."}}]}
 
-Only include the one object ("fields", "calendar", "sheet", "script", "agreement", "call", or "callPrep") that matches the draft's kind — omit the others. Omit "draft" entirely if you're not drafting/proposing anything this turn — most replies won't have one.`;
+Each entry in "drafts" only includes the one object ("fields", "calendar", "sheet", "script", "agreement", "call", or "callPrep") that matches its own kind — omit the others. "drafts" is "[]" (empty array) if you're not drafting/proposing anything this turn — most replies won't have one. Only put more than one entry in "drafts" when the message genuinely supports more than one action (see above) — most turns that do have one will still only have one.`;
 
 // Applies whatever the model proposed (if anything) and returns the final
 // reply text plus whether a draft/action actually landed. Kept separate
-// from POST so every code path funnels through one return, letting POST
-// persist the turn (see persistTurn below) no matter which branch fired.
+// from POST so every code path funnels through one return. POST now calls
+// this once per entry in the model's "drafts" array (see BRAIN_SYSTEM_PROMPT
+// — a single turn can propose more than one action, e.g. a pasted call that
+// also states agreed deal terms is both log_call and agreement_doc), and
+// concatenates each result's appendText onto the model's own reply text.
 async function resolveDraft(
   sb: ReturnType<typeof createSupabaseClient>,
-  initialReply: string,
-  draft: ParsedDraft | undefined
-): Promise<{ reply: string; draftCreated: boolean; error?: string }> {
-  let reply = initialReply;
+  draft: ParsedDraft
+): Promise<{ appendText: string; draftCreated: boolean; error?: string }> {
   const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal", "agreement_doc", "log_call", "call_prep"]);
-  if (!draft?.kind || !KNOWN_KINDS.has(draft.kind)) return { reply, draftCreated: false };
+  if (!draft.kind || !KNOWN_KINDS.has(draft.kind)) return { appendText: "", draftCreated: false, error: draft.kind ? `Model proposed an unknown draft kind "${draft.kind}" — ignored.` : undefined };
 
   let leadUuid: string | null = null;
   if (draft.kind === "email" || draft.kind === "lead_update") {
-    if (!draft.leadId) return { reply, draftCreated: false, error: `Model tried to ${draft.kind === "email" ? "draft an email" : "update a lead"} with no lead_id — ignored.` };
+    if (!draft.leadId) return { appendText: "", draftCreated: false, error: `Model tried to ${draft.kind === "email" ? "draft an email" : "update a lead"} with no lead_id — ignored.` };
     const { data: lead } = await sb.from("leads").select("id").eq("lead_id", draft.leadId).maybeSingle();
-    if (!lead) return { reply, draftCreated: false, error: `Model referenced unknown lead_id "${draft.leadId}" — ignored.` };
+    if (!lead) return { appendText: "", draftCreated: false, error: `Model referenced unknown lead_id "${draft.leadId}" — ignored.` };
     leadUuid = lead.id;
   }
 
@@ -100,7 +103,7 @@ async function resolveDraft(
     if (fields.follow_up_at?.trim()) payload.follow_up_at = fields.follow_up_at.trim();
 
     if (Object.keys(payload).length === 0) {
-      return { reply, draftCreated: false, error: "Model proposed a lead update with no valid fields — ignored." };
+      return { appendText: "", draftCreated: false, error: "Model proposed a lead update with no valid fields — ignored." };
     }
 
     const summaryLines = [
@@ -116,14 +119,14 @@ async function resolveDraft(
       content: summaryLines.join("\n"),
       payload,
     });
-    return { reply, draftCreated: !error };
+    return { appendText: "", draftCreated: !error };
   }
 
   if (draft.kind === "calendar_booking") {
     const cal = draft.calendar || {};
     const start = cal.startISO ? new Date(cal.startISO) : null;
     if (!cal.summary || !cal.attendeeEmail || !start || isNaN(start.getTime()) || start.getTime() < Date.now()) {
-      return { reply, draftCreated: false, error: "Model proposed a calendar booking with missing/invalid fields — ignored." };
+      return { appendText: "", draftCreated: false, error: "Model proposed a calendar booking with missing/invalid fields — ignored." };
     }
     const payload = {
       summary: stripDashes(cal.summary),
@@ -136,16 +139,16 @@ async function resolveDraft(
     const content = `${payload.summary}\nWith: ${payload.attendeeName || payload.attendeeEmail}\nWhen: ${when} (${payload.durationMinutes} min)`;
 
     const { error } = await sb.from("chat_drafts").insert({ kind: "calendar_booking", title: payload.summary, content, payload });
-    return { reply, draftCreated: !error };
+    return { appendText: "", draftCreated: !error };
   }
 
   if (draft.kind === "sheet_update") {
     const sheet = draft.sheet || {};
     if (!sheet.sheetId || !sheet.company?.trim()) {
-      return { reply, draftCreated: false, error: "Model proposed a sheet update with no sheetId/company — ignored." };
+      return { appendText: "", draftCreated: false, error: "Model proposed a sheet update with no sheetId/company — ignored." };
     }
     const { data: tracked } = await sb.from("tracked_sheets").select("sheet_id").eq("sheet_id", sheet.sheetId).eq("active", true).maybeSingle();
-    if (!tracked) return { reply, draftCreated: false, error: `Model referenced unknown/inactive sheet_id "${sheet.sheetId}" — ignored.` };
+    if (!tracked) return { appendText: "", draftCreated: false, error: `Model referenced unknown/inactive sheet_id "${sheet.sheetId}" — ignored.` };
 
     const payload: { sheetId: string; company: string; dateCalled?: string; outcome?: string; callBack?: string; notes?: string } = {
       sheetId: sheet.sheetId,
@@ -165,13 +168,13 @@ async function resolveDraft(
     ].filter(Boolean);
 
     const { error } = await sb.from("chat_drafts").insert({ kind: "sheet_update", title: `Update sheet row: ${payload.company}`, content: summaryLines.join("\n"), payload });
-    return { reply, draftCreated: !error };
+    return { appendText: "", draftCreated: !error };
   }
 
   if (draft.kind === "script_proposal") {
     const script = draft.script || {};
     if (!script.newContent?.trim()) {
-      return { reply, draftCreated: false, error: "Model proposed a script change with no content — ignored." };
+      return { appendText: "", draftCreated: false, error: "Model proposed a script change with no content — ignored." };
     }
 
     // script_proposal writes straight into sales_script_proposals, the same
@@ -189,13 +192,13 @@ async function resolveDraft(
       diffs: [],
       new_content: stripDashes(script.newContent.trim()),
     });
-    return { reply, draftCreated: !error };
+    return { appendText: "", draftCreated: !error };
   }
 
   if (draft.kind === "agreement_doc") {
     const agreement = draft.agreement || {};
     if (!agreement.markedText?.trim()) {
-      return { reply, draftCreated: false, error: "Model tried to create an agreement doc with no content — ignored." };
+      return { appendText: "", draftCreated: false, error: "Model tried to create an agreement doc with no content — ignored." };
     }
 
     // Creates the real Google Doc immediately rather than queuing it for
@@ -203,16 +206,16 @@ async function resolveDraft(
     // can see, same reasoning as the existing call-prep doc creation.
     try {
       const url = await createDocFromMarkedText(agreement.title || "Client Agreement", agreement.markedText.trim());
-      return { reply: `${reply}\n\nDoc created: ${url}`, draftCreated: false };
+      return { appendText: `\n\nAgreement doc created: ${url}`, draftCreated: false };
     } catch (e) {
-      return { reply, draftCreated: false, error: e instanceof Error ? e.message : "Failed to create the agreement doc." };
+      return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to create the agreement doc." };
     }
   }
 
   if (draft.kind === "log_call") {
     const callInput = draft.call || {};
     if (!callInput.rawSummary?.trim()) {
-      return { reply, draftCreated: false, error: "Model tried to log a call with no transcript — ignored." };
+      return { appendText: "", draftCreated: false, error: "Model tried to log a call with no transcript — ignored." };
     }
 
     // Same real-write-immediately reasoning as script_proposal/agreement_doc
@@ -223,9 +226,9 @@ async function resolveDraft(
       const { call, proposal } = await logSalesCall(sb, callInput.rawSummary.trim(), callInput.yourTake?.trim() || "");
       const outcomeLine = `Logged: ${call.prospect_name || "unknown prospect"} (${call.business_name || "unknown business"}), ${call.call_date}, outcome ${call.outcome}.`;
       const proposalLine = proposal ? `\n\nThe standing script review also flagged something — a script_proposal is waiting on /dashboard/sales-calls: ${proposal.summary}` : "";
-      return { reply: `${reply}\n\n${outcomeLine}${proposalLine}`, draftCreated: false };
+      return { appendText: `\n\n${outcomeLine}${proposalLine}`, draftCreated: false };
     } catch (e) {
-      return { reply, draftCreated: false, error: e instanceof Error ? e.message : "Failed to log that call." };
+      return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to log that call." };
     }
   }
 
@@ -241,9 +244,9 @@ async function resolveDraft(
       const url = await createDocFromMarkedText(title, prep.tailoredScript);
       const workOnsLine = prep.topWorkOns.length ? `\nWatch yourself on: ${prep.topWorkOns.join("; ")}` : "";
       const objectionsLine = prep.likelyObjections.length ? `\nLikely objections: ${prep.likelyObjections.join("; ")}` : "";
-      return { reply: `${reply}\n\nPrep doc created: ${url}${workOnsLine}${objectionsLine}`, draftCreated: false };
+      return { appendText: `\n\nPrep doc created: ${url}${workOnsLine}${objectionsLine}`, draftCreated: false };
     } catch (e) {
-      return { reply, draftCreated: false, error: e instanceof Error ? e.message : "Failed to generate the call prep." };
+      return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to generate the call prep." };
     }
   }
 
@@ -253,7 +256,7 @@ async function resolveDraft(
     lead_id: leadUuid,
     content: stripDashes(draft.content || ""),
   });
-  return { reply, draftCreated: !error };
+  return { appendText: "", draftCreated: !error };
 }
 
 // Persists both sides of the turn to brain_messages so old threads survive a
@@ -324,7 +327,7 @@ export async function POST(req: NextRequest) {
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") return NextResponse.json({ conversationId, error: "No response from Claude" }, { status: 502 });
 
-  let parsed: { reply?: string; draft?: ParsedDraft };
+  let parsed: { reply?: string; drafts?: ParsedDraft[] };
   try {
     parsed = parseJsonResponse(textBlock.text);
   } catch {
@@ -334,10 +337,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ conversationId, reply: rawReply, draftCreated: false });
   }
 
-  const initialReply = stripDashes(parsed.reply || textBlock.text.trim());
-  const { reply, draftCreated, error } = await resolveDraft(sb, initialReply, parsed.draft);
+  const drafts = Array.isArray(parsed.drafts) ? parsed.drafts : [];
+  const results = await Promise.all(drafts.map((d) => resolveDraft(sb, d)));
+
+  const reply = stripDashes(parsed.reply || textBlock.text.trim()) + results.map((r) => r.appendText).join("");
+  const draftCreated = results.some((r) => r.draftCreated);
+  const errors = results.map((r) => r.error).filter((e): e is string => !!e);
 
   await persistTurn(sb, conversationId, message, attachments.map((a) => a.name), reply);
 
-  return NextResponse.json({ conversationId, reply, draftCreated, error });
+  return NextResponse.json({ conversationId, reply, draftCreated, error: errors.length ? errors.join(" ") : undefined });
 }
