@@ -248,6 +248,13 @@ a.card-hover:hover, div.card-hover:hover {
     height: auto !important;
     min-height: 56px;
   }
+  .brain-chat-row {
+    flex-direction: column;
+  }
+  .brain-chat-sidebar {
+    width: 100% !important;
+    max-height: 160px;
+  }
 }
 
 @keyframes pulse-slow {

@@ -10,9 +10,9 @@ export default async function BrainPage() {
   const initialDrafts = await getPendingChatDrafts(sb);
 
   return (
-    <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
+    <div style={{ background: "#f1f5f9", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <Topbar title="Brain" subtitle="Ask about the business, get things drafted for your approval" />
-      <div style={{ padding: "20px 28px 60px", maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: "20px 28px" }}>
         <BrainChat initialDrafts={initialDrafts} />
       </div>
     </div>

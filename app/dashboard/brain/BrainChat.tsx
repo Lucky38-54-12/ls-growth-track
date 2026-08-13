@@ -230,13 +230,13 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
   const canSend = !sending && (!!input.trim() || attachments.length > 0) && !attachments.some((a) => a.uploading);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, flex: 1, minHeight: 0 }}>
       {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 16px", borderRadius: 10, fontSize: 14 }}>{error}</div>}
 
       <ApprovalQueue initialDrafts={initialDrafts} />
 
-      <div style={{ display: "flex", gap: 16, height: 680 }}>
-        <div style={{ width: 240, flexShrink: 0, background: L.panel, border: `1px solid ${L.border}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div className="brain-chat-row" style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
+        <div className="brain-chat-sidebar" style={{ width: 240, flexShrink: 0, background: L.panel, border: `1px solid ${L.border}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <div style={{ padding: 12 }}>
             <button
               onClick={startNewChat}
@@ -279,7 +279,7 @@ export default function BrainChat({ initialDrafts }: { initialDrafts: ChatDraft[
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           style={{
-            flex: 1, background: L.surface, borderRadius: 14, display: "flex", flexDirection: "column", minWidth: 0, position: "relative",
+            flex: 1, background: L.surface, borderRadius: 14, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, position: "relative",
             border: `1px solid ${dragActive ? "var(--accent)" : L.border}`,
           }}
         >
