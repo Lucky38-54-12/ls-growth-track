@@ -255,16 +255,29 @@ async function summarizeSalesCalls(sb: ReturnType<typeof createSupabaseClient>):
 // keyword-gated sections: it's a large doc and most questions don't need it.
 const AGREEMENT_TEMPLATE_DOC_ID = "1_AFoqdSBkeaJ4sOX55d_c1JAw4jNGNtPsbFXpyxstD4";
 
-async function agreementTemplateSummary(userQuestion: string): Promise<string> {
+// Real signed agreement examples live in brain_reference_examples (DB), not
+// in source — this is real client business (names, fees, terms), which
+// doesn't belong committed into git history. Add more rows there (same
+// "agreement_template" key, or a new key) rather than hardcoding another
+// one here.
+async function agreementTemplateSummary(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string): Promise<string> {
   const words = questionWords(userQuestion).map((w) => w.toLowerCase());
   const relevant = ["agreement", "contract", "onboarding", "onboard", "sign", "signed", "deal", "terms", "proposal"].some((k) => words.includes(k));
   if (!relevant) return "";
-  try {
-    const text = await readGoogleDocText(AGREEMENT_TEMPLATE_DOC_ID, 8000);
-    return text || "";
-  } catch {
-    return "";
-  }
+
+  const [{ data: examples }, liveDoc] = await Promise.all([
+    sb.from("brain_reference_examples").select("title, content").eq("key", "agreement_template"),
+    readGoogleDocText(AGREEMENT_TEMPLATE_DOC_ID, 8000).catch(() => ""),
+  ]);
+
+  const storedExamples = (examples || [])
+    .map((e) => `${e.title}:\n${e.content}`)
+    .join("\n\n---\n\n");
+
+  return [
+    storedExamples ? `Real signed example(s) (use their structure/section numbering as the pattern, swap in this deal's actual client name, dates, and numbers):\n${storedExamples}` : "",
+    liveDoc ? `Additional reference doc from Drive:\n${liveDoc}` : "",
+  ].filter(Boolean).join("\n\n---\n\n");
 }
 
 async function summarizeCampaignsAndRevenue(sb: ReturnType<typeof createSupabaseClient>): Promise<string> {
@@ -343,7 +356,7 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     summarizeSalesCalls(sb).catch(() => "Sales call data unavailable."),
     summarizeCampaignsAndRevenue(sb).catch(() => "Campaign/revenue data unavailable."),
     summarizeLearnings(sb),
-    agreementTemplateSummary(userQuestion).catch(() => ""),
+    agreementTemplateSummary(sb, userQuestion).catch(() => ""),
   ]);
 
   const todayLabel = new Intl.DateTimeFormat("en-NZ", {
