@@ -6,6 +6,7 @@ import { buildBrainContext } from "@/lib/brainContext";
 import { buildAttachmentBlocks } from "@/lib/brainDocuments";
 import { BrainAttachment, MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/brainAttachments";
 import { createDocFromMarkedText } from "@/lib/googleDocs";
+import { logSalesCall } from "@/lib/logSalesCall";
 import { LeadStatus } from "@/lib/types";
 
 const VALID_LEAD_STATUSES: readonly LeadStatus[] = [
@@ -23,6 +24,7 @@ interface ParsedDraft {
   sheet?: { sheetId?: string; company?: string; dateCalled?: string; outcome?: string; callBack?: string; notes?: string };
   script?: { summary?: string; newContent?: string };
   agreement?: { title?: string; markedText?: string };
+  call?: { rawSummary?: string; yourTake?: string };
 }
 
 const BRAIN_SYSTEM_PROMPT = `You are Lucky's business brain for LS Growth Agency — a single place he asks questions about the business and gets you to draft things, instead of digging through Supabase, Gmail, or Google Docs himself.
@@ -33,7 +35,7 @@ Before asking Lucky who someone is, actually check what you were given: LEADS MA
 
 Lucky can also attach files (PDFs, images, text) directly to a message — when he does, they appear as real document/image content right above his message text in this turn, already provided in full, not something to fetch or ask for. Read them and use them like anything else given to you: answer questions about them, pull real numbers/names/quotes from them, or use them as the source when he asks you to draft something. Never claim you can't see an attached file.
 
-You can do six things:
+You can do seven things:
 1. Just answer the question, conversationally, like a sharp operator who actually knows the business.
 2. If Lucky is asking you to draft something (a follow-up email to a specific lead, or a note/plan for something else), write the actual draft — never claim you can't draft things.
 3. If Lucky is asking you to change a real lead record (its status, add a note, set a follow-up date), propose that as a lead_update.
@@ -41,8 +43,9 @@ You can do six things:
 5. If Lucky is asking you to mark a cold-call sheet row as called/update its outcome, propose that as a sheet_update.
 6. If Lucky is asking you to write or update the sales script (fix an objection, tighten a section, address an open pattern), propose that as a script_proposal — write the FULL updated script as newContent, based on the current master script given to you below plus whatever change he's asking for, not a fragment.
 7. If Lucky gives you the details of a deal he just closed or agreed (client name, price, terms, whatever came up on the call) and wants an agreement/contract drafted, propose that as agreement_doc — this actually creates a real new Google Doc immediately (not queued for approval, since nothing is sent anywhere), and the link goes straight back to him in your reply.
+8. If Lucky pastes a raw notetaker summary/transcript of a sales call (with or without also saying "log this call"), propose that as log_call — this is the same thing the "Log a Call" page does: parses it, saves the real call record immediately, and runs the standing script review against every logged call, which may itself raise a script_proposal on top. Recognize this pattern yourself — a pasted block that reads like a call transcript/summary (a conversation between him and a prospect, an outcome, objections) is log_call even if he doesn't explicitly say "log this call".
 
-Never claim you can't do 2-7 — propose it properly and let the approval queue handle safety; nothing you draft or propose is ever applied automatically, it lands in a queue on the page for Lucky to approve or reject himself.
+Never claim you can't do 2-8 — propose it properly; script_proposal, agreement_doc, and log_call apply immediately since none of them send anything externally and are all easy to correct after the fact, everything else lands in a queue on the page for Lucky to approve or reject himself.
 
 An email or lead_update always needs a real lead identified by its lead_id (the exact slug shown in the pipeline data, e.g. "acme-electrical", not the display company name) — if you can't tell which lead he means, ask instead of guessing.
 
@@ -56,10 +59,12 @@ For a script_proposal, "script" holds: summary (one or two sentences on what cha
 
 For an agreement_doc, "agreement" holds: title (e.g. "LS Growth Agreement — Acme Electrical"), markedText (the full document, written in the AGREEMENT TEMPLATE's own structure and wording given to you below, with only the deal-specific details — client/business name, price, terms, dates, whatever Lucky told you was agreed — filled in or changed. Mark it up exactly like the template: "# " for the title line only, "## " for each section heading, plain text for everything else, no other markdown, no asterisks). If Lucky hasn't actually given you the deal specifics yet, ask for them instead of inventing placeholder values — never fabricate a price, date, or term that wasn't actually said. If no AGREEMENT TEMPLATE was given to you below, say you don't have the template loaded instead of writing one from scratch.
 
-Respond with ONLY a JSON object, no markdown fences, no other text:
-{"reply": "your conversational answer, always present", "draft": {"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}}}
+For a log_call, "call" holds: rawSummary (the raw notes/transcript Lucky pasted, copied verbatim, word for word — never summarize or clean it up yourself, the real parsing happens after this), yourTake (Lucky's own honest read of the call — where he mucked up, what he'd change — ONLY if he actually wrote that himself somewhere in his message, separate from the pasted transcript; leave it "" if he only pasted the transcript with nothing of his own added, never invent this on his behalf).
 
-Only include the one object ("fields", "calendar", "sheet", "script", or "agreement") that matches the draft's kind — omit the others. Omit "draft" entirely if you're not drafting/proposing anything this turn — most replies won't have one.`;
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"reply": "your conversational answer, always present", "draft": {"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}}}
+
+Only include the one object ("fields", "calendar", "sheet", "script", "agreement", or "call") that matches the draft's kind — omit the others. Omit "draft" entirely if you're not drafting/proposing anything this turn — most replies won't have one.`;
 
 // Applies whatever the model proposed (if anything) and returns the final
 // reply text plus whether a draft/action actually landed. Kept separate
@@ -71,7 +76,7 @@ async function resolveDraft(
   draft: ParsedDraft | undefined
 ): Promise<{ reply: string; draftCreated: boolean; error?: string }> {
   let reply = initialReply;
-  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal", "agreement_doc"]);
+  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal", "agreement_doc", "log_call"]);
   if (!draft?.kind || !KNOWN_KINDS.has(draft.kind)) return { reply, draftCreated: false };
 
   let leadUuid: string | null = null;
@@ -196,6 +201,26 @@ async function resolveDraft(
       return { reply: `${reply}\n\nDoc created: ${url}`, draftCreated: false };
     } catch (e) {
       return { reply, draftCreated: false, error: e instanceof Error ? e.message : "Failed to create the agreement doc." };
+    }
+  }
+
+  if (draft.kind === "log_call") {
+    const callInput = draft.call || {};
+    if (!callInput.rawSummary?.trim()) {
+      return { reply, draftCreated: false, error: "Model tried to log a call with no transcript — ignored." };
+    }
+
+    // Same real-write-immediately reasoning as script_proposal/agreement_doc
+    // above — logging a call is just data entry, easily corrected after the
+    // fact, and shares its actual logic with the "Log a Call" page via
+    // lib/logSalesCall.ts rather than duplicating it here.
+    try {
+      const { call, proposal } = await logSalesCall(sb, callInput.rawSummary.trim(), callInput.yourTake?.trim() || "");
+      const outcomeLine = `Logged: ${call.prospect_name || "unknown prospect"} (${call.business_name || "unknown business"}), ${call.call_date}, outcome ${call.outcome}.`;
+      const proposalLine = proposal ? `\n\nThe standing script review also flagged something — a script_proposal is waiting on /dashboard/sales-calls: ${proposal.summary}` : "";
+      return { reply: `${reply}\n\n${outcomeLine}${proposalLine}`, draftCreated: false };
+    } catch (e) {
+      return { reply, draftCreated: false, error: e instanceof Error ? e.message : "Failed to log that call." };
     }
   }
 
