@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, Users, Phone, Calendar, Sun, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Flame, Menu, X, LineChart, ListChecks, UserX, Brain, CheckCheck, Target,
+  LayoutDashboard, Phone, Calendar, Sun, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Menu, X, LineChart, ListChecks, Brain, CheckCheck, Target,
 } from "lucide-react";
 
 const NAV = [
@@ -12,16 +12,13 @@ const NAV = [
   { href: "/dashboard/today", label: "Today", icon: Sun },
   { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
   { href: "/dashboard/email-outreach", label: "Email Outreach", icon: Rows3 },
-  { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/lead-qual", label: "Onboarding", icon: Bot },
   { href: "/dashboard/campaign-setup", label: "Campaign Setup", icon: Target },
   { href: "/dashboard/sales-calls", label: "Sales", icon: PhoneCall },
-  { href: "/dashboard/discovery-pipeline", label: "Discovery Pipeline", icon: Flame },
   { href: "/dashboard/automations", label: "Automations", icon: Zap },
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/call-queue", label: "Call Queue", icon: ListChecks },
   { href: "/dashboard/cold-call", label: "Cold Call", icon: Phone },
-  { href: "/dashboard/no-show-sequence", label: "No-Show Sequence", icon: UserX },
   { href: "/dashboard/scraper", label: "Scraper", icon: ScanSearch },
   { href: "/dashboard/meta-ads", label: "Meta Ads", icon: LineChart },
   { href: "/settings", label: "Settings", icon: Settings },
