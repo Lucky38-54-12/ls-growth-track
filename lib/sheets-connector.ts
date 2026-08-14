@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
+import { getLuckyGoogleAuthedClient } from "./luckyGoogleAuth";
 
 interface SheetData {
   sheetId: string;
@@ -203,19 +204,16 @@ export async function listSheetsInFolder(folderId: string): Promise<{ id: string
 const LEAD_SHEET_HEADER = ["Company", "Phone", "Email", "Website", "Facebook", "Date Called", "Outcome", "Call Back", "Notes"];
 
 export async function createLeadSheet(title: string, folderId: string): Promise<string> {
-  const auth = getServiceAccountAuth();
-  const sheets = google.sheets({ version: "v4", auth: auth as any });
-  const drive = google.drive({ version: "v3", auth: auth as any });
+  // Uses Lucky's own connected Google account (lib/luckyGoogleAuth.ts), not
+  // the service account — sheets.spreadsheets.create() has no way to specify
+  // a parent folder, so it always writes into the creator's own Drive first,
+  // and the service account has zero storage quota with no domain-wide
+  // delegation (no Google Workspace here). Creating as Lucky himself means
+  // the write lands under his real account with real quota from the start.
+  const auth = await getLuckyGoogleAuthedClient();
+  const sheets = google.sheets({ version: "v4", auth });
+  const drive = google.drive({ version: "v3", auth });
 
-  // sheets.spreadsheets.create() has no way to specify a parent folder — it
-  // always writes into the service account's own My Drive first, which has
-  // zero storage quota for a bare (non-domain-delegated) service account,
-  // so the write is rejected outright ("The caller does not have
-  // permission" — identical to every other 403, making it look like a
-  // permissions problem rather than a quota one). Creating via the Drive
-  // API directly, with the Email Outreach folder set as the parent at
-  // creation time, writes straight into a folder that has real quota (a
-  // real human's) instead.
   const created = await drive.files.create({
     requestBody: { name: title, mimeType: "application/vnd.google-apps.spreadsheet", parents: [folderId] },
     fields: "id",

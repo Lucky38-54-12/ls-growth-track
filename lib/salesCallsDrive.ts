@@ -1,26 +1,12 @@
 import { google } from "googleapis";
-import { JWT } from "google-auth-library";
+import { getLuckyGoogleAuthedClient } from "./luckyGoogleAuth";
 import { SalesCall, ScriptVersion } from "./types";
 
-const LUCKY_EMAIL = "luckyspersonal38@gmail.com";
-
-// Same shared Drive folder the lead-sheet sync uses (lib/sheets-connector.ts)
-// so backups show up alongside everything else instead of getting lost.
+// Organizational parent folder only — files are created under Lucky's own
+// connected Google account (see lib/luckyGoogleAuth.ts), so he already owns
+// everything created here; this just keeps backups alongside everything
+// else in one place instead of scattering into Drive's root.
 const DEFAULT_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
-
-function getAuth(): JWT {
-  const keyString = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!keyString) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var not set");
-  const key = JSON.parse(keyString);
-  return new JWT({
-    email: key.client_email,
-    key: key.private_key,
-    scopes: [
-      "https://www.googleapis.com/auth/drive",
-      "https://www.googleapis.com/auth/spreadsheets",
-    ],
-  });
-}
 
 const HEADER = [
   "Call Date", "Prospect Name", "Business", "Outcome", "Main Objection",
@@ -55,9 +41,9 @@ export async function backupSalesCallsToDrive(
   scriptVersions: ScriptVersion[],
   existingSpreadsheetId?: string | null
 ): Promise<BackupResult> {
-  const auth = getAuth();
-  const sheets = google.sheets({ version: "v4", auth: auth as any });
-  const drive = google.drive({ version: "v3", auth: auth as any });
+  const auth = await getLuckyGoogleAuthedClient();
+  const sheets = google.sheets({ version: "v4", auth });
+  const drive = google.drive({ version: "v3", auth });
 
   let spreadsheetId = existingSpreadsheetId || null;
 
@@ -72,15 +58,6 @@ export async function backupSalesCallsToDrive(
   }
 
   if (!spreadsheetId) {
-    // sheets.spreadsheets.create() has no way to specify a parent folder —
-    // it always writes into the service account's own My Drive first, which
-    // has zero storage quota for a bare (non-domain-delegated) service
-    // account, so the write is rejected outright ("The caller does not have
-    // permission" — identical to every other 403, making it look like a
-    // permissions problem rather than a quota one). Creating via the Drive
-    // API directly, with the shared folder set as the parent at creation
-    // time, writes straight into a folder that has real quota (a real
-    // human's) instead.
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
     const createdFile = await drive.files.create({
       requestBody: { name: "Sales Calls Backup", mimeType: "application/vnd.google-apps.spreadsheet", parents: [folderId] },
@@ -103,13 +80,6 @@ export async function backupSalesCallsToDrive(
           { addSheet: { properties: { title: "Master Script Versions" } } },
         ],
       },
-    });
-
-    await drive.permissions.create({
-      fileId: spreadsheetId,
-      requestBody: { role: "writer", type: "user", emailAddress: LUCKY_EMAIL },
-      sendNotificationEmail: false,
-      supportsAllDrives: true,
     });
   }
 

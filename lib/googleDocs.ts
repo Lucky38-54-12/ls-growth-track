@@ -1,23 +1,12 @@
 import { google } from "googleapis";
+import { getLuckyGoogleAuthedClient } from "@/lib/luckyGoogleAuth";
 
-const LUCKY_EMAIL = "luckyspersonal38@gmail.com";
-
-// Same shared Drive folder lib/salesCallsDrive.ts and lib/sheets-connector.ts
-// already use for this exact reason — see moveIntoSharedFolder below.
+// Organizational parent folder only, now — since docs are created under
+// Lucky's own connected Google account (see lib/luckyGoogleAuth.ts), he
+// already owns everything created here; this just keeps things tidy
+// alongside whatever else lives in this folder instead of scattering into
+// Drive's root.
 const DEFAULT_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
-
-function getAuth() {
-  const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!key) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY not set");
-  const credentials = JSON.parse(key);
-  return new google.auth.GoogleAuth({
-    credentials,
-    scopes: [
-      "https://www.googleapis.com/auth/documents",
-      "https://www.googleapis.com/auth/drive",
-    ],
-  });
-}
 
 // Shared by createDocFromMarkedText and appendMarkedTextToDoc — builds the
 // insertText + bold/heading styling requests for a block of "# "/"## "
@@ -71,21 +60,10 @@ export async function createDocFromMarkedText(title: string, markedText: string)
 }
 
 export async function createDocWithId(title: string, markedText: string): Promise<{ docId: string; url: string }> {
-  const auth = getAuth();
+  const auth = await getLuckyGoogleAuthedClient();
   const docs = google.docs({ version: "v1", auth });
   const drive = google.drive({ version: "v3", auth });
 
-  // docs.documents.create() has no way to specify a parent folder — it
-  // always writes into the service account's own My Drive first, which has
-  // zero storage quota for a bare (non-domain-delegated) service account,
-  // so the write is rejected outright before a docId is even returned
-  // ("The caller does not have permission", identical to every other 403,
-  // making it look like a permissions problem rather than a quota one).
-  // Creating the file via the Drive API directly, with the shared folder
-  // set as the parent at creation time, writes straight into a folder that
-  // has real quota (a real human's) and never touches the service
-  // account's own storage at all. The returned file ID is a normal Google
-  // Docs document ID either way — Docs API calls on it work the same.
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
   let step = "files.create";
   let docId: string;
@@ -102,14 +80,6 @@ export async function createDocWithId(title: string, markedText: string): Promis
   }
 
   try {
-    step = "permissions.create";
-    await drive.permissions.create({
-      fileId: docId,
-      requestBody: { role: "writer", type: "user", emailAddress: LUCKY_EMAIL },
-      sendNotificationEmail: false,
-      supportsAllDrives: true,
-    });
-
     step = "documents.batchUpdate";
     await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests: buildFormattingRequests(markedText, 1) } });
   } catch (e) {
@@ -126,7 +96,7 @@ export async function createDocWithId(title: string, markedText: string): Promis
 // and anything else built for them in one place over time instead of
 // scattering across separate Google Docs per regeneration.
 export async function appendMarkedTextToDoc(docId: string, markedText: string): Promise<void> {
-  const auth = getAuth();
+  const auth = await getLuckyGoogleAuthedClient();
   const docs = google.docs({ version: "v1", auth });
 
   const doc = await docs.documents.get({ documentId: docId });
@@ -151,12 +121,12 @@ export interface DriveDocMatch {
   url: string;
 }
 
-// Live full-text search over every Google Doc the service account can see —
-// used by the /dashboard/brain chat to find planning docs relevant to
+// Live full-text search over every Google Doc Lucky's connected account can
+// see — used by the /dashboard/brain chat to find planning docs relevant to
 // whatever Lucky just asked, instead of maintaining a separate index of doc
 // content that would drift out of date the moment he edits a doc.
 export async function searchDriveDocs(query: string, limit: number = 5): Promise<DriveDocMatch[]> {
-  const auth = getAuth();
+  const auth = await getLuckyGoogleAuthedClient();
   const drive = google.drive({ version: "v3", auth });
 
   // Drive's fullText search treats the query as a single phrase, and fails
@@ -185,7 +155,7 @@ export async function searchDriveDocs(query: string, limit: number = 5): Promise
 // docs.documents.get returns a nested body.content tree (paragraphs made of
 // text runs), not flat text, so this walks it and joins every run.
 export async function readGoogleDocText(docId: string, maxChars: number = 6000): Promise<string> {
-  const auth = getAuth();
+  const auth = await getLuckyGoogleAuthedClient();
   const docs = google.docs({ version: "v1", auth });
 
   const doc = await docs.documents.get({ documentId: docId });
@@ -201,4 +171,3 @@ export async function readGoogleDocText(docId: string, maxChars: number = 6000):
   text = text.trim();
   return text.length > maxChars ? text.slice(0, maxChars) + "\n...(truncated)" : text;
 }
-
