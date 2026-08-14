@@ -167,6 +167,14 @@ export function checkFixedTemplateGate(input: {
 // (Email Outreach page) is retired, Lucky doesn't want template emails going
 // out. Leads without a campaign_id just sit until they're added to one.
 export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{ sent: boolean; held?: boolean; notAFit?: boolean }> {
+  // Hard kill switch (2026-08-14) — cold outreach is fully paused, no
+  // exceptions, regardless of how this got triggered (cron, the manual
+  // /api/send button, a future feature). Returns before the only AI call in
+  // this whole pipeline (extractLeadSlots, on the "initial" step) or any DB
+  // write, so a paused campaign genuinely cannot spend anything. Flip
+  // COLD_OUTREACH_PAUSED off in Vercel env vars to resume.
+  if (process.env.COLD_OUTREACH_PAUSED === "true") return { sent: false };
+
   if (!lead.campaign_id) return { sent: false };
 
   // A campaign sitting in "draft" (never activated) or "paused" must not
