@@ -214,6 +214,21 @@ a.card-hover:hover, div.card-hover:hover {
   display: none;
 }
 
+@media (min-width: 861px) {
+  /* Sidebar is a plain flex sibling of .dashboard-content in app/layout.tsx
+     with no height cap on <body>, so any page taller than the viewport (a
+     long Brain thread, a long table) scrolls the whole document — and the
+     sidebar, having no sticky/fixed positioning, scrolled away with it.
+     Pinning it here keeps nav reachable no matter how far down the page
+     content goes. */
+  .dashboard-sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    align-self: flex-start;
+  }
+}
+
 @media (max-width: 860px) {
   .dashboard-topbar {
     display: flex;
