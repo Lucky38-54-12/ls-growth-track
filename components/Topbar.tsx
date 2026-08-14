@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Search, X, LayoutDashboard, Phone, Calendar, Sun, ScanSearch, Bot, Rows3, PhoneCall, Brain, CheckCheck, Target } from "lucide-react";
+import { Bell, Search, X, LayoutDashboard, Phone, Calendar, Sun, ScanSearch, Bot, Rows3, PhoneCall, Brain, CheckCheck, Target, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -15,6 +15,7 @@ const SEARCH_ITEMS = [
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar },
   { label: "Cold Call", href: "/dashboard/cold-call", icon: Phone },
   { label: "Scraper", href: "/dashboard/scraper", icon: ScanSearch },
+  { label: "API Usage", href: "/dashboard/api-usage", icon: KeyRound },
 ];
 
 export default function Topbar({ title, subtitle }: { title: string; subtitle?: string }) {
