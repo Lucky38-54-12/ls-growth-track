@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createSupabaseClient } from "@/lib/supabase";
 import { parseJsonResponse } from "@/lib/ai";
+import { createDocWithId, appendMarkedTextToDoc } from "@/lib/googleDocs";
+import { notifySlack } from "@/lib/slack";
 
 export interface CampaignBriefFields {
   offerPricing: string;
@@ -18,6 +20,7 @@ export interface CampaignBriefFields {
 
 export interface CampaignBriefResult extends CampaignBriefFields {
   docMarkdown: string;
+  clientName: string;
 }
 
 const SECTION_LABELS: Record<keyof CampaignBriefFields, string> = {
@@ -132,7 +135,7 @@ Research this market and write the Stage 01 STRATEGY brief.`;
 
   if (!fields.mainService || !fields.objective) throw new Error("AI response missing required brief fields");
 
-  return { ...fields, docMarkdown: buildDocMarkdown(client.name, fields) };
+  return { ...fields, docMarkdown: buildDocMarkdown(client.name, fields), clientName: client.name };
 }
 
 // Generates a fresh brief and upserts it (status reset to "draft" — any
@@ -142,6 +145,29 @@ Research this market and write the Stage 01 STRATEGY brief.`;
 export async function generateAndSaveCampaignBrief(clientId: string) {
   const fields = await generateCampaignBrief(clientId);
   const sb = createSupabaseClient();
+
+  // One persistent Google Doc per client — created the first time a brief
+  // is generated, then appended to (never replaced) on every regeneration
+  // so later stages (ad copy, landing page notes, etc) can build into the
+  // same file instead of scattering across separate docs per run.
+  const { data: existing } = await sb
+    .from("campaign_briefs")
+    .select("google_doc_id, google_doc_url")
+    .eq("client_id", clientId)
+    .maybeSingle();
+
+  let googleDocId = existing?.google_doc_id || null;
+  let googleDocUrl = existing?.google_doc_url || null;
+
+  if (!googleDocId) {
+    const created = await createDocWithId(`${fields.clientName} — Campaign Master Doc`, fields.docMarkdown);
+    googleDocId = created.docId;
+    googleDocUrl = created.url;
+  } else {
+    const dateLabel = new Date().toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
+    await appendMarkedTextToDoc(googleDocId, `## Strategy Brief Regenerated — ${dateLabel}\n${fields.docMarkdown.replace(/^# .+\n\n/, "")}`);
+  }
+
   const { data, error } = await sb
     .from("campaign_briefs")
     .upsert(
@@ -160,6 +186,8 @@ export async function generateAndSaveCampaignBrief(clientId: string) {
         lead_qualification_criteria: fields.leadQualificationCriteria,
         retargeting_strategy: fields.retargetingStrategy,
         doc_markdown: fields.docMarkdown,
+        google_doc_id: googleDocId,
+        google_doc_url: googleDocUrl,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "client_id" }
@@ -167,5 +195,8 @@ export async function generateAndSaveCampaignBrief(clientId: string) {
     .select()
     .single();
   if (error) throw new Error(error.message);
+
+  await notifySlack(`Campaign strategy brief ready for *${fields.clientName}*.\nObjective: ${fields.objective}\nDoc: ${googleDocUrl}`);
+
   return data;
 }

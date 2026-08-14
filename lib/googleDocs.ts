@@ -15,26 +15,11 @@ function getAuth() {
   });
 }
 
-// Takes AI-generated doc text using "# " for the title line and "## " for
-// section headings (markdown-lite, stripped before insertion) — lets the
-// actual clause content vary freely per deal (trial+threshold, deposit,
-// whatever was actually agreed) while still getting consistent bold
-// title/heading formatting, instead of hardcoding a fixed set of heading
-// strings to search for as the old fixed-template version did.
-export async function createDocFromMarkedText(title: string, markedText: string): Promise<string> {
-  const auth = getAuth();
-  const docs = google.docs({ version: "v1", auth });
-  const drive = google.drive({ version: "v3", auth });
-
-  const created = await docs.documents.create({ requestBody: { title } });
-  const docId = created.data.documentId!;
-
-  await drive.permissions.create({
-    fileId: docId,
-    requestBody: { role: "writer", type: "user", emailAddress: LUCKY_EMAIL },
-    sendNotificationEmail: false,
-  });
-
+// Shared by createDocFromMarkedText and appendMarkedTextToDoc — builds the
+// insertText + bold/heading styling requests for a block of "# "/"## "
+// marked-up text, offset to wherever it's landing in the doc (index 1 for a
+// fresh doc, or the current end of an existing one).
+function buildFormattingRequests(markedText: string, insertAt: number): object[] {
   const lines = markedText.split("\n");
   let plainText = "";
   const titleRanges: { start: number; end: number; fontSize: number }[] = [];
@@ -51,27 +36,78 @@ export async function createDocFromMarkedText(title: string, markedText: string)
     else if (isHeading) headingRanges.push({ start, end });
   }
 
-  const requests: object[] = [
-    { insertText: { location: { index: 1 }, text: plainText } },
+  return [
+    { insertText: { location: { index: insertAt }, text: plainText } },
     ...titleRanges.map((r) => ({
       updateTextStyle: {
-        range: { startIndex: r.start + 1, endIndex: r.end + 1 },
+        range: { startIndex: insertAt + r.start, endIndex: insertAt + r.end },
         textStyle: { bold: true, fontSize: { magnitude: r.fontSize, unit: "PT" } },
         fields: "bold,fontSize",
       },
     })),
     ...headingRanges.map((r) => ({
       updateTextStyle: {
-        range: { startIndex: r.start + 1, endIndex: r.end + 1 },
+        range: { startIndex: insertAt + r.start, endIndex: insertAt + r.end },
         textStyle: { bold: true },
         fields: "bold",
       },
     })),
   ];
+}
+
+// Takes AI-generated doc text using "# " for the title line and "## " for
+// section headings (markdown-lite, stripped before insertion) — lets the
+// actual clause content vary freely per deal (trial+threshold, deposit,
+// whatever was actually agreed) while still getting consistent bold
+// title/heading formatting, instead of hardcoding a fixed set of heading
+// strings to search for as the old fixed-template version did.
+export async function createDocFromMarkedText(title: string, markedText: string): Promise<string> {
+  const { url } = await createDocWithId(title, markedText);
+  return url;
+}
+
+export async function createDocWithId(title: string, markedText: string): Promise<{ docId: string; url: string }> {
+  const auth = getAuth();
+  const docs = google.docs({ version: "v1", auth });
+  const drive = google.drive({ version: "v3", auth });
+
+  const created = await docs.documents.create({ requestBody: { title } });
+  const docId = created.data.documentId!;
+
+  await drive.permissions.create({
+    fileId: docId,
+    requestBody: { role: "writer", type: "user", emailAddress: LUCKY_EMAIL },
+    sendNotificationEmail: false,
+  });
+
+  await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests: buildFormattingRequests(markedText, 1) } });
+
+  return { docId, url: `https://docs.google.com/document/d/${docId}/edit` };
+}
+
+// Appends a new marked-up section onto the end of an already-created doc,
+// rather than spawning a new one — used so a client's "master doc" (see
+// campaign_briefs.google_doc_id) accumulates the strategy brief, ad copy,
+// and anything else built for them in one place over time instead of
+// scattering across separate Google Docs per regeneration.
+export async function appendMarkedTextToDoc(docId: string, markedText: string): Promise<void> {
+  const auth = getAuth();
+  const docs = google.docs({ version: "v1", auth });
+
+  const doc = await docs.documents.get({ documentId: docId });
+  const content = doc.data.body?.content || [];
+  const lastEndIndex = content.length ? content[content.length - 1].endIndex || 1 : 1;
+  // endIndex includes the doc's implicit trailing newline, which can't be
+  // targeted directly — insert just before it, with a blank line first so
+  // the new section doesn't run straight into the previous one.
+  const insertAt = Math.max(1, lastEndIndex - 1);
+
+  const requests = [
+    { insertText: { location: { index: insertAt }, text: "\n\n" } },
+    ...buildFormattingRequests(markedText, insertAt + 2),
+  ];
 
   await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests } });
-
-  return `https://docs.google.com/document/d/${docId}/edit`;
 }
 
 export interface DriveDocMatch {

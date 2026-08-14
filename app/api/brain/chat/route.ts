@@ -275,7 +275,8 @@ async function resolveDraft(
     try {
       const brief = await generateAndSaveCampaignBrief(client.id);
       const summaryLine = `Objective: ${brief.objective || "n/a"}. Budget: ${brief.budget || "n/a"}.`;
-      return { appendText: `\n\nCampaign strategy brief created for ${client.name}. ${summaryLine}\n\nReview/edit it: /dashboard/campaign-setup`, draftCreated: false };
+      const docLine = brief.google_doc_url ? `\n\nMaster doc: ${brief.google_doc_url}` : "";
+      return { appendText: `\n\nCampaign strategy brief created for ${client.name}. ${summaryLine}${docLine}\n\nReview/edit it: /dashboard/campaign-setup`, draftCreated: false };
     } catch (e) {
       return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to generate the campaign brief." };
     }

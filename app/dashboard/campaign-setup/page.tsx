@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Topbar from "@/components/Topbar";
-import { Sparkles, RefreshCw, ChevronRight } from "lucide-react";
+import { Sparkles, RefreshCw, ChevronRight, ExternalLink } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -32,6 +32,7 @@ interface Brief extends BriefFields {
   client_id: string;
   status: "draft" | "approved";
   doc_markdown: string;
+  google_doc_url: string | null;
   updated_at: string;
 }
 
@@ -225,6 +226,17 @@ export default function CampaignSetupPage() {
                   <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: STATUS_STYLE[brief.status].color, background: STATUS_STYLE[brief.status].bg, padding: "3px 7px", borderRadius: 3 }}>
                     {STATUS_STYLE[brief.status].label}
                   </span>
+                  {brief.google_doc_url && (
+                    <a
+                      href={brief.google_doc_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "var(--accent)", textDecoration: "none" }}
+                    >
+                      <ExternalLink style={{ width: 12, height: 12 }} />
+                      Master doc
+                    </a>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
