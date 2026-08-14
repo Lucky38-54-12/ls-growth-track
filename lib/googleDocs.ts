@@ -75,34 +75,33 @@ export async function createDocWithId(title: string, markedText: string): Promis
   const docs = google.docs({ version: "v1", auth });
   const drive = google.drive({ version: "v3", auth });
 
-  // The error message Google returns is identical ("The caller does not
-  // have permission") no matter which of these calls actually throws —
-  // tagging each step so a failure's real location shows up in the logs
-  // instead of having to guess from one generic 403.
-  let step = "documents.create";
-  let created;
+  // docs.documents.create() has no way to specify a parent folder — it
+  // always writes into the service account's own My Drive first, which has
+  // zero storage quota for a bare (non-domain-delegated) service account,
+  // so the write is rejected outright before a docId is even returned
+  // ("The caller does not have permission", identical to every other 403,
+  // making it look like a permissions problem rather than a quota one).
+  // Creating the file via the Drive API directly, with the shared folder
+  // set as the parent at creation time, writes straight into a folder that
+  // has real quota (a real human's) and never touches the service
+  // account's own storage at all. The returned file ID is a normal Google
+  // Docs document ID either way — Docs API calls on it work the same.
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+  let step = "files.create";
+  let docId: string;
   try {
-    created = await docs.documents.create({ requestBody: { title } });
+    const created = await drive.files.create({
+      requestBody: { name: title, mimeType: "application/vnd.google-apps.document", parents: [folderId] },
+      fields: "id",
+      supportsAllDrives: true,
+    });
+    docId = created.data.id!;
   } catch (e) {
     console.error(`googleDocs step failed: ${step}`, e instanceof Error ? e.message : e);
     throw e;
   }
-  const docId = created.data.documentId!;
 
-  // docs.documents.create always lands the file in the service account's own
-  // My Drive, which has zero storage quota for a bare (non-domain-delegated)
-  // service account — every operation after this point 403s with a bare
-  // "The caller does not have permission" until the file is moved into a
-  // folder a real human owns and has shared with the service account. Same
-  // fix lib/salesCallsDrive.ts already applies to its spreadsheet backups.
   try {
-    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
-    step = "files.get";
-    const file = await drive.files.get({ fileId: docId, fields: "parents", supportsAllDrives: true });
-    const previousParents = (file.data.parents || []).join(",");
-    step = "files.update";
-    await drive.files.update({ fileId: docId, addParents: folderId, removeParents: previousParents, supportsAllDrives: true });
-
     step = "permissions.create";
     await drive.permissions.create({
       fileId: docId,

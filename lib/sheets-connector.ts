@@ -207,23 +207,22 @@ export async function createLeadSheet(title: string, folderId: string): Promise<
   const sheets = google.sheets({ version: "v4", auth: auth as any });
   const drive = google.drive({ version: "v3", auth: auth as any });
 
-  const created = await sheets.spreadsheets.create({
-    requestBody: { properties: { title } },
-  });
-  const spreadsheetId = created.data.spreadsheetId;
-  if (!spreadsheetId) throw new Error("Failed to create spreadsheet — no ID returned.");
-
-  // spreadsheets.create always lands in the service account's My Drive root —
-  // move it into the Email Outreach folder so it shows up alongside Lucky's
-  // other sheets instead of getting lost.
-  const file = await drive.files.get({ fileId: spreadsheetId, fields: "parents", supportsAllDrives: true });
-  const previousParents = (file.data.parents || []).join(",");
-  await drive.files.update({
-    fileId: spreadsheetId,
-    addParents: folderId,
-    removeParents: previousParents,
+  // sheets.spreadsheets.create() has no way to specify a parent folder — it
+  // always writes into the service account's own My Drive first, which has
+  // zero storage quota for a bare (non-domain-delegated) service account,
+  // so the write is rejected outright ("The caller does not have
+  // permission" — identical to every other 403, making it look like a
+  // permissions problem rather than a quota one). Creating via the Drive
+  // API directly, with the Email Outreach folder set as the parent at
+  // creation time, writes straight into a folder that has real quota (a
+  // real human's) instead.
+  const created = await drive.files.create({
+    requestBody: { name: title, mimeType: "application/vnd.google-apps.spreadsheet", parents: [folderId] },
+    fields: "id",
     supportsAllDrives: true,
   });
+  const spreadsheetId = created.data.id;
+  if (!spreadsheetId) throw new Error("Failed to create spreadsheet — no ID returned.");
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,

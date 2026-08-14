@@ -72,26 +72,37 @@ export async function backupSalesCallsToDrive(
   }
 
   if (!spreadsheetId) {
-    const created = await sheets.spreadsheets.create({
-      requestBody: {
-        properties: { title: "Sales Calls Backup" },
-        sheets: [{ properties: { title: "Calls" } }, { properties: { title: "Master Script Versions" } }],
-      },
+    // sheets.spreadsheets.create() has no way to specify a parent folder —
+    // it always writes into the service account's own My Drive first, which
+    // has zero storage quota for a bare (non-domain-delegated) service
+    // account, so the write is rejected outright ("The caller does not have
+    // permission" — identical to every other 403, making it look like a
+    // permissions problem rather than a quota one). Creating via the Drive
+    // API directly, with the shared folder set as the parent at creation
+    // time, writes straight into a folder that has real quota (a real
+    // human's) instead.
+    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+    const createdFile = await drive.files.create({
+      requestBody: { name: "Sales Calls Backup", mimeType: "application/vnd.google-apps.spreadsheet", parents: [folderId] },
+      fields: "id",
+      supportsAllDrives: true,
     });
-    spreadsheetId = created.data.spreadsheetId || null;
+    spreadsheetId = createdFile.data.id || null;
     if (!spreadsheetId) throw new Error("Failed to create spreadsheet — no ID returned.");
 
-    // spreadsheets.create always lands in the service account's own My Drive,
-    // which has zero storage quota — move it into the shared folder (which
-    // has real quota) the same way lib/sheets-connector.ts does.
-    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
-    const file = await drive.files.get({ fileId: spreadsheetId, fields: "parents", supportsAllDrives: true });
-    const previousParents = (file.data.parents || []).join(",");
-    await drive.files.update({
-      fileId: spreadsheetId,
-      addParents: folderId,
-      removeParents: previousParents,
-      supportsAllDrives: true,
+    // A blank spreadsheet created this way has one default "Sheet1" tab —
+    // rename it to "Calls" and add "Master Script Versions" to match the
+    // two-tab layout the rest of this function writes to.
+    const sheetMeta = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties" });
+    const defaultSheetId = sheetMeta.data.sheets?.[0]?.properties?.sheetId;
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          { updateSheetProperties: { properties: { sheetId: defaultSheetId, title: "Calls" }, fields: "title" } },
+          { addSheet: { properties: { title: "Master Script Versions" } } },
+        ],
+      },
     });
 
     await drive.permissions.create({
