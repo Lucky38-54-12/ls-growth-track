@@ -23,8 +23,8 @@ function parseJsonResponse<T>(text: string): T {
 // text we could pull for the business (Facebook Page or website) — meant
 // to be reviewed/edited by a human before saving, not trusted blind.
 export async function draftConfigFromSnippet(name: string, snippet: string, trade: string, sourceLabel: string): Promise<AutofillDraft> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+  const apiKey = process.env.ANTHROPIC_API_KEY_LEAD_QUAL || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY_LEAD_QUAL env var is not set");
 
   const client = new Anthropic({ apiKey });
   const response = await client.messages.create({

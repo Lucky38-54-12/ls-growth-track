@@ -81,8 +81,8 @@ export async function runPortalChatTurn(
   leads: PortalLeadSummary[],
   history: PortalChatTurn[]
 ): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+  const apiKey = process.env.ANTHROPIC_API_KEY_LEAD_QUAL || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY_LEAD_QUAL env var is not set");
 
   const client = new Anthropic({ apiKey });
   const response = await client.messages.create({

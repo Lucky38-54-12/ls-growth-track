@@ -150,8 +150,8 @@ export interface PostCloseTurnResult {
 }
 
 export async function runPostCloseTurn(config: ClientConfigData, latestUserMessage: string): Promise<PostCloseTurnResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+  const apiKey = process.env.ANTHROPIC_API_KEY_LEAD_QUAL || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY_LEAD_QUAL env var is not set");
 
   // Deliberately does NOT receive the full conversation history: a long,
   // heavily-patterned transcript (e.g. repeated manual testing of the same
@@ -182,8 +182,8 @@ export async function runQualifyingTurn(
   config: ClientConfigData,
   history: ConversationTurn[]
 ): Promise<QualifyingTurnResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+  const apiKey = process.env.ANTHROPIC_API_KEY_LEAD_QUAL || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY_LEAD_QUAL env var is not set");
 
   // Every turn resends the whole history from the start of the conversation
   // (see conversationManager.ts), and that array is only ever appended to
