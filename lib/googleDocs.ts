@@ -75,7 +75,18 @@ export async function createDocWithId(title: string, markedText: string): Promis
   const docs = google.docs({ version: "v1", auth });
   const drive = google.drive({ version: "v3", auth });
 
-  const created = await docs.documents.create({ requestBody: { title } });
+  // The error message Google returns is identical ("The caller does not
+  // have permission") no matter which of these calls actually throws —
+  // tagging each step so a failure's real location shows up in the logs
+  // instead of having to guess from one generic 403.
+  let step = "documents.create";
+  let created;
+  try {
+    created = await docs.documents.create({ requestBody: { title } });
+  } catch (e) {
+    console.error(`googleDocs step failed: ${step}`, e instanceof Error ? e.message : e);
+    throw e;
+  }
   const docId = created.data.documentId!;
 
   // docs.documents.create always lands the file in the service account's own
@@ -84,19 +95,28 @@ export async function createDocWithId(title: string, markedText: string): Promis
   // "The caller does not have permission" until the file is moved into a
   // folder a real human owns and has shared with the service account. Same
   // fix lib/salesCallsDrive.ts already applies to its spreadsheet backups.
-  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
-  const file = await drive.files.get({ fileId: docId, fields: "parents", supportsAllDrives: true });
-  const previousParents = (file.data.parents || []).join(",");
-  await drive.files.update({ fileId: docId, addParents: folderId, removeParents: previousParents, supportsAllDrives: true });
+  try {
+    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+    step = "files.get";
+    const file = await drive.files.get({ fileId: docId, fields: "parents", supportsAllDrives: true });
+    const previousParents = (file.data.parents || []).join(",");
+    step = "files.update";
+    await drive.files.update({ fileId: docId, addParents: folderId, removeParents: previousParents, supportsAllDrives: true });
 
-  await drive.permissions.create({
-    fileId: docId,
-    requestBody: { role: "writer", type: "user", emailAddress: LUCKY_EMAIL },
-    sendNotificationEmail: false,
-    supportsAllDrives: true,
-  });
+    step = "permissions.create";
+    await drive.permissions.create({
+      fileId: docId,
+      requestBody: { role: "writer", type: "user", emailAddress: LUCKY_EMAIL },
+      sendNotificationEmail: false,
+      supportsAllDrives: true,
+    });
 
-  await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests: buildFormattingRequests(markedText, 1) } });
+    step = "documents.batchUpdate";
+    await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests: buildFormattingRequests(markedText, 1) } });
+  } catch (e) {
+    console.error(`googleDocs step failed: ${step} (docId=${docId})`, e instanceof Error ? e.message : e);
+    throw e;
+  }
 
   return { docId, url: `https://docs.google.com/document/d/${docId}/edit` };
 }
