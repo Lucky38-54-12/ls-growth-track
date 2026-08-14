@@ -78,6 +78,12 @@ async function sendNudge(
 }
 
 export async function sendColdCallNudges(): Promise<{ followup1Sent: number; followup2Sent: number; held: number }> {
+  // Hard kill switch (2026-08-14) — same flag as lib/sendPipeline.ts. This ran
+  // daily via daily-maintenance regardless of COLD_OUTREACH_PAUSED, generating
+  // and quality-checking emails that then just sat unsent, burning tokens for
+  // nothing.
+  if (process.env.COLD_OUTREACH_PAUSED === "true") return { followup1Sent: 0, followup2Sent: 0, held: 0 };
+
   const sb = createSupabaseClient();
   let followup1Sent = 0;
   let followup2Sent = 0;

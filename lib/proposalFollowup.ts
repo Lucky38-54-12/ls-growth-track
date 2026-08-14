@@ -15,6 +15,12 @@ const DAYS_BEFORE_NUDGE = 5;
 // lib/leads.ts, which resets it whenever a lead freshly re-enters
 // "proposal_sent").
 export async function sendDueProposalFollowups(): Promise<{ sent: number; held: number }> {
+  // Hard kill switch (2026-08-14) — same flag as lib/sendPipeline.ts. This ran
+  // daily via daily-maintenance regardless of COLD_OUTREACH_PAUSED, generating
+  // and quality-checking emails that then just sat unsent, burning tokens for
+  // nothing.
+  if (process.env.COLD_OUTREACH_PAUSED === "true") return { sent: 0, held: 0 };
+
   const sb = createSupabaseClient();
   const cutoff = new Date(Date.now() - DAYS_BEFORE_NUDGE * 24 * 60 * 60 * 1000).toISOString();
 

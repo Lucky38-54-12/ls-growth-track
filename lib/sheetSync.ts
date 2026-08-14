@@ -98,7 +98,11 @@ export async function syncLeadsFromSheet(opts: {
       // Best-effort: generate a real personalization hook from the website/Facebook
       // we just captured, so the cold initial email isn't stuck with the generic
       // merge-field line. If this fails, templates.ts falls back gracefully.
+      // Skipped entirely while cold outreach is paused (2026-08-14) — this AI
+      // call was still firing daily via daily-maintenance even with sends
+      // paused, quietly burning tokens on hooks nothing would ever use.
       try {
+        if (process.env.COLD_OUTREACH_PAUSED === "true") throw new Error("cold outreach paused");
         const { hook, contactName } = await generatePersonalizationHook({
           company: lead.company,
           trade: lead.trade,
