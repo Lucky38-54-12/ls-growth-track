@@ -8,6 +8,7 @@ on:
   schedule:
     # Campaign sends are paused (2026-08-14) while the send pipeline is
     # reviewed — see campaign-send below, now workflow_dispatch-only.
+    - cron: "0 19 * * *"  # 7am NZT — morning brief (today's meetings + due items, via Slack)
     - cron: "0 21 * * *"  # 9am NZT — daily maintenance (replies, stale-reply pings, etc.)
   workflow_dispatch: {}    # lets you trigger a run manually from the Actions tab
 
@@ -19,6 +20,15 @@ jobs:
       - name: Call /api/cron
         run: |
           curl -sf -X GET "https://app.lsgrowth.agency/api/cron" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  morning-brief:
+    if: github.event.schedule == '0 19 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/morning-brief
+        run: |
+          curl -sf -X GET "https://app.lsgrowth.agency/api/cron/morning-brief" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
   daily-maintenance:
