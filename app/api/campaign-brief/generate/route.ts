@@ -16,6 +16,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ brief });
   } catch (err) {
     const messageText = err instanceof Error ? err.message : "unknown_error";
+    // Google API client errors carry the real reason (storageQuotaExceeded,
+    // insufficientPermissions, etc) in response.data, not the top-level
+    // message — logging it here since "The caller does not have permission"
+    // alone isn't enough to diagnose which Google Cloud setting is missing.
+    const detail = (err as { response?: { data?: unknown } })?.response?.data;
+    console.error("campaign-brief generate failed:", messageText, detail ? JSON.stringify(detail) : "");
     return NextResponse.json({ error: messageText }, { status: 500 });
   }
 }
