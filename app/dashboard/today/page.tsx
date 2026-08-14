@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, Video, ArrowUpRight, MessageCircleHeart, Inbox, ShieldAlert, Info } from "lucide-react";
+import { Calendar, Video, ArrowUpRight, MessageCircleHeart, Inbox, ShieldAlert, Info, Mail } from "lucide-react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calendar";
 import { nextStepFor } from "@/lib/leads";
@@ -11,6 +11,7 @@ import MeetingReminderButton from "@/components/MeetingReminderButton";
 import RevenueGoalCard from "@/components/RevenueGoalCard";
 import DailyNotes from "@/components/DailyNotes";
 import CheckRepliesButton from "@/components/CheckRepliesButton";
+import DismissInboxAlertButton from "@/components/DismissInboxAlertButton";
 import FlashMessage from "@/app/dashboard/FlashMessage";
 import { Suspense } from "react";
 
@@ -62,12 +63,13 @@ function ClientDetailsPanel({ lead }: { lead: Lead }) {
 export default async function TodayPage() {
   const sb = createSupabaseClient();
 
-  const [leads, { data: sends }, { data: events }, { data: revenueClients }, { data: revenueGoal }] = await Promise.all([
+  const [leads, { data: sends }, { data: events }, { data: revenueClients }, { data: revenueGoal }, { data: inboxAlerts }] = await Promise.all([
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
     sb.from("revenue_clients").select("*").order("added_at", { ascending: false }),
     sb.from("revenue_goal").select("*").eq("id", 1).maybeSingle(),
+    sb.from("inbox_alerts").select("*").eq("handled", false).order("created_at", { ascending: false }),
   ]);
 
   const allLeads = leads;
@@ -75,6 +77,7 @@ export default async function TodayPage() {
   const allEvents = (events || []) as EmailEvent[];
   const allRevenueClients = (revenueClients || []) as RevenueClient[];
   const monthlyGoal = Number((revenueGoal as RevenueGoal | null)?.monthly_goal ?? 3000);
+  const openInboxAlerts = (inboxAlerts || []) as { id: string; from_name: string | null; from_email: string; subject: string | null; snippet: string | null; kind: "important" | "meeting_cancelled"; lead_id: string | null }[];
 
   // Next 7 days of calendar events, for the calendar overview panel.
   let upcomingEvents: CalendarEvent[] = [];
@@ -161,6 +164,47 @@ export default async function TodayPage() {
                   </summary>
                   <ClientDetailsPanel lead={lead} />
                 </details>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Inbox alerts — client emails and same-day meeting cancellations,
+            surfaced here instead of a separate mailbox page (see lib/personalInbox.ts) */}
+        {openInboxAlerts.length > 0 && (
+          <div className="surface-card" style={{ overflow: "hidden", borderColor: "#fed7aa" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #fed7aa", background: "#fff7ed" }}>
+              <Mail style={{ width: 15, height: 15, color: "#c2410c" }} />
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#c2410c" }}>Inbox</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#c2410c" }}>{openInboxAlerts.length}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {openInboxAlerts.map(alert => (
+                <div key={alert.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}` }}>
+                  <Mail style={{ width: 14, height: 14, color: alert.kind === "meeting_cancelled" ? "#c2410c" : "#2563eb", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {alert.from_name || alert.from_email}
+                    </p>
+                    <p style={{ fontSize: 11.5, color: L.dimmed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {alert.kind === "meeting_cancelled" ? "Can't make today's meeting — " : ""}{alert.subject || alert.snippet}
+                    </p>
+                  </div>
+                  <span style={{
+                    fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+                    color: alert.kind === "meeting_cancelled" ? "#c2410c" : "#2563eb",
+                  }}>
+                    {alert.kind === "meeting_cancelled" ? "Cancelled" : "Client"}
+                  </span>
+                  {alert.lead_id && (
+                    <Link href={`/dashboard/leads/${alert.lead_id}/context`} className="pill-hover" style={{
+                      display: "flex", alignItems: "center", padding: "5px", border: `1px solid ${L.border}`, color: L.muted, flexShrink: 0,
+                    }}>
+                      <ArrowUpRight style={{ width: 12, height: 12 }} />
+                    </Link>
+                  )}
+                  <DismissInboxAlertButton id={alert.id} />
+                </div>
               ))}
             </div>
           </div>
