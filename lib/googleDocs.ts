@@ -2,6 +2,10 @@ import { google } from "googleapis";
 
 const LUCKY_EMAIL = "luckyspersonal38@gmail.com";
 
+// Same shared Drive folder lib/salesCallsDrive.ts and lib/sheets-connector.ts
+// already use for this exact reason — see moveIntoSharedFolder below.
+const DEFAULT_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
+
 function getAuth() {
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!key) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY not set");
@@ -74,10 +78,22 @@ export async function createDocWithId(title: string, markedText: string): Promis
   const created = await docs.documents.create({ requestBody: { title } });
   const docId = created.data.documentId!;
 
+  // docs.documents.create always lands the file in the service account's own
+  // My Drive, which has zero storage quota for a bare (non-domain-delegated)
+  // service account — every operation after this point 403s with a bare
+  // "The caller does not have permission" until the file is moved into a
+  // folder a real human owns and has shared with the service account. Same
+  // fix lib/salesCallsDrive.ts already applies to its spreadsheet backups.
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+  const file = await drive.files.get({ fileId: docId, fields: "parents", supportsAllDrives: true });
+  const previousParents = (file.data.parents || []).join(",");
+  await drive.files.update({ fileId: docId, addParents: folderId, removeParents: previousParents, supportsAllDrives: true });
+
   await drive.permissions.create({
     fileId: docId,
     requestBody: { role: "writer", type: "user", emailAddress: LUCKY_EMAIL },
     sendNotificationEmail: false,
+    supportsAllDrives: true,
   });
 
   await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests: buildFormattingRequests(markedText, 1) } });
