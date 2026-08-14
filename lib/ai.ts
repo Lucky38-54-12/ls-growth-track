@@ -134,10 +134,9 @@ export type ExtractLeadSlotsResult =
 
 const SLOT_EXTRACTION_SYSTEM_PROMPT = `You research an electrical business for Lucky at LS Growth before he sends a fixed, pre-written cold email to them. You do not write any email copy — every email is already written and locked. Your only job is to research this one business and fill in a few slot values from what you actually find.
 
-SOURCE ORDER — use the first one that gives you real information, and stop once you have enough:
-1. Real text scraped from their website, if given below.
-2. If the website is thin, missing, or gave nothing useful, use the web_search tool to find their Facebook page.
-3. If Facebook gives nothing useful either, use the web_search tool to find their Google Business profile / Google Maps listing.
+SOURCE ORDER:
+1. Real text scraped from their website, if given below — use this and do not search at all.
+2. If the website is thin, missing, or gave nothing useful, you get exactly ONE web_search call. Search for the business name plus location (add the trade if the name is ambiguous) and use whichever real source turns up first in the results — Facebook page, Google Business/Maps listing, or anything else legitimate. You will not get a second search, so do not search again for a different source if the first result set isn't perfect — extract whatever real, confirmed information is there.
 
 ONLY use services the business explicitly states it offers, in its own words, in one of those three sources. Never infer a service from a photo, from a customer review, or from "they're an electrician so they probably do X". A generic listing like "residential and commercial electrical work" is NOT a confirmed specific service — treat that as nothing confirmed.
 
@@ -179,14 +178,14 @@ Location: ${input.location || "unknown"}
 Website: ${input.website || "none found"}
 Facebook: ${input.facebook || "none found"}
 Notes on file: ${input.notes || "none"}
-${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` : "\nNo website text available — use the web_search tool per the source order above."}`;
+${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` : "\nNo website text available — use your one web_search call per the source order above."}`;
 
   const msg = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
     system: [{ type: "text", text: SLOT_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
-    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 } as const],
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 1 } as const],
   });
 
   // With web search enabled, content can interleave search-related blocks
@@ -395,7 +394,7 @@ const PERSONALIZATION_SYSTEM_PROMPT = `You research a business for Lucky from LS
 
 You'll be given a business's name, trade, location, and what's known about their online presence — sometimes including real scraped text from their actual website. Your job:
 
-0. If no website text and no notes were given below, use the web_search tool before writing anything — search for the business by name plus location (and trade if the name alone is ambiguous) to find their actual Facebook page, Google Business/Maps listing, or any other real public presence. Do this before falling back to a generic "no website" line — a found Facebook page or listing is always better than nothing, and "genuinely nothing findable at all" should be rare once you've actually searched, not the default. If multiple businesses share a similar name, use the location and trade to confirm you found the right one — do not use anything from a business you're not confident is this one.
+0. If no website text and no notes were given below, you get exactly ONE web_search call before writing anything — search for the business by name plus location (and trade if the name alone is ambiguous) and use whichever real public presence turns up first: Facebook page, Google Business/Maps listing, or anything else legitimate. Do this before falling back to a generic "no website" line — a found Facebook page or listing is always better than nothing. You will not get a second search, so work with whatever real, confirmed information that one search returns. If multiple businesses share a similar name, use the location and trade to confirm you found the right one — do not use anything from a business you're not confident is this one.
 
 1. Write exactly ONE short sentence that replaces a generic line like "I came across {company} and wanted to see if something similar could work for a {trade} business in {location}":
    - If real website text is provided, reference something TRUE and SPECIFIC from it (a service they offer, area they cover, something distinctive) — this is by far the best source, prefer it over anything else
@@ -438,7 +437,7 @@ ${canSearch ? "\nNo website text or notes are available — search the web for t
     max_tokens: 1024,
     system: [{ type: "text", text: await withWritingStyle(PERSONALIZATION_SYSTEM_PROMPT), cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
-    ...(canSearch ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 } as const] } : {}),
+    ...(canSearch ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 1 } as const] } : {}),
   });
 
   // With web search enabled, content can interleave search-related blocks
@@ -486,7 +485,7 @@ export interface LeadDetailsResult {
 
 const LEAD_DETAILS_SYSTEM_PROMPT = `You find real contact details for a trade business for Lucky, who runs LS Growth, a lead generation agency in NZ. He's about to call this business and wants their actual phone number, email, website and owner's name if any of it is missing.
 
-You'll be given the business name, trade, location, and whatever is already known. Use the web_search tool to search for the business by name plus location (add the trade if the name is ambiguous) and find their real Google Business listing, website, or Facebook page.
+You'll be given the business name, trade, location, and whatever is already known. You get exactly ONE web_search call — search for the business by name plus location (add the trade if the name is ambiguous) and use whichever real source turns up first: Google Business listing, website, or Facebook page. You will not get a second search, so pull whatever real, confirmed details that one search returns.
 
 Only report details you actually found from a source you're confident is this specific business, not a similarly-named one elsewhere. If multiple businesses share a name, use location and trade to confirm before reporting anything from that source. Never invent or guess a phone number, email, or name, an unfound field must be null, not a guess.
 
@@ -512,7 +511,7 @@ Search for this business and find whichever of phone, email, website, facebook, 
     max_tokens: 1024,
     system: [{ type: "text", text: LEAD_DETAILS_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
-    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 } as const],
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 1 } as const],
   });
 
   // With web search enabled, content interleaves search blocks with text —

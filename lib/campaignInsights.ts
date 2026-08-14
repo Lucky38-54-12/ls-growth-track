@@ -49,8 +49,8 @@ Respond with ONLY a JSON object as your final message, no markdown fences, no ot
 {"verdict": "winning" or "losing" or "mixed" or "too_early", "diagnosis": "...", "ideas": [{"headline": "...", "angle": "...", "why": "...", "source_url": "..." or null}]}`;
 
 export async function analyzeCampaign(input: CampaignAnalysisInput): Promise<CampaignAnalysis> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+  const apiKey = process.env.ANTHROPIC_API_KEY_AD_RESEARCH || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY_AD_RESEARCH env var is not set");
 
   const client = new Anthropic({ apiKey });
 

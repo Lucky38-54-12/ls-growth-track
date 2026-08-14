@@ -76,8 +76,8 @@ export async function findWorkingAds(niche: string, location: string): Promise<A
   const cached = await findCachedRealAds(niche, location);
   if (cached) return cached;
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+  const apiKey = process.env.ANTHROPIC_API_KEY_AD_RESEARCH || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY_AD_RESEARCH env var is not set");
 
   const client = new Anthropic({ apiKey });
 
