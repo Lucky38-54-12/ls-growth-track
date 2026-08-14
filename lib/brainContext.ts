@@ -77,6 +77,17 @@ async function matchingLeads(sb: ReturnType<typeof createSupabaseClient>, userQu
     .join("\n");
 }
 
+// Onboarded LQ clients (a different set of businesses from the leads
+// pipeline above — these are LS Growth's own paying clients). List is small
+// enough to give in full, same treatment as summarizeAutomations, so the
+// Brain always has a real client_id to use for campaign_brief rather than
+// guessing one from a name.
+async function summarizeClients(sb: ReturnType<typeof createSupabaseClient>): Promise<string> {
+  const { data } = await sb.from("lq_clients").select("id, name, trade").eq("status", "active").order("name");
+  if (!data || data.length === 0) return "No active onboarded clients yet.";
+  return data.map((c) => `client_id: ${c.id} | name: ${c.name} | trade: ${c.trade || "not set"}`).join("\n");
+}
+
 async function summarizeAutomations(sb: ReturnType<typeof createSupabaseClient>): Promise<string> {
   const { data } = await sb.from("automations").select("name, kind, enabled, last_run_at, last_status, last_summary");
   const automations = (data || []) as AutomationRow[];
@@ -356,9 +367,10 @@ function withTimeout<T>(promise: Promise<T>, fallback: T, ms = SECTION_TIMEOUT_M
 export async function buildBrainContext(userQuestion: string): Promise<string> {
   const sb = createSupabaseClient();
 
-  const [leadsSummary, matchedLeads, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate] = await Promise.all([
+  const [leadsSummary, matchedLeads, clientsSummary, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate] = await Promise.all([
     withTimeout(summarizeLeads(sb).catch(() => "Lead data unavailable."), "Lead data unavailable."),
     withTimeout(matchingLeads(sb, userQuestion).catch(() => ""), ""),
+    withTimeout(summarizeClients(sb).catch(() => "Client data unavailable."), "Client data unavailable."),
     withTimeout(summarizeAutomations(sb).catch(() => "Automation data unavailable."), "Automation data unavailable."),
     withTimeout(relevantDriveDocs(userQuestion), ""),
     withTimeout(upcomingCalendarSummary(), ""),
@@ -379,6 +391,7 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     `TODAY: ${todayLabel} (NZ time) — use this to resolve any relative date/time reference (e.g. "Thursday 2pm") into a real ISO datetime.`,
     `LEAD PIPELINE SNAPSHOT:\n${leadsSummary}`,
     matchedLeads ? `LEADS MATCHING THIS QUESTION (use the exact lead_id here when drafting an email):\n${matchedLeads}` : "",
+    `ONBOARDED CLIENTS (use the exact client_id here when setting up a campaign brief, never invent one):\n${clientsSummary}`,
     `AUTOMATIONS STATUS:\n${automationsSummary}`,
     driveDocs ? `RELEVANT GOOGLE DOCS (found via live Drive search, may not be exhaustive):\n${driveDocs}` : "",
     calendarSummary ? `CALENDAR (last 3 days through next 7, "(past)" marks ones already happened):\n${calendarSummary}` : "",

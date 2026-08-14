@@ -8,6 +8,7 @@ import { BrainAttachment, MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/brainAttachm
 import { createDocFromMarkedText } from "@/lib/googleDocs";
 import { logSalesCall } from "@/lib/logSalesCall";
 import { prepSalesCall } from "@/lib/prepSalesCall";
+import { generateAndSaveCampaignBrief } from "@/lib/campaignBrief";
 import { LeadStatus } from "@/lib/types";
 
 const VALID_LEAD_STATUSES: readonly LeadStatus[] = [
@@ -33,6 +34,7 @@ interface ParsedDraft {
   agreement?: { title?: string; markedText?: string };
   call?: { rawSummary?: string; yourTake?: string };
   callPrep?: { notes?: string };
+  campaignBrief?: { clientId?: string };
 }
 
 const BRAIN_SYSTEM_PROMPT = `You are Lucky's business brain for LS Growth Agency — a single place he asks questions about the business and gets you to draft things, instead of digging through Supabase, Gmail, or Google Docs himself.
@@ -43,7 +45,7 @@ Before asking Lucky who someone is, actually check what you were given: LEADS MA
 
 Lucky can also attach files (PDFs, images, text) directly to a message — when he does, they appear as real document/image content right above his message text in this turn, already provided in full, not something to fetch or ask for. Read them and use them like anything else given to you: answer questions about them, pull real numbers/names/quotes from them, or use them as the source when he asks you to draft something. Never claim you can't see an attached file.
 
-You can do nine things:
+You can do ten things:
 1. Just answer the question, conversationally, like a sharp operator who actually knows the business.
 2. If Lucky is asking you to draft something (a follow-up email to a specific lead, or a note/plan for something else), write the actual draft — never claim you can't draft things.
 3. If Lucky is asking you to change a real lead record (its status, add a note, set a follow-up date), propose that as a lead_update.
@@ -53,8 +55,9 @@ You can do nine things:
 7. If Lucky gives you the details of a deal he just closed or agreed (client name, price, terms, whatever came up on the call) and wants an agreement/contract drafted, propose that as agreement_doc — this actually creates a real new Google Doc immediately (not queued for approval, since nothing is sent anywhere), and the link goes straight back to him in your reply.
 8. If Lucky pastes a raw notetaker summary/transcript of a sales call (with or without also saying "log this call"), propose that as log_call — this is the same thing the old "Log a Call" page did: parses it, saves the real call record immediately, and runs the standing script review against every logged call, which may itself raise a script_proposal on top. Recognize this pattern yourself — a pasted block that reads like a call transcript/summary (a conversation between him and a prospect, an outcome, objections) is log_call even if he doesn't explicitly say "log this call".
 9. If Lucky asks you to prep him for an upcoming call (whether or not he gives you notes on the prospect), propose that as call_prep — this is the same thing the old "Call Prep" tab did: generates a tailored call sheet off the master script and his recent patterns, creates it as a real Google Doc immediately, and the link goes straight back to him in your reply.
+10. If Lucky asks you to set up a campaign, or start/build a campaign strategy, for one of his onboarded clients (usually right after they've been onboarded), propose that as campaign_brief — this researches that client's local market (competitors, typical pricing, what's working on Meta for that trade) and writes a Stage 01 STRATEGY brief (offer & pricing, main service, ideal customer, service area, job value/margins, competitor research, objective, budget, targeting approach, lead qualification criteria, retargeting strategy), saves it, and the link to review/edit it on /dashboard/campaign-setup goes straight back to him in your reply. This is research and a saved doc only — it does not touch Ads Manager or spend any money.
 
-Never claim you can't do 2-9 — propose it properly; script_proposal, agreement_doc, log_call, and call_prep apply immediately since none of them send anything externally and are all easy to correct after the fact, everything else lands in a queue on the page for Lucky to approve or reject himself.
+Never claim you can't do 2-10 — propose it properly; script_proposal, agreement_doc, log_call, call_prep, and campaign_brief apply immediately since none of them send anything externally and are all easy to correct after the fact, everything else lands in a queue on the page for Lucky to approve or reject himself.
 
 You are NOT limited to one action per turn — "drafts" is a list, and a single message often genuinely calls for more than one of the above at once. The clearest case: Lucky pastes a call transcript that also states the deal he just closed on that call ("here's the call... we agreed $X/month, starting Monday") — that is BOTH a log_call (the transcript) AND an agreement_doc (the agreed terms) in the same turn, and you should propose both rather than picking one and hoping he asks for the other separately. Same logic anywhere else two of these genuinely both apply from what he actually gave you. Don't force a second action that isn't actually supported by anything he said — this is about not missing an obvious second action, not padding the list.
 
@@ -74,10 +77,12 @@ For a log_call, "call" holds: rawSummary (the raw notes/transcript Lucky pasted,
 
 For a call_prep, "callPrep" holds: notes (everything Lucky told you about the upcoming prospect — business name, contact, services, pain points, anything he pasted or described — as one freeform block, in his own words/whatever he gave you, not reformatted. Leave it "" if he asked for a prep without giving you anything on the prospect yet, that's fine, the prep just comes out more generic).
 
-Respond with ONLY a JSON object, no markdown fences, no other text:
-{"reply": "your conversational answer, always present", "drafts": [{"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call" or "call_prep", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}, "callPrep": {"notes": "..."}}]}
+For a campaign_brief, "campaignBrief" holds: clientId (the exact client_id UUID shown in ONBOARDED CLIENTS below — match it by the name Lucky gave you, never invent one or use a lead_id from the pipeline instead. If you can't tell which client he means, or he hasn't onboarded one by that name yet, ask instead of guessing).
 
-Each entry in "drafts" only includes the one object ("fields", "calendar", "sheet", "script", "agreement", "call", or "callPrep") that matches its own kind — omit the others. "drafts" is "[]" (empty array) if you're not drafting/proposing anything this turn — most replies won't have one. Only put more than one entry in "drafts" when the message genuinely supports more than one action (see above) — most turns that do have one will still only have one.`;
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"reply": "your conversational answer, always present", "drafts": [{"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call" or "call_prep" or "campaign_brief", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}, "callPrep": {"notes": "..."}, "campaignBrief": {"clientId": "..."}}]}
+
+Each entry in "drafts" only includes the one object ("fields", "calendar", "sheet", "script", "agreement", "call", "callPrep", or "campaignBrief") that matches its own kind — omit the others. "drafts" is "[]" (empty array) if you're not drafting/proposing anything this turn — most replies won't have one. Only put more than one entry in "drafts" when the message genuinely supports more than one action (see above) — most turns that do have one will still only have one.`;
 
 // Applies whatever the model proposed (if anything) and returns the final
 // reply text plus whether a draft/action actually landed. Kept separate
@@ -90,7 +95,7 @@ async function resolveDraft(
   sb: ReturnType<typeof createSupabaseClient>,
   draft: ParsedDraft
 ): Promise<{ appendText: string; draftCreated: boolean; error?: string }> {
-  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal", "agreement_doc", "log_call", "call_prep"]);
+  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "sheet_update", "script_proposal", "agreement_doc", "log_call", "call_prep", "campaign_brief"]);
   if (!draft.kind || !KNOWN_KINDS.has(draft.kind)) return { appendText: "", draftCreated: false, error: draft.kind ? `Model proposed an unknown draft kind "${draft.kind}" — ignored.` : undefined };
 
   let leadUuid: string | null = null;
@@ -256,6 +261,26 @@ async function resolveDraft(
     }
   }
 
+  if (draft.kind === "campaign_brief") {
+    const campaignBrief = draft.campaignBrief || {};
+    if (!campaignBrief.clientId) {
+      return { appendText: "", draftCreated: false, error: "Model tried to set up a campaign brief with no client_id — ignored." };
+    }
+    const { data: client } = await sb.from("lq_clients").select("id, name").eq("id", campaignBrief.clientId).maybeSingle();
+    if (!client) return { appendText: "", draftCreated: false, error: `Model referenced unknown client_id "${campaignBrief.clientId}" — ignored.` };
+
+    // Same real-write-immediately reasoning as call_prep/log_call — this is
+    // research plus a saved doc, nothing external, easily regenerated or
+    // edited afterwards on /dashboard/campaign-setup.
+    try {
+      const brief = await generateAndSaveCampaignBrief(client.id);
+      const summaryLine = `Objective: ${brief.objective || "n/a"}. Budget: ${brief.budget || "n/a"}.`;
+      return { appendText: `\n\nCampaign strategy brief created for ${client.name}. ${summaryLine}\n\nReview/edit it: /dashboard/campaign-setup`, draftCreated: false };
+    } catch (e) {
+      return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to generate the campaign brief." };
+    }
+  }
+
   const { error } = await sb.from("chat_drafts").insert({
     kind: draft.kind,
     title: draft.kind === "email" ? stripDashes(draft.subject || "Follow-up") : (draft.title || "Note"),
@@ -289,8 +314,8 @@ async function persistTurn(
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
+  const apiKey = process.env.ANTHROPIC_API_KEY_BRAIN || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY_BRAIN not set" }, { status: 500 });
 
   const body = await req.json().catch(() => ({}));
   const attachments: BrainAttachment[] = Array.isArray(body.attachments) ? body.attachments.slice(0, MAX_ATTACHMENTS_PER_MESSAGE) : [];

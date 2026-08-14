@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, Users, Phone, Calendar, Sun, Inbox, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Flame, Menu, X, Sparkles, LineChart, ListChecks, UserX, Brain, CheckCheck,
+  LayoutDashboard, Users, Phone, Calendar, Sun, Inbox, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Flame, Menu, X, Sparkles, LineChart, ListChecks, UserX, Brain, CheckCheck, Target,
 } from "lucide-react";
 
 const NAV = [
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/dashboard/email-outreach", label: "Email Outreach", icon: Rows3 },
   { href: "/dashboard/contacts", label: "Contacts", icon: Users },
   { href: "/dashboard/lead-qual", label: "Onboarding", icon: Bot },
+  { href: "/dashboard/campaign-setup", label: "Campaign Setup", icon: Target },
   { href: "/dashboard/sales-calls", label: "Sales", icon: PhoneCall },
   { href: "/dashboard/discovery-pipeline", label: "Discovery Pipeline", icon: Flame },
   { href: "/dashboard/automations", label: "Automations", icon: Zap },
