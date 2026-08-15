@@ -3,6 +3,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 import { parseJsonResponse } from "@/lib/ai";
 import { appendMarkedTextToDocTab } from "@/lib/googleDocs";
 import { ServiceStrategy } from "@/lib/campaignBrief";
+import { findWorkingAds } from "@/lib/adResearch";
 
 export interface AdConcept {
   angle: string;
@@ -25,9 +26,9 @@ For each ad write:
 - primaryText: the actual ad copy body a lead would read, 2-4 sentences, direct-response style — a real offer and a real call to action, not vague brand copy
 - creativeDirection: what the image or video should actually show, 1-2 sentences, specific enough that a photo/video could be picked or shot from it
 - targeting: this specific ad's audience/placement notes — most ads will just restate the shared targeting in short form, but say plainly if this ad is testing something narrower/different and why
-- referenceLinks: use the web_search tool to find 2-3 real reference links Lucky can actually open for this ad's creative. Only two kinds of link are acceptable: (1) a specific video post on Instagram (reel/post), TikTok, or Facebook (video/reel) — the actual post URL, matching the creativeDirection; or (2) a specific static before/after or finished-result image matching the creativeDirection — a real Instagram/Facebook photo post, Pinterest pin, or project gallery page, not a generic stock photo site homepage. NEVER return YouTube, a blog post, an article, a "how to run ads" guide, a marketing-tips page, a stock-footage site's homepage, or any other link that isn't itself a specific IG/TikTok/Facebook post or a specific real image — those are useless to him and worse than returning nothing. Search with platform-specific terms (e.g. site:instagram.com/reel, site:tiktok.com, site:facebook.com, "before after deck instagram") rather than generic advice queries. If you can't find real matching links for an ad after searching, return an empty list for it rather than substituting something off-platform.
+- referenceLinks: you're given real Meta ad research below (from LS Growth's own ad research tool — either a hand-verified Meta Ad Library cache or a careful AI web search that never invents URLs). For each ad, if one of those research entries has a real source_url and its angle/format genuinely matches what this ad is doing, include that source_url here so Lucky can open the real example. NEVER invent a URL yourself, and never include a source_url whose angle doesn't actually match this specific ad — an empty list is correct and expected when nothing in the research fits.
 
-If Lucky's own notes (given below, when present) already describe a specific ad idea he wants for this service — an angle, a video concept, or actual reference links he already found — build that as one of the 3 ads using his idea, not a different angle you'd have picked yourself. Keep any links he already gave verbatim in that ad's referenceLinks (still fine to search and add 1-2 more alongside them). Fill the other ads around it as normal.
+If Lucky's own notes (given below, when present) already describe a specific ad idea he wants for this service — an angle, a video concept, or actual reference links he already found — build that as one of the 3 ads using his idea, not a different angle you'd have picked yourself. Keep any links he already gave verbatim in that ad's referenceLinks. Fill the other ads around it as normal.
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
 {"ads": [{"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}]}`;
@@ -49,7 +50,7 @@ export async function generateAdConcepts(clientId: string, service: string): Pro
 
   const { data: client, error: clientError } = await sb
     .from("lq_clients")
-    .select("id, name")
+    .select("id, name, trade")
     .eq("id", clientId)
     .maybeSingle();
   if (clientError || !client) throw new Error(`Unknown client_id "${clientId}"`);
@@ -73,11 +74,30 @@ export async function generateAdConcepts(clientId: string, service: string): Pro
   // text.
   const { data: configs } = await sb
     .from("lq_client_configs")
-    .select("business_info, status, version")
+    .select("business_info, service_areas, status, version")
     .eq("client_id", clientId)
     .order("version", { ascending: false });
   const config = (configs || []).find((c) => c.status === "published") || (configs || [])[0] || null;
   const extraContext = (config?.business_info as { extra_context?: string } | null)?.extra_context || "";
+  const serviceAreas: string[] = config?.service_areas || [];
+
+  // Real Meta ad research (same tool behind /dashboard/meta-ads' Research
+  // tab) — a hand-verified Ad Library cache when one exists for this niche,
+  // otherwise a careful AI web search that never invents a source_url.
+  // Grounds referenceLinks in something real instead of this call guessing
+  // at specific IG/TikTok post URLs itself.
+  let researchBlock = "";
+  try {
+    const research = await findWorkingAds(`${service} — ${client.trade || ""}`.trim(), serviceAreas.join(", "));
+    const adsList = research.ads
+      .slice(0, 8)
+      .map((a) => `- angle: ${a.angle} | headline: ${a.headline} | offer: ${a.offer || "n/a"} | format: ${a.format} | source_url: ${a.source_url || "none — do not use"}`)
+      .join("\n");
+    researchBlock = `\nREAL META AD RESEARCH FOR THIS NICHE (${research.source === "live_ad_library" ? "verified Ad Library cache" : "AI web search, source_url only present when actually found"}):\n${research.summary}\n${adsList}\n`;
+  } catch {
+    // Non-fatal — ad concepts still generate fine without it, just with no
+    // referenceLinks candidates.
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
@@ -96,7 +116,7 @@ Job value & margins: ${strategy.jobValueMargins}
 Competitor research: ${strategy.competitorResearch}
 Lead qualification criteria: ${strategy.leadQualificationCriteria}
 Retargeting strategy: ${strategy.retargetingStrategy}
-${extraContext ? `\nLucky's own notes on this client (may include a specific ad idea for this service to use as-is — see instructions above):\n${extraContext}\n` : ""}
+${researchBlock}${extraContext ? `\nLucky's own notes on this client (may include a specific ad idea for this service to use as-is — see instructions above):\n${extraContext}\n` : ""}
 Write the 3 ad concepts for "${service}".`;
 
   const msg = await anthropic.messages.create({
@@ -104,7 +124,6 @@ Write the 3 ad concepts for "${service}".`;
     max_tokens: 4096,
     system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
-    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8 } as const],
   });
 
   const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
