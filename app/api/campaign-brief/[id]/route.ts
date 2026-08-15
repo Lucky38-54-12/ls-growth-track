@@ -3,14 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const EDITABLE_FIELDS = [
-  "offer_pricing",
-  "ideal_customer",
-  "budget_targeting",
-  "job_value_margins",
-  "competitor_research",
-  "lead_qualification_criteria",
-  "retargeting_strategy",
+const SHARED_EDITABLE_FIELDS = ["ideal_customer", "budget_targeting"] as const;
+const SERVICE_FIELD_KEYS = [
+  "offerPricing",
+  "jobValueMargins",
+  "competitorResearch",
+  "leadQualificationCriteria",
+  "retargetingStrategy",
 ] as const;
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,19 +26,40 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   return NextResponse.json({ brief: data });
 }
 
-// Manual edits to individual fields and/or the draft/approved status —
-// used by the editable form and the "Mark approved" button.
+// Manual edits — shared fields (ideal_customer/budget_targeting) update the
+// row directly and are automatically shared across every service tab since
+// they're not duplicated per service; `service` + `serviceFields` merge into
+// just that one key of service_details. Also handles the draft/approved
+// status toggle.
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sb = createSupabaseClient();
   const body = await request.json();
 
-  const update: Record<string, string> = {};
-  for (const field of EDITABLE_FIELDS) {
+  const update: Record<string, unknown> = {};
+  for (const field of SHARED_EDITABLE_FIELDS) {
     if (typeof body[field] === "string") update[field] = body[field];
   }
   if (body.status === "draft" || body.status === "approved") update.status = body.status;
-  if (typeof body.doc_markdown === "string") update.doc_markdown = body.doc_markdown;
+
+  const service = typeof body.service === "string" ? body.service.trim() : "";
+  if (service && body.serviceFields && typeof body.serviceFields === "object") {
+    const { data: existing, error: fetchError } = await sb
+      .from("campaign_briefs")
+      .select("service_details")
+      .eq("id", id)
+      .maybeSingle();
+    if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 400 });
+    if (!existing) return NextResponse.json({ error: "Brief not found" }, { status: 404 });
+
+    const serviceDetails = { ...(existing.service_details as Record<string, Record<string, unknown>>) };
+    const current = { ...(serviceDetails[service] || {}) };
+    for (const key of SERVICE_FIELD_KEYS) {
+      if (typeof body.serviceFields[key] === "string") current[key] = body.serviceFields[key];
+    }
+    serviceDetails[service] = current;
+    update.service_details = serviceDetails;
+  }
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: "No editable fields provided" }, { status: 400 });

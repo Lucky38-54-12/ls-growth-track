@@ -9,10 +9,12 @@ export const maxDuration = 90;
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const clientId = typeof body.clientId === "string" ? body.clientId.trim() : "";
+  const service = typeof body.service === "string" ? body.service.trim() : "";
   if (!clientId) return NextResponse.json({ error: "clientId is required" }, { status: 400 });
+  if (!service) return NextResponse.json({ error: "service is required" }, { status: 400 });
 
   try {
-    const brief = await generateAndSaveCampaignBrief(clientId);
+    const brief = await generateAndSaveCampaignBrief(clientId, service);
     return NextResponse.json({ brief });
   } catch (err) {
     const messageText = err instanceof Error ? err.message : "unknown_error";

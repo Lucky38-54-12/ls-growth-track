@@ -19,8 +19,24 @@ export async function GET() {
     .select("id, client_id, status, updated_at");
   if (briefsError) return NextResponse.json({ error: briefsError.message }, { status: 400 });
 
+  // Each client's real service list — drives which service tabs
+  // /dashboard/campaign-setup renders. Highest version per client wins
+  // (same "latest config" logic campaignBrief.ts uses).
+  const { data: configs } = await sb
+    .from("lq_client_configs")
+    .select("client_id, services, version")
+    .order("version", { ascending: false });
+  const servicesByClient = new Map<string, string[]>();
+  for (const c of configs || []) {
+    if (!servicesByClient.has(c.client_id)) servicesByClient.set(c.client_id, c.services || []);
+  }
+
   const briefByClient = new Map((briefs || []).map((b) => [b.client_id, b]));
-  const result = (clients || []).map((c) => ({ ...c, brief: briefByClient.get(c.id) || null }));
+  const result = (clients || []).map((c) => ({
+    ...c,
+    services: servicesByClient.get(c.id) || [],
+    brief: briefByClient.get(c.id) || null,
+  }));
 
   return NextResponse.json({ clients: result });
 }

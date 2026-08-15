@@ -4,70 +4,72 @@ import { parseJsonResponse } from "@/lib/ai";
 import { createDocWithId, appendMarkedTextToDoc } from "@/lib/googleDocs";
 import { notifySlack } from "@/lib/slack";
 
-export interface CampaignBriefFields {
+// Ideal customer + budget/targeting are shared across every service a
+// client offers (same audience, same spend, regardless of which service tab
+// you're looking at) — everything else is specific to one service and
+// lives under campaign_briefs.service_details, keyed by service name.
+export interface ServiceStrategy {
   offerPricing: string;
-  idealCustomer: string;
-  budgetTargeting: string;
   jobValueMargins: string;
   competitorResearch: string;
   leadQualificationCriteria: string;
   retargetingStrategy: string;
 }
 
-export interface CampaignBriefResult extends CampaignBriefFields {
+export interface CampaignBriefResult {
+  idealCustomer: string;
+  budgetTargeting: string;
+  service: string;
+  serviceFields: ServiceStrategy;
   docMarkdown: string;
   clientName: string;
 }
 
-const PRIMARY_FIELDS: (keyof CampaignBriefFields)[] = ["offerPricing", "idealCustomer", "budgetTargeting"];
-const SUPPORTING_FIELDS: (keyof CampaignBriefFields)[] = [
-  "jobValueMargins",
-  "competitorResearch",
-  "leadQualificationCriteria",
-  "retargetingStrategy",
-];
-
-const SECTION_LABELS: Record<keyof CampaignBriefFields, string> = {
+const SERVICE_FIELD_LABELS: Record<keyof ServiceStrategy, string> = {
   offerPricing: "Offer + Pricing Confirmed",
-  idealCustomer: "Ideal Customer Defined",
-  budgetTargeting: "Budget + Targeting Set",
   jobValueMargins: "Job Value & Margins",
   competitorResearch: "Competitor Research",
   leadQualificationCriteria: "Lead Qualification Criteria",
   retargetingStrategy: "Retargeting Strategy",
 };
 
-const SYSTEM_PROMPT = `You write Stage 01 (STRATEGY) campaign briefs for Lucky from LS Growth, a lead generation agency that runs Meta ads for trade and home service businesses in NZ and Australia. This is the strategy step that happens before any ad gets built. LS Growth's own process only has 3 things to confirm at this stage — this brief exists to confirm exactly those 3, nothing more:
+const SYSTEM_PROMPT = `You write Stage 01 (STRATEGY) campaign briefs for Lucky from LS Growth, a lead generation agency that runs Meta ads for trade and home service businesses in NZ and Australia. This is the strategy step that happens before any ad gets built. LS Growth's own process only has 3 things to confirm at this stage:
 
 1. Offer + pricing confirmed
 2. Ideal customer defined
 3. Budget + targeting set
 
-You'll be given a client's trade, service area(s), and whatever business info is already on file (description, proof points, existing services). Use the web_search tool to research that trade in that specific city/region before writing anything: who the visible competitors are and what they're doing, typical pricing/job value for that trade locally, and what ad angles/offers are currently working for this niche on Meta. Do several searches with different phrasings before answering — don't stop after one search.
+A client can offer several distinct services (e.g. renovations, extensions, decks) run as separate campaigns — you're being asked to research ONE specific service this time, given below, while ideal customer and budget/targeting are shared across all of that client's services (write those considering the client's full service list, not just the one you're researching).
 
-Write these 7 fields:
+You'll be given a client's trade, service area(s), full service list, which one service to focus this brief on, and whatever business info is already on file. Use the web_search tool to research that specific service in that specific city/region before writing anything: who the visible competitors are and what they're doing, typical pricing/job value for that service locally, and what ad angles/offers are currently working for this niche on Meta. Do several searches with different phrasings before answering — don't stop after one search.
 
-PRIMARY — these are the actual deliverable. Each is 1-2 sentences MAX, a plain decision statement, not a research writeup. State the number or the choice directly — no throat-clearing, no "the market suggests," no restating the question back. If you found a real number, lead with it; don't hedge with a paragraph of justification underneath.
-- offerPricing: the one service to build this campaign around, and the specific offer/price to lead with — a real number or range for this trade+region, not "competitive pricing"
-- idealCustomer: who actually buys this and where — property type/situation that identifies them, and the real coverage area, in one line
+Write these fields:
+
+SHARED (apply to the whole client, not just this one service) — each 1-2 sentences MAX, a plain decision statement, not a research writeup:
+- idealCustomer: who actually buys from this client across their services and where — property type/situation that identifies them, and the real coverage area, in one line
 - budgetTargeting: what to optimize for (leads/calls/bookings), a concrete starting daily/monthly budget, and the core targeting approach on Meta — one line each, combined
 
-SUPPORTING — brief backing notes for the above, 2-3 sentences max each, still specific to this client/market (never generic filler that could apply to any trade):
-- jobValueMargins: typical job value and margin for this service in this market
-- competitorResearch: what you actually found — real competitors/ads if any, their angle, what gap exists
-- leadQualificationCriteria: what separates a lead worth calling from one to filter out
-- retargetingStrategy: what to retarget and with what, once the campaign has initial traffic
+THIS SERVICE ONLY:
+- offerPricing (1-2 sentences MAX, plain decision statement): the specific offer/price to lead with for this one service — a real number or range for this trade+region+service, not "competitive pricing"
+- jobValueMargins (2-3 sentences): typical job value and margin for this specific service in this market
+- competitorResearch (2-3 sentences): what you actually found — real competitors/ads if any doing this service, their angle, what gap exists
+- leadQualificationCriteria (2-3 sentences): what separates a lead worth calling from one to filter out, for this service
+- retargetingStrategy (2-3 sentences): what to retarget and with what, once this service's campaign has initial traffic
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
-{"offerPricing": "...", "idealCustomer": "...", "budgetTargeting": "...", "jobValueMargins": "...", "competitorResearch": "...", "leadQualificationCriteria": "...", "retargetingStrategy": "..."}`;
+{"idealCustomer": "...", "budgetTargeting": "...", "offerPricing": "...", "jobValueMargins": "...", "competitorResearch": "...", "leadQualificationCriteria": "...", "retargetingStrategy": "..."}`;
 
-function buildDocMarkdown(clientName: string, fields: CampaignBriefFields): string {
-  const primary = PRIMARY_FIELDS.map((key) => `## ${SECTION_LABELS[key]}\n${fields[key] || "—"}`).join("\n\n");
-  const supporting = SUPPORTING_FIELDS.map((key) => `## ${SECTION_LABELS[key]}\n${fields[key] || "—"}`).join("\n\n");
-  return `# Campaign Brief — ${clientName}\n\n# Stage 01 — Strategy (Confirmed)\n\n${primary}\n\n# Supporting Research\n\n${supporting}`;
+function buildDocMarkdown(service: string, idealCustomer: string, budgetTargeting: string, fields: ServiceStrategy, includeShared: boolean): string {
+  const shared = includeShared
+    ? `## Ideal Customer Defined\n${idealCustomer || "—"}\n\n## Budget + Targeting Set\n${budgetTargeting || "—"}\n\n`
+    : "";
+  const serviceFields = (Object.keys(SERVICE_FIELD_LABELS) as (keyof ServiceStrategy)[])
+    .map((key) => `## ${SERVICE_FIELD_LABELS[key]}\n${fields[key] || "—"}`)
+    .join("\n\n");
+  return `# Strategy — ${service}\n\n${shared}${serviceFields}`;
 }
 
-export async function generateCampaignBrief(clientId: string): Promise<CampaignBriefResult> {
+export async function generateCampaignBrief(clientId: string, service: string): Promise<CampaignBriefResult> {
   const sb = createSupabaseClient();
 
   const { data: client, error: clientError } = await sb
@@ -101,13 +103,14 @@ export async function generateCampaignBrief(clientId: string): Promise<CampaignB
   const userPrompt = `Client: ${client.name}
 Trade: ${client.trade || "unknown — infer from the info below"}
 Service area(s): ${serviceAreas.length ? serviceAreas.join(", ") : "not set — infer a reasonable NZ/AU region if the trade/name implies one, otherwise say so in idealCustomer"}
-Existing services on file: ${services.length ? services.join(", ") : "none listed"}
+Full service list: ${services.length ? services.join(", ") : "none listed"}
+Service to research and write this brief for: ${service}
 Business description on file: ${businessInfo.description || "none"}
 Proof point on file: ${businessInfo.proof_point || "none"}
 Website: ${businessInfo.website_url || "none"}
 Extra context: ${businessInfo.extra_context || "none"}
 
-Research this market and write the Stage 01 STRATEGY brief.`;
+Research the "${service}" service in this market and write the Stage 01 STRATEGY brief.`;
 
   const msg = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
@@ -120,53 +123,73 @@ Research this market and write the Stage 01 STRATEGY brief.`;
   const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
   if (!text) throw new Error("Unexpected response from AI");
 
-  const parsed = parseJsonResponse<Partial<CampaignBriefFields>>(text);
+  const parsed = parseJsonResponse<Partial<ServiceStrategy> & { idealCustomer?: string; budgetTargeting?: string }>(text);
 
-  const fields: CampaignBriefFields = {
+  const serviceFields: ServiceStrategy = {
     offerPricing: parsed.offerPricing || "",
-    idealCustomer: parsed.idealCustomer || "",
-    budgetTargeting: parsed.budgetTargeting || "",
     jobValueMargins: parsed.jobValueMargins || "",
     competitorResearch: parsed.competitorResearch || "",
     leadQualificationCriteria: parsed.leadQualificationCriteria || "",
     retargetingStrategy: parsed.retargetingStrategy || "",
   };
+  const idealCustomer = parsed.idealCustomer || "";
+  const budgetTargeting = parsed.budgetTargeting || "";
 
-  if (!fields.offerPricing || !fields.idealCustomer || !fields.budgetTargeting) {
+  if (!serviceFields.offerPricing || !idealCustomer || !budgetTargeting) {
     throw new Error("AI response missing required brief fields");
   }
 
-  return { ...fields, docMarkdown: buildDocMarkdown(client.name, fields), clientName: client.name };
+  return {
+    idealCustomer,
+    budgetTargeting,
+    service,
+    serviceFields,
+    docMarkdown: buildDocMarkdown(service, idealCustomer, budgetTargeting, serviceFields, true),
+    clientName: client.name,
+  };
 }
 
-// Generates a fresh brief and upserts it (status reset to "draft" — any
-// prior approval doesn't carry over automatically since the content just
-// changed). Shared by the campaign-brief API route and the Brain chat's
-// campaign_brief action so both write to the same place the same way.
-export async function generateAndSaveCampaignBrief(clientId: string) {
-  const fields = await generateCampaignBrief(clientId);
+// Generates a fresh strategy for one service and merges it into the
+// client's campaign_briefs row (status reset to "draft" — any prior
+// approval doesn't carry over automatically since the content just
+// changed). idealCustomer/budgetTargeting are shared across services — only
+// written the first time (row doesn't exist yet or they're still empty),
+// never silently overwritten by a later service's generation. Shared by the
+// campaign-brief API route and the Brain chat's campaign_brief action so
+// both write to the same place the same way.
+export async function generateAndSaveCampaignBrief(clientId: string, service: string) {
   const sb = createSupabaseClient();
 
-  // One persistent Google Doc per client — created the first time a brief
-  // is generated, then appended to (never replaced) on every regeneration
-  // so later stages (ad copy, landing page notes, etc) can build into the
-  // same file instead of scattering across separate docs per run.
   const { data: existing } = await sb
     .from("campaign_briefs")
-    .select("google_doc_id, google_doc_url")
+    .select("google_doc_id, google_doc_url, ideal_customer, budget_targeting, service_details")
     .eq("client_id", clientId)
     .maybeSingle();
 
+  const result = await generateCampaignBrief(clientId, service);
+
+  const sharedAlreadySet = !!(existing?.ideal_customer && existing?.budget_targeting);
+  const idealCustomer = sharedAlreadySet ? existing!.ideal_customer : result.idealCustomer;
+  const budgetTargeting = sharedAlreadySet ? existing!.budget_targeting : result.budgetTargeting;
+
+  const serviceDetails = { ...(existing?.service_details as Record<string, unknown> | null) };
+  serviceDetails[service] = result.serviceFields;
+
+  // One persistent Google Doc per client — created the first time any
+  // brief is generated, then appended to (never replaced) on every
+  // regeneration so every service's strategy, ad copy, etc accumulates in
+  // the same file instead of scattering across separate docs per run.
   let googleDocId = existing?.google_doc_id || null;
   let googleDocUrl = existing?.google_doc_url || null;
 
+  const docMarkdown = buildDocMarkdown(service, idealCustomer, budgetTargeting, result.serviceFields, !sharedAlreadySet);
   if (!googleDocId) {
-    const created = await createDocWithId(`${fields.clientName} — Campaign Master Doc`, fields.docMarkdown);
+    const created = await createDocWithId(`${result.clientName} — Campaign Master Doc`, docMarkdown);
     googleDocId = created.docId;
     googleDocUrl = created.url;
   } else {
     const dateLabel = new Date().toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
-    await appendMarkedTextToDoc(googleDocId, `## Strategy Brief Regenerated — ${dateLabel}\n${fields.docMarkdown.replace(/^# .+\n\n/, "")}`);
+    await appendMarkedTextToDoc(googleDocId, `## Strategy Regenerated — ${dateLabel}\n${docMarkdown.replace(/^# .+\n\n/, "")}`);
   }
 
   const { data, error } = await sb
@@ -175,14 +198,9 @@ export async function generateAndSaveCampaignBrief(clientId: string) {
       {
         client_id: clientId,
         status: "draft",
-        offer_pricing: fields.offerPricing,
-        ideal_customer: fields.idealCustomer,
-        budget_targeting: fields.budgetTargeting,
-        job_value_margins: fields.jobValueMargins,
-        competitor_research: fields.competitorResearch,
-        lead_qualification_criteria: fields.leadQualificationCriteria,
-        retargeting_strategy: fields.retargetingStrategy,
-        doc_markdown: fields.docMarkdown,
+        ideal_customer: idealCustomer,
+        budget_targeting: budgetTargeting,
+        service_details: serviceDetails,
         google_doc_id: googleDocId,
         google_doc_url: googleDocUrl,
         updated_at: new Date().toISOString(),
@@ -193,7 +211,7 @@ export async function generateAndSaveCampaignBrief(clientId: string) {
     .single();
   if (error) throw new Error(error.message);
 
-  await notifySlack(`Campaign strategy brief ready for *${fields.clientName}*.\n${fields.offerPricing}\nDoc: ${googleDocUrl}`);
+  await notifySlack(`Campaign strategy ready for *${result.clientName}* — ${service}.\n${result.serviceFields.offerPricing}\nDoc: ${googleDocUrl}`);
 
   return data;
 }

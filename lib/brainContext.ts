@@ -85,7 +85,22 @@ async function matchingLeads(sb: ReturnType<typeof createSupabaseClient>, userQu
 async function summarizeClients(sb: ReturnType<typeof createSupabaseClient>): Promise<string> {
   const { data } = await sb.from("lq_clients").select("id, name, trade").eq("status", "active").order("name");
   if (!data || data.length === 0) return "No active onboarded clients yet.";
-  return data.map((c) => `client_id: ${c.id} | name: ${c.name} | trade: ${c.trade || "not set"}`).join("\n");
+
+  const { data: configs } = await sb
+    .from("lq_client_configs")
+    .select("client_id, services, version")
+    .order("version", { ascending: false });
+  const servicesByClient = new Map<string, string[]>();
+  for (const c of configs || []) {
+    if (!servicesByClient.has(c.client_id)) servicesByClient.set(c.client_id, c.services || []);
+  }
+
+  return data
+    .map((c) => {
+      const services = servicesByClient.get(c.id) || [];
+      return `client_id: ${c.id} | name: ${c.name} | trade: ${c.trade || "not set"} | services: ${services.length ? services.join(", ") : "none set"}`;
+    })
+    .join("\n");
 }
 
 async function summarizeAutomations(sb: ReturnType<typeof createSupabaseClient>): Promise<string> {

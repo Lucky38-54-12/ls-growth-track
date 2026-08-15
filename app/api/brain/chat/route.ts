@@ -34,7 +34,7 @@ interface ParsedDraft {
   agreement?: { title?: string; markedText?: string };
   call?: { rawSummary?: string; yourTake?: string };
   callPrep?: { notes?: string };
-  campaignBrief?: { clientId?: string };
+  campaignBrief?: { clientId?: string; service?: string };
 }
 
 const BRAIN_SYSTEM_PROMPT = `You are Lucky's business brain for LS Growth Agency — a single place he asks questions about the business and gets you to draft things, instead of digging through Supabase, Gmail, or Google Docs himself.
@@ -77,10 +77,10 @@ For a log_call, "call" holds: rawSummary (the raw notes/transcript Lucky pasted,
 
 For a call_prep, "callPrep" holds: notes (everything Lucky told you about the upcoming prospect — business name, contact, services, pain points, anything he pasted or described — as one freeform block, in his own words/whatever he gave you, not reformatted. Leave it "" if he asked for a prep without giving you anything on the prospect yet, that's fine, the prep just comes out more generic).
 
-For a campaign_brief, "campaignBrief" holds: clientId (the exact client_id UUID shown in ONBOARDED CLIENTS below — match it by the name Lucky gave you, never invent one or use a lead_id from the pipeline instead. If you can't tell which client he means, or he hasn't onboarded one by that name yet, ask instead of guessing).
+For a campaign_brief, "campaignBrief" holds: clientId (the exact client_id UUID shown in ONBOARDED CLIENTS below — match it by the name Lucky gave you, never invent one or use a lead_id from the pipeline instead. If you can't tell which client he means, or he hasn't onboarded one by that name yet, ask instead of guessing), and service (the specific service to build the strategy for, e.g. "Decks/fences" — a client can offer several; if Lucky named one, use it exactly as listed for that client, otherwise omit and the client's first listed service is used).
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
-{"reply": "your conversational answer, always present", "drafts": [{"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call" or "call_prep" or "campaign_brief", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}, "callPrep": {"notes": "..."}, "campaignBrief": {"clientId": "..."}}]}
+{"reply": "your conversational answer, always present", "drafts": [{"kind": "email" or "note" or "lead_update" or "calendar_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call" or "call_prep" or "campaign_brief", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}, "callPrep": {"notes": "..."}, "campaignBrief": {"clientId": "...", "service"?: "..."}}]}
 
 Each entry in "drafts" only includes the one object ("fields", "calendar", "sheet", "script", "agreement", "call", "callPrep", or "campaignBrief") that matches its own kind — omit the others. "drafts" is "[]" (empty array) if you're not drafting/proposing anything this turn — most replies won't have one. Only put more than one entry in "drafts" when the message genuinely supports more than one action (see above) — most turns that do have one will still only have one.`;
 
@@ -269,14 +269,33 @@ async function resolveDraft(
     const { data: client } = await sb.from("lq_clients").select("id, name").eq("id", campaignBrief.clientId).maybeSingle();
     if (!client) return { appendText: "", draftCreated: false, error: `Model referenced unknown client_id "${campaignBrief.clientId}" — ignored.` };
 
+    // Each strategy is scoped to one service now — if the model (or Lucky's
+    // message) didn't name one, fall back to the client's first listed
+    // service rather than failing outright.
+    let service = campaignBrief.service?.trim() || "";
+    if (!service) {
+      const { data: config } = await sb
+        .from("lq_client_configs")
+        .select("services")
+        .eq("client_id", client.id)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      service = (config?.services || [])[0] || "";
+    }
+    if (!service) {
+      return { appendText: "", draftCreated: false, error: `"${client.name}" has no service on file to build a strategy for — set one on /dashboard/campaign-setup first.` };
+    }
+
     // Same real-write-immediately reasoning as call_prep/log_call — this is
     // research plus a saved doc, nothing external, easily regenerated or
     // edited afterwards on /dashboard/campaign-setup.
     try {
-      const brief = await generateAndSaveCampaignBrief(client.id);
-      const summaryLine = brief.offer_pricing || "n/a";
+      const brief = await generateAndSaveCampaignBrief(client.id, service);
+      const serviceDetails = (brief.service_details || {}) as Record<string, { offerPricing?: string }>;
+      const summaryLine = serviceDetails[service]?.offerPricing || "n/a";
       const docLine = brief.google_doc_url ? `\n\nMaster doc: ${brief.google_doc_url}` : "";
-      return { appendText: `\n\nCampaign strategy brief created for ${client.name}. ${summaryLine}${docLine}\n\nReview/edit it: /dashboard/campaign-setup`, draftCreated: false };
+      return { appendText: `\n\nCampaign strategy created for ${client.name} — ${service}. ${summaryLine}${docLine}\n\nReview/edit it: /dashboard/campaign-setup`, draftCreated: false };
     } catch (e) {
       return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to generate the campaign brief." };
     }

@@ -11,17 +11,8 @@ interface ClientRow {
   name: string;
   trade: string | null;
   status: string;
+  services: string[];
   brief: { id: string; status: "draft" | "approved"; updated_at: string } | null;
-}
-
-interface BriefFields {
-  offer_pricing: string;
-  ideal_customer: string;
-  budget_targeting: string;
-  job_value_margins: string;
-  competitor_research: string;
-  lead_qualification_criteria: string;
-  retargeting_strategy: string;
 }
 
 interface AdConcept {
@@ -31,6 +22,20 @@ interface AdConcept {
   creativeDirection: string;
   targeting: string;
   referenceLinks: string[];
+}
+
+// Per-service strategy fields, matching lib/campaignBrief.ts's ServiceStrategy
+// plus the ad_concepts campaignAds.ts writes into the same object.
+interface ServiceStrategyFields {
+  offerPricing: string;
+  jobValueMargins: string;
+  competitorResearch: string;
+  leadQualificationCriteria: string;
+  retargetingStrategy: string;
+}
+
+interface ServiceDetail extends ServiceStrategyFields {
+  ad_concepts?: AdConcept[];
 }
 
 // Matches app/api/lead-qual/clients/[id]/config/route.ts — only the shape
@@ -46,13 +51,14 @@ interface ClientConfig {
   qualification_rules: unknown;
 }
 
-interface Brief extends BriefFields {
+interface Brief {
   id: string;
   client_id: string;
   status: "draft" | "approved";
-  doc_markdown: string;
+  ideal_customer: string;
+  budget_targeting: string;
+  service_details: Record<string, ServiceDetail>;
   google_doc_url: string | null;
-  ad_concepts: AdConcept[];
   updated_at: string;
 }
 
@@ -64,17 +70,11 @@ const AD_FIELD_ORDER: { key: keyof Omit<AdConcept, "referenceLinks">; label: str
   { key: "targeting", label: "Targeting" },
 ];
 
-const PRIMARY_FIELDS: { key: keyof BriefFields; label: string }[] = [
-  { key: "offer_pricing", label: "Offer + Pricing Confirmed" },
-  { key: "ideal_customer", label: "Ideal Customer Defined" },
-  { key: "budget_targeting", label: "Budget + Targeting Set" },
-];
-
-const SUPPORTING_FIELDS: { key: keyof BriefFields; label: string }[] = [
-  { key: "job_value_margins", label: "Job Value & Margins" },
-  { key: "competitor_research", label: "Competitor Research" },
-  { key: "lead_qualification_criteria", label: "Lead Qualification Criteria" },
-  { key: "retargeting_strategy", label: "Retargeting Strategy" },
+const SERVICE_FIELD_ORDER: { key: keyof ServiceStrategyFields; label: string }[] = [
+  { key: "jobValueMargins", label: "Job Value & Margins" },
+  { key: "competitorResearch", label: "Competitor Research" },
+  { key: "leadQualificationCriteria", label: "Lead Qualification Criteria" },
+  { key: "retargetingStrategy", label: "Retargeting Strategy" },
 ];
 
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
@@ -83,21 +83,31 @@ const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }>
   approved: { label: "APPROVED", color: "#16a34a", bg: "#f0fdf4" },
 };
 
+const emptyServiceFields = (): ServiceStrategyFields => ({
+  offerPricing: "",
+  jobValueMargins: "",
+  competitorResearch: "",
+  leadQualificationCriteria: "",
+  retargetingStrategy: "",
+});
+
 export default function CampaignSetupPage() {
   const [clients, setClients] = useState<ClientRow[] | null>(null);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [brief, setBrief] = useState<Brief | null>(null);
-  const [fields, setFields] = useState<BriefFields | null>(null);
-  const [generating, setGenerating] = useState(false);
+  const [sharedFields, setSharedFields] = useState<{ ideal_customer: string; budget_targeting: string }>({ ideal_customer: "", budget_targeting: "" });
+  const [serviceFieldsMap, setServiceFieldsMap] = useState<Record<string, ServiceStrategyFields>>({});
+  const [adsMap, setAdsMap] = useState<Record<string, AdConcept[] | null>>({});
   const [briefLoading, setBriefLoading] = useState(false);
   const [briefError, setBriefError] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
 
-  const [ads, setAds] = useState<AdConcept[] | null>(null);
-  const [generatingAds, setGeneratingAds] = useState(false);
-  const [savingAds, setSavingAds] = useState(false);
+  const [generatingMap, setGeneratingMap] = useState<Record<string, boolean>>({});
+  const [savingMap, setSavingMap] = useState<Record<string, boolean>>({});
+  const [generatingAdsMap, setGeneratingAdsMap] = useState<Record<string, boolean>>({});
+  const [savingAdsMap, setSavingAdsMap] = useState<Record<string, boolean>>({});
   const [adsError, setAdsError] = useState("");
 
   const [config, setConfig] = useState<ClientConfig | null>(null);
@@ -119,6 +129,26 @@ export default function CampaignSetupPage() {
   useEffect(() => { loadClients(); }, []);
 
   const selectedClient = clients?.find((c) => c.id === selectedId) || null;
+  const services = selectedClient?.services?.length ? selectedClient.services : selectedClient ? ["General"] : [];
+
+  function applyBrief(b: Brief) {
+    setBrief(b);
+    setSharedFields({ ideal_customer: b.ideal_customer || "", budget_targeting: b.budget_targeting || "" });
+    const sfMap: Record<string, ServiceStrategyFields> = {};
+    const adsNext: Record<string, AdConcept[] | null> = {};
+    for (const [svc, details] of Object.entries(b.service_details || {})) {
+      sfMap[svc] = {
+        offerPricing: details.offerPricing || "",
+        jobValueMargins: details.jobValueMargins || "",
+        competitorResearch: details.competitorResearch || "",
+        leadQualificationCriteria: details.leadQualificationCriteria || "",
+        retargetingStrategy: details.retargetingStrategy || "",
+      };
+      adsNext[svc] = details.ad_concepts?.length === 3 ? details.ad_concepts : null;
+    }
+    setServiceFieldsMap(sfMap);
+    setAdsMap(adsNext);
+  }
 
   function loadBrief(briefId: string) {
     setBriefLoading(true);
@@ -127,9 +157,7 @@ export default function CampaignSetupPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.error) { setBriefError(data.error); return; }
-        setBrief(data.brief);
-        setFields(data.brief);
-        setAds(data.brief.ad_concepts?.length === 3 ? data.brief.ad_concepts : null);
+        applyBrief(data.brief);
       })
       .catch(() => setBriefError("Failed to load this brief."))
       .finally(() => setBriefLoading(false));
@@ -178,8 +206,9 @@ export default function CampaignSetupPage() {
   function selectClient(c: ClientRow) {
     setSelectedId(c.id);
     setBrief(null);
-    setFields(null);
-    setAds(null);
+    setSharedFields({ ideal_customer: "", budget_targeting: "" });
+    setServiceFieldsMap({});
+    setAdsMap({});
     setBriefError("");
     setAdsError("");
     setConfig(null);
@@ -189,105 +218,132 @@ export default function CampaignSetupPage() {
     loadConfig(c.id);
   }
 
-  async function generate() {
+  async function generateStrategy(service: string) {
     if (!selectedClient) return;
-    setGenerating(true);
+    setGeneratingMap((m) => ({ ...m, [service]: true }));
     setBriefError("");
     try {
       const res = await fetch("/api/campaign-brief/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: selectedClient.id }),
+        body: JSON.stringify({ clientId: selectedClient.id, service }),
       });
       const data = await res.json();
       if (data.error) { setBriefError(data.error); return; }
-      setBrief(data.brief);
-      setFields(data.brief);
-      setAds(data.brief.ad_concepts?.length === 3 ? data.brief.ad_concepts : null);
+      applyBrief(data.brief);
       loadClients();
     } catch {
-      setBriefError("Failed to generate the brief.");
+      setBriefError("Failed to generate the strategy.");
     } finally {
-      setGenerating(false);
+      setGeneratingMap((m) => ({ ...m, [service]: false }));
     }
   }
 
-  async function generateAds() {
+  async function saveStrategy(service: string) {
     if (!brief) return;
-    setGeneratingAds(true);
+    setSavingMap((m) => ({ ...m, [service]: true }));
+    setBriefError("");
+    try {
+      const res = await fetch(`/api/campaign-brief/${brief.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ideal_customer: sharedFields.ideal_customer,
+          budget_targeting: sharedFields.budget_targeting,
+          service,
+          serviceFields: serviceFieldsMap[service] || emptyServiceFields(),
+        }),
+      });
+      const data = await res.json();
+      if (data.error) { setBriefError(data.error); return; }
+      applyBrief(data.brief);
+      loadClients();
+    } catch {
+      setBriefError("Failed to save changes.");
+    } finally {
+      setSavingMap((m) => ({ ...m, [service]: false }));
+    }
+  }
+
+  async function setStatus(status: "draft" | "approved") {
+    if (!brief) return;
+    setStatusSaving(true);
+    try {
+      const res = await fetch(`/api/campaign-brief/${brief.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (data.error) { setBriefError(data.error); return; }
+      applyBrief(data.brief);
+      loadClients();
+    } catch {
+      setBriefError("Failed to update status.");
+    } finally {
+      setStatusSaving(false);
+    }
+  }
+
+  async function generateAds(service: string) {
+    if (!brief) return;
+    setGeneratingAdsMap((m) => ({ ...m, [service]: true }));
     setAdsError("");
     try {
-      const res = await fetch(`/api/campaign-brief/${brief.id}/ad-concepts`, { method: "POST" });
+      const res = await fetch(`/api/campaign-brief/${brief.id}/ad-concepts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service }),
+      });
       const data = await res.json();
       if (data.error) { setAdsError(data.error); return; }
-      setBrief(data.brief);
-      setAds(data.brief.ad_concepts);
+      applyBrief(data.brief);
     } catch {
       setAdsError("Failed to generate ad concepts.");
     } finally {
-      setGeneratingAds(false);
+      setGeneratingAdsMap((m) => ({ ...m, [service]: false }));
     }
   }
 
-  async function saveAds() {
-    if (!brief || !ads) return;
-    setSavingAds(true);
+  async function saveAds(service: string) {
+    if (!brief || !adsMap[service]) return;
+    setSavingAdsMap((m) => ({ ...m, [service]: true }));
     setAdsError("");
     try {
       const res = await fetch(`/api/campaign-brief/${brief.id}/ad-concepts`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ad_concepts: ads }),
+        body: JSON.stringify({ service, ad_concepts: adsMap[service] }),
       });
       const data = await res.json();
       if (data.error) { setAdsError(data.error); return; }
-      setBrief(data.brief);
-      setAds(data.brief.ad_concepts);
+      applyBrief(data.brief);
     } catch {
       setAdsError("Failed to save ad concept changes.");
     } finally {
-      setSavingAds(false);
+      setSavingAdsMap((m) => ({ ...m, [service]: false }));
     }
   }
 
-  function updateAd(index: number, key: keyof Omit<AdConcept, "referenceLinks">, value: string) {
-    if (!ads) return;
-    const next = ads.slice();
+  function updateAd(service: string, index: number, key: keyof Omit<AdConcept, "referenceLinks">, value: string) {
+    const current = adsMap[service];
+    if (!current) return;
+    const next = current.slice();
     next[index] = { ...next[index], [key]: value };
-    setAds(next);
+    setAdsMap((m) => ({ ...m, [service]: next }));
   }
 
-  function updateAdLinks(index: number, value: string) {
-    if (!ads) return;
-    const next = ads.slice();
+  function updateAdLinks(service: string, index: number, value: string) {
+    const current = adsMap[service];
+    if (!current) return;
+    const next = current.slice();
     next[index] = { ...next[index], referenceLinks: value.split("\n").map((l) => l.trim()).filter(Boolean) };
-    setAds(next);
-  }
-
-  async function save(statusOverride?: "draft" | "approved") {
-    if (!brief || !fields) return;
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/campaign-brief/${brief.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...fields, status: statusOverride || brief.status }),
-      });
-      const data = await res.json();
-      if (data.error) { setBriefError(data.error); return; }
-      setBrief(data.brief);
-      setFields(data.brief);
-      loadClients();
-    } catch {
-      setBriefError("Failed to save changes.");
-    } finally {
-      setSaving(false);
-    }
+    setAdsMap((m) => ({ ...m, [service]: next }));
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-      <Topbar title="Campaign Setup" subtitle="Stage 01 — Strategy briefs, researched per client before any ad gets built" />
+      <Topbar title="Campaign Setup" subtitle="Stage 01 — Strategy briefs, researched per client and per service before any ad gets built" />
 
       <div style={{ maxWidth: 1200, margin: "28px auto", padding: "0 28px", display: "flex", gap: 20, width: "100%" }}>
         {/* Client list */}
@@ -325,46 +381,27 @@ export default function CampaignSetupPage() {
           })}
         </div>
 
-        {/* Brief detail */}
+        {/* Client detail */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {!selectedClient && (
-            <div style={{ padding: 60, textAlign: "center", color: L.dimmed, fontSize: 13 }}>Pick a client to view or build their campaign strategy brief.</div>
+            <div style={{ padding: 60, textAlign: "center", color: L.dimmed, fontSize: 13 }}>Pick a client to view or build their campaign strategy.</div>
           )}
 
           {selectedClient && briefLoading && (
             <div style={{ padding: 60, textAlign: "center", color: L.dimmed, fontSize: 13 }}>Loading brief…</div>
           )}
 
-          {selectedClient && !briefLoading && !brief && (
-            <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 40, textAlign: "center" }}>
-              <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
-                No strategy brief yet for <strong style={{ color: L.text }}>{selectedClient.name}</strong>.
-              </p>
-              <button
-                onClick={generate}
-                disabled={generating}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "#fff",
-                  border: "none", padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer",
-                }}
-              >
-                <Sparkles style={{ width: 14, height: 14 }} className={generating ? "spin" : ""} />
-                {generating ? "Researching market and drafting brief…" : "Generate strategy brief"}
-              </button>
-              {generating && <p style={{ fontSize: 11, color: L.dimmed, marginTop: 10 }}>This runs several live searches — can take up to a minute.</p>}
-              {briefError && <div style={{ marginTop: 14, fontSize: 12, color: "#b91c1c" }}>{briefError}</div>}
-            </div>
-          )}
-
-          {selectedClient && brief && fields && (
+          {selectedClient && !briefLoading && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <h2 style={{ fontSize: 16, fontWeight: 800, color: L.text }}>{selectedClient.name}</h2>
-                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: STATUS_STYLE[brief.status].color, background: STATUS_STYLE[brief.status].bg, padding: "3px 7px", borderRadius: 3 }}>
-                    {STATUS_STYLE[brief.status].label}
-                  </span>
-                  {brief.google_doc_url && (
+                  {brief && (
+                    <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: STATUS_STYLE[brief.status].color, background: STATUS_STYLE[brief.status].bg, padding: "3px 7px", borderRadius: 3 }}>
+                      {STATUS_STYLE[brief.status].label}
+                    </span>
+                  )}
+                  {brief?.google_doc_url && (
                     <a
                       href={brief.google_doc_url}
                       target="_blank"
@@ -376,168 +413,230 @@ export default function CampaignSetupPage() {
                     </a>
                   )}
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                {brief && brief.status !== "approved" && (
                   <button
-                    onClick={generate}
-                    disabled={generating}
-                    style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${L.border}`, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: L.muted, cursor: generating ? "default" : "pointer" }}
+                    onClick={() => setStatus("approved")}
+                    disabled={statusSaving}
+                    style={{ background: "#16a34a", border: "none", padding: "8px 14px", fontSize: 12, fontWeight: 700, color: "#fff", cursor: statusSaving ? "default" : "pointer" }}
                   >
-                    <RefreshCw style={{ width: 12, height: 12 }} className={generating ? "spin" : ""} />
-                    Regenerate research
+                    Mark approved
                   </button>
-                  <button
-                    onClick={() => save()}
-                    disabled={saving}
-                    style={{ background: "none", border: `1px solid ${L.border}`, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: L.text, cursor: saving ? "default" : "pointer" }}
-                  >
-                    {saving ? "Saving…" : "Save changes"}
-                  </button>
-                  {brief.status !== "approved" && (
-                    <button
-                      onClick={() => save("approved")}
-                      disabled={saving}
-                      style={{ background: "#16a34a", border: "none", padding: "8px 14px", fontSize: 12, fontWeight: 700, color: "#fff", cursor: saving ? "default" : "pointer" }}
-                    >
-                      Mark approved
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
 
               {briefError && <div style={{ fontSize: 12, color: "#b91c1c" }}>{briefError}</div>}
 
               <SectionTabs
+                key={selectedClient.id}
                 tabs={[
-                  {
-                    id: "strategy",
-                    label: "Strategy",
-                    content: (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14 }}>
-                        {PRIMARY_FIELDS.map(({ key, label }) => (
-                          <div key={key} style={{ background: L.surface, border: `1px solid var(--accent)`, padding: 16 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
-                              {label}
-                            </div>
-                            <textarea
-                              value={fields[key]}
-                              onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
-                              rows={3}
-                              style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 14, fontWeight: 500, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    ),
-                  },
-                  {
-                    id: "research",
-                    label: "Research",
-                    content: (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
-                        {SUPPORTING_FIELDS.map(({ key, label }) => (
-                          <div key={key} style={{ background: "#fafafa", border: `1px solid ${L.border}`, padding: 12 }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 6 }}>{label}</div>
-                            <textarea
-                              value={fields[key]}
-                              onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
-                              rows={4}
-                              style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 12, color: L.muted, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    ),
-                  },
-                  {
-                    id: "ads",
-                    label: "Ads",
-                    content: (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginBottom: 10 }}>
-                  {ads && (
-                    <button
-                      onClick={generateAds}
-                      disabled={generatingAds}
-                      style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${L.border}`, padding: "6px 12px", fontSize: 11, fontWeight: 700, color: L.muted, cursor: generatingAds ? "default" : "pointer" }}
-                    >
-                      <RefreshCw style={{ width: 11, height: 11 }} className={generatingAds ? "spin" : ""} />
-                      Regenerate ad concepts
-                    </button>
-                  )}
-                </div>
+                  ...services.map((service) => {
+                    const hasStrategy = !!serviceFieldsMap[service];
+                    const ads = adsMap[service] || null;
+                    const generating = !!generatingMap[service];
+                    const saving = !!savingMap[service];
+                    const generatingAds = !!generatingAdsMap[service];
+                    const savingAds = !!savingAdsMap[service];
+                    const fields = serviceFieldsMap[service] || emptyServiceFields();
 
-                {!ads && (
-                  <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 30, textAlign: "center" }}>
-                    <p style={{ fontSize: 12, color: L.muted, marginBottom: 14 }}>
-                      Turn this confirmed brief into the 3 ads Charl would actually run.
-                    </p>
-                    <button
-                      onClick={generateAds}
-                      disabled={generatingAds}
-                      style={{
-                        display: "inline-flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "#fff",
-                        border: "none", padding: "9px 16px", fontSize: 12, fontWeight: 700, cursor: generatingAds ? "default" : "pointer",
-                      }}
-                    >
-                      <Megaphone style={{ width: 13, height: 13 }} className={generatingAds ? "spin" : ""} />
-                      {generatingAds ? "Writing 3 ad concepts…" : "Generate ad concepts"}
-                    </button>
-                    {adsError && <div style={{ marginTop: 12, fontSize: 12, color: "#b91c1c" }}>{adsError}</div>}
-                  </div>
-                )}
-
-                {ads && (
-                  <>
-                    {adsError && <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c" }}>{adsError}</div>}
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
-                      {ads.map((ad, i) => (
-                        <div key={i} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-                          <div style={{ fontSize: 11, fontWeight: 800, color: "var(--accent)" }}>Ad {i + 1}</div>
-                          {AD_FIELD_ORDER.map(({ key, label }) => (
-                            <div key={key}>
-                              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 4 }}>{label}</div>
-                              <textarea
-                                value={ad[key]}
-                                onChange={(e) => updateAd(i, key, e.target.value)}
-                                rows={key === "primaryText" ? 4 : 2}
-                                style={{ width: "100%", border: `1px solid ${L.border}`, outline: "none", resize: "vertical", padding: 6, fontSize: 12, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
-                              />
-                            </div>
-                          ))}
-                          <div>
-                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 4 }}>Reference links</div>
-                            {ad.referenceLinks.length > 0 && (
-                              <ul style={{ margin: "0 0 6px", padding: "0 0 0 16px", fontSize: 11 }}>
-                                {ad.referenceLinks.map((link, li) => (
-                                  <li key={li} style={{ marginBottom: 2 }}>
-                                    <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>{link}</a>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            <textarea
-                              value={ad.referenceLinks.join("\n")}
-                              onChange={(e) => updateAdLinks(i, e.target.value)}
-                              rows={2}
-                              placeholder="One link per line"
-                              style={{ width: "100%", border: `1px solid ${L.border}`, outline: "none", resize: "vertical", padding: 6, fontSize: 11, color: L.muted, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
-                            />
-                          </div>
+                    return {
+                      id: service,
+                      label: service,
+                      content: !hasStrategy ? (
+                        <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 40, textAlign: "center" }}>
+                          <p style={{ fontSize: 13, color: L.muted, marginBottom: 16 }}>
+                            No strategy yet for <strong style={{ color: L.text }}>{service}</strong>.
+                          </p>
+                          <button
+                            onClick={() => generateStrategy(service)}
+                            disabled={generating}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "#fff",
+                              border: "none", padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: generating ? "default" : "pointer",
+                            }}
+                          >
+                            <Sparkles style={{ width: 14, height: 14 }} className={generating ? "spin" : ""} />
+                            {generating ? "Researching market and drafting strategy…" : `Generate strategy for ${service}`}
+                          </button>
+                          {generating && <p style={{ fontSize: 11, color: L.dimmed, marginTop: 10 }}>This runs several live searches — can take up to a minute.</p>}
                         </div>
-                      ))}
-                    </div>
-                    <button
-                      onClick={saveAds}
-                      disabled={savingAds}
-                      style={{ marginTop: 12, background: "none", border: `1px solid ${L.border}`, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: L.text, cursor: savingAds ? "default" : "pointer" }}
-                    >
-                      {savingAds ? "Saving…" : "Save ad concept changes"}
-                    </button>
-                  </>
-                )}
-              </div>
-                    ),
-                  },
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                            <button
+                              onClick={() => generateStrategy(service)}
+                              disabled={generating}
+                              style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${L.border}`, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: L.muted, cursor: generating ? "default" : "pointer" }}
+                            >
+                              <RefreshCw style={{ width: 12, height: 12 }} className={generating ? "spin" : ""} />
+                              Regenerate research
+                            </button>
+                            <button
+                              onClick={() => saveStrategy(service)}
+                              disabled={saving}
+                              style={{ background: "none", border: `1px solid ${L.border}`, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: L.text, cursor: saving ? "default" : "pointer" }}
+                            >
+                              {saving ? "Saving…" : "Save changes"}
+                            </button>
+                          </div>
+
+                          <SectionTabs
+                            tabs={[
+                              {
+                                id: "strategy",
+                                label: "Strategy",
+                                content: (
+                                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14 }}>
+                                    <div style={{ background: L.surface, border: `1px solid var(--accent)`, padding: 16 }}>
+                                      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
+                                        Offer + Pricing Confirmed
+                                      </div>
+                                      <textarea
+                                        value={fields.offerPricing}
+                                        onChange={(e) => setServiceFieldsMap((m) => ({ ...m, [service]: { ...fields, offerPricing: e.target.value } }))}
+                                        rows={3}
+                                        style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 14, fontWeight: 500, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                                      />
+                                    </div>
+                                    <div style={{ background: L.surface, border: `1px solid var(--accent)`, padding: 16 }}>
+                                      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
+                                        Ideal Customer Defined <span style={{ color: L.dimmed, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>(shared across services)</span>
+                                      </div>
+                                      <textarea
+                                        value={sharedFields.ideal_customer}
+                                        onChange={(e) => setSharedFields((s) => ({ ...s, ideal_customer: e.target.value }))}
+                                        rows={3}
+                                        style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 14, fontWeight: 500, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                                      />
+                                    </div>
+                                    <div style={{ background: L.surface, border: `1px solid var(--accent)`, padding: 16 }}>
+                                      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
+                                        Budget + Targeting Set <span style={{ color: L.dimmed, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>(shared across services)</span>
+                                      </div>
+                                      <textarea
+                                        value={sharedFields.budget_targeting}
+                                        onChange={(e) => setSharedFields((s) => ({ ...s, budget_targeting: e.target.value }))}
+                                        rows={3}
+                                        style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 14, fontWeight: 500, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                                      />
+                                    </div>
+                                  </div>
+                                ),
+                              },
+                              {
+                                id: "research",
+                                label: "Research",
+                                content: (
+                                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+                                    {SERVICE_FIELD_ORDER.map(({ key, label }) => (
+                                      <div key={key} style={{ background: "#fafafa", border: `1px solid ${L.border}`, padding: 12 }}>
+                                        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 6 }}>{label}</div>
+                                        <textarea
+                                          value={fields[key]}
+                                          onChange={(e) => setServiceFieldsMap((m) => ({ ...m, [service]: { ...fields, [key]: e.target.value } }))}
+                                          rows={4}
+                                          style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 12, color: L.muted, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                ),
+                              },
+                              {
+                                id: "ads",
+                                label: "Ads",
+                                content: (
+                                  <div>
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginBottom: 10 }}>
+                                      {ads && (
+                                        <button
+                                          onClick={() => generateAds(service)}
+                                          disabled={generatingAds}
+                                          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${L.border}`, padding: "6px 12px", fontSize: 11, fontWeight: 700, color: L.muted, cursor: generatingAds ? "default" : "pointer" }}
+                                        >
+                                          <RefreshCw style={{ width: 11, height: 11 }} className={generatingAds ? "spin" : ""} />
+                                          Regenerate ad concepts
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    {!ads && (
+                                      <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 30, textAlign: "center" }}>
+                                        <p style={{ fontSize: 12, color: L.muted, marginBottom: 14 }}>
+                                          Turn this confirmed strategy into the 3 ads Lucky would actually run for {service}.
+                                        </p>
+                                        <button
+                                          onClick={() => generateAds(service)}
+                                          disabled={generatingAds}
+                                          style={{
+                                            display: "inline-flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "#fff",
+                                            border: "none", padding: "9px 16px", fontSize: 12, fontWeight: 700, cursor: generatingAds ? "default" : "pointer",
+                                          }}
+                                        >
+                                          <Megaphone style={{ width: 13, height: 13 }} className={generatingAds ? "spin" : ""} />
+                                          {generatingAds ? "Writing 3 ad concepts…" : "Generate ad concepts"}
+                                        </button>
+                                        {adsError && <div style={{ marginTop: 12, fontSize: 12, color: "#b91c1c" }}>{adsError}</div>}
+                                      </div>
+                                    )}
+
+                                    {ads && (
+                                      <>
+                                        {adsError && <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c" }}>{adsError}</div>}
+                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+                                          {ads.map((ad, i) => (
+                                            <div key={i} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                                              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--accent)" }}>Ad {i + 1}</div>
+                                              {AD_FIELD_ORDER.map(({ key, label }) => (
+                                                <div key={key}>
+                                                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 4 }}>{label}</div>
+                                                  <textarea
+                                                    value={ad[key]}
+                                                    onChange={(e) => updateAd(service, i, key, e.target.value)}
+                                                    rows={key === "primaryText" ? 4 : 2}
+                                                    style={{ width: "100%", border: `1px solid ${L.border}`, outline: "none", resize: "vertical", padding: 6, fontSize: 12, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                                                  />
+                                                </div>
+                                              ))}
+                                              <div>
+                                                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 4 }}>Reference links</div>
+                                                {ad.referenceLinks.length > 0 && (
+                                                  <ul style={{ margin: "0 0 6px", padding: "0 0 0 16px", fontSize: 11 }}>
+                                                    {ad.referenceLinks.map((link, li) => (
+                                                      <li key={li} style={{ marginBottom: 2 }}>
+                                                        <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>{link}</a>
+                                                      </li>
+                                                    ))}
+                                                  </ul>
+                                                )}
+                                                <textarea
+                                                  value={ad.referenceLinks.join("\n")}
+                                                  onChange={(e) => updateAdLinks(service, i, e.target.value)}
+                                                  rows={2}
+                                                  placeholder="One link per line"
+                                                  style={{ width: "100%", border: `1px solid ${L.border}`, outline: "none", resize: "vertical", padding: 6, fontSize: 11, color: L.muted, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                                                />
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <button
+                                          onClick={() => saveAds(service)}
+                                          disabled={savingAds}
+                                          style={{ marginTop: 12, background: "none", border: `1px solid ${L.border}`, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: L.text, cursor: savingAds ? "default" : "pointer" }}
+                                        >
+                                          {savingAds ? "Saving…" : "Save ad concept changes"}
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                ),
+                              },
+                            ]}
+                          />
+                        </div>
+                      ),
+                    };
+                  }),
                   {
                     id: "notes",
                     label: "Notes",
@@ -572,7 +671,7 @@ export default function CampaignSetupPage() {
                 ]}
               />
 
-              <p style={{ fontSize: 11, color: L.dimmed }}>Last updated {new Date(brief.updated_at).toLocaleString("en-NZ")}</p>
+              {brief && <p style={{ fontSize: 11, color: L.dimmed }}>Last updated {new Date(brief.updated_at).toLocaleString("en-NZ")}</p>}
             </div>
           )}
         </div>
