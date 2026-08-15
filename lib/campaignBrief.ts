@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createSupabaseClient } from "@/lib/supabase";
 import { parseJsonResponse } from "@/lib/ai";
-import { createDocWithId, appendMarkedTextToDoc } from "@/lib/googleDocs";
+import { createDocWithId, appendMarkedTextToDocTab } from "@/lib/googleDocs";
 import { notifySlack } from "@/lib/slack";
 
 // Ideal customer + budget/targeting are shared across every service a
@@ -184,12 +184,15 @@ export async function generateAndSaveCampaignBrief(clientId: string, service: st
 
   const docMarkdown = buildDocMarkdown(service, idealCustomer, budgetTargeting, result.serviceFields, !sharedAlreadySet);
   if (!googleDocId) {
-    const created = await createDocWithId(`${result.clientName} — Campaign Master Doc`, docMarkdown);
+    // Cover tab only — real content always lands in its own per-service tab
+    // (below) so the doc reads as one tab per service, not one long page.
+    const created = await createDocWithId(`${result.clientName} — Campaign Master Doc`, `# ${result.clientName} — Campaign Master Doc`);
     googleDocId = created.docId;
     googleDocUrl = created.url;
+    await appendMarkedTextToDocTab(googleDocId, service, docMarkdown);
   } else {
     const dateLabel = new Date().toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
-    await appendMarkedTextToDoc(googleDocId, `## Strategy Regenerated — ${dateLabel}\n${docMarkdown.replace(/^# .+\n\n/, "")}`);
+    await appendMarkedTextToDocTab(googleDocId, service, `## Strategy Regenerated — ${dateLabel}\n${docMarkdown.replace(/^# .+\n\n/, "")}`);
   }
 
   const { data, error } = await sb

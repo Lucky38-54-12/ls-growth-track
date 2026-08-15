@@ -11,8 +11,11 @@ const DEFAULT_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
 // Shared by createDocFromMarkedText and appendMarkedTextToDoc — builds the
 // insertText + bold/heading styling requests for a block of "# "/"## "
 // marked-up text, offset to wherever it's landing in the doc (index 1 for a
-// fresh doc, or the current end of an existing one).
-function buildFormattingRequests(markedText: string, insertAt: number): object[] {
+// fresh doc, or the current end of an existing one). tabId, when given,
+// scopes every request to that tab (see "Work with tabs" in the Docs API —
+// Location/Range objects take an optional tabId); omitted entirely for
+// classic single-tab docs so behavior there is unchanged.
+function buildFormattingRequests(markedText: string, insertAt: number, tabId?: string): object[] {
   const lines = markedText.split("\n");
   let plainText = "";
   const titleRanges: { start: number; end: number; fontSize: number }[] = [];
@@ -29,18 +32,21 @@ function buildFormattingRequests(markedText: string, insertAt: number): object[]
     else if (isHeading) headingRanges.push({ start, end });
   }
 
+  const loc = (index: number) => (tabId ? { index, tabId } : { index });
+  const range = (startIndex: number, endIndex: number) => (tabId ? { startIndex, endIndex, tabId } : { startIndex, endIndex });
+
   return [
-    { insertText: { location: { index: insertAt }, text: plainText } },
+    { insertText: { location: loc(insertAt), text: plainText } },
     ...titleRanges.map((r) => ({
       updateTextStyle: {
-        range: { startIndex: insertAt + r.start, endIndex: insertAt + r.end },
+        range: range(insertAt + r.start, insertAt + r.end),
         textStyle: { bold: true, fontSize: { magnitude: r.fontSize, unit: "PT" } },
         fields: "bold,fontSize",
       },
     })),
     ...headingRanges.map((r) => ({
       updateTextStyle: {
-        range: { startIndex: insertAt + r.start, endIndex: insertAt + r.end },
+        range: range(insertAt + r.start, insertAt + r.end),
         textStyle: { bold: true },
         fields: "bold",
       },
@@ -111,6 +117,72 @@ export async function appendMarkedTextToDoc(docId: string, markedText: string): 
     { insertText: { location: { index: insertAt }, text: "\n\n" } },
     ...buildFormattingRequests(markedText, insertAt + 2),
   ];
+
+  await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests } });
+}
+
+interface TabNode {
+  tabProperties?: { tabId?: string | null; title?: string | null } | null;
+  documentTab?: { body?: { content?: unknown[] | null } | null } | null;
+  childTabs?: TabNode[] | null;
+}
+
+function flattenTabs(tabs: TabNode[] | null | undefined): TabNode[] {
+  const out: TabNode[] = [];
+  for (const t of tabs || []) {
+    out.push(t);
+    out.push(...flattenTabs(t.childTabs));
+  }
+  return out;
+}
+
+// Finds a top-level tab by exact title (e.g. a service name), creating it if
+// it doesn't exist yet — used so each client's master doc can hold one tab
+// per service (Renovation, Decks/fences, etc) instead of one long scrolling
+// page. Docs' addDocumentTab response doesn't reliably echo the new tab's
+// id back in every client library version, so this re-fetches the doc after
+// creating and finds it by title rather than trusting the response shape.
+async function getOrCreateTab(docId: string, tabTitle: string): Promise<string> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const docs = google.docs({ version: "v1", auth });
+
+  const doc = await docs.documents.get({ documentId: docId, includeTabsContent: true });
+  const existing = flattenTabs(doc.data.tabs as TabNode[] | undefined).find((t) => t.tabProperties?.title === tabTitle);
+  if (existing?.tabProperties?.tabId) return existing.tabProperties.tabId;
+
+  await docs.documents.batchUpdate({
+    documentId: docId,
+    requestBody: { requests: [{ addDocumentTab: { tabProperties: { title: tabTitle } } } as object] },
+  });
+
+  const refreshed = await docs.documents.get({ documentId: docId, includeTabsContent: true });
+  const created = flattenTabs(refreshed.data.tabs as TabNode[] | undefined).find((t) => t.tabProperties?.title === tabTitle);
+  if (!created?.tabProperties?.tabId) throw new Error(`Created tab "${tabTitle}" but couldn't find its id afterwards`);
+  return created.tabProperties.tabId;
+}
+
+// Same accumulate-in-place behavior as appendMarkedTextToDoc, but writes
+// into (creating if needed) a named tab rather than the doc's default first
+// tab — one tab per service on a client's master doc.
+export async function appendMarkedTextToDocTab(docId: string, tabTitle: string, markedText: string): Promise<void> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const docs = google.docs({ version: "v1", auth });
+
+  const tabId = await getOrCreateTab(docId, tabTitle);
+
+  const doc = await docs.documents.get({ documentId: docId, includeTabsContent: true });
+  const tab = flattenTabs(doc.data.tabs as TabNode[] | undefined).find((t) => t.tabProperties?.tabId === tabId);
+  const content = (tab?.documentTab?.body?.content || []) as { endIndex?: number }[];
+  const lastEndIndex = content.length ? content[content.length - 1].endIndex || 1 : 1;
+  const insertAt = Math.max(1, lastEndIndex - 1);
+
+  const requests =
+    insertAt > 1
+      ? [
+          { insertText: { location: { index: insertAt, tabId }, text: "\n\n" } },
+          ...buildFormattingRequests(markedText, insertAt + 2, tabId),
+        ]
+      : buildFormattingRequests(markedText, insertAt, tabId);
 
   await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests } });
 }

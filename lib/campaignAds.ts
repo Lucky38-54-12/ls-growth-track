@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createSupabaseClient } from "@/lib/supabase";
 import { parseJsonResponse } from "@/lib/ai";
-import { appendMarkedTextToDoc } from "@/lib/googleDocs";
+import { appendMarkedTextToDocTab } from "@/lib/googleDocs";
 import { ServiceStrategy } from "@/lib/campaignBrief";
 
 export interface AdConcept {
@@ -156,7 +156,7 @@ export async function generateAndSaveAdConcepts(clientId: string, service: strin
   if (error) throw new Error(error.message);
 
   if (existing.google_doc_id) {
-    await appendMarkedTextToDoc(existing.google_doc_id, buildDocMarkdown(service, ads));
+    await appendMarkedTextToDocTab(existing.google_doc_id, service, buildDocMarkdown(service, ads));
   }
 
   return data;
