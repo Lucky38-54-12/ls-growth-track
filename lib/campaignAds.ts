@@ -26,6 +26,8 @@ For each ad write:
 - targeting: this specific ad's audience/placement notes — most ads will just restate the brief's core targeting in short form, but say plainly if this ad is testing something narrower/different and why
 - referenceLinks: use the web_search tool to actually find 2-3 real links Lucky can open for inspiration on this specific ad's angle/creative — real ad examples (from Facebook Ad Library, YouTube, articles breaking down trade/home-service ads), or real stock/reference footage clips matching the creativeDirection (people-in-them ads are fine, not just B-roll). Every link must come from an actual search result, never invented — if you can't find a good match for one ad after searching, it's fine to return fewer than 3 or an empty list for that ad rather than making one up.
 
+If Lucky's own notes (given below, when present) already describe a specific ad idea he wants — an angle, a video concept, or actual reference links he already found — build that as one of the 3 ads using his idea, not a different angle you'd have picked yourself. Keep any links he already gave verbatim in that ad's referenceLinks (still fine to search and add 1-2 more alongside them). Fill the other ads around it as normal.
+
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
 {"ads": [{"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}]}`;
 
@@ -60,6 +62,20 @@ export async function generateAdConcepts(clientId: string): Promise<{ ads: AdCon
     .maybeSingle();
   if (briefError || !brief) throw new Error(`No Stage 01 strategy brief yet for "${client.name}" — generate that first.`);
 
+  // Same source campaignBrief.ts reads business info from — pulling
+  // extra_context again here so any creative idea Lucky has already jotted
+  // down for this client (a specific ad angle, a video concept, reference
+  // links he found himself) reaches ad-concept generation directly, instead
+  // of only surviving if it happened to get folded into the Stage 01 brief
+  // text.
+  const { data: configs } = await sb
+    .from("lq_client_configs")
+    .select("business_info, status, version")
+    .eq("client_id", clientId)
+    .order("version", { ascending: false });
+  const config = (configs || []).find((c) => c.status === "published") || (configs || [])[0] || null;
+  const extraContext = (config?.business_info as { extra_context?: string } | null)?.extra_context || "";
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
   const anthropic = new Anthropic({ apiKey });
@@ -74,7 +90,7 @@ Job value & margins: ${brief.job_value_margins}
 Competitor research: ${brief.competitor_research}
 Lead qualification criteria: ${brief.lead_qualification_criteria}
 Retargeting strategy: ${brief.retargeting_strategy}
-
+${extraContext ? `\nLucky's own notes on this client (may include a specific ad idea to use as-is — see instructions above):\n${extraContext}\n` : ""}
 Write the 3 ad concepts.`;
 
   const msg = await anthropic.messages.create({
