@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Topbar from "@/components/Topbar";
-import { Sparkles, RefreshCw, ChevronRight, ExternalLink } from "lucide-react";
+import { Sparkles, RefreshCw, ChevronRight, ExternalLink, Megaphone } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -23,14 +23,31 @@ interface BriefFields {
   retargeting_strategy: string;
 }
 
+interface AdConcept {
+  angle: string;
+  headline: string;
+  primaryText: string;
+  creativeDirection: string;
+  targeting: string;
+}
+
 interface Brief extends BriefFields {
   id: string;
   client_id: string;
   status: "draft" | "approved";
   doc_markdown: string;
   google_doc_url: string | null;
+  ad_concepts: AdConcept[];
   updated_at: string;
 }
+
+const AD_FIELD_ORDER: { key: keyof AdConcept; label: string }[] = [
+  { key: "angle", label: "Angle" },
+  { key: "headline", label: "Headline" },
+  { key: "primaryText", label: "Primary Text" },
+  { key: "creativeDirection", label: "Creative Direction" },
+  { key: "targeting", label: "Targeting" },
+];
 
 const PRIMARY_FIELDS: { key: keyof BriefFields; label: string }[] = [
   { key: "offer_pricing", label: "Offer + Pricing Confirmed" },
@@ -63,6 +80,11 @@ export default function CampaignSetupPage() {
   const [briefError, setBriefError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [ads, setAds] = useState<AdConcept[] | null>(null);
+  const [generatingAds, setGeneratingAds] = useState(false);
+  const [savingAds, setSavingAds] = useState(false);
+  const [adsError, setAdsError] = useState("");
+
   function loadClients() {
     fetch("/api/campaign-brief")
       .then((r) => r.json())
@@ -86,6 +108,7 @@ export default function CampaignSetupPage() {
         if (data.error) { setBriefError(data.error); return; }
         setBrief(data.brief);
         setFields(data.brief);
+        setAds(data.brief.ad_concepts?.length === 3 ? data.brief.ad_concepts : null);
       })
       .catch(() => setBriefError("Failed to load this brief."))
       .finally(() => setBriefLoading(false));
@@ -95,7 +118,9 @@ export default function CampaignSetupPage() {
     setSelectedId(c.id);
     setBrief(null);
     setFields(null);
+    setAds(null);
     setBriefError("");
+    setAdsError("");
     if (c.brief) loadBrief(c.brief.id);
   }
 
@@ -113,12 +138,58 @@ export default function CampaignSetupPage() {
       if (data.error) { setBriefError(data.error); return; }
       setBrief(data.brief);
       setFields(data.brief);
+      setAds(data.brief.ad_concepts?.length === 3 ? data.brief.ad_concepts : null);
       loadClients();
     } catch {
       setBriefError("Failed to generate the brief.");
     } finally {
       setGenerating(false);
     }
+  }
+
+  async function generateAds() {
+    if (!brief) return;
+    setGeneratingAds(true);
+    setAdsError("");
+    try {
+      const res = await fetch(`/api/campaign-brief/${brief.id}/ad-concepts`, { method: "POST" });
+      const data = await res.json();
+      if (data.error) { setAdsError(data.error); return; }
+      setBrief(data.brief);
+      setAds(data.brief.ad_concepts);
+    } catch {
+      setAdsError("Failed to generate ad concepts.");
+    } finally {
+      setGeneratingAds(false);
+    }
+  }
+
+  async function saveAds() {
+    if (!brief || !ads) return;
+    setSavingAds(true);
+    setAdsError("");
+    try {
+      const res = await fetch(`/api/campaign-brief/${brief.id}/ad-concepts`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ad_concepts: ads }),
+      });
+      const data = await res.json();
+      if (data.error) { setAdsError(data.error); return; }
+      setBrief(data.brief);
+      setAds(data.brief.ad_concepts);
+    } catch {
+      setAdsError("Failed to save ad concept changes.");
+    } finally {
+      setSavingAds(false);
+    }
+  }
+
+  function updateAd(index: number, key: keyof AdConcept, value: string) {
+    if (!ads) return;
+    const next = ads.slice();
+    next[index] = { ...next[index], [key]: value };
+    setAds(next);
   }
 
   async function save(statusOverride?: "draft" | "approved") {
@@ -294,6 +365,73 @@ export default function CampaignSetupPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "10px 0 10px" }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Ad concepts</div>
+                  {ads && (
+                    <button
+                      onClick={generateAds}
+                      disabled={generatingAds}
+                      style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${L.border}`, padding: "6px 12px", fontSize: 11, fontWeight: 700, color: L.muted, cursor: generatingAds ? "default" : "pointer" }}
+                    >
+                      <RefreshCw style={{ width: 11, height: 11 }} className={generatingAds ? "spin" : ""} />
+                      Regenerate ad concepts
+                    </button>
+                  )}
+                </div>
+
+                {!ads && (
+                  <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 30, textAlign: "center" }}>
+                    <p style={{ fontSize: 12, color: L.muted, marginBottom: 14 }}>
+                      Turn this confirmed brief into the 3 ads Charl would actually run.
+                    </p>
+                    <button
+                      onClick={generateAds}
+                      disabled={generatingAds}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "#fff",
+                        border: "none", padding: "9px 16px", fontSize: 12, fontWeight: 700, cursor: generatingAds ? "default" : "pointer",
+                      }}
+                    >
+                      <Megaphone style={{ width: 13, height: 13 }} className={generatingAds ? "spin" : ""} />
+                      {generatingAds ? "Writing 3 ad concepts…" : "Generate ad concepts"}
+                    </button>
+                    {adsError && <div style={{ marginTop: 12, fontSize: 12, color: "#b91c1c" }}>{adsError}</div>}
+                  </div>
+                )}
+
+                {ads && (
+                  <>
+                    {adsError && <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c" }}>{adsError}</div>}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+                      {ads.map((ad, i) => (
+                        <div key={i} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "var(--accent)" }}>Ad {i + 1}</div>
+                          {AD_FIELD_ORDER.map(({ key, label }) => (
+                            <div key={key}>
+                              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 4 }}>{label}</div>
+                              <textarea
+                                value={ad[key]}
+                                onChange={(e) => updateAd(i, key, e.target.value)}
+                                rows={key === "primaryText" ? 4 : 2}
+                                style={{ width: "100%", border: `1px solid ${L.border}`, outline: "none", resize: "vertical", padding: 6, fontSize: 12, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={saveAds}
+                      disabled={savingAds}
+                      style={{ marginTop: 12, background: "none", border: `1px solid ${L.border}`, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: L.text, cursor: savingAds ? "default" : "pointer" }}
+                    >
+                      {savingAds ? "Saving…" : "Save ad concept changes"}
+                    </button>
+                  </>
+                )}
               </div>
 
               <p style={{ fontSize: 11, color: L.dimmed }}>Last updated {new Date(brief.updated_at).toLocaleString("en-NZ")}</p>
