@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Topbar from "@/components/Topbar";
+import SectionTabs from "@/components/SectionTabs";
 import { Sparkles, RefreshCw, ChevronRight, ExternalLink, Megaphone } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
@@ -30,6 +31,19 @@ interface AdConcept {
   creativeDirection: string;
   targeting: string;
   referenceLinks: string[];
+}
+
+// Matches app/api/lead-qual/clients/[id]/config/route.ts — only the shape
+// this page actually touches (extra_context); everything else is passed
+// through untouched on save.
+interface ClientConfig {
+  client_id: string;
+  version: number;
+  business_info: { extra_context?: string; [key: string]: unknown };
+  services: string[];
+  service_areas: string[];
+  faqs: unknown[];
+  qualification_rules: unknown;
 }
 
 interface Brief extends BriefFields {
@@ -86,6 +100,12 @@ export default function CampaignSetupPage() {
   const [savingAds, setSavingAds] = useState(false);
   const [adsError, setAdsError] = useState("");
 
+  const [config, setConfig] = useState<ClientConfig | null>(null);
+  const [notesText, setNotesText] = useState("");
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesError, setNotesError] = useState("");
+
   function loadClients() {
     fetch("/api/campaign-brief")
       .then((r) => r.json())
@@ -115,6 +135,46 @@ export default function CampaignSetupPage() {
       .finally(() => setBriefLoading(false));
   }
 
+  function loadConfig(clientId: string) {
+    setNotesLoading(true);
+    setNotesError("");
+    fetch(`/api/lead-qual/clients/${clientId}/config`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) { setNotesError(data.error); return; }
+        setConfig(data.config);
+        setNotesText(data.config?.business_info?.extra_context || "");
+      })
+      .catch(() => setNotesError("Failed to load notes."))
+      .finally(() => setNotesLoading(false));
+  }
+
+  async function saveNotes() {
+    if (!selectedClient || !config) return;
+    setNotesSaving(true);
+    setNotesError("");
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${selectedClient.id}/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_info: { ...config.business_info, extra_context: notesText },
+          services: config.services,
+          service_areas: config.service_areas,
+          faqs: config.faqs,
+          qualification_rules: config.qualification_rules,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) { setNotesError(data.error); return; }
+      setConfig(data.config);
+    } catch {
+      setNotesError("Failed to save notes.");
+    } finally {
+      setNotesSaving(false);
+    }
+  }
+
   function selectClient(c: ClientRow) {
     setSelectedId(c.id);
     setBrief(null);
@@ -122,7 +182,11 @@ export default function CampaignSetupPage() {
     setAds(null);
     setBriefError("");
     setAdsError("");
+    setConfig(null);
+    setNotesText("");
+    setNotesError("");
     if (c.brief) loadBrief(c.brief.id);
+    loadConfig(c.id);
   }
 
   async function generate() {
@@ -342,42 +406,54 @@ export default function CampaignSetupPage() {
 
               {briefError && <div style={{ fontSize: 12, color: "#b91c1c" }}>{briefError}</div>}
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14 }}>
-                {PRIMARY_FIELDS.map(({ key, label }) => (
-                  <div key={key} style={{ background: L.surface, border: `1px solid var(--accent)`, padding: 16 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
-                      {label}
-                    </div>
-                    <textarea
-                      value={fields[key]}
-                      onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
-                      rows={3}
-                      style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 14, fontWeight: 500, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
-                    />
-                  </div>
-                ))}
-              </div>
-
+              <SectionTabs
+                tabs={[
+                  {
+                    id: "strategy",
+                    label: "Strategy",
+                    content: (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14 }}>
+                        {PRIMARY_FIELDS.map(({ key, label }) => (
+                          <div key={key} style={{ background: L.surface, border: `1px solid var(--accent)`, padding: 16 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
+                              {label}
+                            </div>
+                            <textarea
+                              value={fields[key]}
+                              onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
+                              rows={3}
+                              style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 14, fontWeight: 500, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ),
+                  },
+                  {
+                    id: "research",
+                    label: "Research",
+                    content: (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+                        {SUPPORTING_FIELDS.map(({ key, label }) => (
+                          <div key={key} style={{ background: "#fafafa", border: `1px solid ${L.border}`, padding: 12 }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 6 }}>{label}</div>
+                            <textarea
+                              value={fields[key]}
+                              onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
+                              rows={4}
+                              style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 12, color: L.muted, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ),
+                  },
+                  {
+                    id: "ads",
+                    label: "Ads",
+                    content: (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.dimmed, margin: "6px 0 10px" }}>Supporting research</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
-                  {SUPPORTING_FIELDS.map(({ key, label }) => (
-                    <div key={key} style={{ background: "#fafafa", border: `1px solid ${L.border}`, padding: 12 }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 6 }}>{label}</div>
-                      <textarea
-                        value={fields[key]}
-                        onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
-                        rows={3}
-                        style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 12, color: L.muted, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "10px 0 10px" }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.text }}>Ad concepts</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginBottom: 10 }}>
                   {ads && (
                     <button
                       onClick={generateAds}
@@ -460,6 +536,41 @@ export default function CampaignSetupPage() {
                   </>
                 )}
               </div>
+                    ),
+                  },
+                  {
+                    id: "notes",
+                    label: "Notes",
+                    content: (
+                      <div>
+                        <p style={{ fontSize: 12, color: L.muted, marginBottom: 10 }}>
+                          Anything you want the Brain to know about this client — target audience, budget caps, a specific ad idea, whatever — before it researches or writes anything.
+                        </p>
+                        {notesLoading && <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13 }}>Loading notes…</div>}
+                        {!notesLoading && (
+                          <>
+                            <textarea
+                              value={notesText}
+                              onChange={(e) => setNotesText(e.target.value)}
+                              rows={10}
+                              placeholder="e.g. target audience is homeowners 40-55+, budget capped at $30/day, wants a start-to-finish deck build video as one of the ads..."
+                              style={{ width: "100%", border: `1px solid ${L.border}`, outline: "none", resize: "vertical", padding: 10, fontSize: 13, color: L.text, lineHeight: 1.6, fontFamily: "inherit" }}
+                            />
+                            {notesError && <div style={{ marginTop: 10, fontSize: 12, color: "#b91c1c" }}>{notesError}</div>}
+                            <button
+                              onClick={saveNotes}
+                              disabled={notesSaving || !config}
+                              style={{ marginTop: 10, background: "var(--accent)", color: "#fff", border: "none", padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: notesSaving ? "default" : "pointer" }}
+                            >
+                              {notesSaving ? "Saving…" : "Save notes"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ),
+                  },
+                ]}
+              />
 
               <p style={{ fontSize: 11, color: L.dimmed }}>Last updated {new Date(brief.updated_at).toLocaleString("en-NZ")}</p>
             </div>
