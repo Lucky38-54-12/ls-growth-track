@@ -16,6 +16,8 @@ const SYSTEM_PROMPT = `You write Meta ad concepts for Lucky from LS Growth, a le
 
 Write exactly 3 distinct Meta ad concepts, meant to run together as a small test set (this is how Lucky actually runs campaigns — 3 ads at a time, not 1). Each must have a genuinely different angle from the other two (e.g. price/offer-led, social proof/trust-led, urgency or a specific pain point) — never 3 versions of the same idea with the wording changed. Ground every ad in the actual offer, price, and customer from the brief, never generic trade-ad filler.
 
+The Stage 01 brief picks one "hero" service to lead the offer with, but the client's full service list is given below. If the client offers more than one distinct service, the 3 ads should span that range — e.g. one ad for the hero service, and the others covering the other real services — instead of writing all 3 ads about the same single service. Only write all 3 about one service if Lucky's own notes (below, when present) explicitly say to focus this batch on just that one, or the client genuinely only offers one service.
+
 Most of the time all 3 ads should point at the same core audience from the brief with different creative angles — but if the brief's ideal customer or service area genuinely supports it (e.g. a clearly different sub-segment, or a secondary service area worth testing separately), it's fine and expected for one of the 3 to target a narrower or different slice as a deliberate test, not just repeat the same targeting three times for no reason.
 
 For each ad write:
@@ -70,17 +72,19 @@ export async function generateAdConcepts(clientId: string): Promise<{ ads: AdCon
   // text.
   const { data: configs } = await sb
     .from("lq_client_configs")
-    .select("business_info, status, version")
+    .select("business_info, services, status, version")
     .eq("client_id", clientId)
     .order("version", { ascending: false });
   const config = (configs || []).find((c) => c.status === "published") || (configs || [])[0] || null;
   const extraContext = (config?.business_info as { extra_context?: string } | null)?.extra_context || "";
+  const services: string[] = config?.services || [];
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
   const anthropic = new Anthropic({ apiKey });
 
   const userPrompt = `Client: ${client.name}
+All services this client actually offers: ${services.length ? services.join(", ") : "not set — only the hero service from the brief below is known"}
 
 CONFIRMED STAGE 01 BRIEF:
 Offer + pricing: ${brief.offer_pricing}
