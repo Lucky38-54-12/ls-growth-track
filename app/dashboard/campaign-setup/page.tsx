@@ -29,6 +29,7 @@ interface AdConcept {
   primaryText: string;
   creativeDirection: string;
   targeting: string;
+  referenceLinks: string[];
 }
 
 interface Brief extends BriefFields {
@@ -41,7 +42,7 @@ interface Brief extends BriefFields {
   updated_at: string;
 }
 
-const AD_FIELD_ORDER: { key: keyof AdConcept; label: string }[] = [
+const AD_FIELD_ORDER: { key: keyof Omit<AdConcept, "referenceLinks">; label: string }[] = [
   { key: "angle", label: "Angle" },
   { key: "headline", label: "Headline" },
   { key: "primaryText", label: "Primary Text" },
@@ -185,10 +186,17 @@ export default function CampaignSetupPage() {
     }
   }
 
-  function updateAd(index: number, key: keyof AdConcept, value: string) {
+  function updateAd(index: number, key: keyof Omit<AdConcept, "referenceLinks">, value: string) {
     if (!ads) return;
     const next = ads.slice();
     next[index] = { ...next[index], [key]: value };
+    setAds(next);
+  }
+
+  function updateAdLinks(index: number, value: string) {
+    if (!ads) return;
+    const next = ads.slice();
+    next[index] = { ...next[index], referenceLinks: value.split("\n").map((l) => l.trim()).filter(Boolean) };
     setAds(next);
   }
 
@@ -420,6 +428,25 @@ export default function CampaignSetupPage() {
                               />
                             </div>
                           ))}
+                          <div>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 4 }}>Reference links</div>
+                            {ad.referenceLinks.length > 0 && (
+                              <ul style={{ margin: "0 0 6px", padding: "0 0 0 16px", fontSize: 11 }}>
+                                {ad.referenceLinks.map((link, li) => (
+                                  <li key={li} style={{ marginBottom: 2 }}>
+                                    <a href={link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>{link}</a>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            <textarea
+                              value={ad.referenceLinks.join("\n")}
+                              onChange={(e) => updateAdLinks(i, e.target.value)}
+                              rows={2}
+                              placeholder="One link per line"
+                              style={{ width: "100%", border: `1px solid ${L.border}`, outline: "none", resize: "vertical", padding: 6, fontSize: 11, color: L.muted, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>

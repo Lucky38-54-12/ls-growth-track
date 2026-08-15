@@ -3,7 +3,7 @@ import { generateAndSaveAdConcepts, AdConcept } from "@/lib/campaignAds";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 // Generates (or regenerates) the 3 ad concepts for this brief's client.
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -43,6 +43,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     primaryText: typeof a?.primaryText === "string" ? a.primaryText : "",
     creativeDirection: typeof a?.creativeDirection === "string" ? a.creativeDirection : "",
     targeting: typeof a?.targeting === "string" ? a.targeting : "",
+    referenceLinks: Array.isArray(a?.referenceLinks) ? a.referenceLinks.filter((l: unknown): l is string => typeof l === "string") : [],
   }));
 
   const { data, error } = await sb

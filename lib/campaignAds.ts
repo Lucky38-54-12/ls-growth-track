@@ -9,6 +9,7 @@ export interface AdConcept {
   primaryText: string;
   creativeDirection: string;
   targeting: string;
+  referenceLinks: string[];
 }
 
 const SYSTEM_PROMPT = `You write Meta ad concepts for Lucky from LS Growth, a lead generation agency that runs Meta ads for trade and home service businesses in NZ and Australia. You're given a client's already-confirmed Stage 01 strategy brief (offer/pricing, ideal customer, budget/targeting, plus supporting research) — the market research is done, don't redo it, just turn it into ads.
@@ -23,15 +24,18 @@ For each ad write:
 - primaryText: the actual ad copy body a lead would read, 2-4 sentences, direct-response style — a real offer and a real call to action, not vague brand copy
 - creativeDirection: what the image or video should actually show, 1-2 sentences, specific enough that a photo/video could be picked or shot from it
 - targeting: this specific ad's audience/placement notes — most ads will just restate the brief's core targeting in short form, but say plainly if this ad is testing something narrower/different and why
+- referenceLinks: use the web_search tool to actually find 2-3 real links Lucky can open for inspiration on this specific ad's angle/creative — real ad examples (from Facebook Ad Library, YouTube, articles breaking down trade/home-service ads), or real stock/reference footage clips matching the creativeDirection (people-in-them ads are fine, not just B-roll). Every link must come from an actual search result, never invented — if you can't find a good match for one ad after searching, it's fine to return fewer than 3 or an empty list for that ad rather than making one up.
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
-{"ads": [{"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "..."}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "..."}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "..."}]}`;
+{"ads": [{"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}]}`;
 
 function buildDocMarkdown(ads: AdConcept[]): string {
   const sections = ads
     .map(
       (ad, i) =>
-        `## Ad ${i + 1} — ${ad.angle}\nHeadline: ${ad.headline}\n\nPrimary text: ${ad.primaryText}\n\nCreative direction: ${ad.creativeDirection}\n\nTargeting: ${ad.targeting}`
+        `## Ad ${i + 1} — ${ad.angle}\nHeadline: ${ad.headline}\n\nPrimary text: ${ad.primaryText}\n\nCreative direction: ${ad.creativeDirection}\n\nTargeting: ${ad.targeting}${
+          ad.referenceLinks.length ? `\n\nReference links:\n${ad.referenceLinks.map((l) => `- ${l}`).join("\n")}` : ""
+        }`
     )
     .join("\n\n");
   return `# Ad Concepts\n\n${sections}`;
@@ -75,9 +79,10 @@ Write the 3 ad concepts.`;
 
   const msg = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 2048,
+    max_tokens: 4096,
     system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8 } as const],
   });
 
   const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
@@ -90,6 +95,7 @@ Write the 3 ad concepts.`;
     primaryText: a.primaryText || "",
     creativeDirection: a.creativeDirection || "",
     targeting: a.targeting || "",
+    referenceLinks: Array.isArray(a.referenceLinks) ? a.referenceLinks.filter((l): l is string => typeof l === "string") : [],
   }));
 
   if (ads.length !== 3 || ads.some((a) => !a.headline || !a.primaryText)) {
