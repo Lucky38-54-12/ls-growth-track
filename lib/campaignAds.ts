@@ -26,12 +26,38 @@ For each ad write:
 - primaryText: the actual ad copy body a lead would read, 2-4 sentences, direct-response style — a real offer and a real call to action, not vague brand copy
 - creativeDirection: what the image or video should actually show, 1-2 sentences, specific enough that a photo/video could be picked or shot from it
 - targeting: this specific ad's audience/placement notes — most ads will just restate the shared targeting in short form, but say plainly if this ad is testing something narrower/different and why
-- referenceLinks: you're given real Meta ad research below (from LS Growth's own ad research tool — either a hand-verified Meta Ad Library cache or a careful AI web search that never invents URLs). For each ad, if one of those research entries has a real source_url and its angle/format genuinely matches what this ad is doing, include that source_url here so Lucky can open the real example. NEVER invent a URL yourself, and never include a source_url whose angle doesn't actually match this specific ad — an empty list is correct and expected when nothing in the research fits.
+- referenceLinks: you're given real Meta ad research below (from LS Growth's own ad research tool). For each ad, if one of those research entries has a source_url that is itself an actual Facebook Ads Library, Instagram, or TikTok link (not a blog post, case study, or funnel page — those get discarded even if you include them) and its angle/format genuinely matches what this ad is doing, include that source_url here. NEVER invent a URL yourself. A real matching link is added automatically for you regardless, so it's fine and expected to leave this empty when nothing in the research is an actual ad link.
 
 If Lucky's own notes (given below, when present) already describe a specific ad idea he wants for this service — an angle, a video concept, or actual reference links he already found — build that as one of the 3 ads using his idea, not a different angle you'd have picked yourself. Keep any links he already gave verbatim in that ad's referenceLinks. Fill the other ads around it as normal.
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
 {"ads": [{"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}]}`;
+
+// A URL only counts as a real ad reference if it's an actual ad/post, not
+// a blog, funnel builder, or "how to run ads" article — the AI research
+// fallback (see findWorkingAds in lib/adResearch.ts) sometimes cites those
+// as its "source" even though they aren't ads themselves. Enforced here in
+// code rather than trusting the model to self-filter, since it didn't.
+function isRealAdLink(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    return (
+      (host === "facebook.com" && url.includes("/ads/library")) ||
+      host === "instagram.com" ||
+      host === "tiktok.com"
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Always real, always clickable — a live Facebook Ad Library search for
+// this niche/country, so Lucky has at least one genuine link to check even
+// when nothing in the research turned up a specific matching ad.
+function adLibrarySearchUrl(query: string, serviceAreas: string[]): string {
+  const country = serviceAreas.some((a) => /australia|nsw|vic|qld|wa\b|sa\b|tas|act/i.test(a)) ? "AU" : "NZ";
+  return `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${country}&q=${encodeURIComponent(query)}`;
+}
 
 function buildDocMarkdown(service: string, ads: AdConcept[]): string {
   const sections = ads
@@ -129,15 +155,22 @@ Write the 3 ad concepts for "${service}".`;
   const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
   if (!text) throw new Error("Unexpected response from AI");
 
+  const librarySearchUrl = adLibrarySearchUrl(`${service} ${client.trade || ""}`.trim(), serviceAreas);
+
   const parsed = parseJsonResponse<{ ads?: Partial<AdConcept>[] }>(text);
-  const ads: AdConcept[] = (parsed.ads || []).map((a) => ({
-    angle: a.angle || "",
-    headline: a.headline || "",
-    primaryText: a.primaryText || "",
-    creativeDirection: a.creativeDirection || "",
-    targeting: a.targeting || "",
-    referenceLinks: Array.isArray(a.referenceLinks) ? a.referenceLinks.filter((l): l is string => typeof l === "string") : [],
-  }));
+  const ads: AdConcept[] = (parsed.ads || []).map((a) => {
+    const modelLinks = Array.isArray(a.referenceLinks) ? a.referenceLinks.filter((l): l is string => typeof l === "string" && isRealAdLink(l)) : [];
+    return {
+      angle: a.angle || "",
+      headline: a.headline || "",
+      primaryText: a.primaryText || "",
+      creativeDirection: a.creativeDirection || "",
+      targeting: a.targeting || "",
+      // Always include one guaranteed-real, live Ad Library search link
+      // alongside any specific real ad the research actually matched.
+      referenceLinks: [...modelLinks, librarySearchUrl],
+    };
+  });
 
   if (ads.length !== 3 || ads.some((a) => !a.headline || !a.primaryText)) {
     throw new Error("AI response did not return 3 complete ad concepts");
