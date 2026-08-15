@@ -274,7 +274,7 @@ async function resolveDraft(
     // edited afterwards on /dashboard/campaign-setup.
     try {
       const brief = await generateAndSaveCampaignBrief(client.id);
-      const summaryLine = `Objective: ${brief.objective || "n/a"}. Budget: ${brief.budget || "n/a"}.`;
+      const summaryLine = brief.offer_pricing || "n/a";
       const docLine = brief.google_doc_url ? `\n\nMaster doc: ${brief.google_doc_url}` : "";
       return { appendText: `\n\nCampaign strategy brief created for ${client.name}. ${summaryLine}${docLine}\n\nReview/edit it: /dashboard/campaign-setup`, draftCreated: false };
     } catch (e) {

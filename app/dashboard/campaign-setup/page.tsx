@@ -15,14 +15,10 @@ interface ClientRow {
 
 interface BriefFields {
   offer_pricing: string;
-  main_service: string;
   ideal_customer: string;
-  service_area: string;
+  budget_targeting: string;
   job_value_margins: string;
   competitor_research: string;
-  objective: string;
-  budget: string;
-  targeting_approach: string;
   lead_qualification_criteria: string;
   retargeting_strategy: string;
 }
@@ -36,16 +32,15 @@ interface Brief extends BriefFields {
   updated_at: string;
 }
 
-const FIELD_ORDER: { key: keyof BriefFields; label: string }[] = [
-  { key: "offer_pricing", label: "Offer & Pricing" },
-  { key: "main_service", label: "Main Service" },
-  { key: "ideal_customer", label: "Ideal Customer" },
-  { key: "service_area", label: "Service Area" },
+const PRIMARY_FIELDS: { key: keyof BriefFields; label: string }[] = [
+  { key: "offer_pricing", label: "Offer + Pricing Confirmed" },
+  { key: "ideal_customer", label: "Ideal Customer Defined" },
+  { key: "budget_targeting", label: "Budget + Targeting Set" },
+];
+
+const SUPPORTING_FIELDS: { key: keyof BriefFields; label: string }[] = [
   { key: "job_value_margins", label: "Job Value & Margins" },
   { key: "competitor_research", label: "Competitor Research" },
-  { key: "objective", label: "Campaign Objective" },
-  { key: "budget", label: "Budget" },
-  { key: "targeting_approach", label: "Targeting Approach" },
   { key: "lead_qualification_criteria", label: "Lead Qualification Criteria" },
   { key: "retargeting_strategy", label: "Retargeting Strategy" },
 ];
@@ -269,17 +264,36 @@ export default function CampaignSetupPage() {
               {briefError && <div style={{ fontSize: 12, color: "#b91c1c" }}>{briefError}</div>}
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14 }}>
-                {FIELD_ORDER.map(({ key, label }) => (
-                  <div key={key} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14 }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 8 }}>{label}</div>
+                {PRIMARY_FIELDS.map(({ key, label }) => (
+                  <div key={key} style={{ background: L.surface, border: `1px solid var(--accent)`, padding: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
+                      {label}
+                    </div>
                     <textarea
                       value={fields[key]}
                       onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
-                      rows={4}
-                      style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 13, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                      rows={3}
+                      style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 14, fontWeight: 500, color: L.text, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
                     />
                   </div>
                 ))}
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.dimmed, margin: "6px 0 10px" }}>Supporting research</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+                  {SUPPORTING_FIELDS.map(({ key, label }) => (
+                    <div key={key} style={{ background: "#fafafa", border: `1px solid ${L.border}`, padding: 12 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted, marginBottom: 6 }}>{label}</div>
+                      <textarea
+                        value={fields[key]}
+                        onChange={(e) => setFields({ ...fields, [key]: e.target.value })}
+                        rows={3}
+                        style={{ width: "100%", border: "none", outline: "none", resize: "vertical", fontSize: 12, color: L.muted, lineHeight: 1.5, fontFamily: "inherit", background: "transparent" }}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <p style={{ fontSize: 11, color: L.dimmed }}>Last updated {new Date(brief.updated_at).toLocaleString("en-NZ")}</p>

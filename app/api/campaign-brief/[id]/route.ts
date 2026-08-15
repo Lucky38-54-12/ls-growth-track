@@ -5,14 +5,10 @@ export const dynamic = "force-dynamic";
 
 const EDITABLE_FIELDS = [
   "offer_pricing",
-  "main_service",
   "ideal_customer",
-  "service_area",
+  "budget_targeting",
   "job_value_margins",
   "competitor_research",
-  "objective",
-  "budget",
-  "targeting_approach",
   "lead_qualification_criteria",
   "retargeting_strategy",
 ] as const;
