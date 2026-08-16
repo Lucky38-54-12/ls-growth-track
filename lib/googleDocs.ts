@@ -204,10 +204,17 @@ export async function createDocFromMarkedTextWithPhotos(
           insertInlineImage: {
             location: { index: 1 },
             uri: LOGO_URL,
-            objectSize: { height: { magnitude: 90, unit: "PT" }, width: { magnitude: 90, unit: "PT" } },
+            objectSize: { height: { magnitude: 130, unit: "PT" }, width: { magnitude: 130, unit: "PT" } },
           },
         },
         { insertText: { location: { index: 2 }, text: "\n\n" } },
+        {
+          updateParagraphStyle: {
+            range: { startIndex: 1, endIndex: 2 },
+            paragraphStyle: { alignment: "CENTER" },
+            fields: "alignment",
+          },
+        },
       ],
     },
   });
