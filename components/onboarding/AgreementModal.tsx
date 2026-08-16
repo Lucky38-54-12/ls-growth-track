@@ -13,6 +13,7 @@ interface Client {
 
 export default function AgreementModal({ client, onClose }: { client: Client; onClose: () => void }) {
   const [notes, setNotes] = useState("");
+  const [photosFolderUrl, setPhotosFolderUrl] = useState("");
   const [generating, setGenerating] = useState(false);
   const [docUrl, setDocUrl] = useState("");
   const [error, setError] = useState("");
@@ -31,6 +32,7 @@ export default function AgreementModal({ client, onClose }: { client: Client; on
           trade: client.trade || "",
           email: client.email || "",
           dealNotes: notes,
+          photosFolderUrl: photosFolderUrl.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -69,6 +71,12 @@ export default function AgreementModal({ client, onClose }: { client: Client; on
             rows={8}
             placeholder="e.g. Charl. 3 week trial, 10 qualified quotes to trigger the $2k/mo fee, $15/day ad spend, starts 27/07..."
             style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 12, padding: "8px 10px", border: `1px solid ${L.border}`, fontSize: 13 }}
+          />
+          <input
+            value={photosFolderUrl}
+            onChange={(e) => setPhotosFolderUrl(e.target.value)}
+            placeholder="Photos folder link (optional) — pulls their photos into the doc"
+            style={{ display: "block", width: "100%", boxSizing: "border-box", marginBottom: 12, padding: "8px 10px", border: `1px solid ${L.border}`, fontSize: 13 }}
           />
           {error && <div style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "10px 14px", marginBottom: 12, fontSize: 13 }}>{error}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

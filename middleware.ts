@@ -11,6 +11,11 @@ const PUBLIC_PATHS = [
   "/api/lead-qual/public",
   "/api/lead-qual/oauth/google",
   "/api/lead-qual/oauth/facebook",
+  // Logo/signature images embedded into generated Google Docs — the Docs API
+  // fetches these over plain HTTP with no session cookie, so they can't sit
+  // behind the dashboard login.
+  "/logo-trimmed.png",
+  "/agreement-assets",
 ];
 
 // The client portal has its own login entirely separate from the internal

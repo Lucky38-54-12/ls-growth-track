@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createDocFromMarkedText } from "@/lib/googleDocs";
+import { createDocFromMarkedTextWithPhotos } from "@/lib/googleDocs";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const dynamic = "force-dynamic";
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
       email: body.email || undefined,
       dealNotes: String(dealNotes),
     });
-    const url = await createDocFromMarkedText(title, docBody);
+    const url = await createDocFromMarkedTextWithPhotos(title, docBody, body.photosFolderUrl || undefined);
     return NextResponse.json({ url });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to create document";

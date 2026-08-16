@@ -65,6 +65,206 @@ export async function createDocFromMarkedText(title: string, markedText: string)
   return url;
 }
 
+// Accepts a pasted Drive folder link (or a bare folder ID) and pulls out the
+// folder ID — Drive folder URLs look like
+// https://drive.google.com/drive/folders/<id>?usp=sharing, but people also
+// just paste the raw id, so both are handled.
+export function extractDriveFolderId(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const fromUrl = trimmed.match(/folders\/([a-zA-Z0-9_-]+)/);
+  if (fromUrl) return fromUrl[1];
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+export interface DriveImage {
+  id: string;
+  name: string;
+}
+
+// Lists the images sitting in a client's Drive folder and makes each one
+// link-shareable (view-only) — Docs' insertInlineImage fetches the image
+// from a public URI at insertion time, so a Drive file only this account can
+// see would fail to embed.
+export async function listAndShareImagesInFolder(folderId: string, limit: number = 12): Promise<DriveImage[]> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const drive = google.drive({ version: "v3", auth });
+
+  const list = await drive.files.list({
+    q: `'${folderId}' in parents and mimeType contains 'image/' and trashed=false`,
+    fields: "files(id, name)",
+    pageSize: limit,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+
+  const files = (list.data.files || []).filter((f): f is { id: string; name: string } => !!f.id && !!f.name);
+
+  await Promise.all(
+    files.map((f) =>
+      drive.permissions
+        .create({ fileId: f.id, requestBody: { role: "reader", type: "anyone" }, supportsAllDrives: true })
+        .catch(() => {})
+    )
+  );
+
+  return files;
+}
+
+// Appends an "Attached Photos" section with each image embedded inline —
+// called after the doc's text is already written, so this just tacks images
+// onto the end rather than trying to interleave them with clauses.
+export async function appendImagesToDoc(docId: string, images: DriveImage[]): Promise<void> {
+  if (!images.length) return;
+
+  const auth = await getLuckyGoogleAuthedClient();
+  const docs = google.docs({ version: "v1", auth });
+
+  const doc = await docs.documents.get({ documentId: docId });
+  const content = doc.data.body?.content || [];
+  const lastEndIndex = content.length ? content[content.length - 1].endIndex || 1 : 1;
+  const insertAt = Math.max(1, lastEndIndex - 1);
+
+  const heading = "\nAttached Photos\n";
+  const requests: object[] = [{ insertText: { location: { index: insertAt }, text: heading } }];
+  const headingStart = insertAt + 1;
+  requests.push({
+    updateTextStyle: {
+      range: { startIndex: headingStart, endIndex: headingStart + "Attached Photos".length },
+      textStyle: { bold: true },
+      fields: "bold",
+    },
+  });
+
+  let idx = insertAt + heading.length;
+  for (const img of images) {
+    requests.push({
+      insertInlineImage: {
+        location: { index: idx },
+        uri: `https://drive.google.com/uc?export=view&id=${img.id}`,
+        objectSize: { height: { magnitude: 200, unit: "PT" }, width: { magnitude: 266, unit: "PT" } },
+      },
+    });
+    idx += 1;
+    requests.push({ insertText: { location: { index: idx }, text: "\n" } });
+    idx += 1;
+  }
+
+  await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests } });
+}
+
+// Every generated agreement carries the same LS Growth letterhead and
+// Lucky's signature — fetched by the Docs API over plain HTTP, so these have
+// to be publicly reachable URLs, not local file paths (see the
+// PUBLIC_PATHS entries in middleware.ts that keep them out from behind the
+// dashboard login).
+const APP_URL = process.env.APP_URL || "https://app.lsgrowth.agency";
+const LOGO_URL = `${APP_URL}/logo-trimmed.png`;
+const SIGNATURE_URL = `${APP_URL}/agreement-assets/signature.png`;
+
+// One-stop helper for the agreement route: creates the doc with the LS
+// Growth logo at the top and Lucky's signature dropped into the Provider
+// signature block, then — if a photos folder was given — pulls its images
+// in as an appended section. Swallows photo-attach failures rather than
+// failing the whole doc, since a bad folder link (wrong id, no images,
+// folder not shared) shouldn't block getting the agreement itself out the
+// door — but the logo/signature are baked into the main batchUpdate since
+// every agreement needs them.
+export async function createDocFromMarkedTextWithPhotos(
+  title: string,
+  markedText: string,
+  photosFolderUrl?: string
+): Promise<string> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const docs = google.docs({ version: "v1", auth });
+  const drive = google.drive({ version: "v3", auth });
+
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+  const created = await drive.files.create({
+    requestBody: { name: title, mimeType: "application/vnd.google-apps.document", parents: [folderId] },
+    fields: "id",
+    supportsAllDrives: true,
+  });
+  const docId = created.data.id!;
+
+  // Logo first, in its own batchUpdate — its inserted width/height need to
+  // land before we can know where the agreement text should start.
+  await docs.documents.batchUpdate({
+    documentId: docId,
+    requestBody: {
+      requests: [
+        {
+          insertInlineImage: {
+            location: { index: 1 },
+            uri: LOGO_URL,
+            objectSize: { height: { magnitude: 110, unit: "PT" }, width: { magnitude: 85, unit: "PT" } },
+          },
+        },
+        { insertText: { location: { index: 2 }, text: "\n\n" } },
+      ],
+    },
+  });
+
+  const afterLogo = await docs.documents.get({ documentId: docId, fields: "body.content" });
+  const logoContent = afterLogo.data.body?.content || [];
+  const insertAt = Math.max(1, (logoContent.length ? logoContent[logoContent.length - 1].endIndex || 1 : 1) - 1);
+
+  await docs.documents.batchUpdate({
+    documentId: docId,
+    requestBody: { requests: buildFormattingRequests(markedText, insertAt) },
+  });
+
+  // Drop Lucky's signature right under "Title: Owner" in the Provider
+  // block (before the blank "Signature:" line) — found by locating that
+  // line in the plain text we just wrote, rather than trusting the doc's
+  // structural content, since insertInlineImage needs a plain character
+  // index.
+  const ownerMarker = "Title: Owner";
+  const plainText = markedText
+    .split("\n")
+    .map((l) => (l.startsWith("# ") ? l.slice(2) : l.startsWith("## ") ? l.slice(3) : l))
+    .join("\n");
+  const markerIdx = plainText.lastIndexOf(ownerMarker);
+  if (markerIdx !== -1) {
+    const lineEnd = plainText.indexOf("\n", markerIdx);
+    const sigIndex = insertAt + (lineEnd === -1 ? plainText.length : lineEnd + 1);
+    try {
+      await docs.documents.batchUpdate({
+        documentId: docId,
+        requestBody: {
+          requests: [
+            {
+              insertInlineImage: {
+                location: { index: sigIndex },
+                uri: SIGNATURE_URL,
+                objectSize: { height: { magnitude: 55, unit: "PT" }, width: { magnitude: 110, unit: "PT" } },
+              },
+            },
+            { insertText: { location: { index: sigIndex + 1 }, text: "\n" } },
+          ],
+        },
+      });
+    } catch (e) {
+      console.error("createDocFromMarkedTextWithPhotos: signature insert failed", e instanceof Error ? e.message : e);
+    }
+  }
+
+  const url = `https://docs.google.com/document/d/${docId}/edit`;
+
+  const folderIdFromInput = photosFolderUrl ? extractDriveFolderId(photosFolderUrl) : null;
+  if (folderIdFromInput) {
+    try {
+      const images = await listAndShareImagesInFolder(folderIdFromInput);
+      await appendImagesToDoc(docId, images);
+    } catch (e) {
+      console.error("createDocFromMarkedTextWithPhotos: photo attach failed", e instanceof Error ? e.message : e);
+    }
+  }
+
+  return url;
+}
+
 export async function createDocWithId(title: string, markedText: string): Promise<{ docId: string; url: string }> {
   const auth = await getLuckyGoogleAuthedClient();
   const docs = google.docs({ version: "v1", auth });
