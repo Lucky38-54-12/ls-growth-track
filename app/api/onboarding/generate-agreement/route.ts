@@ -125,8 +125,8 @@ ${input.dealNotes}
 
 Output ONLY the full agreement document text, nothing else — no preamble, no markdown code fences, no commentary. Formatting rules:
 - First line starts with "# " followed by the document title in caps (e.g. "# META ADS MANAGEMENT AGREEMENT", or something more fitting if the deal notes describe different services).
-- Every section heading line is prefixed with "## " (e.g. "## 1) Scope of Work").
-- Otherwise plain text: blank lines between paragraphs, "• " for bullet items, no other markdown.
+- Every section heading line — including numbered sub-points like "1.1 Campaign Management (Meta Ads)" — is prefixed with exactly "## ", never "### " or any other depth. There is only one heading style in this document.
+- Otherwise plain text: blank lines between paragraphs, "• " for bullet items, no other markdown, no "#" characters anywhere outside a heading prefix.
 - Keep the same overall sections as the reference template (Scope, Fees, Payment Terms, Setup & Term, Client Responsibilities, Ownership & Data, Performance & Liability, Publicity, Governing Law, Entire Agreement, Signatures) unless the deal notes clearly call for something different.
 - Use the real client/business name from CLIENT INFO throughout. If a contact person's name isn't given anywhere, use the business name in the signature block instead of leaving it blank.
 - End with a Signatures section: the Client's name/signature line/date, and a Provider block (Name: Lucky, Title: Owner, "LS & Growth", Date).`,

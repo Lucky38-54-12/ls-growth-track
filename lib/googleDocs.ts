@@ -22,9 +22,15 @@ function buildFormattingRequests(markedText: string, insertAt: number, tabId?: s
   const headingRanges: { start: number; end: number }[] = [];
 
   for (const rawLine of lines) {
-    const isTitle = rawLine.startsWith("# ");
-    const isHeading = rawLine.startsWith("## ");
-    const line = isTitle ? rawLine.slice(2) : isHeading ? rawLine.slice(3) : rawLine;
+    const isTitle = rawLine.startsWith("# ") && !rawLine.startsWith("## ");
+    // Anything from "## " to "###### " counts as a heading — models
+    // sometimes emit a deeper level than asked for (e.g. "### " for a
+    // numbered sub-point like "1.1 Campaign Management"), and this doc only
+    // has one heading style anyway, so any depth just collapses to it
+    // instead of leaking literal "###" text into the document.
+    const headingMatch = rawLine.match(/^(#{2,6})\s+/);
+    const isHeading = !isTitle && !!headingMatch;
+    const line = isTitle ? rawLine.slice(2) : isHeading ? rawLine.slice(headingMatch![0].length) : rawLine;
     const start = plainText.length;
     plainText += line + "\n";
     const end = plainText.length - 1;
@@ -160,7 +166,7 @@ export async function appendImagesToDoc(docId: string, images: DriveImage[]): Pr
 // PUBLIC_PATHS entries in middleware.ts that keep them out from behind the
 // dashboard login).
 const APP_URL = process.env.APP_URL || "https://app.lsgrowth.agency";
-const LOGO_URL = `${APP_URL}/logo-trimmed.png`;
+const LOGO_URL = `${APP_URL}/agreement-assets/logo.png`;
 const SIGNATURE_URL = `${APP_URL}/agreement-assets/signature.png`;
 
 // One-stop helper for the agreement route: creates the doc with the LS
@@ -198,7 +204,7 @@ export async function createDocFromMarkedTextWithPhotos(
           insertInlineImage: {
             location: { index: 1 },
             uri: LOGO_URL,
-            objectSize: { height: { magnitude: 110, unit: "PT" }, width: { magnitude: 85, unit: "PT" } },
+            objectSize: { height: { magnitude: 90, unit: "PT" }, width: { magnitude: 90, unit: "PT" } },
           },
         },
         { insertText: { location: { index: 2 }, text: "\n\n" } },
@@ -223,7 +229,11 @@ export async function createDocFromMarkedTextWithPhotos(
   const ownerMarker = "Title: Owner";
   const plainText = markedText
     .split("\n")
-    .map((l) => (l.startsWith("# ") ? l.slice(2) : l.startsWith("## ") ? l.slice(3) : l))
+    .map((l) => {
+      const headingMatch = l.match(/^(#{2,6})\s+/);
+      if (headingMatch) return l.slice(headingMatch[0].length);
+      return l.startsWith("# ") ? l.slice(2) : l;
+    })
     .join("\n");
   const markerIdx = plainText.lastIndexOf(ownerMarker);
   if (markerIdx !== -1) {
@@ -238,7 +248,7 @@ export async function createDocFromMarkedTextWithPhotos(
               insertInlineImage: {
                 location: { index: sigIndex },
                 uri: SIGNATURE_URL,
-                objectSize: { height: { magnitude: 55, unit: "PT" }, width: { magnitude: 110, unit: "PT" } },
+                objectSize: { height: { magnitude: 53, unit: "PT" }, width: { magnitude: 95, unit: "PT" } },
               },
             },
             { insertText: { location: { index: sigIndex + 1 }, text: "\n" } },

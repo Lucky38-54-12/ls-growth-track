@@ -14,7 +14,6 @@ const PUBLIC_PATHS = [
   // Logo/signature images embedded into generated Google Docs — the Docs API
   // fetches these over plain HTTP with no session cookie, so they can't sit
   // behind the dashboard login.
-  "/logo-trimmed.png",
   "/agreement-assets",
 ];
 
