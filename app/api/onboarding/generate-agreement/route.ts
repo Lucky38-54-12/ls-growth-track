@@ -129,6 +129,7 @@ Output ONLY the full agreement document text, nothing else — no preamble, no m
 - Otherwise plain text: blank lines between paragraphs, "• " for bullet items, no other markdown, no "#" characters anywhere outside a heading prefix.
 - Keep the same overall sections as the reference template (Scope, Fees, Payment Terms, Setup & Term, Client Responsibilities, Ownership & Data, Performance & Liability, Publicity, Governing Law, Entire Agreement, Signatures) unless the deal notes clearly call for something different.
 - Use the real client/business name from CLIENT INFO throughout. If a contact person's name isn't given anywhere, use the business name in the signature block instead of leaving it blank.
+- Never invent specifics — a location/service area, employee count, service names, or anything else concrete — that isn't explicitly stated in CLIENT INFO or DEAL NOTES. If something like the service area isn't given, describe it generically (e.g. just "location configuration", no parenthetical area) rather than guessing one.
 - End with a Signatures section: the Client's name/signature line/date, and a Provider block (Name: Lucky, Title: Owner, "LS & Growth", Date).`,
       },
     ],
