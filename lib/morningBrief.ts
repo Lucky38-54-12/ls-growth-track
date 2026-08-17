@@ -1,10 +1,43 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { notifySlack } from "./slackNotify";
 import { listTodaysEvents } from "./calendar";
+import { listColdCallSheetFiles, rankColdCallSheets, COLD_CALL_SHEETS_FOLDER_ID } from "./sheets";
 import { Lead } from "./types";
 
 const TZ = "Pacific/Auckland";
 const timeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true });
+
+// How many sheets to scan for freshness each morning — capped so the cron
+// stays well inside the function timeout. Sheets are read in Drive folder
+// order, so this isn't a full-inventory guarantee if the folder grows past
+// this, just a practical bound; bump via env if the folder outgrows it.
+const SHEET_SCAN_LIMIT = Number(process.env.COLD_CALL_SHEETS_SCAN_LIMIT || "40");
+
+// Below this many total untouched leads across the scanned sheets, it's
+// worth flagging that it's time to prospect more rather than just calling.
+const LOW_INVENTORY_THRESHOLD = Number(process.env.COLD_CALL_SHEETS_LOW_THRESHOLD || "30");
+
+async function getColdCallSheetBrief(): Promise<string[]> {
+  const lines: string[] = [];
+  try {
+    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || COLD_CALL_SHEETS_FOLDER_ID;
+    const files = await listColdCallSheetFiles(folderId);
+    const { sheets } = await rankColdCallSheets(files.slice(0, SHEET_SCAN_LIMIT));
+    if (sheets.length === 0) return lines;
+
+    const ranked = [...sheets].sort((a, b) => b.freshRows - a.freshRows);
+    const top = ranked[0];
+    const totalFresh = sheets.reduce((sum, s) => sum + s.freshRows, 0);
+
+    lines.push(`\n📋 Call sheet for today: *${top.sheetTitle}* (${top.freshRows} untouched leads)`);
+    if (totalFresh < LOW_INVENTORY_THRESHOLD) {
+      lines.push(`⚠️ Only ${totalFresh} untouched leads left across scanned sheets — time to prospect more.`);
+    }
+  } catch {
+    // Drive/Sheets outage shouldn't block the rest of the brief from sending.
+  }
+  return lines;
+}
 
 // Runs early (7am NZT, before daily-maintenance's 9am slot) so Lucky sees
 // today's schedule and what's due before his day actually starts. Mirrors
@@ -15,9 +48,10 @@ const timeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric"
 export async function sendMorningBrief(): Promise<{ sent: boolean; meetings: number; dueItems: number }> {
   const sb = createSupabaseClient();
 
-  const [events, allLeads] = await Promise.all([
+  const [events, allLeads, sheetLines] = await Promise.all([
     listTodaysEvents(TZ).catch(() => []),
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to)),
+    getColdCallSheetBrief(),
   ]);
 
   const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -26,7 +60,7 @@ export async function sendMorningBrief(): Promise<{ sent: boolean; meetings: num
   const followUpsDue = allLeads.filter((l) => l.follow_up_at && l.follow_up_at <= todayStr);
 
   const dueItems = repliedLeads.length + followUpsDue.length;
-  if (events.length === 0 && dueItems === 0) return { sent: false, meetings: 0, dueItems: 0 };
+  if (events.length === 0 && dueItems === 0 && sheetLines.length === 0) return { sent: false, meetings: 0, dueItems: 0 };
 
   const lines: string[] = [`☀️ *Morning brief*`];
 
@@ -48,6 +82,8 @@ export async function sendMorningBrief(): Promise<{ sent: boolean; meetings: num
       lines.push(`• Follow-up due — ${lead.contact_name || lead.company}`);
     }
   }
+
+  lines.push(...sheetLines);
 
   await notifySlack(lines.join("\n"));
   return { sent: true, meetings: events.length, dueItems };

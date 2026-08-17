@@ -1,5 +1,91 @@
 import { google } from "googleapis";
 
+export const COLD_CALL_SHEETS_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
+
+export interface SheetRanking {
+  sheetId: string;
+  sheetTitle: string;
+  totalRows: number;
+  freshRows: number;
+}
+
+function getDriveAuth() {
+  const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (!key) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var not set");
+  const credentials = JSON.parse(key);
+  return new google.auth.GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/drive.readonly"] });
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 4): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "";
+      if (attempt >= retries || !message.includes("Quota exceeded")) throw e;
+      await new Promise((r) => setTimeout(r, 2500 * (attempt + 1)));
+    }
+  }
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
+export async function listColdCallSheetFiles(folderId: string): Promise<{ id: string; name: string }[]> {
+  const auth = getDriveAuth();
+  const drive = google.drive({ version: "v3", auth: auth as any });
+  const list = await drive.files.list({
+    q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+    spaces: "drive",
+    fields: "files(id, name)",
+    pageSize: 200,
+    orderBy: "name",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+    corpora: "allDrives",
+  });
+  return (list.data.files || []).filter((f): f is { id: string; name: string } => !!f.id).map((f) => ({ id: f.id!, name: f.name || f.id! }));
+}
+
+// Read-only ranking of sheets in the cold-call Drive folder by how many leads
+// in each have never been called — the sheets worth working through today
+// are the ones with real untouched inventory left, not the ones that are
+// already fully worked or fully saturated with "booked out" no's.
+export async function rankColdCallSheets(
+  files: { id: string; name: string }[],
+  concurrency = 2
+): Promise<{ sheets: SheetRanking[]; errors: string[] }> {
+  const sheets: SheetRanking[] = [];
+  const errors: string[] = [];
+
+  await mapWithConcurrency(files, concurrency, async (file) => {
+    try {
+      const [title, rows] = await Promise.all([
+        withRetry(() => getSheetTitle(file.id)).catch(() => file.name),
+        withRetry(() => readLeadSheet(file.id)),
+      ]);
+      const freshRows = rows.filter((r) =>
+        (r.company || r.phone) && !r.dateCalled && !r.outcome && !r.callBack && !r.notes
+      ).length;
+      sheets.push({ sheetId: file.id, sheetTitle: title, totalRows: rows.length, freshRows });
+    } catch (e) {
+      errors.push(`${file.name}: ${e instanceof Error ? e.message : "read failed"}`);
+    }
+  });
+
+  return { sheets, errors };
+}
+
 export interface SheetRow {
   company: string;
   phone: string;
