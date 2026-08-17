@@ -20,7 +20,23 @@ export async function GET(request: NextRequest) {
 interface MessengerEvent {
   sender: { id: string };
   recipient: { id: string };
-  message?: { mid: string; text?: string; is_echo?: boolean; app_id?: number };
+  message?: { mid: string; text?: string; is_echo?: boolean; app_id?: number; attachments?: { type: string }[] };
+}
+
+// A lead sending just a photo (no caption) arrives with no message.text at
+// all — only message.attachments. Without this, the webhook silently dropped
+// it entirely (see the old "skip attachments for now" comment below), which
+// would strand a switchboard-upgrade conversation waiting on a photo that
+// had, in fact, already arrived. We don't need the image content itself:
+// Charl reviews it directly in the Facebook Page inbox before calling, so a
+// placeholder is enough to keep the AI's conversation state moving.
+function textForEvent(event: MessengerEvent): string | undefined {
+  if (event.message?.text) return event.message.text;
+  if (event.message?.attachments?.length) {
+    const isImage = event.message.attachments.some((a) => a.type === "image");
+    return isImage ? "[Photo attached]" : "[Attachment sent]";
+  }
+  return undefined;
 }
 
 interface LeadgenChange {
@@ -86,8 +102,8 @@ export async function POST(request: NextRequest) {
     }
 
     for (const event of (entry.messaging || []) as MessengerEvent[]) {
-      const text = event.message?.text;
-      if (!text) continue; // skip delivery/read receipts, attachments, etc. for now
+      const text = textForEvent(event);
+      if (!text) continue; // skip delivery/read receipts, etc.
       if (event.message?.mid && (await alreadyProcessed(event.message.mid))) continue;
 
       // Echoes of our own AI-sent replies carry our app_id and need no
