@@ -16,7 +16,7 @@ async function getColdCallSheetBrief(): Promise<string[]> {
   try {
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || COLD_CALL_SHEETS_FOLDER_ID;
     const files = await listColdCallSheetFiles(folderId);
-    const { sheets, scanned } = await rankColdCallSheets(files, { timeBudgetMs: 45000 });
+    const { sheets, scanned } = await rankColdCallSheets(files);
     if (sheets.length === 0) return lines;
 
     const ranked = [...sheets].sort((a, b) => b.freshRows - a.freshRows);

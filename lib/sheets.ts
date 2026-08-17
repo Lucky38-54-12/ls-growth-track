@@ -16,14 +16,26 @@ function getDriveAuth() {
   return new google.auth.GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/drive.readonly"] });
 }
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 4): Promise<T> {
+// Bounds a single network call — the googleapis client has no default
+// request timeout, so a stalled connection would otherwise hang until the
+// serverless function itself is killed, silently eating the whole time
+// budget below.
+function withTimeout<T>(fn: () => Promise<T>, ms = 8000): Promise<T> {
+  return Promise.race([
+    fn(),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Request timed out")), ms)),
+  ]);
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await fn();
+      return await withTimeout(fn);
     } catch (e) {
       const message = e instanceof Error ? e.message : "";
-      if (attempt >= retries || !message.includes("Quota exceeded")) throw e;
-      await new Promise((r) => setTimeout(r, 2500 * (attempt + 1)));
+      const retryable = message.includes("Quota exceeded") || message.includes("timed out");
+      if (attempt >= retries || !retryable) throw e;
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
     }
   }
 }
@@ -44,16 +56,18 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, fn: (it
 export async function listColdCallSheetFiles(folderId: string): Promise<{ id: string; name: string }[]> {
   const auth = getDriveAuth();
   const drive = google.drive({ version: "v3", auth: auth as any });
-  const list = await drive.files.list({
-    q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
-    spaces: "drive",
-    fields: "files(id, name)",
-    pageSize: 200,
-    orderBy: "name",
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-    corpora: "allDrives",
-  });
+  const list = await withRetry(() =>
+    drive.files.list({
+      q: `'${folderId}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+      spaces: "drive",
+      fields: "files(id, name)",
+      pageSize: 200,
+      orderBy: "name",
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: "allDrives",
+    })
+  );
   return (list.data.files || []).filter((f): f is { id: string; name: string } => !!f.id).map((f) => ({ id: f.id!, name: f.name || f.id! }));
 }
 
@@ -67,7 +81,7 @@ export async function listColdCallSheetFiles(folderId: string): Promise<{ id: st
 // whatever it has, marking the rest skipped rather than timing out the route.
 export async function rankColdCallSheets(
   files: { id: string; name: string }[],
-  { concurrency = 4, timeBudgetMs = 45000 }: { concurrency?: number; timeBudgetMs?: number } = {}
+  { concurrency = 3, timeBudgetMs = 35000 }: { concurrency?: number; timeBudgetMs?: number } = {}
 ): Promise<{ sheets: SheetRanking[]; errors: string[]; scanned: number }> {
   const sheets: SheetRanking[] = [];
   const errors: string[] = [];

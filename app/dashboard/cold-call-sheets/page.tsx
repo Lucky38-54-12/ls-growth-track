@@ -11,7 +11,7 @@ const LOW_THRESHOLD = Number(process.env.COLD_CALL_SHEETS_LOW_THRESHOLD || "30")
 export default async function ColdCallSheetsPage() {
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || COLD_CALL_SHEETS_FOLDER_ID;
   const files = await listColdCallSheetFiles(folderId);
-  const { sheets, errors, scanned } = await rankColdCallSheets(files, { timeBudgetMs: 45000 });
+  const { sheets, errors, scanned } = await rankColdCallSheets(files);
   const ranked = [...sheets].sort((a, b) => b.freshRows - a.freshRows);
   const totalFresh = sheets.reduce((sum, s) => sum + s.freshRows, 0);
 
