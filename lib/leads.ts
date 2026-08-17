@@ -7,7 +7,7 @@ import { createSupabaseClient } from "./supabase";
 // timestamp, the stale-reply escalation and proposal-followup automations
 // have no way to know how long a lead has been sitting there.
 export function statusTimestampUpdates(newStatus: string): Record<string, unknown> {
-  if (newStatus === "replied") return { replied_at: new Date().toISOString(), replied_stale_notified: false };
+  if (newStatus === "replied") return { replied_at: new Date().toISOString(), replied_stale_notified: false, attention_dismissed_at: null };
   if (newStatus === "proposal_sent") return { proposal_sent_at: new Date().toISOString(), proposal_followup_sent: false };
   if (newStatus === "thinking_about_it") return { thinking_about_it_at: new Date().toISOString() };
   if (newStatus === "no_show") return { no_show_at: new Date().toISOString(), no_show_sequence_step: 0, no_show_last_sent_at: null };

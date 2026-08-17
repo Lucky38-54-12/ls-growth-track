@@ -12,6 +12,7 @@ import RevenueGoalCard from "@/components/RevenueGoalCard";
 import DailyNotes from "@/components/DailyNotes";
 import CheckRepliesButton from "@/components/CheckRepliesButton";
 import DismissInboxAlertButton from "@/components/DismissInboxAlertButton";
+import DismissReplyButton from "@/components/DismissReplyButton";
 import FlashMessage from "@/app/dashboard/FlashMessage";
 import { Suspense } from "react";
 
@@ -102,7 +103,7 @@ export default async function TodayPage() {
   // Once you move a lead off "replied" in the pipeline it naturally drops out of this list.
   // Covers every source (cold-call and email outreach both) — this page is the
   // single place replies get surfaced, no separate email notification exists.
-  const repliedLeads = pipelineLeads.filter(l => l.status === "replied");
+  const repliedLeads = pipelineLeads.filter(l => l.status === "replied" && !l.attention_dismissed_at);
   const needsAttentionCount = repliedLeads.length;
 
   // Leads explicitly snoozed to a future date (e.g. "booked out until
@@ -161,6 +162,7 @@ export default async function TodayPage() {
                     </div>
                     <span style={{ fontSize: 10.5, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>Reply</span>
                     <Info style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
+                    <DismissReplyButton id={lead.id} />
                   </summary>
                   <ClientDetailsPanel lead={lead} />
                 </details>

@@ -132,3 +132,9 @@ create index if not exists leads_campaign_id_idx on leads (campaign_id);
 -- follow-up/follow-up-2 nudges in lib/coldCallNudges.ts to when the lead
 -- actually went quiet, not to whatever last_followup happens to be.
 alter table leads add column if not exists thinking_about_it_at timestamptz;
+
+-- Set when a lead is dismissed off the Today page's "Needs Your Attention"
+-- queue without changing its pipeline status (see statusTimestampUpdates in
+-- lib/leads.ts, which clears it again the next time status flips to
+-- 'replied' so a genuine new reply always resurfaces).
+alter table leads add column if not exists attention_dismissed_at timestamptz;

@@ -64,6 +64,7 @@ export interface Lead {
   no_show_at: string | null;
   no_show_sequence_step: number;
   no_show_last_sent_at: string | null;
+  attention_dismissed_at: string | null;
 }
 
 export type PostCallOutcome = "hot" | "warm" | "closed_won";

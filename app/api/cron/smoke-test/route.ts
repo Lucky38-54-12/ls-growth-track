@@ -68,6 +68,7 @@ function fakeLead(overrides: Partial<Lead>): Lead {
     no_show_at: null,
     no_show_sequence_step: 0,
     no_show_last_sent_at: null,
+    attention_dismissed_at: null,
     ...overrides,
   };
 }
