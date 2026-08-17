@@ -60,15 +60,23 @@ export async function listColdCallSheetFiles(folderId: string): Promise<{ id: st
 // Read-only ranking of sheets in the cold-call Drive folder by how many leads
 // in each have never been called — the sheets worth working through today
 // are the ones with real untouched inventory left, not the ones that are
-// already fully worked or fully saturated with "booked out" no's.
+// already fully worked or fully saturated with "booked out" no's. Time-boxed
+// (rather than just count-capped) because each sheet costs two Sheets API
+// calls and a 40-sheet scan blew past a 60s function timeout in practice —
+// stops picking up new sheets once the deadline is close and returns
+// whatever it has, marking the rest skipped rather than timing out the route.
 export async function rankColdCallSheets(
   files: { id: string; name: string }[],
-  concurrency = 2
-): Promise<{ sheets: SheetRanking[]; errors: string[] }> {
+  { concurrency = 4, timeBudgetMs = 45000 }: { concurrency?: number; timeBudgetMs?: number } = {}
+): Promise<{ sheets: SheetRanking[]; errors: string[]; scanned: number }> {
   const sheets: SheetRanking[] = [];
   const errors: string[] = [];
+  const deadline = Date.now() + timeBudgetMs;
+  let scanned = 0;
 
   await mapWithConcurrency(files, concurrency, async (file) => {
+    if (Date.now() > deadline) return;
+    scanned++;
     try {
       const [title, rows] = await Promise.all([
         withRetry(() => getSheetTitle(file.id)).catch(() => file.name),
@@ -83,7 +91,7 @@ export async function rankColdCallSheets(
     }
   });
 
-  return { sheets, errors };
+  return { sheets, errors, scanned };
 }
 
 export interface SheetRow {

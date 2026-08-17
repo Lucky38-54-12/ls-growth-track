@@ -3,15 +3,15 @@ import Topbar from "@/components/Topbar";
 import { listColdCallSheetFiles, rankColdCallSheets, COLD_CALL_SHEETS_FOLDER_ID } from "@/lib/sheets";
 
 export const revalidate = 0;
+export const maxDuration = 60;
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
-const SCAN_LIMIT = Number(process.env.COLD_CALL_SHEETS_SCAN_LIMIT || "40");
 const LOW_THRESHOLD = Number(process.env.COLD_CALL_SHEETS_LOW_THRESHOLD || "30");
 
 export default async function ColdCallSheetsPage() {
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || COLD_CALL_SHEETS_FOLDER_ID;
   const files = await listColdCallSheetFiles(folderId);
-  const { sheets, errors } = await rankColdCallSheets(files.slice(0, SCAN_LIMIT));
+  const { sheets, errors, scanned } = await rankColdCallSheets(files, { timeBudgetMs: 45000 });
   const ranked = [...sheets].sort((a, b) => b.freshRows - a.freshRows);
   const totalFresh = sheets.reduce((sum, s) => sum + s.freshRows, 0);
 
@@ -20,9 +20,9 @@ export default async function ColdCallSheetsPage() {
       <Topbar title="Cold Call Sheets" subtitle="Which sheet has the most untouched leads left to call today" />
 
       <div style={{ maxWidth: 780, margin: "32px auto", padding: "0 28px", display: "flex", flexDirection: "column", gap: 24 }}>
-        {files.length > SCAN_LIMIT && (
+        {scanned < files.length && (
           <p style={{ fontSize: 12.5, color: L.muted }}>
-            Scanned {Math.min(SCAN_LIMIT, files.length)} of {files.length} sheets in the folder (capped to keep this page fast).
+            Scanned {scanned} of {files.length} sheets in the folder — stopped early to stay fast, so sheets further down the Drive folder weren't ranked this time.
           </p>
         )}
 

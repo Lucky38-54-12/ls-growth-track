@@ -7,12 +7,6 @@ import { Lead } from "./types";
 const TZ = "Pacific/Auckland";
 const timeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true });
 
-// How many sheets to scan for freshness each morning — capped so the cron
-// stays well inside the function timeout. Sheets are read in Drive folder
-// order, so this isn't a full-inventory guarantee if the folder grows past
-// this, just a practical bound; bump via env if the folder outgrows it.
-const SHEET_SCAN_LIMIT = Number(process.env.COLD_CALL_SHEETS_SCAN_LIMIT || "40");
-
 // Below this many total untouched leads across the scanned sheets, it's
 // worth flagging that it's time to prospect more rather than just calling.
 const LOW_INVENTORY_THRESHOLD = Number(process.env.COLD_CALL_SHEETS_LOW_THRESHOLD || "30");
@@ -22,7 +16,7 @@ async function getColdCallSheetBrief(): Promise<string[]> {
   try {
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || COLD_CALL_SHEETS_FOLDER_ID;
     const files = await listColdCallSheetFiles(folderId);
-    const { sheets } = await rankColdCallSheets(files.slice(0, SHEET_SCAN_LIMIT));
+    const { sheets, scanned } = await rankColdCallSheets(files, { timeBudgetMs: 45000 });
     if (sheets.length === 0) return lines;
 
     const ranked = [...sheets].sort((a, b) => b.freshRows - a.freshRows);
@@ -30,6 +24,9 @@ async function getColdCallSheetBrief(): Promise<string[]> {
     const totalFresh = sheets.reduce((sum, s) => sum + s.freshRows, 0);
 
     lines.push(`\n📋 Call sheet for today: *${top.sheetTitle}* (${top.freshRows} untouched leads)`);
+    if (scanned < files.length) {
+      lines.push(`(scanned ${scanned}/${files.length} sheets — ran out of time)`);
+    }
     if (totalFresh < LOW_INVENTORY_THRESHOLD) {
       lines.push(`⚠️ Only ${totalFresh} untouched leads left across scanned sheets — time to prospect more.`);
     }
