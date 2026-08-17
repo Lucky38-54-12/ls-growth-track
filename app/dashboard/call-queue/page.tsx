@@ -31,6 +31,9 @@ export default async function CallQueuePage() {
       <Topbar title="Call Queue" subtitle="Who to call next, and who's asked for a callback" />
 
       <div style={{ maxWidth: 1080, margin: "32px auto", padding: "0 28px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <Link href="/dashboard/cold-call-sheets" style={{ fontSize: 12.5, color: L.muted, alignSelf: "flex-start" }}>
+          📋 Which raw sheet to work through today →
+        </Link>
         {/* Callbacks due */}
         <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
