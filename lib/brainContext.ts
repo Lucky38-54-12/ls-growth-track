@@ -47,6 +47,31 @@ async function summarizeLeads(sb: ReturnType<typeof createSupabaseClient>): Prom
   ].join("\n");
 }
 
+// Generic English/app words that show up in almost every message and are
+// too short to be a real name/company signal — without this, a plain "the"
+// (from something as ordinary as "move the call...") substring-matches the
+// placeholder contact_name "there" (many leads without a real contact name
+// have this literal value) via ilike's raw %the%, silently attaching a
+// drafted email to a completely unrelated lead. Word-boundary matching
+// below closes most of this on its own, but a stopword list is cheap
+// insurance against a short real word (e.g. "and") legitimately appearing
+// inside an unrelated company name.
+const STOPWORDS = new Set([
+  "the", "and", "for", "with", "that", "this", "from", "have", "your", "you", "him", "her", "his", "she", "who",
+  "what", "when", "where", "why", "how", "can", "could", "would", "should", "just", "also", "get", "got", "let",
+  "know", "tell", "send", "email", "call", "calls", "update", "updated", "move", "moving", "time", "today",
+  "tomorrow", "tmrw", "week", "month", "need", "want", "make", "made", "give", "take", "look", "see", "said",
+  "says", "say", "its", "our", "out", "about", "into", "over", "then", "than", "them", "they", "their", "there",
+  "was", "were", "been", "will", "not", "are", "letting", "instead", "please", "thanks", "thank",
+]);
+
+function significantWords(text: string): string[] {
+  return text
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !STOPWORDS.has(w.toLowerCase()));
+}
+
 // Matches leads by company name OR contact name against words in the user's
 // question — the aggregate pipeline snapshot never lists individual leads,
 // so this is the only way the model ever learns a real lead_id slug to draft
@@ -54,19 +79,19 @@ async function summarizeLeads(sb: ReturnType<typeof createSupabaseClient>): Prom
 // first name alone (e.g. "what did Ray say", after a real meeting with him)
 // found nothing and the model had no way to place who that even was —
 // matching contact_name too is what actually resolves a name to a lead.
+// Uses word-boundary regex (imatch), not ilike substring — "gav" must match
+// a whole word, not silently substring-match some unrelated longer word.
 async function matchingLeads(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string): Promise<string> {
-  const words = userQuestion
-    .replace(/[^a-zA-Z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length >= 3);
+  const words = significantWords(userQuestion);
   if (words.length === 0) return "";
 
   const seen = new Map<string, { lead_id: string; company: string; contact_name: string; email: string; status: string }>();
   for (const word of words.slice(0, 6)) {
+    const boundary = `\\y${word}\\y`;
     const { data } = await sb
       .from("leads")
       .select("lead_id, company, contact_name, email, status")
-      .or(`company.ilike.%${word}%,contact_name.ilike.%${word}%`)
+      .or(`company.imatch.${boundary},contact_name.imatch.${boundary}`)
       .limit(5);
     for (const row of data || []) seen.set(row.lead_id, row);
     if (seen.size >= 8) break;
@@ -143,7 +168,7 @@ async function relevantDriveDocs(userQuestion: string): Promise<string> {
 }
 
 function questionWords(userQuestion: string): string[] {
-  return userQuestion.replace(/[^a-zA-Z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length >= 3);
+  return significantWords(userQuestion);
 }
 
 // Window starts 3 days back (from the start of that day, not just "now"),
