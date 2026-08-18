@@ -16,6 +16,21 @@ function getDriveAuth() {
   return new google.auth.GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/drive.readonly"] });
 }
 
+function getDriveWriteAuth() {
+  const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (!key) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var not set");
+  const credentials = JSON.parse(key);
+  return new google.auth.GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/drive"] });
+}
+
+// Shared by the /api/admin/rename-sheets endpoint and the morning-brief cron
+// so both go through the same rename path.
+export async function renameSheetFile(sheetId: string, newName: string): Promise<void> {
+  const auth = getDriveWriteAuth();
+  const drive = google.drive({ version: "v3", auth: auth as any });
+  await drive.files.update({ fileId: sheetId, requestBody: { name: newName }, supportsAllDrives: true });
+}
+
 // Bounds a single network call — the googleapis client has no default
 // request timeout, so a stalled connection would otherwise hang until the
 // serverless function itself is killed, silently eating the whole time
@@ -220,6 +235,42 @@ export function parseCampaignFromTitle(title: string): { trade?: string; locatio
   }
 
   return result;
+}
+
+// Higher-ticket trades (~$10k+ average job) that outreach is now prioritizing
+// over the lower-ticket ones (cleaning, fencing, etc.) already well covered.
+export const PRIORITY_TRADES = ["Renovations", "Roofing", "Builders"];
+
+export interface CoverageGap {
+  trade: string;
+  location: string;
+  reason: "missing" | "low";
+  freshRows?: number;
+}
+
+// For each priority trade, flag NZ cities with no cold-call sheet at all, or
+// one that's down to single-digit untouched leads — these are the gaps worth
+// running the scraper against. Only meaningful when `sheets` covers most of
+// the folder; a partial scan (see rankColdCallSheets' time-box) will read as
+// false "missing" gaps for sheets that exist but weren't reached this run.
+export function findPriorityCoverageGaps(
+  sheets: { sheetTitle: string; freshRows: number }[],
+  { lowThreshold = 10, trades = PRIORITY_TRADES, cities = CITIES }: { lowThreshold?: number; trades?: string[]; cities?: string[] } = {}
+): CoverageGap[] {
+  const annotated = sheets.map((s) => ({ ...s, ...parseCampaignFromTitle(s.sheetTitle) }));
+  const gaps: CoverageGap[] = [];
+  for (const trade of trades) {
+    for (const city of cities) {
+      const location = `${city} NZ`;
+      const match = annotated.find((s) => s.trade === trade && s.location === location);
+      if (!match) {
+        gaps.push({ trade, location: city, reason: "missing" });
+      } else if (match.freshRows <= lowThreshold) {
+        gaps.push({ trade, location: city, reason: "low", freshRows: match.freshRows });
+      }
+    }
+  }
+  return gaps;
 }
 
 export function hasCallInfo(row: SheetRow): boolean {

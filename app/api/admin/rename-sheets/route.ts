@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
+import { renameSheetFile } from "@/lib/sheets";
 
 export const dynamic = "force-dynamic";
 
 // One-off admin action: rename a set of sheets in Drive so they sort to the
 // top of the folder (used for "here's what to call today" prioritization).
-// Idempotent — skips files that already carry the prefix.
-function getDriveAuth(): JWT {
+// Idempotent — skips files that already carry the prefix. The morning-brief
+// cron does this same add/remove automatically now (see lib/morningBrief.ts);
+// this endpoint stays around for manual overrides from the dashboard.
+function getReadAuth(): JWT {
   const keyString = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!keyString) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var not set");
   const key = JSON.parse(keyString);
-  return new JWT({ email: key.client_email, key: key.private_key, scopes: ["https://www.googleapis.com/auth/drive"] });
+  return new JWT({ email: key.client_email, key: key.private_key, scopes: ["https://www.googleapis.com/auth/drive.readonly"] });
 }
 
 export async function POST(req: NextRequest) {
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest) {
   const action: "add" | "remove" = body.action === "remove" ? "remove" : "add";
   if (!sheetIds.length) return NextResponse.json({ error: "sheetIds required" }, { status: 400 });
 
-  const auth = getDriveAuth();
+  const auth = getReadAuth();
   const drive = google.drive({ version: "v3", auth: auth as any });
 
   const results: { id: string; from?: string; to?: string; error?: string }[] = [];
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
           continue;
         }
         const newName = currentName.slice(prefix.length);
-        await drive.files.update({ fileId: id, requestBody: { name: newName }, supportsAllDrives: true });
+        await renameSheetFile(id, newName);
         results.push({ id, from: currentName, to: newName });
         continue;
       }
@@ -51,7 +54,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const newName = `${prefix}${currentName}`;
-      await drive.files.update({ fileId: id, requestBody: { name: newName }, supportsAllDrives: true });
+      await renameSheetFile(id, newName);
       results.push({ id, from: currentName, to: newName });
     } catch (e) {
       results.push({ id, error: e instanceof Error ? e.message : "rename failed" });

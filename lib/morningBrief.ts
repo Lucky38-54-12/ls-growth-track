@@ -1,7 +1,10 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { notifySlack } from "./slackNotify";
 import { listTodaysEvents } from "./calendar";
-import { listColdCallSheetFiles, rankColdCallSheets, COLD_CALL_SHEETS_FOLDER_ID } from "./sheets";
+import {
+  listColdCallSheetFiles, rankColdCallSheets, renameSheetFile, findPriorityCoverageGaps,
+  parseCampaignFromTitle, PRIORITY_TRADES, COLD_CALL_SHEETS_FOLDER_ID,
+} from "./sheets";
 import { Lead } from "./types";
 
 const TZ = "Pacific/Auckland";
@@ -11,24 +14,86 @@ const timeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric"
 // worth flagging that it's time to prospect more rather than just calling.
 const LOW_INVENTORY_THRESHOLD = Number(process.env.COLD_CALL_SHEETS_LOW_THRESHOLD || "30");
 
+const TODAY_TAG = "📞 TODAY — ";
+// How many sheets stay tagged "today's picks" at once — matches the size of
+// the working list Lucky was keeping by hand before this was automated.
+const TARGET_TODAY_COUNT = 5;
+
 async function getColdCallSheetBrief(): Promise<string[]> {
   const lines: string[] = [];
   try {
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || COLD_CALL_SHEETS_FOLDER_ID;
     const files = await listColdCallSheetFiles(folderId);
-    const { sheets, scanned } = await rankColdCallSheets(files);
+    // Lower concurrency + a bigger time budget than the dashboard page uses —
+    // this route has a 60s ceiling (see api/cron/morning-brief/route.ts) and
+    // nothing else competing for it, so it's worth spending more of that on
+    // a fuller scan (concurrency 3 was tripping the Sheets API's per-minute
+    // read quota on an 80-sheet folder).
+    const { sheets, scanned } = await rankColdCallSheets(files, { concurrency: 2, timeBudgetMs: 45000 });
     if (sheets.length === 0) return lines;
 
-    const ranked = [...sheets].sort((a, b) => b.freshRows - a.freshRows);
-    const top = ranked[0];
-    const totalFresh = sheets.reduce((sum, s) => sum + s.freshRows, 0);
+    // 1. Untag anything in today's picks that's been fully worked through.
+    const tagged = sheets.filter((s) => s.sheetTitle.startsWith(TODAY_TAG));
+    const finished = tagged.filter((s) => s.freshRows === 0);
+    for (const s of finished) {
+      await renameSheetFile(s.sheetId, s.sheetTitle.slice(TODAY_TAG.length)).catch(() => {});
+    }
+    const stillActive = tagged.filter((s) => s.freshRows > 0);
 
-    lines.push(`\n📋 Call sheet for today: *${top.sheetTitle}* (${top.freshRows} untouched leads)`);
+    // 2. Top up today's picks — priority (higher-ticket) trades first, then
+    // whatever has the most untouched leads left.
+    const untagged = sheets.filter((s) => !s.sheetTitle.startsWith(TODAY_TAG) && s.freshRows > 0);
+    const ranked = [...untagged].sort((a, b) => {
+      const aPri = PRIORITY_TRADES.includes(parseCampaignFromTitle(a.sheetTitle).trade || "") ? 1 : 0;
+      const bPri = PRIORITY_TRADES.includes(parseCampaignFromTitle(b.sheetTitle).trade || "") ? 1 : 0;
+      if (aPri !== bPri) return bPri - aPri;
+      return b.freshRows - a.freshRows;
+    });
+    const needed = Math.max(0, TARGET_TODAY_COUNT - stillActive.length);
+    const newlyTagged = ranked.slice(0, needed);
+    for (const s of newlyTagged) {
+      await renameSheetFile(s.sheetId, `${TODAY_TAG}${s.sheetTitle}`).catch(() => {});
+    }
+
+    const finalToday = [
+      ...stillActive,
+      ...newlyTagged.map((s) => ({ ...s, sheetTitle: `${TODAY_TAG}${s.sheetTitle}` })),
+    ].sort((a, b) => b.freshRows - a.freshRows);
+
+    if (finalToday.length > 0) {
+      lines.push(`\n📋 Today's call sheets:`);
+      for (const s of finalToday) {
+        lines.push(`• ${s.sheetTitle.slice(TODAY_TAG.length)} — ${s.freshRows} untouched`);
+      }
+    }
+    if (finished.length > 0) {
+      lines.push(`✅ Wrapped up: ${finished.map((s) => s.sheetTitle.slice(TODAY_TAG.length)).join(", ")}`);
+    }
+
+    const totalFresh = sheets.reduce((sum, s) => sum + s.freshRows, 0);
     if (scanned < files.length) {
       lines.push(`(scanned ${scanned}/${files.length} sheets — ran out of time)`);
     }
     if (totalFresh < LOW_INVENTORY_THRESHOLD) {
       lines.push(`⚠️ Only ${totalFresh} untouched leads left across scanned sheets — time to prospect more.`);
+    }
+
+    // 3. Coverage gaps for higher-ticket trades (Renovations, Roofing,
+    // Builders) — cities with no sheet yet, or one that's nearly exhausted.
+    // Reported only, not auto-scraped: the scraper still runs locally, not
+    // from this cron (see lead-scraper's Task Scheduler job instead).
+    // "missing" (no sheet found) is only trustworthy on a full scan — a
+    // partial scan just means that city/trade combo wasn't reached yet, not
+    // that it doesn't exist. "low" is safe either way: it's only reported
+    // for sheets that were actually read this run.
+    const fullScan = scanned >= files.length;
+    const gaps = findPriorityCoverageGaps(sheets).filter((g) => fullScan || g.reason === "low");
+    if (gaps.length > 0) {
+      const missing = gaps.filter((g) => g.reason === "missing");
+      const low = gaps.filter((g) => g.reason === "low");
+      lines.push(`\n🎯 High-value trade gaps:`);
+      if (missing.length > 0) lines.push(`• No sheet yet: ${missing.map((g) => `${g.trade} ${g.location}`).join(", ")}`);
+      if (low.length > 0) lines.push(`• Running low: ${low.map((g) => `${g.trade} ${g.location} (${g.freshRows} left)`).join(", ")}`);
     }
   } catch {
     // Drive/Sheets outage shouldn't block the rest of the brief from sending.
