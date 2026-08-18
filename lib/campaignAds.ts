@@ -28,7 +28,7 @@ For each ad write:
 - targeting: this specific ad's audience/placement notes — most ads will just restate the shared targeting in short form, but say plainly if this ad is testing something narrower/different and why
 - referenceLinks: you're given real Meta ad research below (from LS Growth's own ad research tool). For each ad, if one of those research entries has a source_url that is itself an actual Facebook Ads Library, Instagram, or TikTok link (not a blog post, case study, or funnel page — those get discarded even if you include them) and its angle/format genuinely matches what this ad is doing, include that source_url here. NEVER invent a URL yourself. A real matching link is added automatically for you regardless, so it's fine and expected to leave this empty when nothing in the research is an actual ad link.
 
-If Lucky's own notes (given below, when present) already describe a specific ad idea he wants for this service — an angle, a video concept, or actual reference links he already found — build that as one of the 3 ads using his idea, not a different angle you'd have picked yourself. Keep any links he already gave verbatim in that ad's referenceLinks. Fill the other ads around it as normal.
+Lucky's own notes (given below, when present) are shared across this client's ENTIRE service list, not written for just the one service you're generating now — they might describe an idea for a completely different service (e.g. notes headed "Deck Video" have nothing to do with a Renovation or Home extension brief, even though "on-site process video" as an angle could superficially sound like it fits anywhere). Only build one of the 3 ads from his notes, and only reuse a reference link he gave, when the notes are unambiguously about THIS service — check any heading/label on the note first. If the notes are clearly about a different service, ignore them completely for this generation rather than reusing the angle or links "because it's similar."
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
 {"ads": [{"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}, {"angle": "...", "headline": "...", "primaryText": "...", "creativeDirection": "...", "targeting": "...", "referenceLinks": ["...", "..."]}]}`;
@@ -142,7 +142,7 @@ Job value & margins: ${strategy.jobValueMargins}
 Competitor research: ${strategy.competitorResearch}
 Lead qualification criteria: ${strategy.leadQualificationCriteria}
 Retargeting strategy: ${strategy.retargetingStrategy}
-${researchBlock}${extraContext ? `\nLucky's own notes on this client (may include a specific ad idea for this service to use as-is — see instructions above):\n${extraContext}\n` : ""}
+${researchBlock}${extraContext ? `\nLucky's own notes on this client (shared across ALL of this client's services — only use anything from here that is unambiguously about "${service}" specifically, see instructions above):\n${extraContext}\n` : ""}
 Write the 3 ad concepts for "${service}".`;
 
   const msg = await anthropic.messages.create({
@@ -157,9 +157,24 @@ Write the 3 ad concepts for "${service}".`;
 
   const librarySearchUrl = adLibrarySearchUrl(`${service} ${client.trade || ""}`.trim(), serviceAreas);
 
+  // A link already cited as "reference" evidence under one of this client's
+  // OTHER services can't also be real evidence for this one — the model was
+  // still doing this even with the prompt telling it not to (Lucky's shared
+  // notes for one service, e.g. "Deck Video", kept leaking into unrelated
+  // services' ad concepts since a generic "process video" angle superficially
+  // fits everywhere). Enforced here in code rather than trusted to the model.
+  const linksUsedByOtherServices = new Set(
+    Object.entries(serviceDetails)
+      .filter(([svc]) => svc !== service)
+      .flatMap(([, details]) => (details as { ad_concepts?: AdConcept[] }).ad_concepts || [])
+      .flatMap((ad) => ad.referenceLinks || [])
+  );
+
   const parsed = parseJsonResponse<{ ads?: Partial<AdConcept>[] }>(text);
   const ads: AdConcept[] = (parsed.ads || []).map((a) => {
-    const modelLinks = Array.isArray(a.referenceLinks) ? a.referenceLinks.filter((l): l is string => typeof l === "string" && isRealAdLink(l)) : [];
+    const modelLinks = Array.isArray(a.referenceLinks)
+      ? a.referenceLinks.filter((l): l is string => typeof l === "string" && isRealAdLink(l) && !linksUsedByOtherServices.has(l))
+      : [];
     return {
       angle: a.angle || "",
       headline: a.headline || "",
