@@ -103,6 +103,70 @@ async function matchingLeads(sb: ReturnType<typeof createSupabaseClient>, userQu
     .join("\n");
 }
 
+interface AdConceptRow {
+  angle: string;
+  headline: string;
+  referenceLinks: string[];
+}
+
+// Real campaign-brief content (ad concepts, reference links, the actual
+// Google Doc URL) for whichever onboarded client the question is about —
+// the Brain used to have no way to answer questions about a client's actual
+// campaign doc beyond a generic Drive keyword search, so it would claim it
+// couldn't read the doc at all even though this data already lives in
+// campaign_briefs.service_details. Cross-service reference-link duplication
+// (the same Instagram/TikTok link cited as "evidence" for two different
+// services, e.g. a deck-build reel showing up under Renovation) is flagged
+// here in code rather than left for the model to notice by eye — that's
+// exactly the class of bug that prompted this: Buildit All's Renovation and
+// Home extension services both cited the same two deck-build reels as their
+// process-video reference.
+async function campaignBriefSummary(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string): Promise<string> {
+  const words = significantWords(userQuestion).map((w) => w.toLowerCase());
+  if (words.length === 0) return "";
+
+  const { data: clients } = await sb.from("lq_clients").select("id, name").eq("status", "active");
+  const matchedClient = (clients || []).find((c) =>
+    words.some((w) => c.name.toLowerCase().includes(w) || w.includes(c.name.toLowerCase()))
+  );
+  if (!matchedClient) return "";
+
+  const { data: brief } = await sb
+    .from("campaign_briefs")
+    .select("google_doc_url, service_details")
+    .eq("client_id", matchedClient.id)
+    .maybeSingle();
+  if (!brief) return "";
+
+  const serviceDetails = (brief.service_details || {}) as Record<string, { ad_concepts?: AdConceptRow[] }>;
+  const services = Object.keys(serviceDetails);
+  if (services.length === 0) return "";
+
+  const linkToServices = new Map<string, Set<string>>();
+  const serviceLines: string[] = [];
+  for (const service of services) {
+    const ads = serviceDetails[service]?.ad_concepts || [];
+    if (ads.length === 0) continue;
+    const adLines = ads.map((a, i) => {
+      for (const link of a.referenceLinks || []) {
+        if (!linkToServices.has(link)) linkToServices.set(link, new Set());
+        linkToServices.get(link)!.add(service);
+      }
+      return `  ${i + 1}. "${a.headline}" (${a.angle}) — reference links: ${a.referenceLinks?.length ? a.referenceLinks.join(", ") : "none"}`;
+    });
+    serviceLines.push(`${service}:\n${adLines.join("\n")}`);
+  }
+
+  const duplicated = Array.from(linkToServices.entries()).filter(([, svcs]) => svcs.size > 1);
+  const duplicateWarning = duplicated.length
+    ? `\n\nMISMATCHED REFERENCE LINKS DETECTED (same link cited as evidence for more than one service, likely wrong on at least one page): ${duplicated
+        .map(([link, svcs]) => `${link} appears under ${Array.from(svcs).join(" AND ")}`)
+        .join("; ")}`
+    : "";
+
+  return `Client: ${matchedClient.name} | Doc: ${brief.google_doc_url || "no doc linked"}\n\n${serviceLines.join("\n\n")}${duplicateWarning}`;
+}
+
 // Onboarded LQ clients (a different set of businesses from the leads
 // pipeline above — these are LS Growth's own paying clients). List is small
 // enough to give in full, same treatment as summarizeAutomations, so the
@@ -448,7 +512,7 @@ export async function buildBrainContext(userQuestion: string, recentUserMessages
   const sb = createSupabaseClient();
   const matchContext = [...recentUserMessages.slice(-4), userQuestion].join(" ");
 
-  const [leadsSummary, matchedLeads, clientsSummary, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, adResearch, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate] = await Promise.all([
+  const [leadsSummary, matchedLeads, clientsSummary, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, adResearch, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate, campaignBrief] = await Promise.all([
     withTimeout(summarizeLeads(sb).catch(() => "Lead data unavailable."), "Lead data unavailable."),
     withTimeout(matchingLeads(sb, matchContext).catch(() => ""), ""),
     withTimeout(summarizeClients(sb).catch(() => "Client data unavailable."), "Client data unavailable."),
@@ -463,6 +527,7 @@ export async function buildBrainContext(userQuestion: string, recentUserMessages
     withTimeout(summarizeCampaignsAndRevenue(sb).catch(() => "Campaign/revenue data unavailable."), "Campaign/revenue data unavailable."),
     withTimeout(summarizeLearnings(sb), ""),
     withTimeout(agreementTemplateSummary(sb, userQuestion).catch(() => ""), ""),
+    withTimeout(campaignBriefSummary(sb, matchContext).catch(() => ""), ""),
   ]);
 
   const todayLabel = new Intl.DateTimeFormat("en-NZ", {
@@ -485,6 +550,7 @@ export async function buildBrainContext(userQuestion: string, recentUserMessages
     `CAMPAIGNS & REVENUE:\n${campaignsSummary}`,
     learningsSummary ? `LEARNED FROM EXPERIENCE (distilled from Lucky's past approve/reject decisions — treat these as standing preferences, not one-off notes):\n${learningsSummary}` : "",
     agreementTemplate ? `AGREEMENT TEMPLATE (the real example of what an LS Growth client agreement looks like — use its structure and wording as the pattern when drafting a new one, filling in this specific deal's details):\n${agreementTemplate}` : "",
+    campaignBrief ? `CAMPAIGN BRIEF / AD CONCEPTS (real content from the client's actual campaign brief doc — you CAN read this, never claim you can't see the doc):\n${campaignBrief}` : "",
   ].filter(Boolean);
 
   return sections.join("\n\n---\n\n");
