@@ -153,7 +153,7 @@ async function resolveDraft(
       startISO: start.toISOString(),
       durationMinutes: cal.durationMinutes || 30,
     };
-    const when = start.toLocaleString("en-NZ", { weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    const when = start.toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
     const content = `${payload.summary}\nWith: ${payload.attendeeName || payload.attendeeEmail}\nWhen: ${when} (${payload.durationMinutes} min)`;
 
     const { error } = await sb.from("chat_drafts").insert({ kind: "calendar_booking", title: payload.summary, content, payload });
@@ -183,8 +183,8 @@ async function resolveDraft(
       startISO: start.toISOString(),
       durationMinutes: resched.durationMinutes,
     };
-    const when = start.toLocaleString("en-NZ", { weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-    const wasWhen = new Date(match.startISO).toLocaleString("en-NZ", { weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    const when = start.toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    const wasWhen = new Date(match.startISO).toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
     const multiNote = matches.length > 1 ? ` (matched ${matches.length} upcoming events for "${payload.query}" — using the soonest, ${match.summary || wasWhen})` : "";
     const content = `${match.summary || payload.query}\nMoving from ${wasWhen} to ${when}${multiNote}`;
 
