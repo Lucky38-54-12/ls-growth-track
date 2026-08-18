@@ -33,10 +33,26 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
   morning-brief:
-    if: github.event.schedule == '0 19 * * *' || github.event_name == 'workflow_dispatch'
+    # Not gated on github.event.schedule: when two schedules in this workflow
+    # coincide (0 19 * * * always lands on a */15 boundary), GitHub Actions
+    # fires a single run and event.schedule reflects only one of them - in
+    # practice always '*/15 * * * *', so an event.schedule match here never
+    # fired and this job silently no-op'd every day. Check wall-clock time
+    # instead, which is robust to the collision.
     runs-on: ubuntu-latest
     steps:
+      - name: Check if it's the 7am NZT (19:00 UTC) window
+        id: check
+        run: |
+          HOUR=$(date -u +%H)
+          MIN=$(date -u +%M)
+          if [ "$HOUR" = "19" ] && [ "$MIN" -lt 15 ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Call /api/cron/morning-brief
+        if: steps.check.outputs.run == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           curl -sf -X GET "https://app.lsgrowth.agency/api/cron/morning-brief" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
