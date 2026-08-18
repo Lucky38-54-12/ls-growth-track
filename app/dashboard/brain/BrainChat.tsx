@@ -223,6 +223,14 @@ export default function BrainChat({ initialDrafts, initialInput }: { initialDraf
         return;
       }
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
+      // The chat route returns 200 even when a proposed action itself
+      // failed (e.g. "no matching event found to reschedule", "unknown
+      // lead_id") — that's a soft per-draft error alongside a real reply,
+      // not a hard request failure, but it still needs to reach Lucky:
+      // otherwise the model's reply can claim something happened ("moving
+      // the call...") while nothing actually got queued, with no visible
+      // sign anything went wrong.
+      if (data.error) setError(data.error);
       const isNewConversation = !conversationId;
       if (data.conversationId) setConversationId(data.conversationId);
       if (data.draftCreated) router.refresh();

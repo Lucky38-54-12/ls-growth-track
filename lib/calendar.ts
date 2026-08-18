@@ -143,7 +143,7 @@ export interface CalendarEventMatch {
 // trusted later: the match runs again at approval time (see
 // reschedule_booking in app/api/brain/drafts/[id]/route.ts) in case the
 // event moved again or was cancelled in between.
-export async function findUpcomingEventsByQuery(query: string): Promise<CalendarEventMatch[]> {
+async function searchUpcomingEvents(query: string): Promise<CalendarEventMatch[]> {
   const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
   const auth = getAuth();
   const calendar = google.calendar({ version: "v3", auth });
@@ -171,6 +171,29 @@ export async function findUpcomingEventsByQuery(query: string): Promise<Calendar
     });
   }
   return matches;
+}
+
+export async function findUpcomingEventsByQuery(query: string): Promise<CalendarEventMatch[]> {
+  const direct = await searchUpcomingEvents(query);
+  if (direct.length > 0) return direct;
+
+  // Google's q= is a literal text search against the event's own
+  // summary/description/attendee fields — a company name (e.g. "My Homes
+  // Construct Ltd") usually appears nowhere on an event titled "Meet with
+  // Wilson", so the exact query the model sent can legitimately match
+  // nothing even though the right event exists. Retry word-by-word (longest
+  // first, so "Wilson" is tried before "with") as a defensive fallback
+  // rather than reporting no match on what's likely just a phrasing miss.
+  const words = query
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3)
+    .sort((a, b) => b.length - a.length);
+  for (const word of words) {
+    const wordMatches = await searchUpcomingEvents(word);
+    if (wordMatches.length > 0) return wordMatches;
+  }
+  return [];
 }
 
 export interface RescheduleBookingInput {
