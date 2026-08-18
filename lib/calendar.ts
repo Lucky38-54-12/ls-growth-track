@@ -131,19 +131,24 @@ export interface CalendarEventMatch {
   attendeeName: string;
 }
 
-// Finds upcoming events (from 1 day ago onward, same window as
-// listUpcomingBookings) whose summary/description/attendee match a free-text
-// query — used to resolve "the call with X" into a real event to reschedule.
-// Deliberately not resolved once at propose-time and trusted later: the
-// match runs again at approval time (see reschedule_booking in
-// app/api/brain/drafts/[id]/route.ts) in case the event moved again or was
-// cancelled in between.
+// Finds events from 7 days ago onward (matching the 3-day-back window the
+// Brain's own calendar context is built from — see upcomingCalendarSummary
+// in lib/brainContext.ts — with a few extra days of slack) whose summary/
+// description/attendee match a free-text query — used to resolve "the call
+// with X" into a real event to reschedule. A 24h-back window missed a call
+// that had already happened a day or more ago and still needed moving
+// forward (a genuinely common case: "reschedule the call with X" is often
+// said about a meeting that was itself never actually moved, so it's now
+// sitting in the past). Deliberately not resolved once at propose-time and
+// trusted later: the match runs again at approval time (see
+// reschedule_booking in app/api/brain/drafts/[id]/route.ts) in case the
+// event moved again or was cancelled in between.
 export async function findUpcomingEventsByQuery(query: string): Promise<CalendarEventMatch[]> {
   const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
   const auth = getAuth();
   const calendar = google.calendar({ version: "v3", auth });
 
-  const timeMin = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const timeMin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const res = await calendar.events.list({
     calendarId,
     timeMin,
