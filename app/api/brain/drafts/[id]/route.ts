@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { sendGmailFollowup } from "@/lib/email";
 import { statusTimestampUpdates } from "@/lib/leads";
-import { createBooking } from "@/lib/calendar";
+import { createBooking, findUpcomingEventsByQuery, rescheduleBooking } from "@/lib/calendar";
 import { findSheetRowByCompany, getRawRange, updateSheetCell } from "@/lib/sheets-connector";
 import { recordLearningFromDecision } from "@/lib/brainLearnings";
 import { Lead } from "@/lib/types";
@@ -93,6 +93,30 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await createBooking(payload);
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to create the calendar event." }, { status: 502 });
+    }
+
+    const { data: updated, error: updateError } = await sb.from("chat_drafts")
+      .update({ status: "applied", decided_at: new Date().toISOString() })
+      .eq("id", params.id).select().single();
+    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    await recordLearningFromDecision(sb, { kind: draft.kind, content: draft.content, decision: "approved", reason });
+    return NextResponse.json({ draft: updated });
+  }
+
+  // A reschedule_booking draft moves the real event on approval. The event
+  // is re-found by the same query right now, same "never trust a proposal-
+  // time lookup" reasoning as sheet_update's row re-location below — it may
+  // have moved again, or been cancelled, in the time since this was proposed.
+  if (draft.kind === "reschedule_booking") {
+    const payload = (draft.payload || {}) as { query: string; startISO: string; durationMinutes?: number };
+    try {
+      const matches = await findUpcomingEventsByQuery(payload.query);
+      if (matches.length === 0) {
+        return NextResponse.json({ error: `Couldn't find an upcoming event matching "${payload.query}" anymore — it may have moved or been cancelled. Nothing was changed.` }, { status: 400 });
+      }
+      await rescheduleBooking({ eventId: matches[0].eventId, startISO: payload.startISO, durationMinutes: payload.durationMinutes });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to reschedule the event." }, { status: 502 });
     }
 
     const { data: updated, error: updateError } = await sb.from("chat_drafts")

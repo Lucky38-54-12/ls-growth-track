@@ -123,6 +123,93 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   return { eventId: ev.id, hangoutLink: meetLink };
 }
 
+export interface CalendarEventMatch {
+  eventId: string;
+  summary: string;
+  startISO: string;
+  attendeeEmail: string;
+  attendeeName: string;
+}
+
+// Finds upcoming events (from 1 day ago onward, same window as
+// listUpcomingBookings) whose summary/description/attendee match a free-text
+// query — used to resolve "the call with X" into a real event to reschedule.
+// Deliberately not resolved once at propose-time and trusted later: the
+// match runs again at approval time (see reschedule_booking in
+// app/api/brain/drafts/[id]/route.ts) in case the event moved again or was
+// cancelled in between.
+export async function findUpcomingEventsByQuery(query: string): Promise<CalendarEventMatch[]> {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
+  const auth = getAuth();
+  const calendar = google.calendar({ version: "v3", auth });
+
+  const timeMin = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const res = await calendar.events.list({
+    calendarId,
+    timeMin,
+    q: query,
+    singleEvents: true,
+    orderBy: "startTime",
+    maxResults: 10,
+  });
+
+  const matches: CalendarEventMatch[] = [];
+  for (const ev of res.data.items || []) {
+    if (!ev.id || !ev.start?.dateTime) continue;
+    const attendee = (ev.attendees || []).find((a) => !a.self && a.email);
+    matches.push({
+      eventId: ev.id,
+      summary: ev.summary || "",
+      startISO: ev.start.dateTime,
+      attendeeEmail: attendee?.email?.toLowerCase() || "",
+      attendeeName: attendee?.displayName || "",
+    });
+  }
+  return matches;
+}
+
+export interface RescheduleBookingInput {
+  eventId: string;
+  startISO: string;
+  durationMinutes?: number;
+  timeZone?: string;
+}
+
+// Moves an existing booking to a new time by patching start/end only —
+// everything else on the event (attendee, description, Meet link/location)
+// is left untouched. This is what "move"/"reschedule" should actually use
+// instead of createBooking, which always inserts a brand-new event and would
+// leave the original slot still booked. When durationMinutes isn't given,
+// the event's current length is read and preserved rather than assuming 30.
+export async function rescheduleBooking(input: RescheduleBookingInput): Promise<void> {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
+  const auth = getAuth();
+  const calendar = google.calendar({ version: "v3", auth });
+
+  let durationMinutes = input.durationMinutes;
+  if (durationMinutes == null) {
+    const existing = await calendar.events.get({ calendarId, eventId: input.eventId });
+    const existingStart = existing.data.start?.dateTime;
+    const existingEnd = existing.data.end?.dateTime;
+    durationMinutes = existingStart && existingEnd
+      ? Math.round((new Date(existingEnd).getTime() - new Date(existingStart).getTime()) / 60000)
+      : 30;
+  }
+
+  const timeZone = input.timeZone || "Pacific/Auckland";
+  const start = parseDateTime(input.startISO, timeZone);
+  const end = new Date(start.getTime() + durationMinutes * 60000);
+
+  await calendar.events.patch({
+    calendarId,
+    eventId: input.eventId,
+    requestBody: {
+      start: { dateTime: start.toISOString(), timeZone },
+      end: { dateTime: end.toISOString(), timeZone },
+    },
+  });
+}
+
 export interface CalendarEvent {
   eventId: string;
   summary: string;

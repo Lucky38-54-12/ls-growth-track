@@ -5,6 +5,7 @@ import { listCalendarEvents, getDayRangeUTC } from "./calendar";
 import { readLeadSheet, getSheetTitle, hasCallInfo } from "./sheets";
 import { searchInboxByKeyword } from "./gmail";
 import { getCampaignInsights } from "./metaAds";
+import { findWorkingAds } from "./adResearch";
 import { getRecentLearnings } from "./brainLearnings";
 import { Lead } from "./types";
 
@@ -166,7 +167,11 @@ async function upcomingCalendarSummary(): Promise<string> {
         const when = e.allDay
           ? e.startISO.slice(0, 10)
           : new Date(e.startISO).toLocaleString("en-NZ", { timeZone, weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-        const who = e.attendeeName || e.attendeeEmail ? ` with ${e.attendeeName || e.attendeeEmail}` : "";
+        const who = e.attendeeName && e.attendeeEmail
+          ? ` with ${e.attendeeName} <${e.attendeeEmail}>`
+          : e.attendeeName || e.attendeeEmail
+            ? ` with ${e.attendeeName || e.attendeeEmail}`
+            : "";
         const past = new Date(e.startISO).getTime() < now.getTime() ? " (past)" : "";
         return `${when}${past}: ${e.summary}${who}`;
       })
@@ -363,6 +368,38 @@ async function metaAdsSummary(): Promise<string> {
   }
 }
 
+// Real Meta/Facebook ad research (see lib/adResearch.ts, same tool behind
+// /dashboard/meta-ads' Research tab) — a hand-verified Ad Library cache when
+// one exists for the niche/location asked about, otherwise a live AI web
+// search for real current ad examples/angles. This is a genuine outbound web
+// search (slow, and the AI-web-search fallback costs real API spend), so
+// it's keyword-gated like agreementTemplateSummary rather than run on every
+// message — only questions that actually read like "what ads/angles are
+// working" should trigger it. META ADS SUMMARY above is a different thing
+// (LS Growth's own campaign spend/performance), so a bare "meta" mention
+// alone isn't enough here.
+async function adResearchSummary(userQuestion: string): Promise<string> {
+  const words = questionWords(userQuestion).map((w) => w.toLowerCase());
+  const relevant = ["ad", "ads", "advert", "adverts", "advertising", "angle", "angles", "creative", "creatives"].some((k) => words.includes(k));
+  if (!relevant) return "";
+
+  try {
+    const research = await findWorkingAds(userQuestion, "");
+    if (!research.ads.length) return "";
+    const adsList = research.ads
+      .slice(0, 8)
+      .map(
+        (a) =>
+          `- ${a.headline} | angle: ${a.angle}${a.offer ? ` | offer: ${a.offer}` : ""} | format: ${a.format}${a.source_business ? ` | business: ${a.source_business}` : ""}${a.source_url ? ` | source: ${a.source_url}` : ""}`
+      )
+      .join("\n");
+    const sourceLabel = research.source === "live_ad_library" ? "verified Ad Library cache" : "AI web search — source links only present when actually found, never invented";
+    return `${research.summary}\n${adsList}\n(source: ${sourceLabel})`;
+  } catch {
+    return "";
+  }
+}
+
 // Bounds any one context section to SECTION_TIMEOUT_MS so a single slow/hung
 // external API (Gmail, Drive, Sheets, Calendar and Meta Ads have all been
 // slow at points) can't drag the whole /api/brain/chat request past the
@@ -379,19 +416,24 @@ function withTimeout<T>(promise: Promise<T>, fallback: T, ms = SECTION_TIMEOUT_M
 // or draft something, beyond what withWritingStyle() already adds (voice
 // rules + Agency Brain sections) — one context block, built fresh per
 // message from live data rather than a stored/indexed copy.
-export async function buildBrainContext(userQuestion: string): Promise<string> {
+// recentUserMessages lets name/company matching survive a follow-up that
+// only uses a pronoun ("send him an email") — the lead/sheet a question is
+// actually about was often named a turn or two ago, not in this message.
+export async function buildBrainContext(userQuestion: string, recentUserMessages: string[] = []): Promise<string> {
   const sb = createSupabaseClient();
+  const matchContext = [...recentUserMessages.slice(-4), userQuestion].join(" ");
 
-  const [leadsSummary, matchedLeads, clientsSummary, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate] = await Promise.all([
+  const [leadsSummary, matchedLeads, clientsSummary, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, adResearch, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate] = await Promise.all([
     withTimeout(summarizeLeads(sb).catch(() => "Lead data unavailable."), "Lead data unavailable."),
-    withTimeout(matchingLeads(sb, userQuestion).catch(() => ""), ""),
+    withTimeout(matchingLeads(sb, matchContext).catch(() => ""), ""),
     withTimeout(summarizeClients(sb).catch(() => "Client data unavailable."), "Client data unavailable."),
     withTimeout(summarizeAutomations(sb).catch(() => "Automation data unavailable."), "Automation data unavailable."),
     withTimeout(relevantDriveDocs(userQuestion), ""),
     withTimeout(upcomingCalendarSummary(), ""),
-    withTimeout(matchingSheets(sb, userQuestion), ""),
+    withTimeout(matchingSheets(sb, matchContext), ""),
     withTimeout(inboxSearchSummary(userQuestion), ""),
     withTimeout(metaAdsSummary(), ""),
+    withTimeout(adResearchSummary(userQuestion), "", 25000),
     withTimeout(summarizeSalesCalls(sb).catch(() => "Sales call data unavailable."), "Sales call data unavailable."),
     withTimeout(summarizeCampaignsAndRevenue(sb).catch(() => "Campaign/revenue data unavailable."), "Campaign/revenue data unavailable."),
     withTimeout(summarizeLearnings(sb), ""),
@@ -413,6 +455,7 @@ export async function buildBrainContext(userQuestion: string): Promise<string> {
     sheetsSummary ? `COLD-CALL SHEETS:\n${sheetsSummary}` : "",
     inboxSummary ? `INBOX SEARCH RESULTS (subject match, may not be exhaustive):\n${inboxSummary}` : "",
     adsSummary ? `META ADS (last 30 days):\n${adsSummary}` : "",
+    adResearch ? `AD RESEARCH (real ad angles/examples relevant to this question):\n${adResearch}` : "",
     `SALES CALLS & SCRIPT:\n${salesCallsSummary}`,
     `CAMPAIGNS & REVENUE:\n${campaignsSummary}`,
     learningsSummary ? `LEARNED FROM EXPERIENCE (distilled from Lucky's past approve/reject decisions — treat these as standing preferences, not one-off notes):\n${learningsSummary}` : "",

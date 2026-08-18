@@ -10,12 +10,14 @@ const KIND_LABEL: Record<string, string> = {
   note: "Draft note",
   lead_update: "Update lead",
   calendar_booking: "Book meeting",
+  reschedule_booking: "Reschedule meeting",
   sheet_update: "Update sheet",
 };
 
 const APPROVE_LABEL: Record<string, string> = {
   email: "Approve & send",
   calendar_booking: "Approve & book",
+  reschedule_booking: "Approve & reschedule",
   sheet_update: "Approve & update",
 };
 
