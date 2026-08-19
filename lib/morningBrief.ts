@@ -28,7 +28,7 @@ const SHEET_TRIAGE_SLUG = "daily-sheet-triage";
 // force=true skips the once-per-NZT-day gate — used by the manual
 // /api/admin/run-sheet-triage trigger to re-apply a fixed cap/threshold the
 // same day it was deployed, instead of waiting for tomorrow's scheduled run.
-export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabaseClient>, allLeads: Lead[], force = false): Promise<string[]> {
+export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabaseClient>, allLeads: Lead[], force = false, scanTimeBudgetMs = 45000): Promise<string[]> {
   const lines: string[] = [];
   try {
     // The GitHub Actions trigger window is generous on purpose (jitter on
@@ -66,7 +66,7 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
     // nothing else competing for it, so it's worth spending more of that on
     // a fuller scan (concurrency 3 was tripping the Sheets API's per-minute
     // read quota on an 80-sheet folder).
-    const { sheets, scanned } = await rankColdCallSheets(files, { concurrency: 2, timeBudgetMs: 45000 });
+    const { sheets, scanned } = await rankColdCallSheets(files, { concurrency: 2, timeBudgetMs: scanTimeBudgetMs });
     if (sheets.length === 0) return lines;
 
     // Total currently-tagged count from the raw file listing, not just from

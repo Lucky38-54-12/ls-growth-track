@@ -14,6 +14,12 @@ export const maxDuration = 60;
 export async function GET() {
   const sb = createSupabaseClient();
   const allLeads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to));
-  const lines = await getColdCallSheetBrief(sb, allLeads, true);
+  // Smaller scan budget than the cron's 45s — tagged sheets now scan first
+  // (see getColdCallSheetBrief), so this run doesn't need the full budget to
+  // reach all of them, and the first two attempts at this manual trigger
+  // both 504'd at the 60s function ceiling: one because tagged sheets were
+  // scanned last, the other because the full 45s scan plus Supabase/rename
+  // overhead still ran past 60s even after that fix.
+  const lines = await getColdCallSheetBrief(sb, allLeads, true, 25000);
   return NextResponse.json({ ran: true, lines });
 }
