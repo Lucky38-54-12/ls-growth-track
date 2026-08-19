@@ -12,6 +12,7 @@ const KIND_LABEL: Record<string, string> = {
   calendar_booking: "Book meeting",
   reschedule_booking: "Reschedule meeting",
   sheet_update: "Update sheet",
+  ad_learning: "Bank ad learning",
 };
 
 const APPROVE_LABEL: Record<string, string> = {
@@ -19,6 +20,7 @@ const APPROVE_LABEL: Record<string, string> = {
   calendar_booking: "Approve & book",
   reschedule_booking: "Approve & reschedule",
   sheet_update: "Approve & update",
+  ad_learning: "Approve & save",
 };
 
 export default function ApprovalQueue({ initialDrafts, emptyMessage }: { initialDrafts: ChatDraft[]; emptyMessage?: string }) {

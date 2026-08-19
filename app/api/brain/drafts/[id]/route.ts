@@ -160,6 +160,36 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ draft: updated });
   }
 
+  // An ad_learning draft writes the real ad_learnings row on approval — same
+  // "approval is the real action" principle as lead_update/sheet_update
+  // above. This is the only write into that table anywhere in the app; the
+  // model only ever queues a proposal (see app/api/brain/chat/route.ts).
+  if (draft.kind === "ad_learning") {
+    const payload = (draft.payload || {}) as {
+      clientId: string; service: string | null; angle: string | null; creative: string | null; offer: string | null;
+      observed: string; inference: string | null; nextTest: string | null; confidence: string;
+    };
+    const { error: insertError } = await sb.from("ad_learnings").insert({
+      client_id: payload.clientId,
+      service: payload.service,
+      angle: payload.angle,
+      creative: payload.creative,
+      offer: payload.offer,
+      observed: payload.observed,
+      inference: payload.inference,
+      next_test: payload.nextTest,
+      confidence: payload.confidence,
+    });
+    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+
+    const { data: updated, error: updateError } = await sb.from("chat_drafts")
+      .update({ status: "applied", decided_at: new Date().toISOString() })
+      .eq("id", params.id).select().single();
+    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+    await recordLearningFromDecision(sb, { kind: draft.kind, content: draft.content, decision: "approved", reason });
+    return NextResponse.json({ draft: updated });
+  }
+
   const { data: updated, error: updateError } = await sb.from("chat_drafts")
     .update({ status: "approved", decided_at: new Date().toISOString() })
     .eq("id", params.id).select().single();

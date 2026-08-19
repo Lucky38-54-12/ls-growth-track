@@ -58,10 +58,50 @@ const DATE_PRESETS = [
   { value: "maximum", label: "All time" },
 ];
 
-const ACCOUNTS = [
+// Fallback accounts to show while lq_clients accounts are loading, or if
+// none of Lucky's clients have a meta_ad_account_id set yet.
+const FALLBACK_ACCOUNTS = [
   { value: "1410791492649615", label: "HRC", trade: "electricians, EV charger installation, solar" },
   { value: "206264138206064", label: "Katies Cleaning", trade: "house cleaning services, deep cleaning, move-out cleaning" },
 ];
+
+interface AdAccount {
+  value: string;
+  label: string;
+  trade: string;
+}
+
+interface LqClient {
+  id: string;
+  name: string;
+  trade: string | null;
+  meta_ad_account_id: string | null;
+}
+
+// loaded starts false so callers can wait for the real per-client list
+// before picking a default/URL-requested account — resolving against
+// FALLBACK_ACCOUNTS while the real fetch is still in flight let a
+// ?account= for a real client silently fall back to the old hardcoded HRC
+// account whenever it didn't (yet) match the still-fallback list.
+function useAdAccounts(): { accounts: AdAccount[]; loaded: boolean } {
+  const [accounts, setAccounts] = useState<AdAccount[]>(FALLBACK_ACCOUNTS);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/lead-qual/clients")
+      .then((r) => r.json())
+      .then((data: { clients?: LqClient[] }) => {
+        const linked = (data.clients || [])
+          .filter((c) => c.meta_ad_account_id)
+          .map((c) => ({ value: c.meta_ad_account_id as string, label: c.name, trade: c.trade || "" }));
+        if (linked.length > 0) setAccounts(linked);
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  return { accounts, loaded };
+}
 
 const VERDICT_STYLE: Record<string, { label: string; color: string; bg: string }> = {
   winning: { label: "WINNING", color: "#16a34a", bg: "#f0fdf4" },
@@ -73,7 +113,8 @@ const VERDICT_STYLE: Record<string, { label: string; color: string; bg: string }
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function PerformanceTab() {
-  const [account, setAccount] = useState(ACCOUNTS[0].value);
+  const { accounts, loaded: accountsLoaded } = useAdAccounts();
+  const [account, setAccount] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState("last_30d");
   const [campaigns, setCampaigns] = useState<CampaignInsight[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,7 +127,19 @@ function PerformanceTab() {
   const [analysisLoading, setAnalysisLoading] = useState<Record<string, boolean>>({});
   const [analysisError, setAnalysisError] = useState<Record<string, string>>({});
 
-  const activeAccount = ACCOUNTS.find(a => a.value === account) || ACCOUNTS[0];
+  // Pick the account to show once the REAL account list has loaded (not
+  // the fallback list still sitting in `accounts` while that fetch is in
+  // flight) — resolving early against the fallback list let a ?account=
+  // for a real client silently fall back to the old hardcoded HRC account
+  // whenever it didn't (yet) match that placeholder list.
+  useEffect(() => {
+    if (account !== null || !accountsLoaded) return;
+    const requested = new URLSearchParams(window.location.search).get("account");
+    if (requested && accounts.some(a => a.value === requested)) { setAccount(requested); return; }
+    if (accounts.length > 0) setAccount(accounts[0].value);
+  }, [accounts, accountsLoaded, account]);
+
+  const activeAccount = accounts.find(a => a.value === account) || accounts[0];
 
   const load = useCallback(async (acc: string, preset: string) => {
     setLoading(true);
@@ -104,6 +157,7 @@ function PerformanceTab() {
   }, []);
 
   useEffect(() => {
+    if (!account) return;
     load(account, datePreset);
     setExpandedId(null);
   }, [account, datePreset, load]);
@@ -158,11 +212,11 @@ function PerformanceTab() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 10 }}>
           <select
-            value={account}
+            value={account || ""}
             onChange={e => setAccount(e.target.value)}
             style={{ padding: "8px 12px", border: `1px solid ${L.border}`, fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
           >
-            {ACCOUNTS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+            {accounts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
           </select>
           <select
             value={datePreset}
@@ -177,8 +231,8 @@ function PerformanceTab() {
           </label>
         </div>
         <button
-          onClick={() => load(account, datePreset)}
-          disabled={loading}
+          onClick={() => account && load(account, datePreset)}
+          disabled={loading || !account}
           style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${L.border}`, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: L.muted, cursor: loading ? "default" : "pointer" }}
         >
           <RefreshCw style={{ width: 12, height: 12 }} className={loading ? "spin" : ""} />

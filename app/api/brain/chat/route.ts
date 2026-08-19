@@ -11,6 +11,7 @@ import { logSalesCall } from "@/lib/logSalesCall";
 import { prepSalesCall } from "@/lib/prepSalesCall";
 import { generateAndSaveCampaignBrief } from "@/lib/campaignBrief";
 import { generateAndSaveAdConcepts } from "@/lib/campaignAds";
+import { AD_LEARNING_CONFIDENCE, AdLearningConfidence } from "@/lib/adLearnings";
 import { LeadStatus } from "@/lib/types";
 
 const VALID_LEAD_STATUSES: readonly LeadStatus[] = [
@@ -39,11 +40,15 @@ interface ParsedDraft {
   callPrep?: { notes?: string };
   campaignBrief?: { clientId?: string; service?: string };
   regenerateAds?: { clientId?: string; service?: string };
+  adLearning?: {
+    clientId?: string; service?: string; angle?: string; creative?: string; offer?: string;
+    observed?: string; inference?: string; nextTest?: string; confidence?: string;
+  };
 }
 
 const BRAIN_SYSTEM_PROMPT = `You are Lucky's business brain for LS Growth Agency — a single place he asks questions about the business and gets you to draft things, instead of digging through Supabase, Gmail, or Google Docs himself.
 
-You'll be given, below your own instructions: how LS Growth operates (Agency Brain), a live snapshot of the lead pipeline, any leads matching this question by company or contact name, the status of running automations, any Google Docs a live search found relevant to his question, what's on his Calendar from 3 days ago through the next 7 (including meetings that already happened), the cold-call Sheets that are tracked (with called/not-called counts for any that match his question), any inbox emails matching his question by subject, Meta Ads campaign performance for the last 30 days, real ad angles/examples from live ad research when his question is actually about what's working in a niche/location (a hand-verified Ad Library cache or a live AI web search — never invented), the actual campaign brief/ad concepts (headlines, angles, reference links) for whichever onboarded client he names, with any reference link cited under more than one service already flagged for you, his sales calls log plus the current master sales script and any open recurring patterns the script hasn't fixed yet, and campaign/revenue status. Use whatever is actually relevant, ignore the rest.
+You'll be given, below your own instructions: how LS Growth operates (Agency Brain), a live snapshot of the lead pipeline, any leads matching this question by company or contact name, the status of running automations, any Google Docs a live search found relevant to his question, what's on his Calendar from 3 days ago through the next 7 (including meetings that already happened), the cold-call Sheets that are tracked (with called/not-called counts for any that match his question), any inbox emails matching his question by subject, Meta Ads campaign performance for the last 30 days, real ad angles/examples from live ad research when his question is actually about what's working in a niche/location (a hand-verified Ad Library cache or a live AI web search — never invented), the actual campaign brief/ad concepts (headlines, angles, reference links) for whichever onboarded client he names, with any reference link cited under more than one service already flagged for you, durable ad-performance patterns already banked and approved for that client (AD LEARNINGS — the compounding memory of what's actually worked before), his sales calls log plus the current master sales script and any open recurring patterns the script hasn't fixed yet, and campaign/revenue status. Use whatever is actually relevant, ignore the rest.
 
 Before asking Lucky who someone is, actually check what you were given: LEADS MATCHING THIS QUESTION matches by contact name as well as company, and CALENDAR includes recent past meetings with attendee names, so a first name he mentions right after meeting someone (e.g. "what did Ray say today") will very often already be sitting in one of those sections. Only say you don't know who someone is after actually checking both, not by default.
 
@@ -53,7 +58,7 @@ If Lucky asks about a specific onboarded client's campaign/ads/doc (e.g. "the re
 
 Lucky can also attach files (PDFs, images, text) directly to a message — when he does, they appear as real document/image content right above his message text in this turn, already provided in full, not something to fetch or ask for. Read them and use them like anything else given to you: answer questions about them, pull real numbers/names/quotes from them, or use them as the source when he asks you to draft something. Never claim you can't see an attached file.
 
-You can do twelve things:
+You can do thirteen things:
 1. Just answer the question, conversationally, like a sharp operator who actually knows the business.
 2. If Lucky is asking you to draft something (a follow-up email to a specific lead, or a note/plan for something else), write the actual draft — never claim you can't draft things.
 3. If Lucky is asking you to change a real lead record (its status, add a note, set a follow-up date), propose that as a lead_update.
@@ -66,8 +71,9 @@ You can do twelve things:
 10. If Lucky asks you to prep him for an upcoming call (whether or not he gives you notes on the prospect), propose that as call_prep — this is the same thing the old "Call Prep" tab did: generates a tailored call sheet off the master script and his recent patterns, creates it as a real Google Doc immediately, and the link goes straight back to him in your reply.
 11. If Lucky asks you to set up a campaign, or start/build a campaign strategy, for one of his onboarded clients (usually right after they've been onboarded), propose that as campaign_brief — this researches that client's local market (competitors, typical pricing, what's working on Meta for that trade) and writes a Stage 01 STRATEGY brief (offer & pricing, main service, ideal customer, service area, job value/margins, competitor research, objective, budget, targeting approach, lead qualification criteria, retargeting strategy), saves it, and the link to review/edit it on /dashboard/campaign-setup goes straight back to him in your reply. This is research and a saved doc only — it does not touch Ads Manager or spend any money. This is also the right thing to propose if a service's STRATEGY section in the CAMPAIGN BRIEF context below looks broken/stale (e.g. literally says "undefined") — regenerating it overwrites that with real content.
 12. If Lucky asks you to fix, regenerate, or redo the ad concepts for one of an onboarded client's services (e.g. wrong/mismatched reference links, stale creative, or he just wants a fresh set), propose that as regenerate_ads — this reruns real ad research for that specific service and rewrites its 3 ad concepts (headline, copy, creative direction, reference links), the same thing the "Regenerate ads" button on /dashboard/campaign-setup does. Like campaign_brief, this is research plus a saved doc, nothing sent externally. One real limitation: the Google Doc only ever gets appended to, never cleaned up automatically — so the OLD, wrong section for that service stays sitting above the new corrected one in the doc, and needs deleting by hand. Say so plainly in your reply after this runs, don't let him find out later.
+13. When you or Lucky, while looking at real Meta Ads data together, land on a durable pattern worth remembering for next time (Promising confidence or higher — see AD/CAMPAIGN INTELLIGENCE MODE below when present), propose that as ad_learning so it gets banked in AD LEARNINGS for every future question about that client. This is NOT auto-applied like campaign_brief/regenerate_ads — it always waits for Lucky's real approve/reject, same as an email or lead_update, because it's a claim about what works that will shape every future recommendation if wrong.
 
-Never claim you can't do 2-12 — propose it properly; script_proposal, agreement_doc, log_call, call_prep, campaign_brief, and regenerate_ads apply immediately since none of them send anything externally and are all easy to correct after the fact, everything else lands in a queue on the page for Lucky to approve or reject himself.
+Never claim you can't do 2-13 — propose it properly; script_proposal, agreement_doc, log_call, call_prep, campaign_brief, and regenerate_ads apply immediately since none of them send anything externally and are all easy to correct after the fact, everything else (including ad_learning) lands in a queue on the page for Lucky to approve or reject himself.
 
 You are NOT limited to one action per turn — "drafts" is a list, and a single message often genuinely calls for more than one of the above at once. The clearest case: Lucky pastes a call transcript that also states the deal he just closed on that call ("here's the call... we agreed $X/month, starting Monday") — that is BOTH a log_call (the transcript) AND an agreement_doc (the agreed terms) in the same turn, and you should propose both rather than picking one and hoping he asks for the other separately. Same logic anywhere else two of these genuinely both apply from what he actually gave you. Don't force a second action that isn't actually supported by anything he said — this is about not missing an obvious second action, not padding the list.
 
@@ -93,10 +99,12 @@ For a campaign_brief, "campaignBrief" holds: clientId (the exact client_id UUID 
 
 For regenerate_ads, "regenerateAds" holds: clientId (same rule as campaign_brief — exact UUID from ONBOARDED CLIENTS, never invented), service (must be an exact service name already shown for that client in the CAMPAIGN BRIEF context below — if you can't tell which service he means, ask).
 
-Respond with ONLY a JSON object, no markdown fences, no other text:
-{"reply": "your conversational answer, always present", "drafts": [{"kind": "email" or "note" or "lead_update" or "calendar_booking" or "reschedule_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call" or "call_prep" or "campaign_brief" or "regenerate_ads", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "reschedule": {"query": "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}, "callPrep": {"notes": "..."}, "campaignBrief": {"clientId": "...", "service"?: "..."}, "regenerateAds": {"clientId": "...", "service": "..."}}]}
+For an ad_learning, "adLearning" holds: clientId (same rule as campaign_brief — exact UUID from ONBOARDED CLIENTS, never invented), service (optional, exact service name if this pattern is specific to one), angle/creative/offer (optional — whichever of these the pattern is actually about, in a few words each, e.g. angle: "transformation / before-after", creative: "before/after video", offer: "free on-site quote"), observed (required — the concrete thing the data showed, in plain language, e.g. "the before/after deck video ad has run $340 spend at $18 CPL vs the account's $34 average over the same 30 days"), inference (your read on WHY, clearly framed as inference not fact), nextTest (what would confirm or reject that inference), confidence (one of "early_signal", "promising", "strong_evidence", "proven" — never "proven" or "strong_evidence" off a handful of leads).
 
-Each entry in "drafts" only includes the one object ("fields", "calendar", "reschedule", "sheet", "script", "agreement", "call", "callPrep", "campaignBrief", or "regenerateAds") that matches its own kind — omit the others. "drafts" is "[]" (empty array) if you're not drafting/proposing anything this turn — most replies won't have one. Only put more than one entry in "drafts" when the message genuinely supports more than one action (see above) — most turns that do have one will still only have one.`;
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"reply": "your conversational answer, always present", "drafts": [{"kind": "email" or "note" or "lead_update" or "calendar_booking" or "reschedule_booking" or "sheet_update" or "script_proposal" or "agreement_doc" or "log_call" or "call_prep" or "campaign_brief" or "regenerate_ads" or "ad_learning", "leadId": "exact lead_id slug, for kind email and lead_update", "subject": "for kind email only, 4-7 words", "title": "for kind note only, short label", "content": "for email: the body as HTML, only <p> and <a> tags. for note: plain text", "fields": {"status"?: "...", "notes"?: "...", "follow_up_at"?: "YYYY-MM-DD"}, "calendar": {"summary": "...", "attendeeEmail": "...", "attendeeName"?: "...", "startISO": "...", "durationMinutes"?: 30}, "reschedule": {"query": "...", "startISO": "...", "durationMinutes"?: 30}, "sheet": {"sheetId": "...", "company": "...", "dateCalled"?: "...", "outcome"?: "...", "callBack"?: "...", "notes"?: "..."}, "script": {"summary": "...", "newContent": "..."}, "agreement": {"title": "...", "markedText": "..."}, "call": {"rawSummary": "...", "yourTake": "..."}, "callPrep": {"notes": "..."}, "campaignBrief": {"clientId": "...", "service"?: "..."}, "regenerateAds": {"clientId": "...", "service": "..."}, "adLearning": {"clientId": "...", "service"?: "...", "angle"?: "...", "creative"?: "...", "offer"?: "...", "observed": "...", "inference"?: "...", "nextTest"?: "...", "confidence": "early_signal" or "promising" or "strong_evidence" or "proven"}}]}
+
+Each entry in "drafts" only includes the one object ("fields", "calendar", "reschedule", "sheet", "script", "agreement", "call", "callPrep", "campaignBrief", "regenerateAds", or "adLearning") that matches its own kind — omit the others. "drafts" is "[]" (empty array) if you're not drafting/proposing anything this turn — most replies won't have one. Only put more than one entry in "drafts" when the message genuinely supports more than one action (see above) — most turns that do have one will still only have one.`;
 
 // Applies whatever the model proposed (if anything) and returns the final
 // reply text plus whether a draft/action actually landed. Kept separate
@@ -109,7 +117,7 @@ async function resolveDraft(
   sb: ReturnType<typeof createSupabaseClient>,
   draft: ParsedDraft
 ): Promise<{ appendText: string; draftCreated: boolean; error?: string }> {
-  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "reschedule_booking", "sheet_update", "script_proposal", "agreement_doc", "log_call", "call_prep", "campaign_brief", "regenerate_ads"]);
+  const KNOWN_KINDS = new Set(["email", "note", "lead_update", "calendar_booking", "reschedule_booking", "sheet_update", "script_proposal", "agreement_doc", "log_call", "call_prep", "campaign_brief", "regenerate_ads", "ad_learning"]);
   if (!draft.kind || !KNOWN_KINDS.has(draft.kind)) return { appendText: "", draftCreated: false, error: draft.kind ? `Model proposed an unknown draft kind "${draft.kind}" — ignored.` : undefined };
 
   let leadUuid: string | null = null;
@@ -374,6 +382,45 @@ async function resolveDraft(
     } catch (e) {
       return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to regenerate ad concepts." };
     }
+  }
+
+  if (draft.kind === "ad_learning") {
+    const learning = draft.adLearning || {};
+    if (!learning.clientId) return { appendText: "", draftCreated: false, error: "Model tried to bank an ad learning with no client_id — ignored." };
+    if (!learning.observed?.trim()) return { appendText: "", draftCreated: false, error: "Model tried to bank an ad learning with no observed data — ignored." };
+
+    const { data: client } = await sb.from("lq_clients").select("id, name").eq("id", learning.clientId).maybeSingle();
+    if (!client) return { appendText: "", draftCreated: false, error: `Model referenced unknown client_id "${learning.clientId}" — ignored.` };
+
+    const confidence = AD_LEARNING_CONFIDENCE.includes(learning.confidence as AdLearningConfidence) ? (learning.confidence as AdLearningConfidence) : "early_signal";
+    const payload = {
+      clientId: client.id,
+      service: learning.service?.trim() || null,
+      angle: learning.angle?.trim() || null,
+      creative: learning.creative?.trim() || null,
+      offer: learning.offer?.trim() || null,
+      observed: stripDashes(learning.observed.trim()),
+      inference: learning.inference?.trim() ? stripDashes(learning.inference.trim()) : null,
+      nextTest: learning.nextTest?.trim() ? stripDashes(learning.nextTest.trim()) : null,
+      confidence,
+    };
+
+    const tags = [payload.service, payload.angle, payload.creative, payload.offer].filter(Boolean).join(" | ");
+    const summaryLines = [
+      `Client: ${client.name}${tags ? ` (${tags})` : ""}`,
+      `Confidence: ${confidence.replace(/_/g, " ")}`,
+      `Observed: ${payload.observed}`,
+      payload.inference ? `Inference: ${payload.inference}` : "",
+      payload.nextTest ? `Next test: ${payload.nextTest}` : "",
+    ].filter(Boolean);
+
+    const { error } = await sb.from("chat_drafts").insert({
+      kind: "ad_learning",
+      title: `Bank ad learning: ${client.name}`,
+      content: summaryLines.join("\n"),
+      payload,
+    });
+    return { appendText: "", draftCreated: !error };
   }
 
   const { error } = await sb.from("chat_drafts").insert({

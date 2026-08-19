@@ -12,6 +12,7 @@ interface ClientRow {
   trade: string | null;
   status: string;
   services: string[];
+  meta_ad_account_id: string | null;
   brief: { id: string; status: "draft" | "approved"; updated_at: string } | null;
 }
 
@@ -116,6 +117,10 @@ export default function CampaignSetupPage() {
   const [notesSaving, setNotesSaving] = useState(false);
   const [notesError, setNotesError] = useState("");
 
+  const [adAccountInput, setAdAccountInput] = useState("");
+  const [adAccountSaving, setAdAccountSaving] = useState(false);
+  const [adAccountError, setAdAccountError] = useState("");
+
   function loadClients() {
     fetch("/api/campaign-brief")
       .then((r) => r.json())
@@ -214,8 +219,30 @@ export default function CampaignSetupPage() {
     setConfig(null);
     setNotesText("");
     setNotesError("");
+    setAdAccountInput(c.meta_ad_account_id || "");
+    setAdAccountError("");
     if (c.brief) loadBrief(c.brief.id);
     loadConfig(c.id);
+  }
+
+  async function saveAdAccount() {
+    if (!selectedClient) return;
+    setAdAccountSaving(true);
+    setAdAccountError("");
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${selectedClient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meta_ad_account_id: adAccountInput }),
+      });
+      const data = await res.json();
+      if (data.error) { setAdAccountError(data.error); return; }
+      setClients((prev) => prev?.map((c) => (c.id === selectedClient.id ? { ...c, meta_ad_account_id: data.client.meta_ad_account_id } : c)) || null);
+    } catch {
+      setAdAccountError("Failed to save the ad account ID.");
+    } finally {
+      setAdAccountSaving(false);
+    }
   }
 
   async function generateStrategy(service: string) {
@@ -394,8 +421,33 @@ export default function CampaignSetupPage() {
           {selectedClient && !briefLoading && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <h2 style={{ fontSize: 16, fontWeight: 800, color: L.text }}>{selectedClient.name}</h2>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      value={adAccountInput}
+                      onChange={(e) => setAdAccountInput(e.target.value)}
+                      placeholder="Meta ad account ID"
+                      style={{ width: 160, border: `1px solid ${L.border}`, outline: "none", padding: "5px 8px", fontSize: 11, color: L.text, fontFamily: "inherit" }}
+                    />
+                    <button
+                      onClick={saveAdAccount}
+                      disabled={adAccountSaving || adAccountInput === (selectedClient.meta_ad_account_id || "")}
+                      style={{ background: "none", border: `1px solid ${L.border}`, padding: "5px 10px", fontSize: 11, fontWeight: 700, color: L.text, cursor: adAccountSaving ? "default" : "pointer" }}
+                    >
+                      {adAccountSaving ? "Saving…" : "Save"}
+                    </button>
+                    {selectedClient.meta_ad_account_id && (
+                      <a
+                        href={`/dashboard/meta-ads?account=${selectedClient.meta_ad_account_id}`}
+                        style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--accent)", textDecoration: "none" }}
+                      >
+                        <ExternalLink style={{ width: 11, height: 11 }} />
+                        View in Meta Ads
+                      </a>
+                    )}
+                  </div>
+                  {adAccountError && <span style={{ fontSize: 11, color: "#b91c1c" }}>{adAccountError}</span>}
                   {brief && (
                     <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: STATUS_STYLE[brief.status].color, background: STATUS_STYLE[brief.status].bg, padding: "3px 7px", borderRadius: 3 }}>
                       {STATUS_STYLE[brief.status].label}

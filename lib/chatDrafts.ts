@@ -2,7 +2,7 @@ import { createSupabaseClient } from "./supabase";
 
 export interface ChatDraft {
   id: string;
-  kind: "email" | "note" | "lead_update" | "calendar_booking" | "sheet_update";
+  kind: "email" | "note" | "lead_update" | "calendar_booking" | "reschedule_booking" | "sheet_update" | "ad_learning";
   title: string;
   content: string;
   status: string;

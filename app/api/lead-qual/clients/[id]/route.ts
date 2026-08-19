@@ -12,6 +12,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const updates: Record<string, string | null> = {};
   if (typeof body.email === "string") updates.email = body.email.trim() || null;
   if (typeof body.phone === "string") updates.phone = body.phone.trim() || null;
+  if (typeof body.meta_ad_account_id === "string") updates.meta_ad_account_id = body.meta_ad_account_id.trim() || null;
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: "nothing to update" }, { status: 400 });
 
   const sb = createSupabaseClient();
