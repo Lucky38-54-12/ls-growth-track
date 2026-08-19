@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { renameSheetFile } from "@/lib/sheets";
+import { renameSheetFile, hasTodayTag, stripTodayTag } from "@/lib/sheets";
 import { google } from "googleapis";
 
 export const dynamic = "force-dynamic";
 
-// One-off cleanup: strip the 📞 TODAY — prefix from specific sheet IDs
-// passed via ?ids=a,b,c. Session-cookie protected (see middleware.ts), for
-// stray tagged sheets living outside the folder the automated triage
-// scans (see lib/sheets.ts's COLD_CALL_SHEETS_FOLDER_ID) — those never get
-// picked up or cleaned by the normal cron/manual-trigger flow.
-const TODAY_TAG = "📞 TODAY — ";
-
+// One-off cleanup: strip the 📞 TODAY — tag from specific sheet IDs passed
+// via ?ids=a,b,c. Session-cookie protected (see middleware.ts), for stray
+// tagged sheets living outside the folder the automated triage scans (see
+// lib/sheets.ts's COLD_CALL_SHEETS_FOLDER_ID) — those never get picked up
+// or cleaned by the normal cron/manual-trigger flow.
 function getAuth() {
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!key) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var not set");
@@ -27,8 +25,8 @@ export async function GET(req: NextRequest) {
     try {
       const file = await drive.files.get({ fileId: id, fields: "name", supportsAllDrives: true });
       const currentName = file.data.name || "";
-      if (!currentName.startsWith(TODAY_TAG)) return { id, from: currentName, to: currentName, skipped: true };
-      const newName = currentName.slice(TODAY_TAG.length);
+      if (!hasTodayTag(currentName)) return { id, from: currentName, to: currentName, skipped: true };
+      const newName = stripTodayTag(currentName);
       await renameSheetFile(id, newName);
       return { id, from: currentName, to: newName };
     } catch (e) {

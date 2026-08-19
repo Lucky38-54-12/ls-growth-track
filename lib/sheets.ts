@@ -2,6 +2,23 @@ import { google } from "googleapis";
 
 export const COLD_CALL_SHEETS_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
 
+// "N. 📞 TODAY — Title", where N is the sheet's current rank among today's
+// picks (re-numbered on every triage run so it always reflects that day's
+// priority order, not just insertion order) — the number prefix is optional
+// in the matcher so it still recognizes sheets tagged before numbering
+// existed. Centralized here so the triage cron and the one-off admin routes
+// (rename-sheets, untag-sheets) all agree on what counts as tagged.
+const TODAY_TAG_RE = /^(?:\d+\.\s)?📞 TODAY — /;
+export function hasTodayTag(title: string): boolean {
+  return TODAY_TAG_RE.test(title);
+}
+export function stripTodayTag(title: string): string {
+  return title.replace(TODAY_TAG_RE, "");
+}
+export function withTodayTag(title: string, position: number): string {
+  return `${position}. 📞 TODAY — ${stripTodayTag(title)}`;
+}
+
 export interface SheetRanking {
   sheetId: string;
   sheetTitle: string;

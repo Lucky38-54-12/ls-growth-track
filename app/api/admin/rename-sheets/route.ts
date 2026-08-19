@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { JWT } from "google-auth-library";
-import { renameSheetFile } from "@/lib/sheets";
+import { renameSheetFile, hasTodayTag, stripTodayTag } from "@/lib/sheets";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +25,20 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const sheetIds: string[] = body.sheetIds || [];
-  const prefix: string = body.prefix || "📞 TODAY — ";
+  const customPrefix: string | undefined = body.prefix;
   const action: "add" | "remove" = body.action === "remove" ? "remove" : "add";
   if (!sheetIds.length) return NextResponse.json({ error: "sheetIds required" }, { status: 400 });
 
   const auth = getReadAuth();
   const drive = google.drive({ version: "v3", auth: auth as any });
+
+  // No custom prefix given (the common case) — recognize/strip the TODAY
+  // tag the same way the triage cron does, including its numbered form
+  // ("N. 📞 TODAY — X"), instead of the old fixed-string match that only
+  // ever knew about the unnumbered version.
+  const isTagged = customPrefix ? (name: string) => name.startsWith(customPrefix) : hasTodayTag;
+  const strip = customPrefix ? (name: string) => name.slice(customPrefix.length) : stripTodayTag;
+  const add = customPrefix ? (name: string) => `${customPrefix}${name}` : (name: string) => `📞 TODAY — ${name}`;
 
   const results: { id: string; from?: string; to?: string; error?: string }[] = [];
   for (const id of sheetIds) {
@@ -39,21 +47,21 @@ export async function POST(req: NextRequest) {
       const currentName = file.data.name || "";
 
       if (action === "remove") {
-        if (!currentName.startsWith(prefix)) {
+        if (!isTagged(currentName)) {
           results.push({ id, from: currentName, to: currentName });
           continue;
         }
-        const newName = currentName.slice(prefix.length);
+        const newName = strip(currentName);
         await renameSheetFile(id, newName);
         results.push({ id, from: currentName, to: newName });
         continue;
       }
 
-      if (currentName.startsWith(prefix)) {
+      if (isTagged(currentName)) {
         results.push({ id, from: currentName, to: currentName });
         continue;
       }
-      const newName = `${prefix}${currentName}`;
+      const newName = add(currentName);
       await renameSheetFile(id, newName);
       results.push({ id, from: currentName, to: newName });
     } catch (e) {

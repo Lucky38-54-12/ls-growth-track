@@ -5,6 +5,7 @@ import { reportAutomationStatus } from "./automationStatus";
 import {
   listColdCallSheetFiles, rankColdCallSheets, renameSheetFile, findPriorityCoverageGaps,
   parseCampaignFromTitle, PRIORITY_TRADES, COLD_CALL_SHEETS_FOLDER_ID,
+  hasTodayTag, stripTodayTag, withTodayTag,
 } from "./sheets";
 import { computeSegmentSaturation, segmentKey } from "./leads";
 import { Lead } from "./types";
@@ -16,7 +17,6 @@ const timeFmt = new Intl.DateTimeFormat("en-NZ", { timeZone: TZ, hour: "numeric"
 // worth flagging that it's time to prospect more rather than just calling.
 const LOW_INVENTORY_THRESHOLD = Number(process.env.COLD_CALL_SHEETS_LOW_THRESHOLD || "30");
 
-const TODAY_TAG = "📞 TODAY — ";
 // How many sheets stay tagged "today's picks" at once — matches the size of
 // the working list Lucky was keeping by hand before this was automated.
 const TARGET_TODAY_COUNT = 5;
@@ -60,7 +60,7 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
     // to untag or trim anything with. Tagged sheets go first so this run's
     // budget is always spent finding out their status before spending any
     // of it looking for new ones to add.
-    const files = [...rawFiles].sort((a, b) => Number(b.name.startsWith(TODAY_TAG)) - Number(a.name.startsWith(TODAY_TAG)));
+    const files = [...rawFiles].sort((a, b) => Number(hasTodayTag(b.name)) - Number(hasTodayTag(a.name)));
     // Lower concurrency + a bigger time budget than the dashboard page uses —
     // this route has a 60s ceiling (see api/cron/morning-brief/route.ts) and
     // nothing else competing for it, so it's worth spending more of that on
@@ -75,18 +75,18 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
     // undercounts on any run that doesn't reach every file, and step 2 below
     // would keep adding new tags run after run without ever recognizing the
     // quota was already full.
-    const allTaggedCount = files.filter((f) => f.name.startsWith(TODAY_TAG)).length;
+    const allTaggedCount = files.filter((f) => hasTodayTag(f.name)).length;
 
     // 1. Untag anything in today's picks that's been fully worked through
     // (only sheets this run actually read have a known freshRows).
-    const tagged = sheets.filter((s) => s.sheetTitle.startsWith(TODAY_TAG));
+    const tagged = sheets.filter((s) => hasTodayTag(s.sheetTitle));
     const finished = tagged.filter((s) => s.freshRows === 0);
     // Renamed in parallel, not sequentially — this route shares its 60s
     // ceiling with the scan above, and awaiting each Drive rename one at a
     // time (previously true of every rename loop here) burned enough of the
     // remaining budget on top of a full scan to 504 once trimming (below)
     // started renaming several more sheets in the same run.
-    await Promise.all(finished.map((s) => renameSheetFile(s.sheetId, s.sheetTitle.slice(TODAY_TAG.length)).catch(() => {})));
+    await Promise.all(finished.map((s) => renameSheetFile(s.sheetId, stripTodayTag(s.sheetTitle)).catch(() => {})));
     const stillActive = tagged.filter((s) => s.freshRows > 0);
     const stillActiveCount = allTaggedCount - finished.length;
 
@@ -111,38 +111,44 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
     const sortedActive = [...stillActive].sort(byPriorityThenFresh);
     const keepActive = sortedActive.slice(0, slotsForScannedActive);
     const excessActive = sortedActive.slice(slotsForScannedActive);
-    await Promise.all(excessActive.map((s) => renameSheetFile(s.sheetId, s.sheetTitle.slice(TODAY_TAG.length)).catch(() => {})));
+    await Promise.all(excessActive.map((s) => renameSheetFile(s.sheetId, stripTodayTag(s.sheetTitle)).catch(() => {})));
 
     // 2. Top up today's picks — priority (higher-ticket) trades first, then
     // whatever has the most untouched leads left. Skips segments that
     // already have enough live meetings — calling into an already-won city
     // just to fill out the list isn't worth it.
     const untagged = sheets.filter((s) => {
-      if (s.sheetTitle.startsWith(TODAY_TAG) || s.freshRows === 0) return false;
+      if (hasTodayTag(s.sheetTitle) || s.freshRows === 0) return false;
       const { trade, location } = parseCampaignFromTitle(s.sheetTitle);
       return !(trade && location && isSaturated(trade, location));
     });
     const ranked = [...untagged].sort(byPriorityThenFresh);
     const needed = Math.max(0, TARGET_TODAY_COUNT - (unscannedActiveCount + keepActive.length));
     const newlyTagged = ranked.slice(0, needed);
-    await Promise.all(newlyTagged.map((s) => renameSheetFile(s.sheetId, `${TODAY_TAG}${s.sheetTitle}`).catch(() => {})));
 
-    const finalToday = [
-      ...keepActive,
-      ...newlyTagged.map((s) => ({ ...s, sheetTitle: `${TODAY_TAG}${s.sheetTitle}` })),
-    ].sort(byPriorityThenFresh);
+    // Final today's picks, in priority order — renamed with a 1-based rank
+    // prefix (not just the plain tag) so the order is visible straight in
+    // Drive, not only in this Slack summary. Every sheet here gets rewritten
+    // even if it was already tagged: today's rank can differ from
+    // yesterday's even when the same sheet stays in the list.
+    const finalToday = [...keepActive, ...newlyTagged].sort(byPriorityThenFresh);
+    await Promise.all(finalToday.map((s, i) => {
+      const newTitle = withTodayTag(s.sheetTitle, i + 1);
+      if (newTitle === s.sheetTitle) return Promise.resolve();
+      return renameSheetFile(s.sheetId, newTitle).catch(() => {});
+    }));
 
     if (finalToday.length > 0) {
       lines.push(`\n📋 Today's call sheets:`);
       finalToday.forEach((s, i) => {
-        lines.push(`${i + 1}. ${s.sheetTitle.slice(TODAY_TAG.length)} — ${s.freshRows} untouched`);
+        lines.push(`${i + 1}. ${stripTodayTag(s.sheetTitle)} — ${s.freshRows} untouched`);
       });
     }
     if (excessActive.length > 0) {
-      lines.push(`↩️ Untagged (over today's cap of ${TARGET_TODAY_COUNT}): ${excessActive.map((s) => s.sheetTitle.slice(TODAY_TAG.length)).join(", ")}`);
+      lines.push(`↩️ Untagged (over today's cap of ${TARGET_TODAY_COUNT}): ${excessActive.map((s) => stripTodayTag(s.sheetTitle)).join(", ")}`);
     }
     if (finished.length > 0) {
-      lines.push(`✅ Wrapped up: ${finished.map((s) => s.sheetTitle.slice(TODAY_TAG.length)).join(", ")}`);
+      lines.push(`✅ Wrapped up: ${finished.map((s) => stripTodayTag(s.sheetTitle)).join(", ")}`);
     }
     const unscannedTaggedCount = stillActiveCount - stillActive.length;
     if (unscannedTaggedCount > 0) {
