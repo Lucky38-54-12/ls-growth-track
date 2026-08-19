@@ -16,7 +16,7 @@ export default async function ApprovalsPage() {
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
-      <Topbar title="Approvals" subtitle="Everything the Brain has proposed or learned — waiting on your decision or review" />
+      <Topbar title="Approvals" subtitle="Everything the Brain has proposed or learned — waiting on your decision or review (test)" />
       <div style={{ padding: "20px 28px 60px", maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
         <ApprovalQueue initialDrafts={drafts} emptyMessage="Nothing waiting on you right now." />
         <LearnedInsights initialLearnings={learnings} />
