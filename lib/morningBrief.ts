@@ -72,9 +72,12 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
     // (only sheets this run actually read have a known freshRows).
     const tagged = sheets.filter((s) => s.sheetTitle.startsWith(TODAY_TAG));
     const finished = tagged.filter((s) => s.freshRows === 0);
-    for (const s of finished) {
-      await renameSheetFile(s.sheetId, s.sheetTitle.slice(TODAY_TAG.length)).catch(() => {});
-    }
+    // Renamed in parallel, not sequentially — this route shares its 60s
+    // ceiling with the scan above, and awaiting each Drive rename one at a
+    // time (previously true of every rename loop here) burned enough of the
+    // remaining budget on top of a full scan to 504 once trimming (below)
+    // started renaming several more sheets in the same run.
+    await Promise.all(finished.map((s) => renameSheetFile(s.sheetId, s.sheetTitle.slice(TODAY_TAG.length)).catch(() => {})));
     const stillActive = tagged.filter((s) => s.freshRows > 0);
     const stillActiveCount = allTaggedCount - finished.length;
 
@@ -99,9 +102,7 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
     const sortedActive = [...stillActive].sort(byPriorityThenFresh);
     const keepActive = sortedActive.slice(0, slotsForScannedActive);
     const excessActive = sortedActive.slice(slotsForScannedActive);
-    for (const s of excessActive) {
-      await renameSheetFile(s.sheetId, s.sheetTitle.slice(TODAY_TAG.length)).catch(() => {});
-    }
+    await Promise.all(excessActive.map((s) => renameSheetFile(s.sheetId, s.sheetTitle.slice(TODAY_TAG.length)).catch(() => {})));
 
     // 2. Top up today's picks — priority (higher-ticket) trades first, then
     // whatever has the most untouched leads left. Skips segments that
@@ -115,9 +116,7 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
     const ranked = [...untagged].sort(byPriorityThenFresh);
     const needed = Math.max(0, TARGET_TODAY_COUNT - (unscannedActiveCount + keepActive.length));
     const newlyTagged = ranked.slice(0, needed);
-    for (const s of newlyTagged) {
-      await renameSheetFile(s.sheetId, `${TODAY_TAG}${s.sheetTitle}`).catch(() => {});
-    }
+    await Promise.all(newlyTagged.map((s) => renameSheetFile(s.sheetId, `${TODAY_TAG}${s.sheetTitle}`).catch(() => {})));
 
     const finalToday = [
       ...keepActive,
