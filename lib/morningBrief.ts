@@ -41,13 +41,23 @@ async function getColdCallSheetBrief(allLeads: Lead[]): Promise<string[]> {
     const { sheets, scanned } = await rankColdCallSheets(files, { concurrency: 2, timeBudgetMs: 45000 });
     if (sheets.length === 0) return lines;
 
-    // 1. Untag anything in today's picks that's been fully worked through.
+    // Total currently-tagged count from the raw file listing, not just from
+    // `sheets` — a partial scan (see timeBudgetMs below) only reads a subset
+    // of the folder, so counting tagged sheets from `sheets` alone
+    // undercounts on any run that doesn't reach every file, and step 2 below
+    // would keep adding new tags run after run without ever recognizing the
+    // quota was already full.
+    const allTaggedCount = files.filter((f) => f.name.startsWith(TODAY_TAG)).length;
+
+    // 1. Untag anything in today's picks that's been fully worked through
+    // (only sheets this run actually read have a known freshRows).
     const tagged = sheets.filter((s) => s.sheetTitle.startsWith(TODAY_TAG));
     const finished = tagged.filter((s) => s.freshRows === 0);
     for (const s of finished) {
       await renameSheetFile(s.sheetId, s.sheetTitle.slice(TODAY_TAG.length)).catch(() => {});
     }
     const stillActive = tagged.filter((s) => s.freshRows > 0);
+    const stillActiveCount = allTaggedCount - finished.length;
 
     // 2. Top up today's picks — priority (higher-ticket) trades first, then
     // whatever has the most untouched leads left. Skips segments that
@@ -64,7 +74,7 @@ async function getColdCallSheetBrief(allLeads: Lead[]): Promise<string[]> {
       if (aPri !== bPri) return bPri - aPri;
       return b.freshRows - a.freshRows;
     });
-    const needed = Math.max(0, TARGET_TODAY_COUNT - stillActive.length);
+    const needed = Math.max(0, TARGET_TODAY_COUNT - stillActiveCount);
     const newlyTagged = ranked.slice(0, needed);
     for (const s of newlyTagged) {
       await renameSheetFile(s.sheetId, `${TODAY_TAG}${s.sheetTitle}`).catch(() => {});
@@ -83,6 +93,10 @@ async function getColdCallSheetBrief(allLeads: Lead[]): Promise<string[]> {
     }
     if (finished.length > 0) {
       lines.push(`✅ Wrapped up: ${finished.map((s) => s.sheetTitle.slice(TODAY_TAG.length)).join(", ")}`);
+    }
+    const unscannedTaggedCount = stillActiveCount - stillActive.length;
+    if (unscannedTaggedCount > 0) {
+      lines.push(`(+${unscannedTaggedCount} more already-tagged sheet${unscannedTaggedCount !== 1 ? "s" : ""} not re-scanned this run)`);
     }
 
     const totalFresh = sheets.reduce((sum, s) => sum + s.freshRows, 0);
