@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { sendGmailFollowup } from "@/lib/email";
 import { statusTimestampUpdates } from "@/lib/leads";
-import { createBooking, findUpcomingEventsByQuery, rescheduleBooking } from "@/lib/calendar";
+import { createBooking, findUpcomingEventsByQuery, rescheduleBooking, fillMeetingLink } from "@/lib/calendar";
 import { findSheetRowByCompany, getRawRange, updateSheetCell } from "@/lib/sheets-connector";
 import { recordLearningFromDecision } from "@/lib/brainLearnings";
 import { Lead } from "@/lib/types";
@@ -44,8 +44,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (leadError) return NextResponse.json({ error: leadError.message }, { status: 500 });
     if (!lead) return NextResponse.json({ error: "The lead this draft was written for no longer exists." }, { status: 400 });
 
+    // Swaps the model's literal "[MEETING LINK]" placeholder (see
+    // BRAIN_SYSTEM_PROMPT in app/api/brain/chat/route.ts) for the one fixed
+    // Google Meet room this business always uses — same helper the cold-call
+    // follow-up pipeline already relies on (app/api/leads/[id]/followup and
+    // lib/calendarSync.ts). Done here at send-time, not at draft-creation
+    // time, so it's the value actually in the env right when the email goes
+    // out. No-op (leaves the placeholder untouched) if GOOGLE_MEET_LINK
+    // isn't set.
+    const finalContent = fillMeetingLink(draft.content, process.env.GOOGLE_MEET_LINK || "");
+
     try {
-      await sendGmailFollowup(lead as Lead, draft.title || "Follow-up", draft.content, "brain_draft");
+      await sendGmailFollowup(lead as Lead, draft.title || "Follow-up", finalContent, "brain_draft");
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to send email." }, { status: 502 });
     }
