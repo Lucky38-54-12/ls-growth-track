@@ -25,7 +25,10 @@ const TARGET_TODAY_COUNT = 5;
 // see /dashboard/automations) that this exact feature reports to.
 const SHEET_TRIAGE_SLUG = "daily-sheet-triage";
 
-async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabaseClient>, allLeads: Lead[]): Promise<string[]> {
+// force=true skips the once-per-NZT-day gate — used by the manual
+// /api/admin/run-sheet-triage trigger to re-apply a fixed cap/threshold the
+// same day it was deployed, instead of waiting for tomorrow's scheduled run.
+export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabaseClient>, allLeads: Lead[], force = false): Promise<string[]> {
   const lines: string[] = [];
   try {
     // The GitHub Actions trigger window is generous on purpose (jitter on
@@ -35,7 +38,7 @@ async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabaseClient>
     // regardless of how many times a run lands inside that window.
     const todayNZT = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const { data: triageRow } = await sb.from("automations").select("last_run_at").eq("slug", SHEET_TRIAGE_SLUG).maybeSingle();
-    if (triageRow?.last_run_at) {
+    if (!force && triageRow?.last_run_at) {
       const lastRunNZT = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(triageRow.last_run_at));
       if (lastRunNZT === todayNZT) return lines;
     }
