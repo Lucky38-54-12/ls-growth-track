@@ -5,6 +5,7 @@ import {
   listColdCallSheetFiles, rankColdCallSheets, renameSheetFile, findPriorityCoverageGaps,
   parseCampaignFromTitle, PRIORITY_TRADES, COLD_CALL_SHEETS_FOLDER_ID,
 } from "./sheets";
+import { computeSegmentSaturation, segmentKey } from "./leads";
 import { Lead } from "./types";
 
 const TZ = "Pacific/Auckland";
@@ -19,9 +20,17 @@ const TODAY_TAG = "📞 TODAY — ";
 // the working list Lucky was keeping by hand before this was automated.
 const TARGET_TODAY_COUNT = 5;
 
-async function getColdCallSheetBrief(): Promise<string[]> {
+async function getColdCallSheetBrief(allLeads: Lead[]): Promise<string[]> {
   const lines: string[] = [];
   try {
+    // Segments already converting well (booked/proposal/closed meetings) —
+    // no point tagging or sourcing more leads for a trade+city that's
+    // already paying off; that effort is better spent somewhere still cold.
+    // Same threshold/statuses the Call Queue page uses for its "Paused —
+    // Already Got Meetings" section, so the two never disagree.
+    const saturation = computeSegmentSaturation(allLeads);
+    const isSaturated = (trade: string, location: string) => saturation.get(segmentKey(trade, location))?.saturated === true;
+
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || COLD_CALL_SHEETS_FOLDER_ID;
     const files = await listColdCallSheetFiles(folderId);
     // Lower concurrency + a bigger time budget than the dashboard page uses —
@@ -41,8 +50,14 @@ async function getColdCallSheetBrief(): Promise<string[]> {
     const stillActive = tagged.filter((s) => s.freshRows > 0);
 
     // 2. Top up today's picks — priority (higher-ticket) trades first, then
-    // whatever has the most untouched leads left.
-    const untagged = sheets.filter((s) => !s.sheetTitle.startsWith(TODAY_TAG) && s.freshRows > 0);
+    // whatever has the most untouched leads left. Skips segments that
+    // already have enough live meetings — calling into an already-won city
+    // just to fill out the list isn't worth it.
+    const untagged = sheets.filter((s) => {
+      if (s.sheetTitle.startsWith(TODAY_TAG) || s.freshRows === 0) return false;
+      const { trade, location } = parseCampaignFromTitle(s.sheetTitle);
+      return !(trade && location && isSaturated(trade, location));
+    });
     const ranked = [...untagged].sort((a, b) => {
       const aPri = PRIORITY_TRADES.includes(parseCampaignFromTitle(a.sheetTitle).trade || "") ? 1 : 0;
       const bPri = PRIORITY_TRADES.includes(parseCampaignFromTitle(b.sheetTitle).trade || "") ? 1 : 0;
@@ -87,7 +102,7 @@ async function getColdCallSheetBrief(): Promise<string[]> {
     // that it doesn't exist. "low" is safe either way: it's only reported
     // for sheets that were actually read this run.
     const fullScan = scanned >= files.length;
-    const gaps = findPriorityCoverageGaps(sheets).filter((g) => fullScan || g.reason === "low");
+    const gaps = findPriorityCoverageGaps(sheets, { isSaturated }).filter((g) => fullScan || g.reason === "low");
     if (gaps.length > 0) {
       const missing = gaps.filter((g) => g.reason === "missing");
       const low = gaps.filter((g) => g.reason === "low");
@@ -110,11 +125,11 @@ async function getColdCallSheetBrief(): Promise<string[]> {
 export async function sendMorningBrief(): Promise<{ sent: boolean; meetings: number; dueItems: number }> {
   const sb = createSupabaseClient();
 
-  const [events, allLeads, sheetLines] = await Promise.all([
+  const [events, allLeads] = await Promise.all([
     listTodaysEvents(TZ).catch(() => []),
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to)),
-    getColdCallSheetBrief(),
   ]);
+  const sheetLines = await getColdCallSheetBrief(allLeads);
 
   const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const pipelineLeads = allLeads.filter((l) => !(l.source === "cold_call" && l.status === "not_contacted"));

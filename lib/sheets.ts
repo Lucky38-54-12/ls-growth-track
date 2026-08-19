@@ -255,13 +255,24 @@ export interface CoverageGap {
 // false "missing" gaps for sheets that exist but weren't reached this run.
 export function findPriorityCoverageGaps(
   sheets: { sheetTitle: string; freshRows: number }[],
-  { lowThreshold = 10, trades = PRIORITY_TRADES, cities = CITIES }: { lowThreshold?: number; trades?: string[]; cities?: string[] } = {}
+  {
+    lowThreshold = 10, trades = PRIORITY_TRADES, cities = CITIES, isSaturated,
+  }: {
+    lowThreshold?: number; trades?: string[]; cities?: string[];
+    // Segments with enough live/won meetings already — no point sourcing
+    // more leads for a trade+city combo that's already converting. Keyed
+    // the same way lib/leads.ts's segmentKey does: `${trade}|${location}`,
+    // lowercased. Left undefined when the caller has no client/meeting data
+    // on hand (e.g. a script running outside the dashboard's DB).
+    isSaturated?: (trade: string, location: string) => boolean;
+  } = {}
 ): CoverageGap[] {
   const annotated = sheets.map((s) => ({ ...s, ...parseCampaignFromTitle(s.sheetTitle) }));
   const gaps: CoverageGap[] = [];
   for (const trade of trades) {
     for (const city of cities) {
       const location = `${city} NZ`;
+      if (isSaturated?.(trade, location)) continue;
       const match = annotated.find((s) => s.trade === trade && s.location === location);
       if (!match) {
         gaps.push({ trade, location: city, reason: "missing" });
