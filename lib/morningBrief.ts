@@ -51,7 +51,16 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
     const isSaturated = (trade: string, location: string) => saturation.get(segmentKey(trade, location))?.saturated === true;
 
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || COLD_CALL_SHEETS_FOLDER_ID;
-    const files = await listColdCallSheetFiles(folderId);
+    const rawFiles = await listColdCallSheetFiles(folderId);
+    // Drive's orderBy=name sorts the 📞 TODAY prefix after plain ASCII
+    // titles, so on a folder too big to fully scan within the time budget,
+    // a straight alphabetical pass could finish without ever reaching a
+    // single already-tagged sheet — caught live: a 31/80 partial scan read
+    // zero of the 10 tagged sheets, so step 1/1b below had no freshRows data
+    // to untag or trim anything with. Tagged sheets go first so this run's
+    // budget is always spent finding out their status before spending any
+    // of it looking for new ones to add.
+    const files = [...rawFiles].sort((a, b) => Number(b.name.startsWith(TODAY_TAG)) - Number(a.name.startsWith(TODAY_TAG)));
     // Lower concurrency + a bigger time budget than the dashboard page uses —
     // this route has a 60s ceiling (see api/cron/morning-brief/route.ts) and
     // nothing else competing for it, so it's worth spending more of that on
