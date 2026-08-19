@@ -11,7 +11,7 @@ interface LogLine { type: string; msg: string }
 
 export default function ScraperPage() {
   const [query, setQuery]       = useState("");
-  const [max, setMax]           = useState("50");
+  const [max, setMax]           = useState("200");
   const [sheetId, setSheetId]   = useState("");
 
   const [running, setRunning]       = useState(false);
