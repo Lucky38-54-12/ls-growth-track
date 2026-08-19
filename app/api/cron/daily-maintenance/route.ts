@@ -36,6 +36,22 @@ export async function GET(req: NextRequest) {
   }
 
   const sb = createSupabaseClient();
+
+  // The GitHub Actions trigger window is intentionally wide (see cron.yml)
+  // to survive scheduling jitter, so this is what actually stops a second
+  // run landing inside that window from re-running the AI-generation steps
+  // below (email learning, nurture emails) a second time same day — those
+  // aren't behind COLD_OUTREACH_PAUSED and re-running them was flagged
+  // before as a real spend driver.
+  const todayNZT = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const { data: maintenanceRow } = await sb.from("automations").select("last_run_at").eq("slug", "daily-maintenance").maybeSingle();
+  if (maintenanceRow?.last_run_at) {
+    const lastRunNZT = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(maintenanceRow.last_run_at));
+    if (lastRunNZT === todayNZT) {
+      return NextResponse.json({ skipped: true, reason: "already ran today (NZT)" });
+    }
+  }
+
   const results: Record<string, unknown> = {};
 
   try {

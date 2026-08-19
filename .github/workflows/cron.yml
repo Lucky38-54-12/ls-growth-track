@@ -39,14 +39,23 @@ jobs:
     # practice always '*/15 * * * *', so an event.schedule match here never
     # fired and this job silently no-op'd every day. Check wall-clock time
     # instead, which is robust to the collision.
+    #
+    # The window is 2 hours, not 15 minutes: this workflow's actual runs have
+    # been observed landing 20-40+ minutes late (GitHub Actions scheduling
+    # jitter, worse with multiple schedules in one workflow), and a run that
+    # arrives just after a narrow window closes just gets silently skipped -
+    # which is exactly what happened to this job every day until this fix.
+    # Widening it is safe because the route itself (lib/morningBrief.ts) now
+    # checks an "already ran today" flag in the DB before doing any work, so
+    # multiple runs landing inside the window won't send duplicate Slack
+    # messages or re-tag sheets twice.
     runs-on: ubuntu-latest
     steps:
-      - name: Check if it's the 7am NZT (19:00 UTC) window
+      - name: Check if it's the 7am NZT (19:00-21:00 UTC) window
         id: check
         run: |
           HOUR=$(date -u +%H)
-          MIN=$(date -u +%M)
-          if [ "$HOUR" = "19" ] && [ "$MIN" -lt 15 ]; then
+          if [ "$HOUR" = "19" ] || [ "$HOUR" = "20" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -59,15 +68,20 @@ jobs:
 
   daily-maintenance:
     # Same event.schedule collision as morning-brief above (0 21 * * * also
-    # lands on a */15 boundary) - check wall-clock time instead.
+    # lands on a */15 boundary), same 2-hour window for the same reason, and
+    # safe for the same reason - the route now checks an "already ran today"
+    # DB flag before doing any work (see api/cron/daily-maintenance/route.ts),
+    # which matters more here than most: several of this route's steps call
+    # the Anthropic API and aren't behind COLD_OUTREACH_PAUSED, so an
+    # unguarded duplicate run would have re-billed those, not just wasted
+    # Sheets/Drive quota.
     runs-on: ubuntu-latest
     steps:
-      - name: Check if it's the 9am NZT (21:00 UTC) window
+      - name: Check if it's the 9am NZT (21:00-23:00 UTC) window
         id: check
         run: |
           HOUR=$(date -u +%H)
-          MIN=$(date -u +%M)
-          if [ "$HOUR" = "21" ] && [ "$MIN" -lt 15 ]; then
+          if [ "$HOUR" = "21" ] || [ "$HOUR" = "22" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"

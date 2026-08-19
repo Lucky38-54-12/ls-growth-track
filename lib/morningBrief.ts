@@ -1,6 +1,7 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { notifySlack } from "./slackNotify";
 import { listTodaysEvents } from "./calendar";
+import { reportAutomationStatus } from "./automationStatus";
 import {
   listColdCallSheetFiles, rankColdCallSheets, renameSheetFile, findPriorityCoverageGaps,
   parseCampaignFromTitle, PRIORITY_TRADES, COLD_CALL_SHEETS_FOLDER_ID,
@@ -20,9 +21,24 @@ const TODAY_TAG = "📞 TODAY — ";
 // the working list Lucky was keeping by hand before this was automated.
 const TARGET_TODAY_COUNT = 5;
 
-async function getColdCallSheetBrief(allLeads: Lead[]): Promise<string[]> {
+// Pre-existing automations row (added before this was ever wired to code —
+// see /dashboard/automations) that this exact feature reports to.
+const SHEET_TRIAGE_SLUG = "daily-sheet-triage";
+
+async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabaseClient>, allLeads: Lead[]): Promise<string[]> {
   const lines: string[] = [];
   try {
+    // The GitHub Actions trigger window is generous on purpose (jitter on
+    // this workflow has run 20-40+ min late in practice, see cron.yml) —
+    // this DB check is what actually prevents running the triage (and
+    // sending a duplicate Slack message) more than once per NZT day,
+    // regardless of how many times a run lands inside that window.
+    const todayNZT = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const { data: triageRow } = await sb.from("automations").select("last_run_at").eq("slug", SHEET_TRIAGE_SLUG).maybeSingle();
+    if (triageRow?.last_run_at) {
+      const lastRunNZT = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(triageRow.last_run_at));
+      if (lastRunNZT === todayNZT) return lines;
+    }
     // Segments already converting well (booked/proposal/closed meetings) —
     // no point tagging or sourcing more leads for a trade+city that's
     // already paying off; that effort is better spent somewhere still cold.
@@ -124,6 +140,8 @@ async function getColdCallSheetBrief(allLeads: Lead[]): Promise<string[]> {
       if (missing.length > 0) lines.push(`• No sheet yet: ${missing.map((g) => `${g.trade} ${g.location}`).join(", ")}`);
       if (low.length > 0) lines.push(`• Running low: ${low.map((g) => `${g.trade} ${g.location} (${g.freshRows} left)`).join(", ")}`);
     }
+
+    await reportAutomationStatus(sb, SHEET_TRIAGE_SLUG, "ok", lines.join(" ").trim() || "Nothing to pick — no sheets found.");
   } catch {
     // Drive/Sheets outage shouldn't block the rest of the brief from sending.
   }
@@ -136,16 +154,33 @@ async function getColdCallSheetBrief(allLeads: Lead[]): Promise<string[]> {
 // page (app/dashboard/today/page.tsx) so the Slack ping and the dashboard
 // panel never disagree about what counts as due. Skips sending entirely on
 // a quiet day — a ping with nothing on it just trains you to ignore it.
+const MORNING_BRIEF_SLUG = "morning-brief";
+
 export async function sendMorningBrief(): Promise<{ sent: boolean; meetings: number; dueItems: number }> {
   const sb = createSupabaseClient();
+
+  // Same reasoning as getColdCallSheetBrief's own guard: the cron trigger
+  // window is intentionally wide to survive GitHub Actions' scheduling
+  // jitter (see cron.yml), so this is what actually stops a second run
+  // landing inside that window from sending a duplicate Slack message.
+  const todayNZT = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const { data: briefRow } = await sb.from("automations").select("last_run_at").eq("slug", MORNING_BRIEF_SLUG).maybeSingle();
+  if (briefRow?.last_run_at) {
+    const lastRunNZT = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(briefRow.last_run_at));
+    if (lastRunNZT === todayNZT) return { sent: false, meetings: 0, dueItems: 0 };
+  }
+  // Recorded as "attempted" right away (not "sent"), so even a quiet day
+  // with nothing to report still counts as today's run and a later
+  // duplicate trigger inside the same window won't re-check from scratch.
+  await reportAutomationStatus(sb, MORNING_BRIEF_SLUG, "ok", "Checked — see daily-sheet-triage / Slack for details.");
 
   const [events, allLeads] = await Promise.all([
     listTodaysEvents(TZ).catch(() => []),
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to)),
   ]);
-  const sheetLines = await getColdCallSheetBrief(allLeads);
+  const sheetLines = await getColdCallSheetBrief(sb, allLeads);
 
-  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const todayStr = todayNZT;
   const pipelineLeads = allLeads.filter((l) => !(l.source === "cold_call" && l.status === "not_contacted"));
   const repliedLeads = pipelineLeads.filter((l) => l.status === "replied");
   const followUpsDue = allLeads.filter((l) => l.follow_up_at && l.follow_up_at <= todayStr);
