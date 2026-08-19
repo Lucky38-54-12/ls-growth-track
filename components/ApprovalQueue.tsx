@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Check, X } from "lucide-react";
 import { ChatDraft } from "@/lib/chatDrafts";
+import { addNoteToStorage } from "@/lib/notesStore";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -52,6 +53,17 @@ export default function ApprovalQueue({ initialDrafts, emptyMessage }: { initial
       if (!res.ok) {
         setError(data.error || "Couldn't apply that decision.");
         return;
+      }
+      // A "note" draft has no server-side side effect of its own (see
+      // app/api/brain/drafts/[id]/route.ts) — approving it here is the only
+      // place it can actually land on the Today page's sticky-note board,
+      // since that board reads from localStorage in the browser, which a
+      // server route can never write to.
+      if (decision === "approved") {
+        const approved = drafts.find((x) => x.id === draftId);
+        if (approved?.kind === "note") {
+          addNoteToStorage(approved.title ? `${approved.title}: ${approved.content}` : approved.content);
+        }
       }
       setDrafts((d) => d.filter((x) => x.id !== draftId));
     } catch {

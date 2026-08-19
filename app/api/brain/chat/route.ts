@@ -113,6 +113,47 @@ Each entry in "drafts" only includes the one object ("fields", "calendar", "resc
 // — a single turn can propose more than one action, e.g. a pasted call that
 // also states agreed deal terms is both log_call and agreement_doc), and
 // concatenates each result's appendText onto the model's own reply text.
+// Asking the Brain about the same lead/meeting more than once in a row
+// (very common — Lucky often re-confirms or repeats himself across a few
+// messages) used to make it re-propose the identical action every time,
+// piling up duplicate pending cards on /dashboard/approvals and, worse,
+// letting him unknowingly approve the same calendar_booking or email twice
+// — a real double-booked Google Meet event and a duplicate email actually
+// went out to a lead before this existed. Same-kind, same-target, recent
+// pending drafts are skipped rather than re-created.
+async function hasRecentPendingDuplicate(
+  sb: ReturnType<typeof createSupabaseClient>,
+  kind: string,
+  leadUuid: string | null,
+  title: string,
+  windowHours = 6
+): Promise<boolean> {
+  const since = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
+  let query = sb.from("chat_drafts").select("id").eq("kind", kind).eq("status", "pending").gte("created_at", since);
+  query = leadUuid ? query.eq("lead_id", leadUuid) : query.eq("title", title);
+  const { data } = await query.limit(1);
+  return !!data && data.length > 0;
+}
+
+// calendar_booking has no lead_id column (it's keyed by attendee email in
+// its own payload), and the real-world stakes are higher than a duplicate
+// card — an approved duplicate creates a second real Google Calendar
+// event/invite. So this checks EVERY existing booking for the exact same
+// person at the exact same time, pending or already applied, with no time
+// window — a slot that's already booked stays booked no matter how long
+// ago that happened.
+async function hasDuplicateBooking(sb: ReturnType<typeof createSupabaseClient>, attendeeEmail: string, startISO: string): Promise<boolean> {
+  const { data } = await sb
+    .from("chat_drafts")
+    .select("id, payload")
+    .eq("kind", "calendar_booking")
+    .in("status", ["pending", "applied"]);
+  return (data || []).some((d) => {
+    const p = (d.payload || {}) as { attendeeEmail?: string; startISO?: string };
+    return p.attendeeEmail?.toLowerCase() === attendeeEmail.toLowerCase() && p.startISO === startISO;
+  });
+}
+
 async function resolveDraft(
   sb: ReturnType<typeof createSupabaseClient>,
   draft: ParsedDraft
@@ -137,6 +178,10 @@ async function resolveDraft(
 
     if (Object.keys(payload).length === 0) {
       return { appendText: "", draftCreated: false, error: "Model proposed a lead update with no valid fields — ignored." };
+    }
+
+    if (await hasRecentPendingDuplicate(sb, "lead_update", leadUuid, "Update lead")) {
+      return { appendText: "", draftCreated: false, error: "There's already a pending lead update waiting on your decision for this lead — didn't create another." };
     }
 
     const summaryLines = [
@@ -168,6 +213,10 @@ async function resolveDraft(
       startISO: start.toISOString(),
       durationMinutes: cal.durationMinutes || 30,
     };
+    if (await hasDuplicateBooking(sb, payload.attendeeEmail, payload.startISO)) {
+      return { appendText: "", draftCreated: false, error: `Already have a calendar booking for this exact time with ${payload.attendeeName || payload.attendeeEmail} — didn't create a duplicate.` };
+    }
+
     const when = start.toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
     const content = `${payload.summary}\nWith: ${payload.attendeeName || payload.attendeeEmail}\nWhen: ${when} (${payload.durationMinutes} min)`;
 
@@ -423,9 +472,14 @@ async function resolveDraft(
     return { appendText: "", draftCreated: !error };
   }
 
+  const fallbackTitle = draft.kind === "email" ? stripDashes(draft.subject || "Follow-up") : (draft.title || "Note");
+  if ((draft.kind === "email" || draft.kind === "note") && await hasRecentPendingDuplicate(sb, draft.kind, leadUuid, fallbackTitle)) {
+    return { appendText: "", draftCreated: false, error: `There's already a pending ${draft.kind} waiting on your decision for this — didn't create another.` };
+  }
+
   const { error } = await sb.from("chat_drafts").insert({
     kind: draft.kind,
-    title: draft.kind === "email" ? stripDashes(draft.subject || "Follow-up") : (draft.title || "Note"),
+    title: fallbackTitle,
     lead_id: leadUuid,
     content: stripDashes(draft.content || ""),
   });
