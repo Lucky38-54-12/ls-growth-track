@@ -75,6 +75,31 @@ async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabaseClient>
     const stillActive = tagged.filter((s) => s.freshRows > 0);
     const stillActiveCount = allTaggedCount - finished.length;
 
+    const byPriorityThenFresh = (a: { sheetTitle: string; freshRows: number }, b: { sheetTitle: string; freshRows: number }) => {
+      const aPri = PRIORITY_TRADES.includes(parseCampaignFromTitle(a.sheetTitle).trade || "") ? 1 : 0;
+      const bPri = PRIORITY_TRADES.includes(parseCampaignFromTitle(b.sheetTitle).trade || "") ? 1 : 0;
+      if (aPri !== bPri) return bPri - aPri;
+      return b.freshRows - a.freshRows;
+    };
+
+    // 1b. Trim excess — stillActiveCount can run above target on its own
+    // (e.g. sheets tagged before this cap existed, or several tagged in one
+    // partial-scan run before an earlier run's undercount was fixed), and
+    // nothing before this ever pulled it back down since step 2 below only
+    // ever adds. Only trims from sheets this run actually scanned (know
+    // their freshRows/trade); tagged sheets outside the scan window are left
+    // alone rather than guessed at. Keeps the same priority-trade-first,
+    // most-untouched-leads ranking used to pick new ones, so trimming always
+    // drops the least valuable sheets first.
+    const unscannedActiveCount = Math.max(0, stillActiveCount - stillActive.length);
+    const slotsForScannedActive = Math.max(0, TARGET_TODAY_COUNT - unscannedActiveCount);
+    const sortedActive = [...stillActive].sort(byPriorityThenFresh);
+    const keepActive = sortedActive.slice(0, slotsForScannedActive);
+    const excessActive = sortedActive.slice(slotsForScannedActive);
+    for (const s of excessActive) {
+      await renameSheetFile(s.sheetId, s.sheetTitle.slice(TODAY_TAG.length)).catch(() => {});
+    }
+
     // 2. Top up today's picks — priority (higher-ticket) trades first, then
     // whatever has the most untouched leads left. Skips segments that
     // already have enough live meetings — calling into an already-won city
@@ -84,28 +109,26 @@ async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabaseClient>
       const { trade, location } = parseCampaignFromTitle(s.sheetTitle);
       return !(trade && location && isSaturated(trade, location));
     });
-    const ranked = [...untagged].sort((a, b) => {
-      const aPri = PRIORITY_TRADES.includes(parseCampaignFromTitle(a.sheetTitle).trade || "") ? 1 : 0;
-      const bPri = PRIORITY_TRADES.includes(parseCampaignFromTitle(b.sheetTitle).trade || "") ? 1 : 0;
-      if (aPri !== bPri) return bPri - aPri;
-      return b.freshRows - a.freshRows;
-    });
-    const needed = Math.max(0, TARGET_TODAY_COUNT - stillActiveCount);
+    const ranked = [...untagged].sort(byPriorityThenFresh);
+    const needed = Math.max(0, TARGET_TODAY_COUNT - (unscannedActiveCount + keepActive.length));
     const newlyTagged = ranked.slice(0, needed);
     for (const s of newlyTagged) {
       await renameSheetFile(s.sheetId, `${TODAY_TAG}${s.sheetTitle}`).catch(() => {});
     }
 
     const finalToday = [
-      ...stillActive,
+      ...keepActive,
       ...newlyTagged.map((s) => ({ ...s, sheetTitle: `${TODAY_TAG}${s.sheetTitle}` })),
-    ].sort((a, b) => b.freshRows - a.freshRows);
+    ].sort(byPriorityThenFresh);
 
     if (finalToday.length > 0) {
       lines.push(`\n📋 Today's call sheets:`);
-      for (const s of finalToday) {
-        lines.push(`• ${s.sheetTitle.slice(TODAY_TAG.length)} — ${s.freshRows} untouched`);
-      }
+      finalToday.forEach((s, i) => {
+        lines.push(`${i + 1}. ${s.sheetTitle.slice(TODAY_TAG.length)} — ${s.freshRows} untouched`);
+      });
+    }
+    if (excessActive.length > 0) {
+      lines.push(`↩️ Untagged (over today's cap of ${TARGET_TODAY_COUNT}): ${excessActive.map((s) => s.sheetTitle.slice(TODAY_TAG.length)).join(", ")}`);
     }
     if (finished.length > 0) {
       lines.push(`✅ Wrapped up: ${finished.map((s) => s.sheetTitle.slice(TODAY_TAG.length)).join(", ")}`);
