@@ -27,6 +27,8 @@ interface AdConcept {
   name: string;
   format: string;
   angle: string;
+  headline: string;
+  primaryText: string;
   hook: string;
   first3Seconds: string;
   creativeConcept: string;
@@ -107,6 +109,8 @@ const emptyAd = (): AdConcept => ({
   name: "New concept",
   format: "",
   angle: "",
+  headline: "",
+  primaryText: "",
   hook: "",
   first3Seconds: "",
   creativeConcept: "",
@@ -628,6 +632,12 @@ export default function CampaignSetupPage() {
                                   <Field label="Offer" value={ad.offer} onChange={(v) => updateAd(service, i, { offer: v })} rows={1} />
                                 </div>
 
+                                <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#1d4ed8" }}>Ready-to-Use Meta Copy</div>
+                                  <Field label="Headline" value={ad.headline} onChange={(v) => updateAd(service, i, { headline: v })} rows={1} />
+                                  <Field label="Primary Text" value={ad.primaryText} onChange={(v) => updateAd(service, i, { primaryText: v })} rows={3} />
+                                </div>
+
                                 <Field label="Hook" value={ad.hook} onChange={(v) => updateAd(service, i, { hook: v })} rows={2} />
                                 <Field label="First 3 Seconds" value={ad.first3Seconds} onChange={(v) => updateAd(service, i, { first3Seconds: v })} rows={2} />
                                 <Field label="Creative Concept" value={ad.creativeConcept} onChange={(v) => updateAd(service, i, { creativeConcept: v })} rows={3} />
@@ -687,7 +697,7 @@ export default function CampaignSetupPage() {
                         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                           <thead>
                             <tr style={{ borderBottom: `1px solid ${L.border}` }}>
-                              {["Service", "Ad", "Format", "Angle", "Offer", "Main Hypothesis"].map((h) => (
+                              {["Service", "Ad", "Format", "Angle", "Headline", "Offer", "Main Hypothesis"].map((h) => (
                                 <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted }}>{h}</th>
                               ))}
                             </tr>
@@ -699,6 +709,7 @@ export default function CampaignSetupPage() {
                                 <td style={{ padding: "10px 14px", color: L.muted }}>Ad {index}</td>
                                 <td style={{ padding: "10px 14px", color: L.text }}>{ad.format || "—"}</td>
                                 <td style={{ padding: "10px 14px", color: L.text }}>{ad.angle || "—"}</td>
+                                <td style={{ padding: "10px 14px", color: L.text }}>{ad.headline || "—"}</td>
                                 <td style={{ padding: "10px 14px", color: L.text }}>{ad.offer || "—"}</td>
                                 <td style={{ padding: "10px 14px", color: L.muted, maxWidth: 340 }}>{ad.hypothesis || "—"}</td>
                               </tr>

@@ -26,6 +26,8 @@ function cleanAd(a: Record<string, unknown>): AdConcept {
     name: typeof a.name === "string" ? a.name : "",
     format: typeof a.format === "string" ? a.format : "",
     angle: typeof a.angle === "string" ? a.angle : "",
+    headline: typeof a.headline === "string" ? a.headline : "",
+    primaryText: typeof a.primaryText === "string" ? a.primaryText : "",
     hook: typeof a.hook === "string" ? a.hook : "",
     first3Seconds: typeof a.first3Seconds === "string" ? a.first3Seconds : "",
     creativeConcept: typeof a.creativeConcept === "string" ? a.creativeConcept : "",

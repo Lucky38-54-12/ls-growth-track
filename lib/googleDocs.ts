@@ -8,6 +8,16 @@ import { getLuckyGoogleAuthedClient } from "@/lib/luckyGoogleAuth";
 // Drive's root.
 const DEFAULT_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
 
+// Shared Location/Range builders — a Location/Range object takes an
+// optional tabId to scope it to a specific tab (see "Work with tabs" in the
+// Docs API); omitted entirely for the classic single-tab case.
+function loc(index: number, tabId?: string) {
+  return tabId ? { index, tabId } : { index };
+}
+function range(startIndex: number, endIndex: number, tabId?: string) {
+  return tabId ? { startIndex, endIndex, tabId } : { startIndex, endIndex };
+}
+
 // Shared by createDocFromMarkedText and appendMarkedTextToDoc — builds the
 // insertText + bold/heading styling requests for a block of "# "/"## "
 // marked-up text, offset to wherever it's landing in the doc (index 1 for a
@@ -38,23 +48,37 @@ function buildFormattingRequests(markedText: string, insertAt: number, tabId?: s
     else if (isHeading) headingRanges.push({ start, end });
   }
 
-  const loc = (index: number) => (tabId ? { index, tabId } : { index });
-  const range = (startIndex: number, endIndex: number) => (tabId ? { startIndex, endIndex, tabId } : { startIndex, endIndex });
-
   return [
-    { insertText: { location: loc(insertAt), text: plainText } },
+    { insertText: { location: loc(insertAt, tabId), text: plainText } },
     ...titleRanges.map((r) => ({
       updateTextStyle: {
-        range: range(insertAt + r.start, insertAt + r.end),
+        range: range(insertAt + r.start, insertAt + r.end, tabId),
         textStyle: { bold: true, fontSize: { magnitude: r.fontSize, unit: "PT" } },
         fields: "bold,fontSize",
       },
     })),
+    // Real paragraph spacing above/below every heading — plain "\n\n" in the
+    // source text still reads as cramped once rendered, this is what
+    // actually gives the doc breathing room between sections.
+    ...titleRanges.map((r) => ({
+      updateParagraphStyle: {
+        range: range(insertAt + r.start, insertAt + r.end, tabId),
+        paragraphStyle: { spaceAbove: { magnitude: 12, unit: "PT" }, spaceBelow: { magnitude: 8, unit: "PT" } },
+        fields: "spaceAbove,spaceBelow",
+      },
+    })),
     ...headingRanges.map((r) => ({
       updateTextStyle: {
-        range: range(insertAt + r.start, insertAt + r.end),
+        range: range(insertAt + r.start, insertAt + r.end, tabId),
         textStyle: { bold: true },
         fields: "bold",
+      },
+    })),
+    ...headingRanges.map((r) => ({
+      updateParagraphStyle: {
+        range: range(insertAt + r.start, insertAt + r.end, tabId),
+        paragraphStyle: { spaceAbove: { magnitude: 14, unit: "PT" }, spaceBelow: { magnitude: 4, unit: "PT" } },
+        fields: "spaceAbove,spaceBelow",
       },
     })),
   ];
@@ -338,6 +362,28 @@ export async function appendMarkedTextToDoc(docId: string, markedText: string): 
   await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests } });
 }
 
+// Same content as appendMarkedTextToDoc's target (the doc's root body, not
+// a named tab) but clears whatever's there first — used for content that
+// should always reflect the LATEST state (e.g. a campaign overview/summary
+// that gets rebuilt every time any service regenerates) rather than
+// accumulating a new dated section on every run like the per-service tabs
+// deliberately do.
+export async function replaceMarkedTextInDoc(docId: string, markedText: string): Promise<void> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const docs = google.docs({ version: "v1", auth });
+
+  const doc = await docs.documents.get({ documentId: docId });
+  const content = doc.data.body?.content || [];
+  const lastEndIndex = content.length ? content[content.length - 1].endIndex || 1 : 1;
+  const deleteEnd = Math.max(1, lastEndIndex - 1);
+
+  const requests: object[] = [];
+  if (deleteEnd > 1) requests.push({ deleteContentRange: { range: { startIndex: 1, endIndex: deleteEnd } } });
+  requests.push(...buildFormattingRequests(markedText, 1));
+
+  await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests } });
+}
+
 interface TabNode {
   tabProperties?: { tabId?: string | null; title?: string | null } | null;
   documentTab?: { body?: { content?: unknown[] | null } | null } | null;
@@ -400,6 +446,104 @@ export async function appendMarkedTextToDocTab(docId: string, tabTitle: string, 
           ...buildFormattingRequests(markedText, insertAt + 2, tabId),
         ]
       : buildFormattingRequests(markedText, insertAt, tabId);
+
+  await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests } });
+}
+
+interface StructuralContent {
+  startIndex?: number | null;
+  endIndex?: number | null;
+  table?: { tableRows?: { tableCells?: { content?: StructuralContent[] | null }[] | null }[] | null } | null;
+}
+
+async function getTabOrRootContent(
+  docs: ReturnType<typeof google.docs>,
+  docId: string,
+  tabId?: string
+): Promise<StructuralContent[]> {
+  if (!tabId) {
+    const doc = await docs.documents.get({ documentId: docId });
+    return (doc.data.body?.content || []) as StructuralContent[];
+  }
+  const doc = await docs.documents.get({ documentId: docId, includeTabsContent: true });
+  const tab = flattenTabs(doc.data.tabs as TabNode[] | undefined).find((t) => t.tabProperties?.tabId === tabId);
+  return (tab?.documentTab?.body?.content || []) as StructuralContent[];
+}
+
+// Appends one bordered 1x1 table — a real visual "box," not just a text
+// divider — containing a bold heading line followed by plain body lines.
+// Used to give each ad concept (and each service's strategy/market-research
+// block) its own clearly separated card instead of one long wall of text.
+// Two round trips are unavoidable: batchUpdate's insertTable response
+// doesn't reliably echo the new cell's content index back in every client
+// library version, so the doc is re-fetched after creating the table to
+// find it by locating the last table in the content list (safe since
+// tables are only ever appended at the end here, never inserted mid-doc).
+// Each call is its own transactional batchUpdate — if anything about the
+// index math is wrong, that one call fails cleanly with no partial writes,
+// it can't corrupt content already in the doc.
+export async function appendBoxedBlock(docId: string, tabTitle: string | null, heading: string, bodyLines: string[]): Promise<void> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const docs = google.docs({ version: "v1", auth });
+  const tabId = tabTitle ? await getOrCreateTab(docId, tabTitle) : undefined;
+
+  let content = await getTabOrRootContent(docs, docId, tabId);
+  let lastEndIndex = content.length ? content[content.length - 1].endIndex || 1 : 1;
+  let insertAt = Math.max(1, lastEndIndex - 1);
+
+  const prelude: object[] = [];
+  if (insertAt > 1) {
+    // Blank line before the box so it doesn't butt straight up against
+    // whatever came before it.
+    prelude.push({ insertText: { location: loc(insertAt, tabId), text: "\n" } });
+    insertAt += 1;
+  }
+  prelude.push({ insertTable: { rows: 1, columns: 1, location: loc(insertAt, tabId) } });
+  await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests: prelude } });
+
+  content = await getTabOrRootContent(docs, docId, tabId);
+  const tables = content.filter((c) => c.table);
+  const lastTable = tables[tables.length - 1];
+  const cellContent = lastTable?.table?.tableRows?.[0]?.tableCells?.[0]?.content;
+  const cellStart = cellContent?.[0]?.startIndex;
+  if (typeof cellStart !== "number") throw new Error("Could not locate the newly inserted table's cell");
+
+  const bodyText = bodyLines.join("\n");
+  const cellText = bodyLines.length ? `${heading}\n${bodyText}` : heading;
+  const headingEnd = cellStart + heading.length;
+
+  const requests: object[] = [
+    { insertText: { location: loc(cellStart, tabId), text: cellText } },
+    {
+      updateTextStyle: {
+        range: range(cellStart, headingEnd, tabId),
+        textStyle: { bold: true, fontSize: { magnitude: 12, unit: "PT" } },
+        fields: "bold,fontSize",
+      },
+    },
+  ];
+  await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests } });
+}
+
+// Same idea as replaceMarkedTextInDoc, but for a named tab — clears
+// whatever's there first instead of accumulating. Used for the Testing
+// Summary tab, which should always show every service's CURRENT ad set, not
+// a growing history of every past regeneration.
+export async function replaceMarkedTextInDocTab(docId: string, tabTitle: string, markedText: string): Promise<void> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const docs = google.docs({ version: "v1", auth });
+
+  const tabId = await getOrCreateTab(docId, tabTitle);
+
+  const doc = await docs.documents.get({ documentId: docId, includeTabsContent: true });
+  const tab = flattenTabs(doc.data.tabs as TabNode[] | undefined).find((t) => t.tabProperties?.tabId === tabId);
+  const content = (tab?.documentTab?.body?.content || []) as { endIndex?: number }[];
+  const lastEndIndex = content.length ? content[content.length - 1].endIndex || 1 : 1;
+  const deleteEnd = Math.max(1, lastEndIndex - 1);
+
+  const requests: object[] = [];
+  if (deleteEnd > 1) requests.push({ deleteContentRange: { range: { startIndex: 1, endIndex: deleteEnd, tabId } } });
+  requests.push(...buildFormattingRequests(markedText, 1, tabId));
 
   await docs.documents.batchUpdate({ documentId: docId, requestBody: { requests } });
 }

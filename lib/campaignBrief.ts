@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createSupabaseClient } from "@/lib/supabase";
 import { parseJsonResponse } from "@/lib/ai";
-import { createDocWithId, appendMarkedTextToDocTab } from "@/lib/googleDocs";
+import { createDocWithId, appendMarkedTextToDocTab, replaceMarkedTextInDoc, replaceMarkedTextInDocTab, appendBoxedBlock } from "@/lib/googleDocs";
 import { notifySlack } from "@/lib/slack";
 import { findWorkingAds } from "@/lib/adResearch";
 
@@ -23,6 +23,8 @@ export interface AdConcept {
   name: string; // short concept label, e.g. "Emotional Transformation Video"
   format: string; // free text — "Video", "Before/After", "Testimonial", etc, whatever actually fits
   angle: string;
+  headline: string; // the actual Meta headline text, ready to paste in — short and punchy
+  primaryText: string; // the actual Meta primary text/body copy, ready to paste in
   hook: string;
   first3Seconds: string;
   creativeConcept: string; // visual structure / what's shown, specific enough to brief a shoot from
@@ -61,6 +63,7 @@ export interface CampaignBriefResult {
   plan: ServiceCreativePlan;
   docMarkdown: string;
   clientName: string;
+  serviceAreas: string[];
 }
 
 const SYSTEM_PROMPT = `You are the Campaign Setup engine for Lucky at LS Growth, a lead generation agency running Meta ads for trade and home service businesses in NZ/AU. Given one client and ONE of their services, you produce a practical creative testing plan he can hand directly to a media buyer or creative person — not a strategy document.
@@ -83,14 +86,14 @@ Then write 2 to 4 creative concepts (ads) for this service — normally 3, fewer
 - One BEFORE/AFTER or visual-proof concept (transformation, completed project, customer result) — if genuinely not appropriate for this service, replace with another strong format instead of forcing it
 - One OFFER / problem / social-proof / different-angle concept — a distinct third hypothesis, not another generic ad
 
-For each ad write: name (short concept label), format, angle, hook, first3Seconds (what the viewer sees/hears immediately), creativeConcept (the visual structure — specific enough to shoot from), mainMessage, offer (which specific offer this ad tests — vary offers across the set where it makes sense, don't put the same offer on every ad by default), cta, copyFramework (choose PAS / AIDA / BAB / Proof→Outcome→Offer / Hook→Problem→Solution→Proof→CTA / or another framework — whatever fits this concept, don't force the same one on every ad), hypothesis (a specific, falsifiable claim — e.g. "A visual transformation combined with an emotional hook will attract higher-intent homeowners than generic service messaging," never just "video ad about X"), whyTesting (why this hypothesis is worth testing for this client/service specifically), and creativeReference when you have a REAL example backing the concept (source, url — null if you're describing a pattern rather than one specific ad you found, whatTheyreDoing, whatWeCanTake — the adapted principle, not a copy instruction).
+For each ad write: name (short concept label), format, angle, headline (the ACTUAL Meta ad headline text — short, punchy, ready to paste into Ads Manager, not a description of what the headline should do), primaryText (the ACTUAL Meta primary text/body copy a lead would read — 2-4 sentences, direct-response style, grounded in the real offer, ready to paste in, not a summary), hook (the opening line/moment — for video this is what's said or shown first, for static/carousel this is usually the same as or feeds directly into the headline), first3Seconds (what the viewer sees/hears immediately — for video/Reels; for a static image describe the first visual impression instead), creativeConcept (the visual structure — specific enough to shoot from), mainMessage (the underlying message/promise this ad is built around, one line), offer (which specific offer this ad tests — vary offers across the set where it makes sense, don't put the same offer on every ad by default), cta, copyFramework (choose PAS / AIDA / BAB / Proof→Outcome→Offer / Hook→Problem→Solution→Proof→CTA / or another framework — whatever fits this concept, don't force the same one on every ad), hypothesis (a specific, falsifiable claim — e.g. "A visual transformation combined with an emotional hook will attract higher-intent homeowners than generic service messaging," never just "video ad about X"), whyTesting (why this hypothesis is worth testing for this client/service specifically), and creativeReference when you have a REAL example backing the concept (source, url — null if you're describing a pattern rather than one specific ad you found, whatTheyreDoing, whatWeCanTake — the adapted principle, not a copy instruction).
 
 Also write the SHARED fields (apply to the whole client, not just this service — write these considering the client's full service list): idealCustomer (who buys across their services and where, one line) and budgetTargeting (what to optimize for, a concrete starting budget, core targeting approach, one line each combined).
 
 Finally, flags: a list of short strings for anything important you couldn't confirm and are NOT willing to guess (e.g. "No confirmed offer on file — used direct enquiry as the CTA," "Service area not set — assumed [region] from client name/trade, confirm this"). Empty array if nothing to flag.
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
-{"idealCustomer": "...", "budgetTargeting": "...", "customer": "...", "customerProblem": "...", "desiredOutcome": "...", "keyObjections": "...", "recommendedOffer": "...", "marketResearch": {"keyFindings": "...", "commonOffers": "...", "commonMessaging": "...", "creativePatterns": "...", "opportunities": "..."}, "ads": [{"name": "...", "format": "...", "angle": "...", "hook": "...", "first3Seconds": "...", "creativeConcept": "...", "mainMessage": "...", "offer": "...", "cta": "...", "copyFramework": "...", "hypothesis": "...", "whyTesting": "...", "creativeReference": {"source": "...", "url": "..." or null, "whatTheyreDoing": "...", "whatWeCanTake": "..."} or null}], "flags": ["..."]}`;
+{"idealCustomer": "...", "budgetTargeting": "...", "customer": "...", "customerProblem": "...", "desiredOutcome": "...", "keyObjections": "...", "recommendedOffer": "...", "marketResearch": {"keyFindings": "...", "commonOffers": "...", "commonMessaging": "...", "creativePatterns": "...", "opportunities": "..."}, "ads": [{"name": "...", "format": "...", "angle": "...", "headline": "...", "primaryText": "...", "hook": "...", "first3Seconds": "...", "creativeConcept": "...", "mainMessage": "...", "offer": "...", "cta": "...", "copyFramework": "...", "hypothesis": "...", "whyTesting": "...", "creativeReference": {"source": "...", "url": "..." or null, "whatTheyreDoing": "...", "whatWeCanTake": "..."} or null}], "flags": ["..."]}`;
 
 function isPlausibleUrl(url: string): boolean {
   try {
@@ -101,28 +104,155 @@ function isPlausibleUrl(url: string): boolean {
   }
 }
 
-function buildDocMarkdown(service: string, idealCustomer: string, budgetTargeting: string, plan: ServiceCreativePlan, includeShared: boolean): string {
+// Plain (non-boxed) header: just the title + the two shared fields — short
+// enough to not need a box of its own. Everything else (strategy, market
+// research, flags, each ad) lands in its own bordered box afterwards (see
+// appendServicePlanToDoc below) so the tab reads as a stack of clean cards,
+// not one long wall of text.
+function buildServiceHeaderMarkdown(service: string, idealCustomer: string, budgetTargeting: string, includeShared: boolean): string {
   const shared = includeShared
-    ? `## Ideal Customer\n${idealCustomer || "—"}\n\n## Budget + Targeting\n${budgetTargeting || "—"}\n\n`
+    ? `## Ideal Customer\n${idealCustomer || "—"}\n\n## Budget + Targeting\n${budgetTargeting || "—"}`
     : "";
+  return `# Campaign Setup — ${service}\n\n${shared}`;
+}
 
-  const mr = plan.marketResearch;
-  const marketResearchBlock = `## Market Research\nKey findings: ${mr.keyFindings || "—"}\nCommon offers: ${mr.commonOffers || "—"}\nCommon messaging: ${mr.commonMessaging || "—"}\nCreative patterns: ${mr.creativePatterns || "—"}\nOpportunities: ${mr.opportunities || "—"}\n\n`;
+function strategyBoxLines(plan: ServiceCreativePlan): string[] {
+  return [
+    `Customer: ${plan.customer || "—"}`,
+    "",
+    `Customer problem: ${plan.customerProblem || "—"}`,
+    "",
+    `Desired outcome: ${plan.desiredOutcome || "—"}`,
+    "",
+    `Key objections: ${plan.keyObjections || "—"}`,
+    "",
+    `Recommended offer: ${plan.recommendedOffer || "—"}`,
+  ];
+}
 
-  const serviceBlock = `## Customer\n${plan.customer || "—"}\n\n## Customer Problem\n${plan.customerProblem || "—"}\n\n## Desired Outcome\n${plan.desiredOutcome || "—"}\n\n## Key Objections\n${plan.keyObjections || "—"}\n\n## Recommended Offer\n${plan.recommendedOffer || "—"}\n\n`;
+function marketResearchBoxLines(mr: MarketResearch): string[] {
+  return [
+    `Key findings: ${mr.keyFindings || "—"}`,
+    `Common offers: ${mr.commonOffers || "—"}`,
+    `Common messaging: ${mr.commonMessaging || "—"}`,
+    `Creative patterns: ${mr.creativePatterns || "—"}`,
+    `Opportunities: ${mr.opportunities || "—"}`,
+  ];
+}
 
-  const adsBlock = plan.ads
-    .map((ad, i) => {
-      const ref = ad.creativeReference
-        ? `\nCreative reference: ${ad.creativeReference.source}${ad.creativeReference.url ? ` — ${ad.creativeReference.url}` : ""}\nWhat they're doing: ${ad.creativeReference.whatTheyreDoing}\nWhat we can take: ${ad.creativeReference.whatWeCanTake}`
-        : "";
-      return `## Ad ${i + 1} — ${ad.name}\nFormat: ${ad.format}\nAngle: ${ad.angle}\nHook: ${ad.hook}\nFirst 3 seconds: ${ad.first3Seconds}\nCreative concept: ${ad.creativeConcept}\nMain message: ${ad.mainMessage}\nOffer: ${ad.offer}\nCTA: ${ad.cta}\nCopy framework: ${ad.copyFramework}\nHypothesis: ${ad.hypothesis}\nWhy we're testing it: ${ad.whyTesting}${ref}`;
-    })
-    .join("\n\n");
+function adBoxLines(ad: AdConcept): string[] {
+  const lines = [
+    `Format: ${ad.format}   Angle: ${ad.angle}`,
+    "",
+    `Headline: ${ad.headline}`,
+    `Primary text: ${ad.primaryText}`,
+    "",
+    `Hook: ${ad.hook}`,
+    `First 3 seconds: ${ad.first3Seconds}`,
+    `Creative concept: ${ad.creativeConcept}`,
+    `Main message: ${ad.mainMessage}`,
+    `Offer: ${ad.offer}`,
+    `CTA: ${ad.cta}`,
+    `Copy framework: ${ad.copyFramework}`,
+    `Hypothesis: ${ad.hypothesis}`,
+    `Why we're testing it: ${ad.whyTesting}`,
+  ];
+  if (ad.creativeReference) {
+    lines.push(
+      "",
+      `Creative reference: ${ad.creativeReference.source}${ad.creativeReference.url ? ` — ${ad.creativeReference.url}` : ""}`,
+      `What they're doing: ${ad.creativeReference.whatTheyreDoing}`,
+      `What we can take: ${ad.creativeReference.whatWeCanTake}`
+    );
+  }
+  return lines;
+}
 
-  const flagsBlock = plan.flags.length ? `## Flagged — Missing Info\n${plan.flags.map((f) => `- ${f}`).join("\n")}\n\n` : "";
+// Writes one service's full plan into its doc tab as a stack of clean,
+// bordered cards: a short plain-text title/shared-fields line, then one box
+// each for Service Strategy, Market Research, any Flags, and every ad
+// concept — real visual separation instead of one long scroll of text.
+async function appendServicePlanToDoc(googleDocId: string, service: string, headerMarkdown: string, plan: ServiceCreativePlan): Promise<void> {
+  await appendMarkedTextToDocTab(googleDocId, service, headerMarkdown);
+  await appendBoxedBlock(googleDocId, service, "Service Strategy", strategyBoxLines(plan));
+  await appendBoxedBlock(googleDocId, service, "Market Research", marketResearchBoxLines(plan.marketResearch));
+  if (plan.flags.length) {
+    await appendBoxedBlock(googleDocId, service, "Flagged — Missing Info", plan.flags.map((f) => `• ${f}`));
+  }
+  for (const [i, ad] of plan.ads.entries()) {
+    await appendBoxedBlock(googleDocId, service, `Ad ${i + 1} — ${ad.name}`, adBoxLines(ad));
+  }
+}
 
-  return `# Campaign Setup — ${service}\n\n${shared}${marketResearchBlock}${serviceBlock}${flagsBlock}${adsBlock}`;
+// Cover-tab content — always rebuilt (replaced, not appended) so it reflects
+// the client's CURRENT shared fields no matter which service last
+// regenerated. Kept deliberately short: a landing page for the doc, real
+// detail lives in each service's own tab.
+function buildOverviewMarkdown(clientName: string, serviceAreas: string[], idealCustomer: string, budgetTargeting: string): string {
+  return `# ${clientName} — Campaign Master Doc\n\n## Campaign Overview\nClient: ${clientName}\nService area: ${serviceAreas.length ? serviceAreas.join(", ") : "—"}\nIdeal customer: ${idealCustomer || "—"}\nBudget + targeting: ${budgetTargeting || "—"}\n\nEach service has its own tab with the full creative testing plan (strategy, market research, ad concepts with ready-to-use headline/primary text). The "Testing Summary" tab lists every ad across every service at a glance.`;
+}
+
+function testingSummaryBoxLines(plan: ServiceCreativePlan): string[] {
+  return plan.ads.flatMap((ad, i) => [
+    `Ad ${i + 1} — ${ad.format || "—"} — ${ad.angle || "—"}`,
+    `  Headline: ${ad.headline || "—"}`,
+    `  Offer: ${ad.offer || "—"}`,
+    `  Hypothesis: ${ad.hypothesis || "—"}`,
+    ...(i < plan.ads.length - 1 ? [""] : []),
+  ]);
+}
+
+// Rebuilds the whole Testing Summary tab from scratch — one bordered box
+// per service, each listing every ad at a glance — the same "hand this to
+// a media buyer" view as the campaign-setup UI's Testing Summary tab,
+// mirrored into the doc. Always rebuilt fresh from whatever's currently
+// saved across ALL services, not just the one that just regenerated.
+async function rebuildTestingSummaryTab(googleDocId: string, clientName: string, serviceDetails: Record<string, ServiceCreativePlan>): Promise<void> {
+  const services = Object.entries(serviceDetails).filter(([, plan]) => Array.isArray(plan?.ads) && plan.ads.length > 0);
+  await replaceMarkedTextInDocTab(googleDocId, "Testing Summary", `# Testing Summary — ${clientName}${services.length === 0 ? "\n\nNo ad concepts generated yet." : ""}`);
+  for (const [service, plan] of services) {
+    await appendBoxedBlock(googleDocId, "Testing Summary", service, testingSummaryBoxLines(plan));
+  }
+}
+
+// Same client/service-area lookup generateCampaignBrief does, but for a
+// plan that was written WITHOUT calling Anthropic at all — e.g. hand-
+// authored directly in a Claude Code session when the app's own API
+// credits are the blocker, not the actual research/writing work. Still
+// goes through the identical validation + save/doc pipeline as a normal
+// generation (see saveCampaignBrief) so there's no separate, less-trusted
+// code path for manually-provided content.
+export async function buildManualCampaignBriefResult(clientId: string, service: string, plan: ServiceCreativePlan, idealCustomer: string, budgetTargeting: string): Promise<CampaignBriefResult> {
+  const sb = createSupabaseClient();
+
+  const { data: client, error: clientError } = await sb
+    .from("lq_clients")
+    .select("id, name, trade")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (clientError || !client) throw new Error(`Unknown client_id "${clientId}"`);
+
+  const { data: configs } = await sb
+    .from("lq_client_configs")
+    .select("service_areas, status, version")
+    .eq("client_id", clientId)
+    .order("version", { ascending: false });
+  const config = (configs || []).find((c) => c.status === "published") || (configs || [])[0] || null;
+  const serviceAreas: string[] = config?.service_areas || [];
+
+  if (!idealCustomer || !budgetTargeting || !plan.customer || plan.ads.length < 2 || plan.ads.some((a) => !a.name || !a.headline || !a.primaryText)) {
+    throw new Error("Manual plan missing required campaign setup fields");
+  }
+
+  return {
+    idealCustomer,
+    budgetTargeting,
+    service,
+    plan,
+    docMarkdown: buildServiceHeaderMarkdown(service, idealCustomer, budgetTargeting, true),
+    clientName: client.name,
+    serviceAreas,
+  };
 }
 
 export async function generateCampaignBrief(clientId: string, service: string): Promise<CampaignBriefResult> {
@@ -236,6 +366,8 @@ Build the creative testing plan for "${service}".`;
       name: a.name || "",
       format: a.format || "",
       angle: a.angle || "",
+      headline: a.headline || "",
+      primaryText: a.primaryText || "",
       hook: a.hook || "",
       first3Seconds: a.first3Seconds || "",
       creativeConcept: a.creativeConcept || "",
@@ -266,7 +398,7 @@ Build the creative testing plan for "${service}".`;
     flags: Array.isArray(parsed.flags) ? parsed.flags.filter((f): f is string => typeof f === "string") : [],
   };
 
-  if (!idealCustomer || !budgetTargeting || !plan.customer || ads.length < 2 || ads.some((a) => !a.name || !a.hook)) {
+  if (!idealCustomer || !budgetTargeting || !plan.customer || ads.length < 2 || ads.some((a) => !a.name || !a.headline || !a.primaryText)) {
     throw new Error("AI response missing required campaign setup fields");
   }
 
@@ -275,8 +407,9 @@ Build the creative testing plan for "${service}".`;
     budgetTargeting,
     service,
     plan,
-    docMarkdown: buildDocMarkdown(service, idealCustomer, budgetTargeting, plan, true),
+    docMarkdown: buildServiceHeaderMarkdown(service, idealCustomer, budgetTargeting, true),
     clientName: client.name,
+    serviceAreas,
   };
 }
 
@@ -288,7 +421,19 @@ Build the creative testing plan for "${service}".`;
 // never silently overwritten by a later service's generation. Shared by the
 // campaign-brief API route and the Brain chat's campaign_brief/regenerate_ads
 // actions so all three write to the same place the same way.
-export async function generateAndSaveCampaignBrief(clientId: string, service: string) {
+export async function generateAndSaveCampaignBrief(clientId: string, service: string, opts?: { forceNewDoc?: boolean }) {
+  const result = await generateCampaignBrief(clientId, service);
+  return saveCampaignBrief(clientId, service, result, opts);
+}
+
+// Does everything AFTER the AI call: merges the plan into the client's
+// campaign_briefs row, writes the doc (boxed layout, overview + testing
+// summary refresh), saves. Split out from generateAndSaveCampaignBrief so a
+// plan that was written WITHOUT calling the app's own Anthropic key (e.g.
+// hand-authored directly, when API credits are the constraint rather than
+// the work itself) can still go through the exact same save/doc pipeline —
+// see app/api/campaign-brief/generate/route.ts's manualPlan bypass.
+export async function saveCampaignBrief(clientId: string, service: string, result: CampaignBriefResult, opts?: { forceNewDoc?: boolean }) {
   const sb = createSupabaseClient();
 
   const { data: existing } = await sb
@@ -296,8 +441,6 @@ export async function generateAndSaveCampaignBrief(clientId: string, service: st
     .select("google_doc_id, google_doc_url, ideal_customer, budget_targeting, service_details")
     .eq("client_id", clientId)
     .maybeSingle();
-
-  const result = await generateCampaignBrief(clientId, service);
 
   const sharedAlreadySet = !!(existing?.ideal_customer && existing?.budget_targeting);
   const idealCustomer = sharedAlreadySet ? existing!.ideal_customer : result.idealCustomer;
@@ -328,22 +471,31 @@ export async function generateAndSaveCampaignBrief(clientId: string, service: st
   // One persistent Google Doc per client — created the first time any
   // brief is generated, then appended to (never replaced) on every
   // regeneration so every service's plan accumulates in the same file
-  // instead of scattering across separate docs per run.
-  let googleDocId = existing?.google_doc_id || null;
-  let googleDocUrl = existing?.google_doc_url || null;
+  // instead of scattering across separate docs per run. forceNewDoc (used
+  // when Lucky explicitly wants a clean doc instead of one with old
+  // pre-rebuild content still sitting in it) skips reusing the existing id.
+  let googleDocId = opts?.forceNewDoc ? null : existing?.google_doc_id || null;
+  let googleDocUrl = opts?.forceNewDoc ? null : existing?.google_doc_url || null;
 
-  const docMarkdown = buildDocMarkdown(service, idealCustomer, budgetTargeting, result.plan, !sharedAlreadySet);
+  const headerMarkdown = buildServiceHeaderMarkdown(service, idealCustomer, budgetTargeting, !sharedAlreadySet);
   if (!googleDocId) {
-    // Cover tab only — real content always lands in its own per-service tab
-    // (below) so the doc reads as one tab per service, not one long page.
+    // Cover tab gets real Campaign Overview content (see buildOverviewMarkdown
+    // below) rather than just a title — real per-service detail still lives
+    // in each service's own tab, this is just the landing page.
     const created = await createDocWithId(`${result.clientName} — Campaign Master Doc`, `# ${result.clientName} — Campaign Master Doc`);
     googleDocId = created.docId;
     googleDocUrl = created.url;
-    await appendMarkedTextToDocTab(googleDocId, service, docMarkdown);
+    await appendServicePlanToDoc(googleDocId, service, headerMarkdown, result.plan);
   } else {
     const dateLabel = new Date().toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" });
-    await appendMarkedTextToDocTab(googleDocId, service, `## Regenerated — ${dateLabel}\n${docMarkdown.replace(/^# .+\n\n/, "")}`);
+    await appendServicePlanToDoc(googleDocId, service, `## Regenerated — ${dateLabel}\n${headerMarkdown.replace(/^# .+\n\n/, "")}`, result.plan);
   }
+
+  // Overview (cover tab) and Testing Summary tab always get REPLACED with
+  // the latest state across every service — unlike the per-service tabs,
+  // these two should never show stale/duplicated history.
+  await replaceMarkedTextInDoc(googleDocId, buildOverviewMarkdown(result.clientName, result.serviceAreas, idealCustomer, budgetTargeting));
+  await rebuildTestingSummaryTab(googleDocId, result.clientName, serviceDetails as Record<string, ServiceCreativePlan>);
 
   const { data, error } = await sb
     .from("campaign_briefs")
