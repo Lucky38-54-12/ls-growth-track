@@ -636,13 +636,13 @@ export default function CampaignSetupPage() {
                                   <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#1d4ed8" }}>Ready-to-Use Meta Copy</div>
                                   <Field label="Headline" value={ad.headline} onChange={(v) => updateAd(service, i, { headline: v })} rows={1} />
                                   <Field label="Primary Text" value={ad.primaryText} onChange={(v) => updateAd(service, i, { primaryText: v })} rows={3} />
+                                  <Field label="CTA" value={ad.cta} onChange={(v) => updateAd(service, i, { cta: v })} rows={1} />
                                 </div>
 
                                 <Field label="Hook" value={ad.hook} onChange={(v) => updateAd(service, i, { hook: v })} rows={2} />
                                 <Field label="First 3 Seconds" value={ad.first3Seconds} onChange={(v) => updateAd(service, i, { first3Seconds: v })} rows={2} />
                                 <Field label="Creative Concept" value={ad.creativeConcept} onChange={(v) => updateAd(service, i, { creativeConcept: v })} rows={3} />
                                 <Field label="Main Message" value={ad.mainMessage} onChange={(v) => updateAd(service, i, { mainMessage: v })} rows={2} />
-                                <Field label="CTA" value={ad.cta} onChange={(v) => updateAd(service, i, { cta: v })} rows={1} />
 
                                 <div style={{ background: "#fafafa", border: `1px solid ${L.border}`, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                                   <Field label="Hypothesis — what we're testing" value={ad.hypothesis} onChange={(v) => updateAd(service, i, { hypothesis: v })} rows={2} />

@@ -142,17 +142,21 @@ function marketResearchBoxLines(mr: MarketResearch): string[] {
 
 function adBoxLines(ad: AdConcept): string[] {
   const lines = [
-    `Format: ${ad.format}   Angle: ${ad.angle}`,
+    `Format: ${ad.format}`,
+    `Angle: ${ad.angle}`,
     "",
+    // The actual ready-to-paste ad unit — headline, body copy and CTA
+    // grouped together in the order they'd be entered into Meta Ads
+    // Manager, not scattered through the strategy breakdown below.
     `Headline: ${ad.headline}`,
     `Primary text: ${ad.primaryText}`,
+    `CTA: ${ad.cta}`,
     "",
+    `Offer: ${ad.offer}`,
     `Hook: ${ad.hook}`,
     `First 3 seconds: ${ad.first3Seconds}`,
     `Creative concept: ${ad.creativeConcept}`,
     `Main message: ${ad.mainMessage}`,
-    `Offer: ${ad.offer}`,
-    `CTA: ${ad.cta}`,
     `Copy framework: ${ad.copyFramework}`,
     `Hypothesis: ${ad.hypothesis}`,
     `Why we're testing it: ${ad.whyTesting}`,
@@ -177,7 +181,7 @@ async function appendServicePlanToDoc(googleDocId: string, service: string, head
   await appendBoxedBlock(googleDocId, service, "Service Strategy", strategyBoxLines(plan));
   await appendBoxedBlock(googleDocId, service, "Market Research", marketResearchBoxLines(plan.marketResearch));
   if (plan.flags.length) {
-    await appendBoxedBlock(googleDocId, service, "Flagged — Missing Info", plan.flags.map((f) => `• ${f}`));
+    await appendBoxedBlock(googleDocId, service, "Flagged — Missing Info", plan.flags);
   }
   for (const [i, ad] of plan.ads.entries()) {
     await appendBoxedBlock(googleDocId, service, `Ad ${i + 1} — ${ad.name}`, adBoxLines(ad));
