@@ -48,6 +48,66 @@ export async function renameSheetFile(sheetId: string, newName: string): Promise
   await drive.files.update({ fileId: sheetId, requestBody: { name: newName }, supportsAllDrives: true });
 }
 
+const TODAY_INDEX_SHEET_NAME = "📞 Today's Call List";
+
+export interface TodayIndexRow {
+  rank: number;
+  sheetId: string;
+  title: string;
+  freshRows: number;
+}
+
+// Single always-reused spreadsheet (found by name in the tracked folder,
+// created once if missing) listing today's picks with clickable links —
+// so Lucky can see the day's 1-5 by opening one sheet instead of browsing
+// Drive. Rewritten in full on every triage run rather than diffed, since
+// it's always exactly TARGET_TODAY_COUNT rows.
+export async function updateTodayIndexSheet(rows: TodayIndexRow[]): Promise<{ spreadsheetId: string; url: string }> {
+  const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (!key) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var not set");
+  const credentials = JSON.parse(key);
+  const auth = new google.auth.GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"] });
+  const drive = google.drive({ version: "v3", auth: auth as any });
+  const sheetsApi = google.sheets({ version: "v4", auth: auth as any });
+
+  const existing = await drive.files.list({
+    q: `'${COLD_CALL_SHEETS_FOLDER_ID}' in parents and name = '${TODAY_INDEX_SHEET_NAME}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
+    fields: "files(id)",
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+  let spreadsheetId = existing.data.files?.[0]?.id || null;
+
+  if (!spreadsheetId) {
+    const created = await drive.files.create({
+      requestBody: { name: TODAY_INDEX_SHEET_NAME, mimeType: "application/vnd.google-apps.spreadsheet", parents: [COLD_CALL_SHEETS_FOLDER_ID] },
+      fields: "id",
+      supportsAllDrives: true,
+    });
+    spreadsheetId = created.data.id || null;
+    if (!spreadsheetId) throw new Error("Failed to create today-index spreadsheet");
+  }
+
+  const values = [
+    ["#", "Sheet", "Untouched leads"],
+    ...rows.map((r) => [
+      String(r.rank),
+      `=HYPERLINK("https://docs.google.com/spreadsheets/d/${r.sheetId}", "${r.title.replace(/"/g, "'")}")`,
+      String(r.freshRows),
+    ]),
+  ];
+  // Clear a fixed-size block first — values.update only touches cells it
+  // has data for, so without this a shorter list than the last run's would
+  // leave stale trailing rows below the new ones.
+  await sheetsApi.spreadsheets.values.clear({ spreadsheetId, range: "A1:C20" });
+  await sheetsApi.spreadsheets.values.update({
+    spreadsheetId, range: "A1", valueInputOption: "USER_ENTERED", requestBody: { values },
+  });
+
+  return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` };
+}
+
 // Bounds a single network call — the googleapis client has no default
 // request timeout, so a stalled connection would otherwise hang until the
 // serverless function itself is killed, silently eating the whole time

@@ -5,7 +5,7 @@ import { reportAutomationStatus } from "./automationStatus";
 import {
   listColdCallSheetFiles, rankColdCallSheets, renameSheetFile, findPriorityCoverageGaps,
   parseCampaignFromTitle, PRIORITY_TRADES, COLD_CALL_SHEETS_FOLDER_ID,
-  hasTodayTag, stripTodayTag, withTodayTag,
+  hasTodayTag, stripTodayTag, withTodayTag, updateTodayIndexSheet,
 } from "./sheets";
 import { computeSegmentSaturation, segmentKey } from "./leads";
 import { Lead } from "./types";
@@ -143,6 +143,18 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
       finalToday.forEach((s, i) => {
         lines.push(`${i + 1}. ${stripTodayTag(s.sheetTitle)} — ${s.freshRows} untouched`);
       });
+      // A single reused Sheet with clickable links to today's picks, so
+      // Lucky can see the day's 1-5 by opening one Sheet instead of
+      // browsing Drive. Best-effort — a failure here shouldn't drop the
+      // renames/tagging above, which already succeeded.
+      try {
+        const { url } = await updateTodayIndexSheet(
+          finalToday.map((s, i) => ({ rank: i + 1, sheetId: s.sheetId, title: stripTodayTag(s.sheetTitle), freshRows: s.freshRows }))
+        );
+        lines.push(`📎 ${url}`);
+      } catch {
+        // Drive/Sheets outage here shouldn't block the rest of the brief.
+      }
     }
     if (excessActive.length > 0) {
       lines.push(`↩️ Untagged (over today's cap of ${TARGET_TODAY_COUNT}): ${excessActive.map((s) => stripTodayTag(s.sheetTitle)).join(", ")}`);
