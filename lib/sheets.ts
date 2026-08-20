@@ -70,7 +70,7 @@ export interface TodayIndexRow {
 // 403s with "storage quota exceeded" even though the same account can freely
 // rename/edit existing files it's been shared into. salesCallsDrive.ts hits
 // the same issue and uses the same fix.
-export async function updateTodayIndexSheet(rows: TodayIndexRow[]): Promise<{ spreadsheetId: string; url: string; touchErrors: string[] }> {
+export async function updateTodayIndexSheet(rows: TodayIndexRow[]): Promise<{ spreadsheetId: string; url: string }> {
   const auth = await getLuckyGoogleAuthedClient();
   const drive = google.drive({ version: "v3", auth });
   const sheetsApi = google.sheets({ version: "v4", auth });
@@ -110,26 +110,17 @@ export async function updateTodayIndexSheet(rows: TodayIndexRow[]): Promise<{ sp
     spreadsheetId, range: "A1", valueInputOption: "USER_ENTERED", requestBody: { values },
   });
 
-  // Drive's homepage "Today"/"Yesterday" grouping is keyed off viewedByMeTime
-  // — set only by a genuine content request under the viewing account, not
-  // by the service account renaming the file (that's what left today's
-  // picks scattered across Today/Yesterday/Previous 7 days despite being
-  // freshly tagged). Two prior attempts (metadata-only spreadsheets.get,
-  // then spreadsheets.values.get) both only updated 1 of 5 sheets each
-  // time, always the same one — errors were being silently swallowed, so
-  // touchErrors surfaces what's actually failing for the other 4 instead of
-  // guessing again. Best-effort: this cosmetic grouping shouldn't block the
-  // index sheet update above if it fails.
-  const touchErrors: string[] = [];
-  await Promise.all(rows.map(async (r) => {
-    try {
-      await sheetsApi.spreadsheets.values.get({ spreadsheetId: r.sheetId, range: "A1:A1" });
-    } catch (e) {
-      touchErrors.push(`${r.title}: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }));
-
-  return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, touchErrors };
+  // Drive's homepage "Today"/"Yesterday" grouping is keyed off viewedByMeTime,
+  // which two live tests confirmed only updates on a genuine WRITE under the
+  // viewing account (this file's own values.update above bumps its own
+  // viewedByMeTime as a side effect) — a read (spreadsheets.get, then
+  // spreadsheets.values.get) never bumps it, no matter the account, even
+  // though both call types succeed with no error. Deliberately not writing
+  // into the real call sheets just to force this cosmetic grouping — that
+  // risks clashing with Lucky's own concurrent edits while he's actually
+  // working through them. This index sheet (which IS written to, so always
+  // lands in "Today") is the reliable single place to check instead.
+  return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` };
 }
 
 // Bounds a single network call — the googleapis client has no default

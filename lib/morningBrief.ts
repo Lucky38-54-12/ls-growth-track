@@ -156,13 +156,10 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
       // browsing Drive. Best-effort — a failure here shouldn't drop the
       // renames/tagging above, which already succeeded.
       try {
-        const { url, touchErrors } = await updateTodayIndexSheet(
+        const { url } = await updateTodayIndexSheet(
           finalToday.map((s, i) => ({ rank: i + 1, sheetId: s.sheetId, title: stripTodayTag(s.sheetTitle), freshRows: s.freshRows }))
         );
         lines.push(`📎 ${url}`);
-        // Temporary debug line — remove once the "only 1 of 5 land in
-        // Today" issue is root-caused (see updateTodayIndexSheet).
-        if (touchErrors.length > 0) lines.push(`(touch errors: ${touchErrors.join(" | ")})`);
       } catch {
         // Drive/Sheets outage here shouldn't block the rest of the brief.
       }
