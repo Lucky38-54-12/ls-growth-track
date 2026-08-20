@@ -10,7 +10,6 @@ import { findUpcomingEventsByQuery } from "@/lib/calendar";
 import { logSalesCall } from "@/lib/logSalesCall";
 import { prepSalesCall } from "@/lib/prepSalesCall";
 import { generateAndSaveCampaignBrief } from "@/lib/campaignBrief";
-import { generateAndSaveAdConcepts } from "@/lib/campaignAds";
 import { AD_LEARNING_CONFIDENCE, AdLearningConfidence } from "@/lib/adLearnings";
 import { proposeCodeChange } from "@/lib/codeChange";
 import { LeadStatus } from "@/lib/types";
@@ -71,8 +70,8 @@ You can do fourteen things:
 8. If Lucky gives you the details of a deal he just closed or agreed (client name, price, terms, whatever came up on the call) and wants an agreement/contract drafted, propose that as agreement_doc — this actually creates a real new Google Doc immediately (not queued for approval, since nothing is sent anywhere), and the link goes straight back to him in your reply.
 9. If Lucky pastes a raw notetaker summary/transcript of a sales call (with or without also saying "log this call"), propose that as log_call — this is the same thing the old "Log a Call" page did: parses it, saves the real call record immediately, and runs the standing script review against every logged call, which may itself raise a script_proposal on top. Recognize this pattern yourself — a pasted block that reads like a call transcript/summary (a conversation between him and a prospect, an outcome, objections) is log_call even if he doesn't explicitly say "log this call".
 10. If Lucky asks you to prep him for an upcoming call (whether or not he gives you notes on the prospect), propose that as call_prep — this is the same thing the old "Call Prep" tab did: generates a tailored call sheet off the master script and his recent patterns, creates it as a real Google Doc immediately, and the link goes straight back to him in your reply.
-11. If Lucky asks you to set up a campaign, or start/build a campaign strategy, for one of his onboarded clients (usually right after they've been onboarded), propose that as campaign_brief — this researches that client's local market (competitors, typical pricing, what's working on Meta for that trade) and writes a Stage 01 STRATEGY brief (offer & pricing, main service, ideal customer, service area, job value/margins, competitor research, objective, budget, targeting approach, lead qualification criteria, retargeting strategy), saves it, and the link to review/edit it on /dashboard/campaign-setup goes straight back to him in your reply. This is research and a saved doc only — it does not touch Ads Manager or spend any money. This is also the right thing to propose if a service's STRATEGY section in the CAMPAIGN BRIEF context below looks broken/stale (e.g. literally says "undefined") — regenerating it overwrites that with real content.
-12. If Lucky asks you to fix, regenerate, or redo the ad concepts for one of an onboarded client's services (e.g. wrong/mismatched reference links, stale creative, or he just wants a fresh set), propose that as regenerate_ads — this reruns real ad research for that specific service and rewrites its 3 ad concepts (headline, copy, creative direction, reference links), the same thing the "Regenerate ads" button on /dashboard/campaign-setup does. Like campaign_brief, this is research plus a saved doc, nothing sent externally. One real limitation: the Google Doc only ever gets appended to, never cleaned up automatically — so the OLD, wrong section for that service stays sitting above the new corrected one in the doc, and needs deleting by hand. Say so plainly in your reply after this runs, don't let him find out later.
+11. If Lucky asks you to set up a campaign, build a creative testing plan, or start/build a campaign strategy for one of his onboarded clients (usually right after they've been onboarded), propose that as campaign_brief — this researches that client's local market (competitors, offers, messaging, creative patterns for that trade) and produces a full Campaign Setup for one service: customer/problem/desired outcome/objections, a recommended offer (never defaults to "free quote"), market research findings, and 2-4 differentiated ad concepts (format, hook, creative concept, offer, CTA, copy framework, and a specific testable hypothesis for each — never 3 versions of the same ad). Saves it and the link to review/edit it on /dashboard/campaign-setup goes straight back to him in your reply. This is research and a saved doc only — it does not touch Ads Manager or spend any money. This is also the right thing to propose if a service's section in the CAMPAIGN BRIEF context below looks broken/stale (e.g. literally says "undefined") — regenerating it overwrites that with real content.
+12. If Lucky asks you to fix, regenerate, or redo the ad concepts/creative for one of an onboarded client's services (e.g. wrong/mismatched reference links, stale creative, or he just wants a fresh set), propose that as regenerate_ads — this is the exact same generation as campaign_brief (they call the same underlying rebuild, there's no separate "ads-only" step anymore), just phrased for when Lucky's asking specifically about the creative rather than the whole setup. Like campaign_brief, this is research plus a saved doc, nothing sent externally. One real limitation: the Google Doc only ever gets appended to, never cleaned up automatically — so the OLD, wrong section for that service stays sitting above the new corrected one in the doc, and needs deleting by hand. Say so plainly in your reply after this runs, don't let him find out later.
 13. When you or Lucky, while looking at real Meta Ads data together, land on a durable pattern worth remembering for next time (Promising confidence or higher — see AD/CAMPAIGN INTELLIGENCE MODE below when present), propose that as ad_learning so it gets banked in AD LEARNINGS for every future question about that client. This is NOT auto-applied like campaign_brief/regenerate_ads — it always waits for Lucky's real approve/reject, same as an email or lead_update, because it's a claim about what works that will shape every future recommendation if wrong.
 
 14. If Lucky asks you to change, fix, or build something in THIS dashboard app itself (a bug on a page, a new button, a UI tweak, anything about the app's own code rather than his business data), propose that as code_change — this writes the actual code on a fresh git branch, opens a real GitHub pull request, and auto-merges it straight to main immediately (Lucky's explicit instruction: this one runs the same way he drives Claude Code directly himself, no manual merge step). It's genuinely live once your reply says so — don't tell him it's "waiting for review." This can take a minute or two to run since it's really editing files. Only propose this for changes to the app's own code; it's never the right tool for anything about leads, clients, campaigns, or other business data — those are the other 13 things above, which all keep their normal approval gate untouched.
@@ -401,12 +400,14 @@ async function resolveDraft(
     // edited afterwards on /dashboard/campaign-setup.
     try {
       const brief = await generateAndSaveCampaignBrief(client.id, service);
-      const serviceDetails = (brief.service_details || {}) as Record<string, { offerPricing?: string }>;
-      const summaryLine = serviceDetails[service]?.offerPricing || "n/a";
+      const serviceDetails = (brief.service_details || {}) as Record<string, { recommendedOffer?: string; ads?: unknown[] }>;
+      const plan = serviceDetails[service];
+      const summaryLine = plan?.recommendedOffer ? `Offer: ${plan.recommendedOffer}. ` : "";
+      const adsLine = plan?.ads?.length ? `${plan.ads.length} ad concepts generated.` : "";
       const docLine = brief.google_doc_url ? `\n\nMaster doc: ${brief.google_doc_url}` : "";
-      return { appendText: `\n\nCampaign strategy created for ${client.name} — ${service}. ${summaryLine}${docLine}\n\nReview/edit it: /dashboard/campaign-setup`, draftCreated: false };
+      return { appendText: `\n\nCampaign setup created for ${client.name} — ${service}. ${summaryLine}${adsLine}${docLine}\n\nReview/edit it: /dashboard/campaign-setup`, draftCreated: false };
     } catch (e) {
-      return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to generate the campaign brief." };
+      return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to generate the campaign setup." };
     }
   }
 
@@ -421,21 +422,21 @@ async function resolveDraft(
     const { data: client } = await sb.from("lq_clients").select("id, name").eq("id", regen.clientId).maybeSingle();
     if (!client) return { appendText: "", draftCreated: false, error: `Model referenced unknown client_id "${regen.clientId}" — ignored.` };
 
-    // Same real-write-immediately reasoning as campaign_brief — this is
-    // research plus a saved doc/DB update, nothing sent externally. The doc
-    // write is an append (see generateAndSaveAdConcepts), never a replace,
-    // so the old/wrong section for this service stays in the doc above the
-    // new one — that has to be said plainly, not left for Lucky to discover.
+    // Same real-write-immediately reasoning as campaign_brief — this IS
+    // campaign_brief's generation function (there's no separate ads-only
+    // step anymore, strategy/research/creative all generate together), just
+    // triggered by Lucky asking specifically about the creative. Doc write
+    // is an append, never a replace, so the old/wrong section for this
+    // service stays in the doc above the new one — say so plainly.
     try {
-      await generateAndSaveAdConcepts(client.id, regen.service.trim());
-      const { data: brief } = await sb.from("campaign_briefs").select("google_doc_url").eq("client_id", client.id).maybeSingle();
-      const docLine = brief?.google_doc_url ? `\n\nDoc: ${brief.google_doc_url}` : "";
+      const brief = await generateAndSaveCampaignBrief(client.id, regen.service.trim());
+      const docLine = brief.google_doc_url ? `\n\nDoc: ${brief.google_doc_url}` : "";
       return {
-        appendText: `\n\nAd concepts regenerated for ${client.name} — ${regen.service.trim()}, with fresh reference-link research.${docLine}\n\nHeads up: this appends the new corrected section to the doc rather than replacing the old one, so the previous (wrong) section for this service is still sitting there above it — worth deleting by hand. Review the rest on /dashboard/campaign-setup.`,
+        appendText: `\n\nCreative regenerated for ${client.name} — ${regen.service.trim()}, with fresh market/reference research.${docLine}\n\nHeads up: this appends the new corrected section to the doc rather than replacing the old one, so the previous (wrong) section for this service is still sitting there above it — worth deleting by hand. Review the rest on /dashboard/campaign-setup.`,
         draftCreated: false,
       };
     } catch (e) {
-      return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to regenerate ad concepts." };
+      return { appendText: "", draftCreated: false, error: e instanceof Error ? e.message : "Failed to regenerate the ad concepts." };
     }
   }
 

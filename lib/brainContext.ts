@@ -105,9 +105,10 @@ async function matchingLeads(sb: ReturnType<typeof createSupabaseClient>, userQu
 }
 
 interface AdConceptRow {
+  name: string;
   angle: string;
-  headline: string;
-  referenceLinks: string[];
+  hypothesis: string;
+  creativeReference?: { url: string | null } | null;
 }
 
 // Real campaign-brief content (ad concepts, reference links, the actual
@@ -139,21 +140,22 @@ async function campaignBriefSummary(sb: ReturnType<typeof createSupabaseClient>,
     .maybeSingle();
   if (!brief) return "";
 
-  const serviceDetails = (brief.service_details || {}) as Record<string, { ad_concepts?: AdConceptRow[] }>;
+  const serviceDetails = (brief.service_details || {}) as Record<string, { ads?: AdConceptRow[] }>;
   const services = Object.keys(serviceDetails);
   if (services.length === 0) return "";
 
   const linkToServices = new Map<string, Set<string>>();
   const serviceLines: string[] = [];
   for (const service of services) {
-    const ads = serviceDetails[service]?.ad_concepts || [];
+    const ads = serviceDetails[service]?.ads || [];
     if (ads.length === 0) continue;
     const adLines = ads.map((a, i) => {
-      for (const link of a.referenceLinks || []) {
+      const link = a.creativeReference?.url;
+      if (link) {
         if (!linkToServices.has(link)) linkToServices.set(link, new Set());
         linkToServices.get(link)!.add(service);
       }
-      return `  ${i + 1}. "${a.headline}" (${a.angle}) — reference links: ${a.referenceLinks?.length ? a.referenceLinks.join(", ") : "none"}`;
+      return `  ${i + 1}. "${a.name}" (${a.angle}) — hypothesis: ${a.hypothesis} — reference: ${link || "none"}`;
     });
     serviceLines.push(`${service}:\n${adLines.join("\n")}`);
   }

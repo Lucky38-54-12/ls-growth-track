@@ -40,9 +40,9 @@ export async function analyzeClientPerformance(clientId: string): Promise<{ clie
     return { clientName: client.name, recommendations: [], inserted: 0 };
   }
 
-  const serviceDetails = (brief?.service_details || {}) as Record<string, { offerPricing?: string; ad_concepts?: { angle: string; headline: string }[] }>;
+  const serviceDetails = (brief?.service_details || {}) as Record<string, { recommendedOffer?: string; ads?: { angle: string; name: string }[] }>;
   const strategySummary = Object.entries(serviceDetails)
-    .map(([svc, d]) => `- ${svc}: offer "${d.offerPricing || "not set"}"${d.ad_concepts?.length ? `, running angles: ${d.ad_concepts.map((a) => a.angle).join(" / ")}` : ""}`)
+    .map(([svc, d]) => `- ${svc}: offer "${d.recommendedOffer || "not set"}"${d.ads?.length ? `, running angles: ${d.ads.map((a) => a.angle).join(" / ")}` : ""}`)
     .join("\n") || "No confirmed strategy on file yet.";
 
   const learningsSummary = (learnings || [])

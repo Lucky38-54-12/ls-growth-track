@@ -2,9 +2,10 @@ import { generateAndSaveCampaignBrief } from "@/lib/campaignBrief";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-// Several web_search rounds plus a large generation call — comparable to
-// meta-ads campaign-insights, give it real headroom.
-export const maxDuration = 90;
+// Strategy + market research + variable-length creative concepts now
+// generate in one combined call (was two separate, smaller calls) — several
+// web_search rounds plus a large generation, give it real headroom.
+export const maxDuration = 150;
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
