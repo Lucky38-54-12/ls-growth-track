@@ -114,11 +114,13 @@ export async function updateTodayIndexSheet(rows: TodayIndexRow[]): Promise<{ sp
   // — set only by a genuine content request under the viewing account, not
   // by the service account renaming the file (that's what left today's
   // picks scattered across Today/Yesterday/Previous 7 days despite being
-  // freshly tagged). A metadata-level spreadsheets.get under Lucky's own
-  // OAuth counts as him opening the file, so all 5 land in "Today" together
-  // without him manually clicking into each one. Best-effort: this cosmetic
-  // grouping shouldn't block the index sheet update above if it fails.
-  await Promise.all(rows.map((r) => sheetsApi.spreadsheets.get({ spreadsheetId: r.sheetId, fields: "spreadsheetId" }).catch(() => {})));
+  // freshly tagged). A metadata-only spreadsheets.get (tried first) did NOT
+  // reliably bump it — confirmed live, only 1 of 5 sheets updated — so this
+  // reads actual cell values instead, a real content access under Lucky's
+  // own OAuth that counts as him opening the file. Best-effort: this
+  // cosmetic grouping shouldn't block the index sheet update above if it
+  // fails.
+  await Promise.all(rows.map((r) => sheetsApi.spreadsheets.values.get({ spreadsheetId: r.sheetId, range: "A1:A1" }).catch(() => {})));
 
   return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` };
 }
