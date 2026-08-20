@@ -14,6 +14,7 @@ const KIND_LABEL: Record<string, string> = {
   reschedule_booking: "Reschedule meeting",
   sheet_update: "Update sheet",
   ad_learning: "Bank ad learning",
+  recommendation: "Performance recommendation",
 };
 
 const APPROVE_LABEL: Record<string, string> = {
@@ -22,6 +23,7 @@ const APPROVE_LABEL: Record<string, string> = {
   reschedule_booking: "Approve & reschedule",
   sheet_update: "Approve & update",
   ad_learning: "Approve & save",
+  recommendation: "Confirm — I'll action it",
 };
 
 export default function ApprovalQueue({ initialDrafts, emptyMessage }: { initialDrafts: ChatDraft[]; emptyMessage?: string }) {
@@ -84,7 +86,9 @@ export default function ApprovalQueue({ initialDrafts, emptyMessage }: { initial
         <div key={d.id} style={{ background: "#fffbeb", border: "1px solid #fde68a", padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#92400e" }}>
-              {KIND_LABEL[d.kind] || "Draft"}{d.lead ? ` · ${d.lead.company}` : ""}
+              {KIND_LABEL[d.kind] || "Draft"}
+              {d.lead ? ` · ${d.lead.company}` : ""}
+              {!d.lead && d.kind === "recommendation" && d.payload?.clientName ? ` · ${d.payload.clientName}` : ""}
             </div>
           </div>
           <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text, marginBottom: 6 }}>{d.title}</p>

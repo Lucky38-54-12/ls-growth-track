@@ -3,12 +3,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, Phone, Calendar, Sun, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Menu, X, LineChart, ListChecks, Brain, CheckCheck, Target, KeyRound,
+  LayoutDashboard, Phone, Calendar, Sun, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Menu, X, LineChart, ListChecks, Brain, CheckCheck, Target, KeyRound, ClipboardList,
 } from "lucide-react";
 
 const NAV = [
   { href: "/dashboard/brain", label: "Brain", icon: Brain },
   { href: "/dashboard/approvals", label: "Approvals", icon: CheckCheck },
+  { href: "/dashboard/operator", label: "Operator", icon: ClipboardList },
   { href: "/dashboard/today", label: "Today", icon: Sun },
   { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
   { href: "/dashboard/email-outreach", label: "Email Outreach", icon: Rows3 },

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Topbar from "@/components/Topbar";
-import { Send } from "lucide-react";
+import { Send, Sparkles } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -27,11 +27,16 @@ interface Lead {
   lq_conversations: { extracted_fields: Record<string, unknown> } | null;
 }
 
-const OUTCOME_STYLE: Record<string, { bg: string; color: string; label: string }> = {
-  qualified: { bg: "#f0fdf4", color: "#15803d", label: "Interested — qualified" },
-  nurture: { bg: "#fffbeb", color: "#b45309", label: "Interested — not ready yet" },
-  disqualified: { bg: "#fef2f2", color: "#b91c1c", label: "Not interested" },
+const QUALITY_STYLE: Record<string, { bg: string; color: string; label: string }> = {
+  qualified: { bg: "#f0fdf4", color: "#15803d", label: "HIGH" },
+  nurture: { bg: "#fffbeb", color: "#b45309", label: "MEDIUM" },
+  disqualified: { bg: "#fef2f2", color: "#b91c1c", label: "LOW" },
+  needs_human: { bg: "#eff6ff", color: "#1d4ed8", label: "NEEDS REVIEW" },
 };
+
+function qualityFromOutcome(outcome: string) {
+  return QUALITY_STYLE[outcome] || { bg: "#f1f5f9", color: "#64748b", label: outcome.toUpperCase() };
+}
 
 export default function ClientDetailPage() {
   return (
@@ -112,6 +117,9 @@ function ClientDetailPageInner() {
   const [proofPoint, setProofPoint] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [extraContext, setExtraContext] = useState("");
+  const [pricing, setPricing] = useState("");
+  const [competitors, setCompetitors] = useState("");
+  const [targetAudience, setTargetAudience] = useState("");
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [rulesJson, setRulesJson] = useState("[]");
   const [saving, setSaving] = useState(false);
@@ -132,6 +140,30 @@ function ClientDetailPageInner() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(true);
 
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState("");
+  const [analyzeResult, setAnalyzeResult] = useState<{ inserted: number; recommendations: { title: string; priority: number }[] } | null>(null);
+
+  async function analyzePerformance() {
+    setAnalyzing(true);
+    setAnalyzeError("");
+    setAnalyzeResult(null);
+    try {
+      const res = await fetch("/api/performance-brain/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAnalyzeError(data.error || "Failed to analyze performance."); return; }
+      setAnalyzeResult({ inserted: data.inserted, recommendations: data.recommendations || [] });
+    } catch {
+      setAnalyzeError("Failed to analyze performance.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
   function loadLeads() {
     setLeadsLoading(true);
     fetch(`/api/lead-qual/clients/${id}/leads`)
@@ -151,6 +183,9 @@ function ClientDetailPageInner() {
         setProofPoint(config.business_info?.proof_point || "");
         setWebsiteUrl(config.business_info?.website_url || "");
         setExtraContext(config.business_info?.extra_context || "");
+        setPricing(config.business_info?.pricing || "");
+        setCompetitors(config.business_info?.competitors || "");
+        setTargetAudience(config.business_info?.target_audience || "");
         setServices((config.services || []).join(", "));
         setServiceAreas((config.service_areas || []).join(", "));
         setFaqs(config.faqs?.length ? config.faqs : [{ question: "", answer: "" }]);
@@ -186,6 +221,9 @@ function ClientDetailPageInner() {
           proof_point: proofPoint,
           website_url: websiteUrl,
           extra_context: extraContext,
+          pricing,
+          competitors,
+          target_audience: targetAudience,
         },
         services: services.split(",").map((s) => s.trim()).filter(Boolean),
         service_areas: serviceAreas.split(",").map((s) => s.trim()).filter(Boolean),
@@ -408,6 +446,38 @@ function ClientDetailPageInner() {
               style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8, fontFamily: "inherit" }}
             />
 
+            <div style={{ margin: "18px 0 6px", paddingTop: 14, borderTop: `1px solid ${L.border}` }}>
+              <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--accent)" }}>Client Marketing Brain</p>
+              <p style={{ fontSize: 11.5, color: L.dimmed, marginTop: 2 }}>Persists across every campaign for this client — fill in once, the Brain reads it instead of re-researching from scratch each time.</p>
+            </div>
+
+            <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, margin: "14px 0 6px" }}>PRICING &amp; OFFERS</p>
+            <textarea
+              value={pricing}
+              onChange={(e) => setPricing(e.target.value)}
+              placeholder="e.g. deep clean $280-450 depending on size, standard clean from $120, avg job value ~$220, 35% margin"
+              rows={2}
+              style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8, fontFamily: "inherit" }}
+            />
+
+            <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, margin: "14px 0 6px" }}>COMPETITORS</p>
+            <textarea
+              value={competitors}
+              onChange={(e) => setCompetitors(e.target.value)}
+              placeholder="e.g. Sparkle Clean NZ (undercuts on price), Shine Bright (weak online presence, good for angle gaps)"
+              rows={2}
+              style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8, fontFamily: "inherit" }}
+            />
+
+            <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, margin: "14px 0 6px" }}>TARGET AUDIENCE</p>
+            <textarea
+              value={targetAudience}
+              onChange={(e) => setTargetAudience(e.target.value)}
+              placeholder="e.g. homeowners 35-60, dual-income households, prioritize convenience over price"
+              rows={2}
+              style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8, fontFamily: "inherit" }}
+            />
+
             <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, margin: "14px 0 6px" }}>SERVICES (comma separated)</p>
             <input
               value={services}
@@ -544,6 +614,38 @@ function ClientDetailPageInner() {
         </div>
       </div>
 
+      <div style={{ padding: "0 28px 20px" }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>Performance Brain</p>
+            <p style={{ fontSize: 12, color: L.muted }}>
+              Cross-references this client&apos;s real Meta Ads numbers against their strategy and past learnings, and queues prioritized recommendations on Approvals.
+            </p>
+          </div>
+          <button
+            onClick={analyzePerformance}
+            disabled={analyzing}
+            style={{
+              flexShrink: 0, display: "flex", alignItems: "center", gap: 6, background: analyzing ? L.dimmed : "var(--accent)", color: "#fff", border: "none",
+              padding: "8px 16px", fontSize: 12.5, fontWeight: 700, borderRadius: 8, cursor: analyzing ? "default" : "pointer",
+            }}
+          >
+            <Sparkles style={{ width: 13, height: 13 }} className={analyzing ? "spin" : ""} />
+            {analyzing ? "Analyzing…" : "Analyze performance"}
+          </button>
+        </div>
+        {analyzeError && (
+          <p style={{ marginTop: 8, fontSize: 12.5, color: "#b91c1c" }}>{analyzeError}</p>
+        )}
+        {analyzeResult && (
+          <div style={{ marginTop: 8, fontSize: 12.5, color: L.muted }}>
+            {analyzeResult.recommendations.length === 0
+              ? "Not enough spend/data yet to recommend anything real."
+              : `${analyzeResult.inserted} new recommendation${analyzeResult.inserted === 1 ? "" : "s"} added to Approvals${analyzeResult.recommendations.length > analyzeResult.inserted ? ` (${analyzeResult.recommendations.length - analyzeResult.inserted} already pending)` : ""}.`}
+          </div>
+        )}
+      </div>
+
       <div style={{ padding: "0 28px 60px" }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, color: L.text, marginBottom: 10 }}>Leads</h2>
         {leadsLoading ? (
@@ -553,24 +655,32 @@ function ClientDetailPageInner() {
             No leads yet — they'll show up here as conversations get qualified.
           </div>
         ) : (
-          <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
             {leads.map((lead) => {
-              const style = OUTCOME_STYLE[lead.outcome] || { bg: "#f1f5f9", color: L.muted, label: lead.outcome };
+              const quality = qualityFromOutcome(lead.outcome);
               const fields = lead.lq_conversations?.extracted_fields || {};
               return (
-                <div key={lead.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: `1px solid ${L.border}`, gap: 12, flexWrap: "wrap" }}>
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: L.text }}>
-                      {fields.name ? `${String(fields.name)} — ` : ""}{String(fields.job_type || "Job type unknown")} — {String(fields.location || "location unknown")}
-                    </p>
-                    <p style={{ fontSize: 11.5, color: L.muted }}>
-                      {lead.contact_email || "no email captured"} · {new Date(lead.created_at).toLocaleString()}
-                      {lead.outcome === "qualified" && lead.booking_status && ` · booking: ${lead.booking_status}`}
-                    </p>
+                <div key={lead.id} style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: quality.color, background: quality.bg, padding: "3px 9px", borderRadius: 20 }}>
+                      LEAD QUALITY: {quality.label}
+                    </span>
+                    {lead.score != null && (
+                      <span style={{ fontSize: 10.5, color: L.dimmed }}>match: {lead.score}</span>
+                    )}
                   </div>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: style.color, background: style.bg, padding: "4px 10px", borderRadius: 20, flexShrink: 0 }}>
-                    {style.label}
-                  </span>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: L.text }}>
+                    {fields.name ? `${String(fields.name)} — ` : ""}{String(fields.job_type || "Job type unknown")}
+                  </p>
+                  <div style={{ fontSize: 11.5, color: L.muted, display: "flex", flexDirection: "column", gap: 2 }}>
+                    <span>Location: {String(fields.location || "unknown")}</span>
+                    <span>Timeline: {String(fields.timeline || "unknown")}</span>
+                    {!!fields.property_size && <span>Property size: {String(fields.property_size)}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: L.dimmed, borderTop: `1px solid ${L.border}`, paddingTop: 6, marginTop: 2 }}>
+                    {lead.contact_email || "no email captured"} · {new Date(lead.created_at).toLocaleString()}
+                    {lead.outcome === "qualified" && lead.booking_status && ` · booking: ${lead.booking_status}`}
+                  </div>
                 </div>
               );
             })}

@@ -513,6 +513,15 @@ export default function CampaignSetupPage() {
                         </div>
                       ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                          <div style={{ background: "#0f172a", borderRadius: 10, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#93c5fd" }}>Campaign Decision — {service}</div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "6px 20px", fontSize: 13, color: "#e2e8f0", lineHeight: 1.5 }}>
+                              <div><span style={{ color: "#94a3b8" }}>Offer: </span>{fields.offerPricing || "—"}</div>
+                              <div><span style={{ color: "#94a3b8" }}>Ideal customer: </span>{sharedFields.ideal_customer || "—"}</div>
+                              <div><span style={{ color: "#94a3b8" }}>Budget + targeting: </span>{sharedFields.budget_targeting || "—"}</div>
+                              <div><span style={{ color: "#94a3b8" }}>Current ad angle: </span>{ads?.[0]?.angle || "no ad concepts yet"}</div>
+                            </div>
+                          </div>
                           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
                             <button
                               onClick={() => generateStrategy(service)}

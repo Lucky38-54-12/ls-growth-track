@@ -92,6 +92,9 @@ export async function generateCampaignBrief(clientId: string, service: string): 
     proof_point?: string;
     website_url?: string;
     extra_context?: string;
+    pricing?: string;
+    competitors?: string;
+    target_audience?: string;
   };
   const services: string[] = config?.services || [];
   const serviceAreas: string[] = config?.service_areas || [];
@@ -109,6 +112,11 @@ Business description on file: ${businessInfo.description || "none"}
 Proof point on file: ${businessInfo.proof_point || "none"}
 Website: ${businessInfo.website_url || "none"}
 Extra context: ${businessInfo.extra_context || "none"}
+
+Client Marketing Brain (persistent facts Lucky already confirmed for this client — treat these as ground truth, don't re-research or contradict them, only use web_search to fill in what's NOT covered here):
+Pricing & offers on file: ${businessInfo.pricing || "none — research typical pricing for this market"}
+Known competitors: ${businessInfo.competitors || "none — research who's visible in this market"}
+Target audience on file: ${businessInfo.target_audience || "none — infer from the business/service"}
 
 Research the "${service}" service in this market and write the Stage 01 STRATEGY brief.`;
 

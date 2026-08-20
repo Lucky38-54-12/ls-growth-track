@@ -2,12 +2,13 @@ import { createSupabaseClient } from "./supabase";
 
 export interface ChatDraft {
   id: string;
-  kind: "email" | "note" | "lead_update" | "calendar_booking" | "reschedule_booking" | "sheet_update" | "ad_learning";
+  kind: "email" | "note" | "lead_update" | "calendar_booking" | "reschedule_booking" | "sheet_update" | "ad_learning" | "recommendation";
   title: string;
   content: string;
   status: string;
   created_at: string;
   lead: { company: string; lead_id: string } | null;
+  payload?: Record<string, unknown> | null;
 }
 
 // Shared by /dashboard/brain (drafts created in that chat session) and
@@ -17,7 +18,7 @@ export interface ChatDraft {
 export async function getPendingChatDrafts(sb: ReturnType<typeof createSupabaseClient>): Promise<ChatDraft[]> {
   const { data: drafts } = await sb
     .from("chat_drafts")
-    .select("id, kind, title, content, status, created_at, lead_id")
+    .select("id, kind, title, content, status, created_at, lead_id, payload")
     .eq("status", "pending")
     .order("created_at", { ascending: false });
 
@@ -36,5 +37,6 @@ export async function getPendingChatDrafts(sb: ReturnType<typeof createSupabaseC
     status: d.status,
     created_at: d.created_at,
     lead: d.lead_id ? leadsById.get(d.lead_id) || null : null,
+    payload: d.payload as Record<string, unknown> | null,
   }));
 }
