@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { getLuckyGoogleAuthedClient } from "./luckyGoogleAuth";
 
 export const COLD_CALL_SHEETS_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
 
@@ -62,13 +63,17 @@ export interface TodayIndexRow {
 // so Lucky can see the day's 1-5 by opening one sheet instead of browsing
 // Drive. Rewritten in full on every triage run rather than diffed, since
 // it's always exactly TARGET_TODAY_COUNT rows.
+//
+// Uses Lucky's own connected Google account (see lib/luckyGoogleAuth.ts),
+// not the service account used everywhere else in this file — service
+// accounts have zero Drive storage quota of their own, so drive.files.create
+// 403s with "storage quota exceeded" even though the same account can freely
+// rename/edit existing files it's been shared into. salesCallsDrive.ts hits
+// the same issue and uses the same fix.
 export async function updateTodayIndexSheet(rows: TodayIndexRow[]): Promise<{ spreadsheetId: string; url: string }> {
-  const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!key) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var not set");
-  const credentials = JSON.parse(key);
-  const auth = new google.auth.GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"] });
-  const drive = google.drive({ version: "v3", auth: auth as any });
-  const sheetsApi = google.sheets({ version: "v4", auth: auth as any });
+  const auth = await getLuckyGoogleAuthedClient();
+  const drive = google.drive({ version: "v3", auth });
+  const sheetsApi = google.sheets({ version: "v4", auth });
 
   const existing = await drive.files.list({
     q: `'${COLD_CALL_SHEETS_FOLDER_ID}' in parents and name = '${TODAY_INDEX_SHEET_NAME.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
