@@ -71,7 +71,7 @@ export async function updateTodayIndexSheet(rows: TodayIndexRow[]): Promise<{ sp
   const sheetsApi = google.sheets({ version: "v4", auth: auth as any });
 
   const existing = await drive.files.list({
-    q: `'${COLD_CALL_SHEETS_FOLDER_ID}' in parents and name = '${TODAY_INDEX_SHEET_NAME}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
+    q: `'${COLD_CALL_SHEETS_FOLDER_ID}' in parents and name = '${TODAY_INDEX_SHEET_NAME.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`,
     fields: "files(id)",
     pageSize: 1,
     supportsAllDrives: true,
