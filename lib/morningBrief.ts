@@ -28,7 +28,15 @@ const SHEET_TRIAGE_SLUG = "daily-sheet-triage";
 // force=true skips the once-per-NZT-day gate — used by the manual
 // /api/admin/run-sheet-triage trigger to re-apply a fixed cap/threshold the
 // same day it was deployed, instead of waiting for tomorrow's scheduled run.
-export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabaseClient>, allLeads: Lead[], force = false, scanTimeBudgetMs = 45000): Promise<string[]> {
+//
+// scanTimeBudgetMs default was 45000 until the today-index sheet step
+// (updateTodayIndexSheet, below) was added — its OAuth token refresh plus
+// several more Drive/Sheets calls on top of a full 45s scan pushed the real
+// cron route over its shared 60s ceiling (confirmed live: 504 after adding
+// that step). Tagged sheets already scan first (see the sort below), so a
+// smaller budget doesn't cost finding them — just leaves scan coverage
+// smaller for gap detection on very large folders.
+export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabaseClient>, allLeads: Lead[], force = false, scanTimeBudgetMs = 32000): Promise<string[]> {
   const lines: string[] = [];
   try {
     // The GitHub Actions trigger window is generous on purpose (jitter on
