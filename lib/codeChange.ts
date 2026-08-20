@@ -132,6 +132,8 @@ export interface CodeChangeResult {
   branch: string;
   summary: string;
   filesChanged: string[];
+  merged: boolean;
+  mergeError?: string;
 }
 
 export async function proposeCodeChange(instructions: string): Promise<CodeChangeResult> {
@@ -197,7 +199,7 @@ export async function proposeCodeChange(instructions: string): Promise<CodeChang
   }
 
   if (filesChanged.size === 0) {
-    return { prUrl: null, branch, summary: summary || "No files were changed — the request may have been too vague to act on.", filesChanged: [] };
+    return { prUrl: null, branch, summary: summary || "No files were changed — the request may have been too vague to act on.", filesChanged: [], merged: false };
   }
 
   const pr = await gh(`/repos/${OWNER}/${REPO}/pulls`, {
@@ -206,9 +208,34 @@ export async function proposeCodeChange(instructions: string): Promise<CodeChang
       title: instructions.slice(0, 70),
       head: branch,
       base: BASE_BRANCH,
-      body: `${summary || instructions}\n\n---\nOpened automatically from a Brain chat request. Review the diff before merging — nothing has been built or type-checked.\n\nFiles changed:\n${Array.from(filesChanged).map((f) => `- ${f}`).join("\n")}`,
+      body: `${summary || instructions}\n\n---\nOpened and auto-merged from a Brain chat request — nothing was built or type-checked first, this is Lucky's own explicit "run it like I run Claude Code myself" instruction (2026-08-20) for code_change specifically. Revert this merge commit if something's wrong.\n\nFiles changed:\n${Array.from(filesChanged).map((f) => `- ${f}`).join("\n")}`,
     }),
   });
 
-  return { prUrl: pr.html_url, branch, summary: summary || instructions, filesChanged: Array.from(filesChanged) };
+  // Auto-merge is a deliberate, explicit exception to this app's normal
+  // "everything waits for a real approve/reject click" rule — Lucky asked
+  // specifically for code_change to run the same way he drives Claude Code
+  // directly himself (immediate, no separate merge step), while every
+  // business-facing action (email, booking, lead/campaign changes, spend)
+  // keeps the full chat_drafts approval gate untouched. Squash merge keeps
+  // main's history to one commit per request, so `git revert` cleanly undoes
+  // a bad change. The branch is deleted after a successful merge, kept
+  // around (for manual inspection) if the merge itself failed.
+  try {
+    await gh(`/repos/${OWNER}/${REPO}/pulls/${pr.number}/merge`, {
+      method: "PUT",
+      body: JSON.stringify({ merge_method: "squash", commit_title: `${instructions.slice(0, 70)} (#${pr.number})` }),
+    });
+    await gh(`/repos/${OWNER}/${REPO}/git/refs/heads/${branch}`, { method: "DELETE" });
+    return { prUrl: pr.html_url, branch, summary: summary || instructions, filesChanged: Array.from(filesChanged), merged: true };
+  } catch (e) {
+    return {
+      prUrl: pr.html_url,
+      branch,
+      summary: summary || instructions,
+      filesChanged: Array.from(filesChanged),
+      merged: false,
+      mergeError: e instanceof Error ? e.message : "Merge failed",
+    };
+  }
 }

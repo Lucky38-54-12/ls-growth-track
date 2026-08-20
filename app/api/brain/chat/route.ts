@@ -75,9 +75,9 @@ You can do fourteen things:
 12. If Lucky asks you to fix, regenerate, or redo the ad concepts for one of an onboarded client's services (e.g. wrong/mismatched reference links, stale creative, or he just wants a fresh set), propose that as regenerate_ads — this reruns real ad research for that specific service and rewrites its 3 ad concepts (headline, copy, creative direction, reference links), the same thing the "Regenerate ads" button on /dashboard/campaign-setup does. Like campaign_brief, this is research plus a saved doc, nothing sent externally. One real limitation: the Google Doc only ever gets appended to, never cleaned up automatically — so the OLD, wrong section for that service stays sitting above the new corrected one in the doc, and needs deleting by hand. Say so plainly in your reply after this runs, don't let him find out later.
 13. When you or Lucky, while looking at real Meta Ads data together, land on a durable pattern worth remembering for next time (Promising confidence or higher — see AD/CAMPAIGN INTELLIGENCE MODE below when present), propose that as ad_learning so it gets banked in AD LEARNINGS for every future question about that client. This is NOT auto-applied like campaign_brief/regenerate_ads — it always waits for Lucky's real approve/reject, same as an email or lead_update, because it's a claim about what works that will shape every future recommendation if wrong.
 
-14. If Lucky asks you to change, fix, or build something in THIS dashboard app itself (a bug on a page, a new button, a UI tweak, anything about the app's own code rather than his business data), propose that as code_change — this writes the actual code on a fresh git branch and opens a real GitHub pull request, the link comes back in your reply. Nothing goes live until Lucky reviews and merges that PR himself — this can take a minute or two to run since it's really editing files. Only propose this for changes to the app's own code; it's never the right tool for anything about leads, clients, campaigns, or other business data — those are the other 13 things above.
+14. If Lucky asks you to change, fix, or build something in THIS dashboard app itself (a bug on a page, a new button, a UI tweak, anything about the app's own code rather than his business data), propose that as code_change — this writes the actual code on a fresh git branch, opens a real GitHub pull request, and auto-merges it straight to main immediately (Lucky's explicit instruction: this one runs the same way he drives Claude Code directly himself, no manual merge step). It's genuinely live once your reply says so — don't tell him it's "waiting for review." This can take a minute or two to run since it's really editing files. Only propose this for changes to the app's own code; it's never the right tool for anything about leads, clients, campaigns, or other business data — those are the other 13 things above, which all keep their normal approval gate untouched.
 
-Never claim you can't do 2-14 — propose it properly; script_proposal, agreement_doc, log_call, call_prep, campaign_brief, regenerate_ads, and code_change apply immediately since none of them send anything externally (code_change's real gate is Lucky merging the PR, not this queue) and are all easy to correct after the fact, everything else (including ad_learning) lands in a queue on the page for Lucky to approve or reject himself.
+Never claim you can't do 2-14 — propose it properly; script_proposal, agreement_doc, log_call, call_prep, campaign_brief, regenerate_ads, and code_change apply immediately since none of them send anything externally and are all easy to correct after the fact (code_change specifically merges to main immediately — that's a deliberate, scoped exception Lucky asked for, not a general rule), everything else (including ad_learning) lands in a queue on the page for Lucky to approve or reject himself.
 
 You are NOT limited to one action per turn — "drafts" is a list, and a single message often genuinely calls for more than one of the above at once. The clearest case: Lucky pastes a call transcript that also states the deal he just closed on that call ("here's the call... we agreed $X/month, starting Monday") — that is BOTH a log_call (the transcript) AND an agreement_doc (the agreed terms) in the same turn, and you should propose both rather than picking one and hoping he asks for the other separately. Same logic anywhere else two of these genuinely both apply from what he actually gave you. Don't force a second action that isn't actually supported by anything he said — this is about not missing an obvious second action, not padding the list.
 
@@ -445,18 +445,26 @@ async function resolveDraft(
       return { appendText: "", draftCreated: false, error: "Model tried to propose a code change with no instructions — ignored." };
     }
 
-    // Real-write-immediately, same as campaign_brief/regenerate_ads — but
-    // the thing actually gating this from reaching production isn't this
-    // queue, it's Lucky reviewing and merging the real GitHub PR this opens.
-    // Can take a minute or two (a real agentic read/write loop against the
-    // repo over the GitHub API), so this is the slowest action in the list.
+    // Real-write-immediately AND auto-merged — Lucky's explicit instruction
+    // (2026-08-20) was to run code_change the same way he drives Claude Code
+    // himself: no separate manual-merge step. This is a deliberate, scoped
+    // exception to the approval-gate rule every other action still follows —
+    // see lib/codeChange.ts for the actual merge logic. Can take a minute or
+    // two (a real agentic read/write loop against the repo over the GitHub
+    // API), so this is the slowest action in the list.
     try {
       const result = await proposeCodeChange(change.instructions.trim());
       if (!result.prUrl) {
-        return { appendText: `\n\nDidn't open a PR — ${result.summary}`, draftCreated: false };
+        return { appendText: `\n\nDidn't make a change — ${result.summary}`, draftCreated: false };
+      }
+      if (!result.merged) {
+        return {
+          appendText: `\n\nOpened the PR but couldn't auto-merge it: ${result.mergeError}\n\n${result.prUrl}\n\n${result.summary}\n\nYou'll need to merge this one by hand.`,
+          draftCreated: false,
+        };
       }
       return {
-        appendText: `\n\nPull request opened: ${result.prUrl}\n\n${result.summary}\n\nFiles changed: ${result.filesChanged.join(", ")}\n\nNothing is live until you review and merge that PR yourself.`,
+        appendText: `\n\nDone and live — merged straight to main: ${result.prUrl}\n\n${result.summary}\n\nFiles changed: ${result.filesChanged.join(", ")}`,
         draftCreated: false,
       };
     } catch (e) {
