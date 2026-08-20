@@ -70,7 +70,7 @@ export interface TodayIndexRow {
 // 403s with "storage quota exceeded" even though the same account can freely
 // rename/edit existing files it's been shared into. salesCallsDrive.ts hits
 // the same issue and uses the same fix.
-export async function updateTodayIndexSheet(rows: TodayIndexRow[]): Promise<{ spreadsheetId: string; url: string }> {
+export async function updateTodayIndexSheet(rows: TodayIndexRow[]): Promise<{ spreadsheetId: string; url: string; touchErrors: string[] }> {
   const auth = await getLuckyGoogleAuthedClient();
   const drive = google.drive({ version: "v3", auth });
   const sheetsApi = google.sheets({ version: "v4", auth });
@@ -114,15 +114,22 @@ export async function updateTodayIndexSheet(rows: TodayIndexRow[]): Promise<{ sp
   // — set only by a genuine content request under the viewing account, not
   // by the service account renaming the file (that's what left today's
   // picks scattered across Today/Yesterday/Previous 7 days despite being
-  // freshly tagged). A metadata-only spreadsheets.get (tried first) did NOT
-  // reliably bump it — confirmed live, only 1 of 5 sheets updated — so this
-  // reads actual cell values instead, a real content access under Lucky's
-  // own OAuth that counts as him opening the file. Best-effort: this
-  // cosmetic grouping shouldn't block the index sheet update above if it
-  // fails.
-  await Promise.all(rows.map((r) => sheetsApi.spreadsheets.values.get({ spreadsheetId: r.sheetId, range: "A1:A1" }).catch(() => {})));
+  // freshly tagged). Two prior attempts (metadata-only spreadsheets.get,
+  // then spreadsheets.values.get) both only updated 1 of 5 sheets each
+  // time, always the same one — errors were being silently swallowed, so
+  // touchErrors surfaces what's actually failing for the other 4 instead of
+  // guessing again. Best-effort: this cosmetic grouping shouldn't block the
+  // index sheet update above if it fails.
+  const touchErrors: string[] = [];
+  await Promise.all(rows.map(async (r) => {
+    try {
+      await sheetsApi.spreadsheets.values.get({ spreadsheetId: r.sheetId, range: "A1:A1" });
+    } catch (e) {
+      touchErrors.push(`${r.title}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }));
 
-  return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` };
+  return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, touchErrors };
 }
 
 // Bounds a single network call — the googleapis client has no default
