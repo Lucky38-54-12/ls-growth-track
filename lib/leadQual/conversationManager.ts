@@ -213,6 +213,22 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
     };
   }
 
+  return finishQualifyingTurn(sb, conversation, clientId, config, rules, history);
+}
+
+// Everything past the actual LLM call — persisting the reply, evaluating
+// qualification, booking, nurture enrollment. Split out from runTurn so
+// retryStalledTurn (recovering a conversation whose model call threw and left
+// the lead with no reply at all) can share the exact same booking/notify
+// logic instead of drifting out of sync with a second copy of it.
+async function finishQualifyingTurn(
+  sb: ReturnType<typeof createSupabaseClient>,
+  conversation: Record<string, any>,
+  clientId: string,
+  config: ClientConfigData,
+  rules: Rule[],
+  history: ConversationTurn[]
+): Promise<RunTurnOutput> {
   const turn = await runQualifyingTurn(config, history);
 
   // runQualifyingTurn is an LLM call that can take several seconds — long
@@ -360,4 +376,42 @@ export async function runTurn({ clientId, conversationId, userMessage, channelId
     bookingStatus,
     extractedFields: mergedFields,
   };
+}
+
+// Recovery path for a conversation whose lead message was logged but never
+// got a reply — e.g. runQualifyingTurn's Claude call threw (rate limit,
+// transient API error) after the webhook had already inserted the inbound
+// message, so retrying the webhook event is impossible (it's deduped on
+// meta_message_id) and calling runTurn again would insert a second copy of
+// the same lead message. This picks the conversation up from its
+// already-stored history instead of appending anything new.
+export async function retryStalledTurn(conversationId: string): Promise<RunTurnOutput> {
+  const sb = createSupabaseClient();
+
+  const { data: conversation } = await sb.from("lq_conversations").select("*").eq("id", conversationId).single();
+  if (!conversation) throw new Error("Conversation not found");
+  if (conversation.paused_at) throw new Error("Conversation is paused for a human — will not auto-retry");
+  if (conversation.status !== "active") throw new Error(`Conversation status is "${conversation.status}", not active — nothing to retry`);
+
+  const { data: clientRow } = await sb.from("lq_clients").select("status").eq("id", conversation.client_id).single();
+  if (clientRow?.status === "paused") throw new Error("Client is paused — will not spend AI tokens or send replies");
+
+  const { data: priorMessages } = await sb
+    .from("lq_messages")
+    .select("role, content")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+
+  const last = (priorMessages || [])[(priorMessages || []).length - 1];
+  if (!last || last.role !== "user") throw new Error("Last message isn't from the lead — nothing unanswered to retry");
+
+  const MAX_HISTORY_MESSAGES = 30;
+  const history: ConversationTurn[] = (priorMessages || [])
+    .filter((m) => m.role !== "system")
+    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))
+    .slice(-MAX_HISTORY_MESSAGES);
+
+  const { config, rules } = await loadClientConfig(conversation.client_id);
+
+  return finishQualifyingTurn(sb, conversation, conversation.client_id, config, rules, history);
 }
