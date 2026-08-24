@@ -218,16 +218,18 @@ export async function getColdCallSheetBrief(sb: ReturnType<typeof createSupabase
 // a quiet day — a ping with nothing on it just trains you to ignore it.
 const MORNING_BRIEF_SLUG = "morning-brief";
 
-export async function sendMorningBrief(): Promise<{ sent: boolean; meetings: number; dueItems: number }> {
+export async function sendMorningBrief(force = false): Promise<{ sent: boolean; meetings: number; dueItems: number }> {
   const sb = createSupabaseClient();
 
   // Same reasoning as getColdCallSheetBrief's own guard: the cron trigger
   // window is intentionally wide to survive GitHub Actions' scheduling
   // jitter (see cron.yml), so this is what actually stops a second run
   // landing inside that window from sending a duplicate Slack message.
+  // force=true (manual re-run trigger) skips this, same pattern as
+  // getColdCallSheetBrief's own force param.
   const todayNZT = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const { data: briefRow } = await sb.from("automations").select("last_run_at").eq("slug", MORNING_BRIEF_SLUG).maybeSingle();
-  if (briefRow?.last_run_at) {
+  if (!force && briefRow?.last_run_at) {
     const lastRunNZT = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(briefRow.last_run_at));
     if (lastRunNZT === todayNZT) return { sent: false, meetings: 0, dueItems: 0 };
   }
@@ -240,7 +242,7 @@ export async function sendMorningBrief(): Promise<{ sent: boolean; meetings: num
     listTodaysEvents(TZ).catch(() => []),
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to)),
   ]);
-  const sheetLines = await getColdCallSheetBrief(sb, allLeads);
+  const sheetLines = await getColdCallSheetBrief(sb, allLeads, force);
 
   const todayStr = todayNZT;
   const pipelineLeads = allLeads.filter((l) => !(l.source === "cold_call" && l.status === "not_contacted"));
