@@ -1,5 +1,6 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { notifySlack } from "./slackNotify";
+import { notifyNtfy } from "./ntfyNotify";
 import { listTodaysEvents } from "./calendar";
 import { reportAutomationStatus } from "./automationStatus";
 import {
@@ -271,6 +272,10 @@ export async function sendMorningBrief(): Promise<{ sent: boolean; meetings: num
 
   lines.push(...sheetLines);
 
-  await notifySlack(lines.join("\n"));
+  const brief = lines.join("\n");
+  await Promise.all([
+    notifySlack(brief),
+    notifyNtfy(brief.replace(/\*/g, ""), "Morning brief"),
+  ]);
   return { sent: true, meetings: events.length, dueItems };
 }
