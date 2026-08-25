@@ -267,22 +267,24 @@ function questionWords(userQuestion: string): string[] {
   return significantWords(userQuestion);
 }
 
-// Window starts 3 days back (from the start of that day, not just "now"),
-// not just forward — a meeting held earlier today or a couple days ago (e.g.
-// "what did Ray say on our call today") used to fall outside a "now to +7
-// days" window entirely, so the model had no idea who a contact even was
-// right after Lucky actually met them. Past events are just as useful
-// context as upcoming ones for "who is X" / "what did we agree" questions.
+// Window starts 30 days back (from the start of that day, not just "now"),
+// not just forward — a meeting held earlier today or a week or two ago (e.g.
+// "what did Ray say on our call today", "who was that Friday") used to fall
+// outside a "now to +7 days" window entirely (originally just 3 days back),
+// so the model had no idea who a contact even was well after Lucky actually
+// met them. Past events are just as useful context as upcoming ones for
+// "who is X" / "what did we agree" questions. 30 days comfortably covers
+// "last week" asks without the context block growing unbounded.
 async function upcomingCalendarSummary(): Promise<string> {
   try {
     const timeZone = "Pacific/Auckland";
     const now = new Date();
     const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
     const { startISO: todayStartISO } = getDayRangeUTC(todayStr, timeZone);
-    const rangeStart = new Date(new Date(todayStartISO).getTime() - 3 * 24 * 60 * 60 * 1000);
+    const rangeStart = new Date(new Date(todayStartISO).getTime() - 30 * 24 * 60 * 60 * 1000);
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const events = await listCalendarEvents(rangeStart.toISOString(), in7Days.toISOString());
-    if (events.length === 0) return "Nothing on the calendar from the last 3 days through the next 7.";
+    if (events.length === 0) return "Nothing on the calendar from the last 30 days through the next 7.";
     return events
       .map((e) => {
         const when = e.allDay
@@ -630,7 +632,7 @@ export async function buildBrainContext(userQuestion: string, recentUserMessages
     `ONBOARDED CLIENTS (use the exact client_id here when setting up a campaign brief, never invent one):\n${clientsSummary}`,
     `AUTOMATIONS STATUS:\n${automationsSummary}`,
     driveDocs ? `RELEVANT GOOGLE DOCS (found via live Drive search, may not be exhaustive):\n${driveDocs}` : "",
-    calendarSummary ? `CALENDAR (last 3 days through next 7, "(past)" marks ones already happened):\n${calendarSummary}` : "",
+    calendarSummary ? `CALENDAR (last 30 days through next 7, "(past)" marks ones already happened):\n${calendarSummary}` : "",
     sheetsSummary ? `COLD-CALL SHEETS:\n${sheetsSummary}` : "",
     inboxSummary ? `INBOX SEARCH RESULTS (subject match, may not be exhaustive):\n${inboxSummary}` : "",
     adsSummary ? `META ADS (last 30 days):\n${adsSummary}` : "",

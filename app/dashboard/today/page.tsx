@@ -13,6 +13,7 @@ import DailyNotes from "@/components/DailyNotes";
 import CheckRepliesButton from "@/components/CheckRepliesButton";
 import DismissInboxAlertButton from "@/components/DismissInboxAlertButton";
 import DismissReplyButton from "@/components/DismissReplyButton";
+import DismissFollowUpButton from "@/components/DismissFollowUpButton";
 import FlashMessage from "@/app/dashboard/FlashMessage";
 import { Suspense } from "react";
 
@@ -234,6 +235,7 @@ export default async function TodayPage() {
                       <p style={{ fontSize: 11.5, color: L.dimmed }}>{lead.company} — due {lead.follow_up_at}</p>
                     </div>
                     <Info style={{ width: 12, height: 12, color: L.dimmed, flexShrink: 0 }} />
+                    <DismissFollowUpButton id={lead.id} />
                   </summary>
                   <ClientDetailsPanel lead={lead} />
                 </details>
