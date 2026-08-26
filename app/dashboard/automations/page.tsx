@@ -21,10 +21,23 @@ interface Automation {
   last_summary: string | null;
 }
 
+interface ActivityEntry {
+  id: string;
+  created_at: string;
+  action: string;
+  target: string | null;
+  summary: string | null;
+  status: "ok" | "error";
+}
+
 export default async function AutomationsPage() {
   const sb = createSupabaseClient();
-  const { data } = await sb.from("automations").select("*").order("created_at", { ascending: true });
+  const [{ data }, { data: activityData }] = await Promise.all([
+    sb.from("automations").select("*").order("created_at", { ascending: true }),
+    sb.from("admin_activity_log").select("*").order("created_at", { ascending: false }).limit(20),
+  ]);
   const automations = (data || []) as Automation[];
+  const activity = (activityData || []) as ActivityEntry[];
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
@@ -38,6 +51,43 @@ export default async function AutomationsPage() {
         ) : (
           automations.map((a) => <AutomationCard key={a.id} automation={a} />)
         )}
+
+        <div style={{ marginTop: 20 }}>
+          <h2 style={{ fontSize: 13, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
+            Manual actions
+          </h2>
+          {activity.length === 0 ? (
+            <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 24, textAlign: "center", color: L.dimmed, fontSize: 13 }}>
+              Nothing logged yet.
+            </div>
+          ) : (
+            <div style={{ background: L.surface, border: `1px solid ${L.border}`, display: "flex", flexDirection: "column" }}>
+              {activity.map((e, i) => (
+                <div
+                  key={e.id}
+                  style={{
+                    display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 16px",
+                    borderTop: i === 0 ? "none" : `1px solid ${L.border}`,
+                  }}
+                >
+                  {e.status === "error" ? (
+                    <CircleX style={{ width: 14, height: 14, color: "#b91c1c", marginTop: 2, flexShrink: 0 }} />
+                  ) : (
+                    <CircleCheck style={{ width: 14, height: 14, color: "#166534", marginTop: 2, flexShrink: 0 }} />
+                  )}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{e.action}</span>
+                      {e.target && <span style={{ fontSize: 12, color: L.muted }}>{e.target}</span>}
+                    </div>
+                    {e.summary && <p style={{ fontSize: 12.5, color: L.muted, marginTop: 3, lineHeight: 1.5 }}>{e.summary}</p>}
+                  </div>
+                  <span style={{ fontSize: 11.5, color: L.dimmed, whiteSpace: "nowrap" }}>{formatDateTime(e.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

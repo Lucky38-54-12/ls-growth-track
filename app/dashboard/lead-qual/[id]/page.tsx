@@ -140,6 +140,50 @@ function ClientDetailPageInner() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(true);
 
+  const [leadName, setLeadName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadNotes, setLeadNotes] = useState("");
+  const [callbackAt, setCallbackAt] = useState("");
+  const [booking, setBooking] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [bookingResult, setBookingResult] = useState<string | null>(null);
+
+  async function handleBookCallback() {
+    setBooking(true);
+    setBookingError(null);
+    setBookingResult(null);
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${id}/book-callback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadName,
+          leadPhone,
+          leadEmail,
+          notes: leadNotes,
+          startISO: callbackAt,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBookingError(data.error || "Booking failed");
+        return;
+      }
+      setBookingResult(`Booked on their calendar and emailed to ${data.emailedTo}.`);
+      setLeadName("");
+      setLeadPhone("");
+      setLeadEmail("");
+      setLeadNotes("");
+      setCallbackAt("");
+    } catch {
+      setBookingError("Something went wrong booking this.");
+    } finally {
+      setBooking(false);
+    }
+  }
+
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
   const [analyzeResult, setAnalyzeResult] = useState<{ inserted: number; recommendations: { title: string; priority: number }[] } | null>(null);
@@ -644,6 +688,40 @@ function ClientDetailPageInner() {
               : `${analyzeResult.inserted} new recommendation${analyzeResult.inserted === 1 ? "" : "s"} added to Approvals${analyzeResult.recommendations.length > analyzeResult.inserted ? ` (${analyzeResult.recommendations.length - analyzeResult.inserted} already pending)` : ""}.`}
           </div>
         )}
+      </div>
+
+      <div style={{ padding: "0 28px 20px" }}>
+        <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 18 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: L.text, marginBottom: 4 }}>Book a callback for this client</p>
+          <p style={{ fontSize: 12, color: L.muted, marginBottom: 14 }}>
+            For a lead that came in outside Messenger (phone call, form, etc). Books straight onto their connected calendar and emails them the details — nothing local, nothing manual.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+            <input value={leadName} onChange={(e) => setLeadName(e.target.value)} placeholder="Lead name *" style={{ padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }} />
+            <input value={leadPhone} onChange={(e) => setLeadPhone(e.target.value)} placeholder="Phone" style={{ padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }} />
+            <input value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} placeholder="Email" style={{ padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }} />
+            <input type="datetime-local" value={callbackAt} onChange={(e) => setCallbackAt(e.target.value)} style={{ padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }} />
+          </div>
+          <textarea
+            value={leadNotes}
+            onChange={(e) => setLeadNotes(e.target.value)}
+            placeholder="Notes — what they need, context from the call, etc."
+            rows={2}
+            style={{ width: "100%", marginTop: 10, padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8, fontFamily: "inherit" }}
+          />
+          {bookingError && <p style={{ color: "#b91c1c", fontSize: 12.5, marginTop: 8 }}>{bookingError}</p>}
+          {bookingResult && <p style={{ color: "#15803d", fontSize: 12.5, marginTop: 8 }}>{bookingResult}</p>}
+          <button
+            onClick={handleBookCallback}
+            disabled={booking || !leadName.trim() || !callbackAt}
+            style={{
+              marginTop: 12, background: booking || !leadName.trim() || !callbackAt ? L.dimmed : "var(--accent)", color: "#fff", border: "none",
+              padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: booking || !leadName.trim() || !callbackAt ? "default" : "pointer",
+            }}
+          >
+            {booking ? "Booking…" : "Book + notify client"}
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: "0 28px 60px" }}>
