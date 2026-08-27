@@ -204,6 +204,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       email: parsed.email || "",
       trade: parsed.trade || "",
       location: parsed.location || "",
+      phone: parsed.phone || "",
       meetingDateTime: parsed.meeting_datetime || "",
       subject,
       bodyHtml: finalBodyHtml,

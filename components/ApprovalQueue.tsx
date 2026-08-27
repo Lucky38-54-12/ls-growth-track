@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, X } from "lucide-react";
 import { ChatDraft } from "@/lib/chatDrafts";
 import { addNoteToStorage } from "@/lib/notesStore";
@@ -27,6 +28,7 @@ const APPROVE_LABEL: Record<string, string> = {
 };
 
 export default function ApprovalQueue({ initialDrafts, emptyMessage }: { initialDrafts: ChatDraft[]; emptyMessage?: string }) {
+  const router = useRouter();
   const [drafts, setDrafts] = useState(initialDrafts);
   const [busyDraftId, setBusyDraftId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -36,6 +38,22 @@ export default function ApprovalQueue({ initialDrafts, emptyMessage }: { initial
   // this component's own useState would keep showing whatever it had on
   // first mount and silently miss anything created afterward.
   useEffect(() => setDrafts(initialDrafts), [initialDrafts]);
+
+  // A card left open in a backgrounded tab (or on another device) goes stale
+  // the moment it's decided elsewhere — re-pull the pending list whenever
+  // this tab comes back into focus so a stale "Approve" click never has to
+  // be the thing that discovers that and shows a confusing error instead.
+  useEffect(() => {
+    function onFocus() {
+      if (document.visibilityState === "visible") router.refresh();
+    }
+    document.addEventListener("visibilitychange", onFocus);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [router]);
 
   async function decide(draftId: string, decision: "approved" | "rejected") {
     // Optional — a reason on reject is the single richest signal for the
@@ -53,6 +71,13 @@ export default function ApprovalQueue({ initialDrafts, emptyMessage }: { initial
       });
       const data = await res.json();
       if (!res.ok) {
+        // Someone (another tab, the phone, an earlier click) already decided
+        // this one — the card is just stale, not actionable, so drop it
+        // instead of leaving it stuck with a confusing error on screen.
+        if (res.status === 400 && /already been decided/i.test(data.error || "")) {
+          setDrafts((d) => d.filter((x) => x.id !== draftId));
+          return;
+        }
         setError(data.error || "Couldn't apply that decision.");
         return;
       }

@@ -73,9 +73,9 @@ function buildSystemPrompt(config: ClientConfigData): string {
     ? `\n\nSPECIAL CASE — switchboard upgrades: if job_type turns out to be specifically a switchboard upgrade, still ask step 3 (timeline) as normal, then replace steps 4 and 5 with this instead: ask them to send a photo of their switchboard so it can be quoted properly (that's how these get quoted, no site visit needed), and wait for them to actually send one before moving on. If they push back or say they can't send a photo right now, don't force it, just move on to asking what time works best for a call. Once you have the photo (or they've said they can't send one), ask what time works best for a call to quote it up over the phone. This is the callback_time, quote_method is "phone", and there is no visit_time for this case. Never offer or ask about someone coming out on site for a switchboard upgrade specifically. If a message in the conversation just says something like "[Photo attached]", that means they've sent the photo, treat it as received and move on to asking about a call time.`
     : "";
 
-  // Reno/building jobs can't be priced without seeing the site, so this trade
-  // never gets offered the phone-quote option — always push for a viewing.
-  const isRenovationTrade = /renovat|building|builder|reno\b/i.test(config.trade || "") || /renovat|building|builder|reno\b/i.test(config.description || "");
+  // Reno/building/painting jobs can't be priced without seeing the site, so
+  // these trades never get offered the phone-quote option — always push for a viewing.
+  const isRenovationTrade = /renovat|building|builder|reno\b|paint/i.test(config.trade || "") || /renovat|building|builder|reno\b|paint/i.test(config.description || "");
   const quoteMethodStep = isRenovationTrade
     ? `4. quote_method: this job can't be quoted without seeing it, so don't offer a phone quote as an option. Ask what time works for someone to come round and have a look and quote it in person (this is visit_time). Once they give a time, also ask what time works for a quick call beforehand to confirm everything. This time is callback_time. quote_method is always "on_site" for this business. If they push back and ask for a price over the phone, explain warmly that you can't put a number on it without seeing the job first, so a quick look is the fastest way to get them an accurate quote.`
     : `4. quote_method: ask whether they'd like someone to come out and quote it in person, or whether a call to sort the quote over the phone works better for them
@@ -120,6 +120,7 @@ HOW TO SOUND HUMAN, NOT GENERIC:
 
 RULES:
 - Only use the BUSINESS INFO above to answer questions. If asked something it doesn't cover, say a team member will follow up — never invent details, prices, or availability.
+- If a lead's job_type (or anything else they mention) isn't clearly covered by the services listed above, never tell them outright that you/the business doesn't do that. You don't actually know the full scope of what they offer. Instead say something like a team member will confirm whether that's something they can help with, and carry on through the rest of the qualifying steps as normal.
 - Only set next_action to "ready_for_qualification" once you've been through the full sequence above (job_type, location, timeline, quote_method, a scheduled callback_time, a confirmed phone number, and you've asked if they have other questions). Don't close early.
 - If the person seems confused, frustrated, or asks something you can't answer from the info above, set next_action to "needs_human".
 - Otherwise, while you still need more info, set next_action to "continue".
@@ -154,7 +155,7 @@ ${config.websiteContent ? `\nBackground pulled from the business's own website �
 The lead's message is below, given to you in isolation with no other conversation history on purpose — do not imagine or infer what earlier turns might have asked, and never fall back into asking qualifying questions no matter what. Decide:
 - If it's a genuine question you can answer from the info above (pricing questions still get no number — say a team member will confirm that when they call), reply briefly and naturally in the same warm texting voice, 1-2 sentences. Never use a dash (either "-" or "—") in the reply — use full stops or commas, or start a new sentence instead.
 - If it's not really a question — just an acknowledgment like "ok thanks", "sounds good", "👍" — respond with exactly the text ${NO_REPLY_NEEDED} and nothing else, so nothing gets sent back. Don't manufacture a reason to keep chatting.
-- Never invent details, prices, or availability you don't actually know.
+- Never invent details, prices, or availability you don't actually know. If they ask about a service that isn't clearly covered by the services listed above, don't tell them outright that it's not offered, say a team member will confirm whether that's something they can help with.
 
 Respond with ONLY the reply text, or exactly ${NO_REPLY_NEEDED} — no JSON, no markdown fences.`;
 }
