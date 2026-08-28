@@ -567,6 +567,11 @@ function ClientsPageInner() {
                                     {String(fields.notes)}
                                   </p>
                                 )}
+                                {!!lead.notes && (
+                                  <p style={{ fontSize: 11.5, color: L.text, marginTop: 6, whiteSpace: "pre-line", borderTop: `1px solid ${L.border}`, paddingTop: 6 }}>
+                                    <strong>Note:</strong> {lead.notes}
+                                  </p>
+                                )}
                               </div>
                             );
                           })

@@ -11,6 +11,7 @@ interface Lead {
   outcome: string;
   booking_status: string | null;
   scheduled_at: string | null;
+  notes: string | null;
   lq_conversations: { extracted_fields: Record<string, unknown> } | null;
 }
 
@@ -28,13 +29,14 @@ function toBookedJobs(leads: Lead[]): BookedJob[] {
     .filter((l) => l.booking_status === "booked" && l.scheduled_at)
     .map((l) => {
       const fields = l.lq_conversations?.extracted_fields || {};
+      const notes = [fields.notes ? String(fields.notes) : null, l.notes ? `Note from Lucky: ${l.notes}` : null].filter(Boolean).join("\n");
       return {
         id: l.id,
         date: new Date(l.scheduled_at as string),
         jobType: String(fields.job_type || "Job"),
         location: String(fields.location || "Location TBC"),
         phone: String(fields.phone || ""),
-        notes: String(fields.notes || ""),
+        notes,
       };
     });
 }
