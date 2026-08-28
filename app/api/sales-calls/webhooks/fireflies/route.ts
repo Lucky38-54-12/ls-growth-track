@@ -36,6 +36,13 @@ async function alreadyLogged(sb: ReturnType<typeof createSupabaseClient>, meetin
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
+  // TEMP DEBUG: Fireflies' newer webhook UI may not match the older
+  // x-hub-signature docs — log everything once so we can see the real shape
+  // of a test event, then remove this.
+  console.log("fireflies webhook debug", {
+    headers: Object.fromEntries(request.headers.entries()),
+    body: rawBody,
+  });
   if (!verifySignature(rawBody, request.headers.get("x-hub-signature"))) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
