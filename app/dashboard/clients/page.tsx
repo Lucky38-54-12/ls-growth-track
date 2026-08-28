@@ -241,6 +241,16 @@ function ClientsPageInner() {
   const [stageError, setStageError] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(leadId: string) {
+    setExpandedLeadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) next.delete(leadId);
+      else next.add(leadId);
+      return next;
+    });
+  }
 
   async function saveNote(leadId: string) {
     const previous = overview;
@@ -551,21 +561,35 @@ function ClientsPageInner() {
                           selectedDayBookings.map((lead) => {
                             const fields = lead.lq_conversations?.extracted_fields || {};
                             const isPast = new Date(lead.scheduled_at as string).getTime() < Date.now();
+                            const isOpen = expandedLeadIds.has(lead.id);
                             return (
                               <div key={lead.id} style={{ border: `1px solid ${L.border}`, borderLeft: `3px solid ${isPast ? "#94a3b8" : "#15803d"}`, padding: 10 }}>
-                                <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{String(fields.name || fields.job_type || "Booking")}</p>
-                                {!!(fields.job_type && fields.name) && <p style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>{String(fields.job_type)}</p>}
-                                <p style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>{String(fields.location || "Location TBC")}</p>
-                                <p style={{ fontSize: 11.5, color: isPast ? L.dimmed : "#15803d", fontWeight: 600, marginTop: 6 }}>
-                                  {new Date(lead.scheduled_at as string).toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })}
-                                </p>
-                                {(fields.phone || lead.contact_email) && (
-                                  <p style={{ fontSize: 11.5, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email)}</p>
-                                )}
-                                {!!lead.notes && (
-                                  <p style={{ fontSize: 11.5, color: L.text, marginTop: 6, whiteSpace: "pre-line", borderTop: `1px solid ${L.border}`, paddingTop: 6 }}>
-                                    {lead.notes}
-                                  </p>
+                                <div
+                                  onClick={() => toggleExpanded(lead.id)}
+                                  style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, cursor: "pointer" }}
+                                >
+                                  <div style={{ minWidth: 0 }}>
+                                    <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{String(fields.name || fields.job_type || "Booking")}</p>
+                                    {!!(fields.job_type && fields.name) && <p style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>{String(fields.job_type)}</p>}
+                                    <p style={{ fontSize: 11.5, color: isPast ? L.dimmed : "#15803d", fontWeight: 600, marginTop: 4 }}>
+                                      {new Date(lead.scheduled_at as string).toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })}
+                                    </p>
+                                    {!!lead.notes && (
+                                      <p style={{ fontSize: 11.5, color: L.text, marginTop: 6, whiteSpace: "pre-line" }}>{lead.notes}</p>
+                                    )}
+                                  </div>
+                                  {isOpen ? <ChevronDown style={{ width: 15, height: 15, color: L.dimmed, flexShrink: 0, marginTop: 2 }} /> : <ChevronRight style={{ width: 15, height: 15, color: L.dimmed, flexShrink: 0, marginTop: 2 }} />}
+                                </div>
+                                {isOpen && (
+                                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${L.border}` }}>
+                                    <p style={{ fontSize: 11.5, color: L.muted, marginTop: 2 }}>{String(fields.location || "Location TBC")}</p>
+                                    {(fields.phone || lead.contact_email) && (
+                                      <p style={{ fontSize: 11.5, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email)}</p>
+                                    )}
+                                    {!!fields.notes && (
+                                      <p style={{ fontSize: 11.5, color: L.muted, marginTop: 6, whiteSpace: "pre-line" }}>{String(fields.notes)}</p>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             );
@@ -675,6 +699,7 @@ function ClientsPageInner() {
                               ) : (
                                 stageLeads.map((lead) => {
                                   const fields = lead.lq_conversations?.extracted_fields || {};
+                                  const isOpen = expandedLeadIds.has(lead.id);
                                   return (
                                     <div
                                       key={lead.id}
@@ -689,18 +714,15 @@ function ClientsPageInner() {
                                         padding: "10px 12px", borderRadius: 6, cursor: "grab", opacity: dragId === lead.id ? 0.4 : 1,
                                       }}
                                     >
-                                      <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>
-                                        {fields.name ? `${String(fields.name)} — ${String(fields.job_type || "Job type unknown")}` : String(fields.job_type || "Job type unknown")}
-                                      </p>
-                                      <p style={{ fontSize: 11.5, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
-                                      <p style={{ fontSize: 11, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email || "No contact")}</p>
-                                      {lead.scheduled_at && (
-                                        <p style={{ fontSize: 11, color: stage.key === "booked" ? "#15803d" : L.dimmed, fontWeight: stage.key === "booked" ? 600 : 400, marginTop: 4 }}>
-                                          {stage.key === "booked" ? "Booked: " : "Callback agreed: "}
-                                          {new Date(lead.scheduled_at).toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                                      <div
+                                        onClick={() => toggleExpanded(lead.id)}
+                                        style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, cursor: "pointer" }}
+                                      >
+                                        <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text, minWidth: 0 }}>
+                                          {fields.name ? `${String(fields.name)} — ${String(fields.job_type || "Job type unknown")}` : String(fields.job_type || "Job type unknown")}
                                         </p>
-                                      )}
-                                      <p style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 4 }}>{new Date(lead.created_at).toLocaleDateString("en-NZ")}</p>
+                                        {isOpen ? <ChevronDown style={{ width: 14, height: 14, color: L.dimmed, flexShrink: 0 }} /> : <ChevronRight style={{ width: 14, height: 14, color: L.dimmed, flexShrink: 0 }} />}
+                                      </div>
 
                                       {editingNoteId === lead.id ? (
                                         <textarea
@@ -722,10 +744,27 @@ function ClientsPageInner() {
                                             setNoteDraft(lead.notes || "");
                                             setEditingNoteId(lead.id);
                                           }}
-                                          style={{ fontSize: 11.5, color: lead.notes ? L.text : L.dimmed, fontStyle: lead.notes ? "normal" : "italic", marginTop: 6, cursor: "text", borderTop: `1px solid ${L.border}`, paddingTop: 5 }}
+                                          style={{ fontSize: 11.5, color: lead.notes ? L.text : L.dimmed, fontStyle: lead.notes ? "normal" : "italic", marginTop: 6, cursor: "text" }}
                                         >
                                           {lead.notes || "+ add note"}
                                         </p>
+                                      )}
+
+                                      {isOpen && (
+                                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${L.border}` }}>
+                                          <p style={{ fontSize: 11.5, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
+                                          <p style={{ fontSize: 11, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email || "No contact")}</p>
+                                          {lead.scheduled_at && (
+                                            <p style={{ fontSize: 11, color: stage.key === "booked" ? "#15803d" : L.dimmed, fontWeight: stage.key === "booked" ? 600 : 400, marginTop: 4 }}>
+                                              {stage.key === "booked" ? "Booked: " : "Callback agreed: "}
+                                              {new Date(lead.scheduled_at).toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                                            </p>
+                                          )}
+                                          {!!fields.notes && (
+                                            <p style={{ fontSize: 11, color: L.muted, marginTop: 6, whiteSpace: "pre-line" }}>{String(fields.notes)}</p>
+                                          )}
+                                          <p style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 6 }}>{new Date(lead.created_at).toLocaleDateString("en-NZ")}</p>
+                                        </div>
                                       )}
                                     </div>
                                   );
