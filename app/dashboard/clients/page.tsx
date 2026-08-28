@@ -406,7 +406,7 @@ function ClientsPageInner() {
                                 {dayBookings.slice(0, 2).map((lead) => {
                                   const fields = lead.lq_conversations?.extracted_fields || {};
                                   return (
-                                    <div key={lead.id} style={{ fontSize: 10.5, fontWeight: 600, color: "#15803d", background: "#f0fdf4", padding: "2px 5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    <div key={lead.id} style={{ fontSize: 10.5, fontWeight: 600, color: "#15803d", background: "#f0fdf4", padding: "2px 5px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.3 }}>
                                       {new Date(lead.scheduled_at as string).toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })} {String(fields.name || fields.job_type || "Booking")}
                                     </div>
                                   );
