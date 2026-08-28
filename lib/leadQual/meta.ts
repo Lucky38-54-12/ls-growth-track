@@ -275,9 +275,6 @@ export async function fetchLeadgenDetails(leadgenId: string, pageAccessToken: st
 // Facebook returns each field's key as the literal question text the client
 // wrote on their form ("what_are_you_looking_to_have_done?"), so it varies
 // per client and rarely contains a hint findByHint recognizes.
-function humanizeFieldKey(key: string): string {
-  return key.replace(/_/g, " ").replace(/\?$/, "").replace(/^./, (c) => c.toUpperCase());
-}
 
 const KNOWN_FIELD_KEYS = new Set([
   "full_name", "first_name", "last_name", "name",
@@ -289,8 +286,10 @@ export function parseLeadgenFields(fieldData: LeadgenField[]): Record<string, st
   const raw: Record<string, string> = {};
   for (const f of fieldData) raw[f.name] = f.values?.[0] || "";
 
+  const consumedKeys = new Set<string>();
   const findByHint = (...hints: string[]): string | undefined => {
     const key = Object.keys(raw).find((k) => hints.some((hint) => k.includes(hint)));
+    if (key) consumedKeys.add(key);
     return key ? raw[key] : undefined;
   };
 
@@ -305,9 +304,11 @@ export function parseLeadgenFields(fieldData: LeadgenField[]): Record<string, st
   // job_type/location can't reliably capture across different clients' forms
   // since the question wording differs every time. Fold it into one readable
   // note instead of silently dropping it, so it still shows up somewhere.
+  // Just the answers, not the question text restated — the question wording
+  // is the client's own form copy, not useful info on its own.
   const notes = Object.entries(raw)
-    .filter(([k, v]) => !KNOWN_FIELD_KEYS.has(k) && v)
-    .map(([k, v]) => `${humanizeFieldKey(k)}: ${v.replace(/_/g, " ")}`)
+    .filter(([k, v]) => !KNOWN_FIELD_KEYS.has(k) && !consumedKeys.has(k) && v)
+    .map(([, v]) => v.replace(/_/g, " "))
     .join("\n");
 
   return {

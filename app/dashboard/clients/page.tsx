@@ -638,6 +638,9 @@ function ClientsPageInner() {
                                     {(fields.phone || lead.contact_email) && (
                                       <p style={{ fontSize: 11.5, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email)}</p>
                                     )}
+                                    {!!fields.notes && (
+                                      <p style={{ fontSize: 11.5, color: L.muted, marginTop: 6, whiteSpace: "pre-line" }}>{String(fields.notes)}</p>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -808,6 +811,9 @@ function ClientsPageInner() {
                                               {stage.key === "callback_booked" ? "Booked: " : "Callback agreed: "}
                                               {new Date(lead.scheduled_at).toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
                                             </p>
+                                          )}
+                                          {!!fields.notes && (
+                                            <p style={{ fontSize: 11, color: L.muted, marginTop: 6, whiteSpace: "pre-line" }}>{String(fields.notes)}</p>
                                           )}
                                           <p style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 6 }}>{new Date(lead.created_at).toLocaleDateString("en-NZ")}</p>
                                         </div>
