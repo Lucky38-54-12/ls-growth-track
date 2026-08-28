@@ -9,17 +9,16 @@ interface FirefliesWebhookPayload {
   eventType?: string;
 }
 
-// Fireflies signs every webhook with an x-hub-signature header: a hex
-// HMAC-SHA256 of the raw request body, keyed with the secret set in its
-// Developer Settings — same scheme as the existing Meta webhook
-// (lib/leadQual/meta.ts verifyMetaSignature), just without Meta's "sha256="
-// prefix on the header value.
+// Fireflies signs every webhook with an x-hub-signature header shaped like
+// "sha256=<hex>" — a hex HMAC-SHA256 of the raw request body, keyed with the
+// secret set in its Developer Settings. Same scheme (and prefix) as the
+// existing Meta webhook (lib/leadQual/meta.ts verifyMetaSignature).
 function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
   if (!signatureHeader) return false;
   const secret = process.env.FIREFLIES_WEBHOOK_SECRET;
   if (!secret) return false;
 
-  const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  const expected = "sha256=" + crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
   const a = Buffer.from(signatureHeader);
   const b = Buffer.from(expected);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
@@ -36,13 +35,6 @@ async function alreadyLogged(sb: ReturnType<typeof createSupabaseClient>, meetin
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
-  // TEMP DEBUG: Fireflies' newer webhook UI may not match the older
-  // x-hub-signature docs — log everything once so we can see the real shape
-  // of a test event, then remove this.
-  console.log("fireflies webhook debug", {
-    headers: Object.fromEntries(request.headers.entries()),
-    body: rawBody,
-  });
   if (!verifySignature(rawBody, request.headers.get("x-hub-signature"))) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
