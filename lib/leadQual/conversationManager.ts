@@ -40,7 +40,9 @@ export interface FacebookFormLeadInput {
 // A Facebook Lead Ads submission already has everything a qualifying chat
 // spends nine exchanges gathering, so it skips runTurn entirely and lands
 // straight in lq_leads — there's no conversation to hold a script against.
-export async function createLeadFromFacebookForm({ clientId, channelId, leadgenId, fields, submittedAt }: FacebookFormLeadInput): Promise<void> {
+// Returns false when the leadgen_id already existed (raced or genuinely
+// re-processed) so callers can count it as skipped rather than imported.
+export async function createLeadFromFacebookForm({ clientId, channelId, leadgenId, fields, submittedAt }: FacebookFormLeadInput): Promise<boolean> {
   const sb = createSupabaseClient();
 
   const { data: conversation, error } = await sb
@@ -55,7 +57,17 @@ export async function createLeadFromFacebookForm({ clientId, channelId, leadgenI
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    // 23505 = unique_violation on lq_conversations_client_leadgen_id_uniq
+    // (client_id, leadgen_id). The webhook and the daily backfill sync can
+    // both go to insert the same leadgen submission at once — the earlier
+    // "does this leadgen_id already exist" check is only a best-effort guard
+    // against that race, this DB constraint is what actually closes it.
+    // Losing the race is expected and not an error; only a genuinely
+    // different failure should propagate.
+    if (error.code === "23505") return false;
+    throw error;
+  }
 
   await sb.from("lq_leads").insert({
     conversation_id: conversation.id,
@@ -67,7 +79,7 @@ export async function createLeadFromFacebookForm({ clientId, channelId, leadgenI
     ...(submittedAt ? { created_at: submittedAt } : {}),
   });
 
-  if (submittedAt) return;
+  if (submittedAt) return true;
 
   const { data: client } = await sb.from("lq_clients").select("name").eq("id", clientId).single();
   await notifySlack(
@@ -76,6 +88,7 @@ export async function createLeadFromFacebookForm({ clientId, channelId, leadgenI
     `${fields.phone ? `Phone: ${fields.phone}\n` : ""}` +
     `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/lead-qual/${clientId}`
   );
+  return true;
 }
 
 async function loadClientConfig(clientId: string): Promise<{ config: ClientConfigData; rules: Rule[] }> {

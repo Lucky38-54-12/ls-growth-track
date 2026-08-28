@@ -101,15 +101,25 @@ export async function backfillLeadsForClient(clientId: string): Promise<Backfill
         continue;
       }
 
-      const fields = parseLeadgenFields(lead.field_data || []);
-      await createLeadFromFacebookForm({
-        clientId,
-        channelId: channel.id,
-        leadgenId: lead.id,
-        fields,
-        submittedAt: lead.created_time,
-      });
-      leadsImported++;
+      // One bad lead (a transient Graph API hiccup, a genuine DB error)
+      // shouldn't lose every lead after it in the batch — each is
+      // independent, so isolate failures per-lead instead of letting one
+      // throw abort the whole client's run.
+      try {
+        const fields = parseLeadgenFields(lead.field_data || []);
+        const imported = await createLeadFromFacebookForm({
+          clientId,
+          channelId: channel.id,
+          leadgenId: lead.id,
+          fields,
+          submittedAt: lead.created_time,
+        });
+        if (imported) leadsImported++;
+        else leadsSkipped++;
+      } catch (err) {
+        console.error("lead-qual backfill: failed to import lead", lead.id, err);
+        leadsSkipped++;
+      }
     }
   }
 
