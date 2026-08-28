@@ -309,6 +309,27 @@ function ClientsPageInner() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [bookingPreview, setBookingPreview] = useState<BookingPreview | null>(null);
   const [confirmingBooking, setConfirmingBooking] = useState(false);
+  const [scheduleLeadId, setScheduleLeadId] = useState<string | null>(null);
+  const [scheduleValue, setScheduleValue] = useState("");
+  const [schedulingBusy, setSchedulingBusy] = useState(false);
+
+  async function fetchBookingPreview(leadId: string) {
+    setPreviewError(null);
+    setPreviewLoading(true);
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${selectedId}/leads/${leadId}/preview-booking`);
+      const body = await res.json();
+      if (!res.ok) {
+        setPreviewError(body.error || "Could not build a preview for this lead");
+        return;
+      }
+      setBookingPreview({ leadId, ...body });
+    } catch {
+      setPreviewError("Something went wrong building the preview.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
 
   async function handleDrop(stage: string) {
     setDragOverStage(null);
@@ -322,25 +343,46 @@ function ClientsPageInner() {
     // preview-and-confirm step instead of moving straight away like the
     // other stages — everything else here is just an internal label change.
     if (stage === "booked") {
-      setPreviewError(null);
-      setPreviewLoading(true);
-      try {
-        const res = await fetch(`/api/lead-qual/clients/${selectedId}/leads/${leadId}/preview-booking`);
-        const body = await res.json();
-        if (!res.ok) {
-          setPreviewError(body.error || "Could not build a preview for this lead");
-          return;
-        }
-        setBookingPreview({ leadId, ...body });
-      } catch {
-        setPreviewError("Something went wrong building the preview.");
-      } finally {
-        setPreviewLoading(false);
+      if (!current.scheduled_at) {
+        // No callback time on this lead yet — prompt for one instead of
+        // erroring, then fall straight into the normal preview flow.
+        setScheduleValue("");
+        setScheduleLeadId(leadId);
+        return;
       }
+      await fetchBookingPreview(leadId);
       return;
     }
 
     moveLead(leadId, stage);
+  }
+
+  async function submitSchedule() {
+    if (!scheduleLeadId || !scheduleValue) return;
+    setSchedulingBusy(true);
+    try {
+      const iso = new Date(scheduleValue).toISOString();
+      const res = await fetch(`/api/lead-qual/clients/${selectedId}/leads/${scheduleLeadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduled_at: iso }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setPreviewError(body.error || "Could not save that callback time");
+        setScheduleLeadId(null);
+        return;
+      }
+      setOverview((prev) => (prev ? { ...prev, leads: prev.leads.map((l) => (l.id === scheduleLeadId ? { ...l, scheduled_at: iso } : l)) } : prev));
+      const leadId = scheduleLeadId;
+      setScheduleLeadId(null);
+      await fetchBookingPreview(leadId);
+    } catch {
+      setPreviewError("Something went wrong saving that callback time.");
+      setScheduleLeadId(null);
+    } finally {
+      setSchedulingBusy(false);
+    }
   }
 
   async function confirmBooking() {
@@ -836,6 +878,45 @@ function ClientsPageInner() {
       {previewLoading && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
           <div style={{ background: L.surface, borderRadius: 10, padding: "16px 22px", fontSize: 13, color: L.muted, fontWeight: 600 }}>Building preview…</div>
+        </div>
+      )}
+
+      {scheduleLeadId && (
+        <div
+          onClick={() => !schedulingBusy && setScheduleLeadId(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 50 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: L.surface, borderRadius: 12, padding: 24, maxWidth: 360, width: "100%" }}
+          >
+            <p style={{ fontSize: 15, fontWeight: 800, color: L.text, marginBottom: 4 }}>Set a callback time</p>
+            <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 16 }}>
+              This lead has no callback time yet — pick one to book it onto the calendar.
+            </p>
+            <input
+              type="datetime-local"
+              value={scheduleValue}
+              onChange={(e) => setScheduleValue(e.target.value)}
+              style={{ width: "100%", padding: "8px 10px", fontSize: 13, borderRadius: 8, border: `1px solid ${L.border}`, marginBottom: 18, color: L.text }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setScheduleLeadId(null)}
+                disabled={schedulingBusy}
+                style={{ background: "none", border: `1px solid ${L.border}`, color: L.muted, padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitSchedule}
+                disabled={schedulingBusy || !scheduleValue}
+                style={{ background: "var(--accent)", border: "none", color: "#fff", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer", opacity: scheduleValue ? 1 : 0.6 }}
+              >
+                {schedulingBusy ? "Saving…" : "Save & preview"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

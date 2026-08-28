@@ -24,6 +24,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ ok: true });
   }
 
+  // Setting a callback time only (no stage change) — used when a card is
+  // dragged into "Booked" but has no scheduled_at yet, so the UI can prompt
+  // for a time before retrying the booking preview.
+  if (typeof body.scheduled_at === "string" && body.pipeline_stage === undefined) {
+    const { error } = await sb.from("lq_leads").update({ scheduled_at: body.scheduled_at }).eq("id", leadId).eq("client_id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
+
   const stage = body.pipeline_stage;
   if (!STAGES.includes(stage)) return NextResponse.json({ error: "invalid stage" }, { status: 400 });
 
