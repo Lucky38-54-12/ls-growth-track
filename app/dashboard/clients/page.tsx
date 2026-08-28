@@ -90,9 +90,10 @@ interface Overview {
 const STAGES = [
   { key: "new_inquiry", label: "New Inquiry", color: "#1d4ed8", bg: "#eff6ff" },
   { key: "followed_up", label: "Followed Up", color: "#7c3aed", bg: "#f5f3ff" },
-  { key: "not_ready", label: "Not Ready Yet", color: "#b45309", bg: "#fffbeb" },
-  { key: "booked", label: "Booked", color: "#15803d", bg: "#f0fdf4" },
-  { key: "not_a_fit", label: "Not a Fit", color: "#64748b", bg: "#f1f5f9" },
+  { key: "callback_booked", label: "Callback Booked", color: "#0891b2", bg: "#ecfeff" },
+  { key: "site_visit", label: "Site Visit", color: "#b45309", bg: "#fffbeb" },
+  { key: "booked_job", label: "Booked Job", color: "#15803d", bg: "#f0fdf4" },
+  { key: "closed", label: "Not a Fit / Lost", color: "#64748b", bg: "#f1f5f9" },
 ] as const;
 
 const ENROLLMENT_STYLE: Record<string, { bg: string; color: string; label: string }> = {
@@ -102,11 +103,20 @@ const ENROLLMENT_STYLE: Record<string, { bg: string; color: string; label: strin
   stopped: { bg: "#f1f5f9", color: "#64748b", label: "Stopped" },
 };
 
+// Maps a lead's stored pipeline_stage onto the current board columns —
+// including a few legacy values ("booked", "not_ready", "not_a_fit") from
+// before the pipeline was split into Callback Booked/Site Visit/Booked Job
+// and a combined Not a Fit / Lost column, so old leads don't disappear.
 function stageFor(lead: Lead): string {
-  if (lead.pipeline_stage) return lead.pipeline_stage;
-  if (lead.outcome === "disqualified") return "not_a_fit";
-  if (lead.outcome === "nurture") return "not_ready";
-  if (lead.outcome === "qualified" && lead.booking_status === "booked") return "booked";
+  if (lead.pipeline_stage) {
+    if (lead.pipeline_stage === "booked") return "callback_booked";
+    if (lead.pipeline_stage === "not_ready") return "followed_up";
+    if (lead.pipeline_stage === "not_a_fit" || lead.pipeline_stage === "lost") return "closed";
+    return lead.pipeline_stage;
+  }
+  if (lead.outcome === "disqualified") return "closed";
+  if (lead.outcome === "nurture") return "followed_up";
+  if (lead.outcome === "qualified" && lead.booking_status === "booked") return "callback_booked";
   return "new_inquiry";
 }
 
@@ -284,7 +294,7 @@ function ClientsPageInner() {
         setStageError(body.error || "Could not move this lead");
         return false;
       }
-      if (stage === "booked") reloadOverview();
+      if (stage === "callback_booked") reloadOverview();
       return true;
     } catch {
       setOverview(previous);
@@ -312,6 +322,7 @@ function ClientsPageInner() {
   const [scheduleLeadId, setScheduleLeadId] = useState<string | null>(null);
   const [scheduleValue, setScheduleValue] = useState("");
   const [schedulingBusy, setSchedulingBusy] = useState(false);
+  const [closeLeadId, setCloseLeadId] = useState<string | null>(null);
 
   async function fetchBookingPreview(leadId: string) {
     setPreviewError(null);
@@ -342,7 +353,7 @@ function ClientsPageInner() {
     // Booking sends an email + calendar invite to the client, so it gets a
     // preview-and-confirm step instead of moving straight away like the
     // other stages — everything else here is just an internal label change.
-    if (stage === "booked") {
+    if (stage === "callback_booked") {
       if (!current.scheduled_at) {
         // No callback time on this lead yet — prompt for one instead of
         // erroring, then fall straight into the normal preview flow.
@@ -354,7 +365,21 @@ function ClientsPageInner() {
       return;
     }
 
+    // "Not a Fit / Lost" is one board column but two distinct outcomes —
+    // ask which one before writing the stage.
+    if (stage === "closed") {
+      setCloseLeadId(leadId);
+      return;
+    }
+
     moveLead(leadId, stage);
+  }
+
+  async function confirmClose(reason: "not_a_fit" | "lost") {
+    if (!closeLeadId) return;
+    const leadId = closeLeadId;
+    setCloseLeadId(null);
+    await moveLead(leadId, reason);
   }
 
   async function submitSchedule() {
@@ -389,7 +414,7 @@ function ClientsPageInner() {
     if (!bookingPreview) return;
     setConfirmingBooking(true);
     try {
-      const ok = await moveLead(bookingPreview.leadId, "booked");
+      const ok = await moveLead(bookingPreview.leadId, "callback_booked");
       if (ok) setBookingPreview(null);
     } finally {
       setConfirmingBooking(false);
@@ -797,9 +822,14 @@ function ClientsPageInner() {
                                           <p style={{ fontSize: 11.5, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
                                           <p style={{ fontSize: 11, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email || "No contact")}</p>
                                           {lead.scheduled_at && (
-                                            <p style={{ fontSize: 11, color: stage.key === "booked" ? "#15803d" : L.dimmed, fontWeight: stage.key === "booked" ? 600 : 400, marginTop: 4 }}>
-                                              {stage.key === "booked" ? "Booked: " : "Callback agreed: "}
+                                            <p style={{ fontSize: 11, color: stage.key === "callback_booked" ? "#15803d" : L.dimmed, fontWeight: stage.key === "callback_booked" ? 600 : 400, marginTop: 4 }}>
+                                              {stage.key === "callback_booked" ? "Booked: " : "Callback agreed: "}
                                               {new Date(lead.scheduled_at).toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                                            </p>
+                                          )}
+                                          {stage.key === "closed" && (
+                                            <p style={{ fontSize: 11, fontWeight: 700, color: lead.pipeline_stage === "lost" ? "#b91c1c" : "#64748b", marginTop: 4 }}>
+                                              {lead.pipeline_stage === "lost" ? "Lost" : "Not a fit"}
                                             </p>
                                           )}
                                           {!!fields.notes && (
@@ -914,6 +944,43 @@ function ClientsPageInner() {
                 style={{ background: "var(--accent)", border: "none", color: "#fff", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer", opacity: scheduleValue ? 1 : 0.6 }}
               >
                 {schedulingBusy ? "Saving…" : "Save & preview"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {closeLeadId && (
+        <div
+          onClick={() => setCloseLeadId(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 50 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: L.surface, borderRadius: 12, padding: 24, maxWidth: 360, width: "100%" }}
+          >
+            <p style={{ fontSize: 15, fontWeight: 800, color: L.text, marginBottom: 4 }}>Why is this lead closing?</p>
+            <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 18 }}>
+              Both land in the same column, but tracking the reason separately helps spot patterns later.
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setCloseLeadId(null)}
+                style={{ background: "none", border: `1px solid ${L.border}`, color: L.muted, padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmClose("not_a_fit")}
+                style={{ background: "#64748b", border: "none", color: "#fff", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              >
+                Not a fit
+              </button>
+              <button
+                onClick={() => confirmClose("lost")}
+                style={{ background: "#b91c1c", border: "none", color: "#fff", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              >
+                Lost
               </button>
             </div>
           </div>

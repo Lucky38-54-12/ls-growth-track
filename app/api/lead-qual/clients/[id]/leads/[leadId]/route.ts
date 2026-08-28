@@ -4,13 +4,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const STAGES = ["new_inquiry", "followed_up", "not_ready", "booked", "not_a_fit"];
+const STAGES = ["new_inquiry", "followed_up", "callback_booked", "site_visit", "booked_job", "not_a_fit", "lost"];
 
 // Admin-only — gated by the dashboard session cookie via middleware.ts.
-// Moving a card into "booked" (Ray's "book for viewing/quote" column) fires
-// the already-agreed callback time from this lead straight onto the
-// client's calendar + emails them, same as the manual book-callback form —
-// dragging the card IS the booking action, no second step.
+// Moving a card into "callback_booked" fires the already-agreed callback
+// time from this lead straight onto the client's calendar + emails them,
+// same as the manual book-callback form — dragging the card IS the booking
+// action, no second step.
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string; leadId: string }> }) {
   const { id, leadId } = await params;
   const body = await request.json();
@@ -44,7 +44,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .single();
   if (!lead) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  if (stage === "booked" && lead.booking_status !== "booked") {
+  if (stage === "callback_booked" && lead.booking_status !== "booked") {
     if (!lead.scheduled_at) {
       return NextResponse.json({ error: "This lead has no callback time on it to book" }, { status: 400 });
     }

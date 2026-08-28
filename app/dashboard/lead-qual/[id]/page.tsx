@@ -33,16 +33,24 @@ interface Lead {
 const PIPELINE_STAGES = [
   { key: "new_inquiry", label: "New Inquiry", color: "#1d4ed8", bg: "#eff6ff" },
   { key: "followed_up", label: "Followed Up", color: "#7c3aed", bg: "#f5f3ff" },
-  { key: "not_ready", label: "Not Ready Yet", color: "#b45309", bg: "#fffbeb" },
-  { key: "booked", label: "Book for Viewing / Quote", color: "#15803d", bg: "#f0fdf4" },
-  { key: "not_a_fit", label: "Not a Fit", color: "#64748b", bg: "#f1f5f9" },
+  { key: "callback_booked", label: "Callback Booked", color: "#0891b2", bg: "#ecfeff" },
+  { key: "site_visit", label: "Site Visit", color: "#b45309", bg: "#fffbeb" },
+  { key: "booked_job", label: "Booked Job", color: "#15803d", bg: "#f0fdf4" },
+  { key: "closed", label: "Not a Fit / Lost", color: "#64748b", bg: "#f1f5f9" },
 ] as const;
 
+// Maps stored pipeline_stage onto the current board columns, including a
+// few legacy values from before the pipeline was split up.
 function stageFor(lead: Lead): string {
-  if (lead.pipeline_stage) return lead.pipeline_stage;
-  if (lead.outcome === "disqualified") return "not_a_fit";
-  if (lead.outcome === "nurture") return "not_ready";
-  if (lead.outcome === "qualified" && lead.booking_status === "booked") return "booked";
+  if (lead.pipeline_stage) {
+    if (lead.pipeline_stage === "booked") return "callback_booked";
+    if (lead.pipeline_stage === "not_ready") return "followed_up";
+    if (lead.pipeline_stage === "not_a_fit" || lead.pipeline_stage === "lost") return "closed";
+    return lead.pipeline_stage;
+  }
+  if (lead.outcome === "disqualified") return "closed";
+  if (lead.outcome === "nurture") return "followed_up";
+  if (lead.outcome === "qualified" && lead.booking_status === "booked") return "callback_booked";
   return "new_inquiry";
 }
 
@@ -241,7 +249,7 @@ function ClientDetailPageInner() {
         setStageError(body.error || "Could not move this lead");
         return false;
       }
-      if (stage === "booked") loadLeads();
+      if (stage === "callback_booked") loadLeads();
       return true;
     } catch {
       setLeads(previous);
@@ -266,6 +274,28 @@ function ClientDetailPageInner() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [bookingPreview, setBookingPreview] = useState<BookingPreview | null>(null);
   const [confirmingBooking, setConfirmingBooking] = useState(false);
+  const [scheduleLeadId, setScheduleLeadId] = useState<string | null>(null);
+  const [scheduleValue, setScheduleValue] = useState("");
+  const [schedulingBusy, setSchedulingBusy] = useState(false);
+  const [closeLeadId, setCloseLeadId] = useState<string | null>(null);
+
+  async function fetchBookingPreview(leadId: string) {
+    setPreviewError(null);
+    setPreviewLoading(true);
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${id}/leads/${leadId}/preview-booking`);
+      const body = await res.json();
+      if (!res.ok) {
+        setPreviewError(body.error || "Could not build a preview for this lead");
+        return;
+      }
+      setBookingPreview({ leadId, ...body });
+    } catch {
+      setPreviewError("Something went wrong building the preview.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
 
   async function handleDrop(stage: string) {
     setDragOverStage(null);
@@ -278,22 +308,20 @@ function ClientDetailPageInner() {
     // Booking sends an email + calendar invite to the client, so it gets a
     // preview-and-confirm step instead of moving straight away like the
     // other stages — everything else here is just an internal label change.
-    if (stage === "booked") {
-      setPreviewError(null);
-      setPreviewLoading(true);
-      try {
-        const res = await fetch(`/api/lead-qual/clients/${id}/leads/${leadId}/preview-booking`);
-        const body = await res.json();
-        if (!res.ok) {
-          setPreviewError(body.error || "Could not build a preview for this lead");
-          return;
-        }
-        setBookingPreview({ leadId, ...body });
-      } catch {
-        setPreviewError("Something went wrong building the preview.");
-      } finally {
-        setPreviewLoading(false);
+    if (stage === "callback_booked") {
+      if (!current.scheduled_at) {
+        setScheduleValue("");
+        setScheduleLeadId(leadId);
+        return;
       }
+      await fetchBookingPreview(leadId);
+      return;
+    }
+
+    // "Not a Fit / Lost" is one board column but two distinct outcomes —
+    // ask which one before writing the stage.
+    if (stage === "closed") {
+      setCloseLeadId(leadId);
       return;
     }
 
@@ -304,11 +332,46 @@ function ClientDetailPageInner() {
     if (!bookingPreview) return;
     setConfirmingBooking(true);
     try {
-      const ok = await moveLead(bookingPreview.leadId, "booked");
+      const ok = await moveLead(bookingPreview.leadId, "callback_booked");
       if (ok) setBookingPreview(null);
     } finally {
       setConfirmingBooking(false);
     }
+  }
+
+  async function submitSchedule() {
+    if (!scheduleLeadId || !scheduleValue) return;
+    setSchedulingBusy(true);
+    try {
+      const iso = new Date(scheduleValue).toISOString();
+      const res = await fetch(`/api/lead-qual/clients/${id}/leads/${scheduleLeadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduled_at: iso }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setPreviewError(body.error || "Could not save that callback time");
+        setScheduleLeadId(null);
+        return;
+      }
+      setLeads((prev) => prev.map((l) => (l.id === scheduleLeadId ? { ...l, scheduled_at: iso } : l)));
+      const leadId = scheduleLeadId;
+      setScheduleLeadId(null);
+      await fetchBookingPreview(leadId);
+    } catch {
+      setPreviewError("Something went wrong saving that callback time.");
+      setScheduleLeadId(null);
+    } finally {
+      setSchedulingBusy(false);
+    }
+  }
+
+  async function confirmClose(reason: "not_a_fit" | "lost") {
+    if (!closeLeadId) return;
+    const leadId = closeLeadId;
+    setCloseLeadId(null);
+    await moveLead(leadId, reason);
   }
 
   const [leadName, setLeadName] = useState("");
@@ -1004,9 +1067,14 @@ function ClientDetailPageInner() {
                             {!!fields.job_type && <p style={{ fontSize: 11.5, color: L.muted, marginTop: 2 }}>{String(fields.job_type)}</p>}
                             <p style={{ fontSize: 11, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email || "No contact")}</p>
                             {lead.scheduled_at && (
-                              <p style={{ fontSize: 11, color: stage.key === "booked" ? "#15803d" : L.dimmed, fontWeight: stage.key === "booked" ? 600 : 400, marginTop: 4 }}>
-                                {stage.key === "booked" ? "Booked: " : "Callback agreed: "}
+                              <p style={{ fontSize: 11, color: stage.key === "callback_booked" ? "#15803d" : L.dimmed, fontWeight: stage.key === "callback_booked" ? 600 : 400, marginTop: 4 }}>
+                                {stage.key === "callback_booked" ? "Booked: " : "Callback agreed: "}
                                 {new Date(lead.scheduled_at).toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                              </p>
+                            )}
+                            {stage.key === "closed" && (
+                              <p style={{ fontSize: 11, fontWeight: 700, color: lead.pipeline_stage === "lost" ? "#b91c1c" : "#64748b", marginTop: 4 }}>
+                                {lead.pipeline_stage === "lost" ? "Lost" : "Not a fit"}
                               </p>
                             )}
                             <p style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 4 }}>
@@ -1097,6 +1165,82 @@ function ClientDetailPageInner() {
                 }}
               >
                 {confirmingBooking ? "Sending…" : "Looks good — send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {scheduleLeadId && (
+        <div
+          onClick={() => !schedulingBusy && setScheduleLeadId(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 50 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: L.surface, borderRadius: 12, padding: 24, maxWidth: 360, width: "100%" }}
+          >
+            <p style={{ fontSize: 15, fontWeight: 800, color: L.text, marginBottom: 4 }}>Set a callback time</p>
+            <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 16 }}>
+              This lead has no callback time yet — pick one to book it onto the calendar.
+            </p>
+            <input
+              type="datetime-local"
+              value={scheduleValue}
+              onChange={(e) => setScheduleValue(e.target.value)}
+              style={{ width: "100%", padding: "8px 10px", fontSize: 13, borderRadius: 8, border: `1px solid ${L.border}`, marginBottom: 18, color: L.text }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setScheduleLeadId(null)}
+                disabled={schedulingBusy}
+                style={{ background: "none", border: `1px solid ${L.border}`, color: L.muted, padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitSchedule}
+                disabled={schedulingBusy || !scheduleValue}
+                style={{ background: "var(--accent)", border: "none", color: "#fff", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer", opacity: scheduleValue ? 1 : 0.6 }}
+              >
+                {schedulingBusy ? "Saving…" : "Save & preview"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {closeLeadId && (
+        <div
+          onClick={() => setCloseLeadId(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 50 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: L.surface, borderRadius: 12, padding: 24, maxWidth: 360, width: "100%" }}
+          >
+            <p style={{ fontSize: 15, fontWeight: 800, color: L.text, marginBottom: 4 }}>Why is this lead closing?</p>
+            <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 18 }}>
+              Both land in the same column, but tracking the reason separately helps spot patterns later.
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setCloseLeadId(null)}
+                style={{ background: "none", border: `1px solid ${L.border}`, color: L.muted, padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmClose("not_a_fit")}
+                style={{ background: "#64748b", border: "none", color: "#fff", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              >
+                Not a fit
+              </button>
+              <button
+                onClick={() => confirmClose("lost")}
+                style={{ background: "#b91c1c", border: "none", color: "#fff", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              >
+                Lost
               </button>
             </div>
           </div>
