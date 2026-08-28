@@ -446,6 +446,11 @@ function ClientsPageInner() {
                                 {(fields.phone || lead.contact_email) && (
                                   <p style={{ fontSize: 11.5, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email)}</p>
                                 )}
+                                {!!fields.notes && (
+                                  <p style={{ fontSize: 11.5, color: L.text, marginTop: 6, whiteSpace: "pre-line", borderTop: `1px solid ${L.border}`, paddingTop: 6 }}>
+                                    {String(fields.notes)}
+                                  </p>
+                                )}
                               </div>
                             );
                           })
@@ -536,6 +541,9 @@ function ClientsPageInner() {
                                       {fields.name ? `${String(fields.name)} — ${String(fields.job_type || "Job type unknown")}` : String(fields.job_type || "Job type unknown")}
                                     </p>
                                     <p style={{ fontSize: 11.5, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
+                                    {!!fields.notes && (
+                                      <p style={{ fontSize: 11, color: L.muted, marginTop: 4, whiteSpace: "pre-line" }}>{String(fields.notes)}</p>
+                                    )}
                                     <p style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 4 }}>{new Date(lead.created_at).toLocaleDateString("en-NZ")}</p>
                                   </div>
                                 );

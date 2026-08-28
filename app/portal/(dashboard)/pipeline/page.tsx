@@ -2,8 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { usePortalLeads } from "@/lib/hooks/usePortalLeads";
-
-const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
+import { PORTAL as L, portalCardStyle } from "@/lib/portalTheme";
 
 interface Lead {
   id: string;
@@ -86,9 +85,9 @@ export default function PortalPipelinePage() {
 
   return (
     <div>
-      <div className="portal-header-pad" style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text }}>Pipeline</h1>
-        <p style={{ fontSize: 13, color: L.muted }}>Drag a card to move it through your pipeline — so nothing falls through the cracks.</p>
+      <div className="portal-header-pad" style={{ background: "linear-gradient(135deg, #eef2ff 0%, #fdf4ff 55%, #fff7ed 100%)", borderBottom: `1px solid ${L.border}`, padding: "22px 28px" }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text }}>Pipeline</h1>
+        <p style={{ fontSize: 13.5, color: L.muted, marginTop: 4 }}>Drag a card to move it through your pipeline — so nothing falls through the cracks.</p>
       </div>
 
       {loading ? (
@@ -118,12 +117,12 @@ export default function PortalPipelinePage() {
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, padding: "0 4px" }}>
                   <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{stage.label}</p>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: stage.color, background: stage.bg, padding: "2px 8px" }}>{stageLeads.length}</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: stage.color, background: stage.bg, padding: "2px 8px", borderRadius: 999 }}>{stageLeads.length}</span>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 60 }}>
                   {stageLeads.length === 0 ? (
-                    <div style={{ border: `1px dashed ${L.border}`, padding: 16, textAlign: "center", color: "#cbd5e1", fontSize: 12 }}>Empty</div>
+                    <div style={{ border: `1px dashed ${L.border}`, borderRadius: L.cardRadius, padding: 16, textAlign: "center", color: "#cbd5e1", fontSize: 12 }}>Empty</div>
                   ) : (
                     stageLeads.map((lead) => {
                       const fields = lead.lq_conversations?.extracted_fields || {};
@@ -137,7 +136,7 @@ export default function PortalPipelinePage() {
                             setDragOverStage(null);
                           }}
                           style={{
-                            background: L.surface, border: `1px solid ${L.border}`, borderLeft: `3px solid ${stage.color}`,
+                            ...portalCardStyle, borderLeft: `3px solid ${stage.color}`,
                             padding: "10px 12px", cursor: "grab", opacity: dragId === lead.id ? 0.4 : 1,
                           }}
                         >

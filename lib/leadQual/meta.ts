@@ -272,6 +272,19 @@ export async function fetchLeadgenDetails(leadgenId: string, pageAccessToken: st
 // keep every raw key (nothing is thrown away) and best-effort-match the
 // custom ones onto the job_type/location fields the rest of the app already
 // reads, by scanning for keys that look like they're asking that.
+// Facebook returns each field's key as the literal question text the client
+// wrote on their form ("what_are_you_looking_to_have_done?"), so it varies
+// per client and rarely contains a hint findByHint recognizes.
+function humanizeFieldKey(key: string): string {
+  return key.replace(/_/g, " ").replace(/\?$/, "").replace(/^./, (c) => c.toUpperCase());
+}
+
+const KNOWN_FIELD_KEYS = new Set([
+  "full_name", "first_name", "last_name", "name",
+  "email", "phone_number", "phone",
+  "city", "inbox_url",
+]);
+
 export function parseLeadgenFields(fieldData: LeadgenField[]): Record<string, string> {
   const raw: Record<string, string> = {};
   for (const f of fieldData) raw[f.name] = f.values?.[0] || "";
@@ -284,8 +297,18 @@ export function parseLeadgenFields(fieldData: LeadgenField[]): Record<string, st
   const name = raw.full_name || (raw.first_name ? `${raw.first_name}${raw.last_name ? ` ${raw.last_name}` : ""}` : undefined) || findByHint("name");
   const email = raw.email || findByHint("email");
   const phone = raw.phone_number || findByHint("phone");
-  const jobType = findByHint("job_type", "job", "service");
-  const location = findByHint("location", "suburb", "area", "address");
+  const jobType = findByHint("job_type", "job", "service", "looking_to_have_done", "looking_to_build", "renovate");
+  const location = raw.city || findByHint("location", "suburb", "area", "address", "city");
+
+  // Whatever's left over is the client's own custom questions — the actual
+  // detail a lead typed in (job description, budget, timeline) that
+  // job_type/location can't reliably capture across different clients' forms
+  // since the question wording differs every time. Fold it into one readable
+  // note instead of silently dropping it, so it still shows up somewhere.
+  const notes = Object.entries(raw)
+    .filter(([k, v]) => !KNOWN_FIELD_KEYS.has(k) && v)
+    .map(([k, v]) => `${humanizeFieldKey(k)}: ${v.replace(/_/g, " ")}`)
+    .join("\n");
 
   return {
     ...raw,
@@ -294,6 +317,7 @@ export function parseLeadgenFields(fieldData: LeadgenField[]): Record<string, st
     ...(phone ? { phone } : {}),
     job_type: jobType || "Facebook Lead Ad enquiry",
     location: location || "Not provided",
+    ...(notes ? { notes } : {}),
   };
 }
 
@@ -331,6 +355,42 @@ export async function resubscribeAllMessengerChannels(): Promise<ResubscribeResu
   return results;
 }
 
+// Page Access Tokens minted through the per-client personal OAuth flow
+// (buildFacebookAuthUrl above) are tied to whichever person's Facebook
+// session authorized the connection — Meta silently invalidates them the
+// moment that person changes their password or gets forced into a fresh
+// login, with zero warning to us (see checkMessengerChannelHealth). A
+// System User token, generated once in the LS Growth Business Manager and
+// never tied to a personal login, doesn't share that failure mode: as long
+// as a Page has been added as a Business Manager asset and assigned to the
+// System User, this mints a fresh Page token for it on demand, no OAuth
+// dialog required.
+export async function refreshPageTokenViaSystemUser(pageId: string): Promise<string> {
+  const systemUserToken = process.env.META_SYSTEM_USER_TOKEN;
+  if (!systemUserToken) throw new Error("META_SYSTEM_USER_TOKEN env var is not set");
+
+  const res = await fetch(
+    `https://graph.facebook.com/v20.0/${pageId}?fields=access_token&access_token=${encodeURIComponent(systemUserToken)}`
+  );
+  const body = await res.json();
+  if (!res.ok || !body.access_token) {
+    throw new Error(
+      body?.error?.message ||
+        `Failed to fetch page token via system user (page not assigned to the Business Manager's System User?): ${res.status}`
+    );
+  }
+  return body.access_token as string;
+}
+
+// Same end state as completing the OAuth picker flow (subscribes the
+// webhook, stores the new encrypted token, refreshes the client's logo) but
+// sourced from the System User instead of a human clicking through Meta's
+// consent screen.
+export async function reconnectMessengerChannelViaSystemUser(clientId: string, pageId: string): Promise<void> {
+  const pageAccessToken = await refreshPageTokenViaSystemUser(pageId);
+  await connectMessengerPage(clientId, pageId, pageAccessToken);
+}
+
 export interface DeadChannel {
   clientName: string;
   pageId: string;
@@ -342,6 +402,9 @@ export interface DeadChannel {
 // exact failure mode cost real Shine Cleans / Queenstown Cleaning traffic
 // before it was caught manually). Checking token validity daily via Meta's
 // own debug_token endpoint turns that into a same-day Slack alert instead.
+// When META_SYSTEM_USER_TOKEN is configured, a dead token is auto-repaired
+// right here instead of just being reported — a channel only ends up in the
+// returned list if it's still broken after that attempt.
 export async function checkMessengerChannelHealth(): Promise<DeadChannel[]> {
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
@@ -350,7 +413,7 @@ export async function checkMessengerChannelHealth(): Promise<DeadChannel[]> {
   const sb = createSupabaseClient();
   const { data: channels } = await sb
     .from("lq_channels")
-    .select("external_page_id, credentials, lq_clients(name)")
+    .select("client_id, external_page_id, credentials, lq_clients(name)")
     .eq("type", "messenger");
 
   const dead: DeadChannel[] = [];
@@ -370,7 +433,21 @@ export async function checkMessengerChannelHealth(): Promise<DeadChannel[]> {
       );
       const body = await res.json();
       if (!res.ok || !body?.data?.is_valid) {
-        dead.push({ clientName, pageId: channel.external_page_id, reason: body?.data?.error?.message || body?.error?.message || "token reported invalid" });
+        const reason = body?.data?.error?.message || body?.error?.message || "token reported invalid";
+        if (process.env.META_SYSTEM_USER_TOKEN) {
+          try {
+            await reconnectMessengerChannelViaSystemUser(channel.client_id, channel.external_page_id);
+            continue; // repaired — don't report as dead
+          } catch (repairErr) {
+            dead.push({
+              clientName,
+              pageId: channel.external_page_id,
+              reason: `${reason}; auto-reconnect via system user also failed: ${repairErr instanceof Error ? repairErr.message : String(repairErr)}`,
+            });
+            continue;
+          }
+        }
+        dead.push({ clientName, pageId: channel.external_page_id, reason });
       }
     } catch (e) {
       dead.push({ clientName, pageId: channel.external_page_id, reason: `debug_token request failed: ${e instanceof Error ? e.message : String(e)}` });

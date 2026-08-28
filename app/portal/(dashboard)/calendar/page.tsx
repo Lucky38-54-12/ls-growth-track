@@ -3,8 +3,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { usePortalLeads } from "@/lib/hooks/usePortalLeads";
-
-const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
+import { PORTAL as L, portalCardStyle } from "@/lib/portalTheme";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 interface Lead {
@@ -21,6 +20,7 @@ interface BookedJob {
   jobType: string;
   location: string;
   phone: string;
+  notes: string;
 }
 
 function toBookedJobs(leads: Lead[]): BookedJob[] {
@@ -34,6 +34,7 @@ function toBookedJobs(leads: Lead[]): BookedJob[] {
         jobType: String(fields.job_type || "Job"),
         location: String(fields.location || "Location TBC"),
         phone: String(fields.phone || ""),
+        notes: String(fields.notes || ""),
       };
     });
 }
@@ -107,24 +108,24 @@ export default function PortalCalendarPage() {
 
   return (
     <div>
-      <div className="portal-header-pad" style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px" }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text }}>Calendar</h1>
-        <p style={{ fontSize: 13, color: L.muted }}>Every job booked in through your AI chat.</p>
+      <div className="portal-header-pad" style={{ background: "linear-gradient(135deg, #eef2ff 0%, #fdf4ff 55%, #fff7ed 100%)", borderBottom: `1px solid ${L.border}`, padding: "22px 28px" }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text }}>Calendar</h1>
+        <p style={{ fontSize: 13.5, color: L.muted, marginTop: 4 }}>Every job booked in through your AI chat.</p>
       </div>
 
       {loading ? (
         <p style={{ padding: 28, color: L.muted, fontSize: 13 }}>Loading…</p>
       ) : (
         <div className="portal-page-pad" style={{ display: "flex", gap: 16, padding: "20px 28px 60px", alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 480, background: L.surface, border: `1px solid ${L.border}` }}>
+          <div style={{ ...portalCardStyle, flex: 1, minWidth: 480, overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${L.border}` }}>
               <h2 style={{ fontSize: 16, fontWeight: 800, color: L.text }}>{monthLabel}</h2>
               <div style={{ display: "flex", gap: 6 }}>
-                <button type="button" onClick={goToday} className="pill-hover" style={{ padding: "6px 12px", fontSize: 11.5, fontWeight: 700, border: `1px solid ${L.border}`, background: L.surface, color: L.muted, cursor: "pointer" }}>Today</button>
-                <button type="button" onClick={() => changeMonth(-1)} style={{ width: 32, height: 32, border: `1px solid ${L.border}`, background: L.surface, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <button type="button" onClick={goToday} className="pill-hover" style={{ padding: "6px 12px", fontSize: 11.5, fontWeight: 700, borderRadius: 8, border: `1px solid ${L.border}`, background: L.surface, color: L.muted, cursor: "pointer" }}>Today</button>
+                <button type="button" onClick={() => changeMonth(-1)} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${L.border}`, background: L.surface, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <ChevronLeft style={{ width: 14, height: 14, color: L.muted }} />
                 </button>
-                <button type="button" onClick={() => changeMonth(1)} style={{ width: 32, height: 32, border: `1px solid ${L.border}`, background: L.surface, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <button type="button" onClick={() => changeMonth(1)} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${L.border}`, background: L.surface, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <ChevronRight style={{ width: 14, height: 14, color: L.muted }} />
                 </button>
               </div>
@@ -174,7 +175,7 @@ export default function PortalCalendarPage() {
             </div>
           </div>
 
-          <div style={{ width: 320, flexShrink: 0, background: L.surface, border: `1px solid ${L.border}` }}>
+          <div style={{ ...portalCardStyle, width: 320, flexShrink: 0, overflow: "hidden" }}>
             <div style={{ padding: "14px 16px", borderBottom: `1px solid ${L.border}` }}>
               <h3 style={{ fontSize: 13, fontWeight: 800, color: L.text }}>
                 {new Date(`${selected}T00:00:00`).toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" })}
@@ -186,13 +187,18 @@ export default function PortalCalendarPage() {
                 <p style={{ fontSize: 12, color: L.dimmed }}>No jobs booked this day.</p>
               ) : (
                 selectedJobs.map((j) => (
-                  <div key={j.id} style={{ border: `1px solid ${L.border}`, borderLeft: "3px solid #15803d", padding: 10 }}>
+                  <div key={j.id} style={{ ...portalCardStyle, borderLeft: "3px solid #15803d", padding: 10 }}>
                     <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{j.jobType}</p>
                     <p style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>{j.location}</p>
                     <p style={{ fontSize: 11.5, color: "#15803d", fontWeight: 600, marginTop: 6 }}>
                       {j.date.toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })}
                     </p>
                     {j.phone && <p style={{ fontSize: 11.5, color: L.muted, marginTop: 4 }}>{j.phone}</p>}
+                    {j.notes && (
+                      <p style={{ fontSize: 11.5, color: L.text, marginTop: 6, whiteSpace: "pre-line", borderTop: `1px solid ${L.border}`, paddingTop: 6 }}>
+                        {j.notes}
+                      </p>
+                    )}
                   </div>
                 ))
               )}

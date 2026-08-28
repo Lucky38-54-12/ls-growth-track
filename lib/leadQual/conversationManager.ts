@@ -86,6 +86,7 @@ export async function createLeadFromFacebookForm({ clientId, channelId, leadgenI
     `📋 New Facebook Lead Ad — *${client?.name || "client"}*\n` +
     `${fields.name || "Unknown name"} — ${fields.job_type}${fields.location !== "Not provided" ? ` in ${fields.location}` : ""}\n` +
     `${fields.phone ? `Phone: ${fields.phone}\n` : ""}` +
+    `${fields.notes ? `${fields.notes}\n` : ""}` +
     `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/lead-qual/${clientId}`
   );
   return true;

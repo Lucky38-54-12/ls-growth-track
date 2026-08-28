@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, MessageCircle, Zap } from "lucide-react";
+import { useEffect, useMemo, useState, type ComponentType, type CSSProperties } from "react";
+import { CheckCircle2, MessageCircle, Radio, Zap } from "lucide-react";
 import { usePortalLeads } from "@/lib/hooks/usePortalLeads";
-
-const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
+import { PORTAL as L, portalCardStyle, greeting } from "@/lib/portalTheme";
 
 interface ImpactStats {
   messagesAutomated: number;
@@ -63,6 +62,14 @@ function isToday(iso: string): boolean {
 export default function PortalTodayPage() {
   const { leads, loading, error } = usePortalLeads<Lead>();
   const { stats: impact } = useImpactStats();
+  const [clientName, setClientName] = useState("");
+
+  useEffect(() => {
+    fetch("/api/portal/me")
+      .then((r) => r.json())
+      .then((body) => setClientName(body.client?.name || ""))
+      .catch(() => {});
+  }, []);
 
   const newToday = useMemo(
     () => leads.filter((l) => isToday(l.created_at)).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
@@ -87,12 +94,22 @@ export default function PortalTodayPage() {
 
   return (
     <div>
-      <div className="portal-header-pad" style={{ background: "#fff", borderBottom: `1px solid ${L.border}`, padding: "18px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+      <div
+        className="portal-header-pad"
+        style={{
+          padding: "28px 28px 26px",
+          background: "linear-gradient(135deg, #eef2ff 0%, #fdf4ff 55%, #fff7ed 100%)",
+          borderBottom: `1px solid ${L.border}`,
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
+        }}
+      >
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: L.text, textTransform: "uppercase", letterSpacing: "0.02em" }}>Today</h1>
-          <p style={{ fontSize: 13, color: L.muted }}>{todayLabel}</p>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: L.text }}>
+            {greeting()}{clientName ? `, ${clientName}` : ""} 👋
+          </h1>
+          <p style={{ fontSize: 13.5, color: L.muted, marginTop: 4 }}>{todayLabel}</p>
         </div>
-        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: "#15803d" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: "#15803d", background: "rgba(255,255,255,0.7)", padding: "5px 10px", borderRadius: 999 }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
           LIVE
         </span>
@@ -105,15 +122,15 @@ export default function PortalTodayPage() {
           <p style={{ color: "#b91c1c", fontSize: 13 }}>{error}</p>
         ) : (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
-              <StatCard label="New leads today" value={stats.newCount} />
-              <StatCard label="Qualified today" value={stats.qualifiedToday} />
-              <StatCard label="Needs a reply" value={stats.needsReplyToday} />
-              <StatCard label="Bookings today" value={stats.bookingsCount} highlight />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 24 }}>
+              <StatCard label="New leads today" value={stats.newCount} icon={MessageCircle} tint="#eef2ff" iconColor="#4338ca" />
+              <StatCard label="Qualified today" value={stats.qualifiedToday} icon={CheckCircle2} tint="#f0fdf4" iconColor="#15803d" />
+              <StatCard label="Needs a reply" value={stats.needsReplyToday} icon={Radio} tint="#fff7ed" iconColor="#c2410c" />
+              <StatCard label="Bookings today" value={stats.bookingsCount} icon={Zap} highlight />
             </div>
 
             {impact && (
-              <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderTop: "3px solid #22c55e", padding: "14px 20px", marginBottom: 24, display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
+              <div style={{ ...portalCardStyle, borderTop: "3px solid #22c55e", padding: "14px 20px", marginBottom: 24, display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: L.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   <Zap style={{ width: 13, height: 13, color: "#22c55e" }} /> Operational impact
                 </span>
@@ -130,7 +147,7 @@ export default function PortalTodayPage() {
                   New leads today
                 </p>
                 {newToday.length === 0 ? (
-                  <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 20, textAlign: "center", color: L.muted, fontSize: 12.5 }}>
+                  <div style={{ ...portalCardStyle, padding: 20, textAlign: "center", color: L.muted, fontSize: 12.5 }}>
                     Nothing has come in yet today.
                   </div>
                 ) : (
@@ -138,7 +155,7 @@ export default function PortalTodayPage() {
                     {newToday.map((lead) => {
                       const fields = lead.lq_conversations?.extracted_fields || {};
                       return (
-                        <div key={lead.id} style={{ background: L.surface, border: `1px solid ${L.border}`, borderLeft: "3px solid #1d4ed8", padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                        <div key={lead.id} style={{ ...portalCardStyle, borderLeft: "3px solid #1d4ed8", padding: "10px 12px", display: "flex", alignItems: "flex-start", gap: 10 }}>
                           <MessageCircle style={{ width: 14, height: 14, color: "#1d4ed8", marginTop: 2, flexShrink: 0 }} />
                           <div>
                             <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>
@@ -161,7 +178,7 @@ export default function PortalTodayPage() {
                   Today's bookings
                 </p>
                 {bookingsToday.length === 0 ? (
-                  <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 20, textAlign: "center", color: L.muted, fontSize: 12.5 }}>
+                  <div style={{ ...portalCardStyle, padding: 20, textAlign: "center", color: L.muted, fontSize: 12.5 }}>
                     Nothing booked in for today.
                   </div>
                 ) : (
@@ -169,7 +186,7 @@ export default function PortalTodayPage() {
                     {bookingsToday.map((lead) => {
                       const fields = lead.lq_conversations?.extracted_fields || {};
                       return (
-                        <div key={lead.id} style={{ background: L.surface, border: `1px solid ${L.border}`, borderLeft: "3px solid #15803d", padding: "10px 12px" }}>
+                        <div key={lead.id} style={{ ...portalCardStyle, borderLeft: "3px solid #15803d", padding: "10px 12px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             <CheckCircle2 style={{ width: 13, height: 13, color: "#15803d", flexShrink: 0 }} />
                             <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{String(fields.job_type || "Job")}</p>
@@ -201,9 +218,22 @@ function ImpactStat({ value, label }: { value: string | number; label: string })
   );
 }
 
-function StatCard({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
+function StatCard({
+  label, value, highlight, icon: Icon, tint, iconColor,
+}: {
+  label: string; value: string | number; highlight?: boolean;
+  icon?: ComponentType<{ style?: CSSProperties }>; tint?: string; iconColor?: string;
+}) {
   return (
-    <div style={{ background: highlight ? "var(--accent)" : L.surface, border: `1px solid ${highlight ? "var(--accent)" : L.border}`, padding: "14px 16px" }}>
+    <div style={{ ...portalCardStyle, background: highlight ? "var(--accent)" : L.surface, border: highlight ? "1px solid var(--accent)" : portalCardStyle.border, padding: "16px" }}>
+      {Icon && (
+        <div style={{
+          width: 34, height: 34, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10,
+          background: highlight ? "rgba(255,255,255,0.2)" : tint || "#f1f5f9",
+        }}>
+          <Icon style={{ width: 17, height: 17, color: highlight ? "#fff" : iconColor || L.muted }} />
+        </div>
+      )}
       <p style={{ fontSize: 10.5, fontWeight: 700, color: highlight ? "rgba(255,255,255,0.85)" : L.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
         {label}
       </p>
