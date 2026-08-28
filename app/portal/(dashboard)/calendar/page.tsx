@@ -29,7 +29,7 @@ function toBookedJobs(leads: Lead[]): BookedJob[] {
     .filter((l) => l.booking_status === "booked" && l.scheduled_at)
     .map((l) => {
       const fields = l.lq_conversations?.extracted_fields || {};
-      const notes = [fields.notes ? String(fields.notes) : null, l.notes ? `Note from Lucky: ${l.notes}` : null].filter(Boolean).join("\n");
+      const notes = l.notes ? `Note from Lucky: ${l.notes}` : "";
       return {
         id: l.id,
         date: new Date(l.scheduled_at as string),
