@@ -5,7 +5,6 @@ import { applyStandingReview, approveScriptProposal, patternsForPrompt } from ".
 import { runSalesCallsBackup } from "./salesCallsBackupSync";
 import { generateAgreementDoc } from "./agreementMaker";
 import { createSharedUploadFolder } from "./googleDocs";
-import { createOnboardingPortalToken } from "./onboardingPortalAuth";
 import { buildKickoffEmail } from "./onboardingKickoffEmail";
 import { Lead } from "./types";
 
@@ -106,22 +105,22 @@ export async function logSalesCall(
       // there's anything worth drafting.
       if (agreementUrl && effectiveEmail) {
         try {
-          const [photosFolderUrl, portalToken] = await Promise.all([
+          const [photosFolderUrl, lqClientId] = await Promise.all([
             createSharedUploadFolder(`${effectiveBusinessName || "Client"} — onboarding photos`),
-            createOnboardingPortalToken(onboardingClient.id),
+            findOrCreateLqClient(sb, effectiveBusinessName, effectiveEmail, lead?.phone || null),
           ]);
           const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
-          const portalUrl = `${appUrl}/portal/onboarding/${portalToken}`;
+          const connectUrl = `${appUrl}/connect/${lqClientId}`;
           const { subject, html } = buildKickoffEmail({
             clientName: lead?.contact_name || parsed.prospect_name || "there",
             company: effectiveBusinessName || "your business",
-            agreementDocUrl: agreementUrl,
-            portalUrl,
+            connectUrl,
             photosFolderUrl,
             whatsappNumber: process.env.WHATSAPP_NUMBER || "",
           });
           await sb.from("onboarding_clients").update({
             portal_photos_folder_url: photosFolderUrl,
+            lq_client_id: lqClientId,
             kickoff_email_status: "pending",
             kickoff_email_subject: subject,
             kickoff_email_html: html,
@@ -191,4 +190,29 @@ export async function logSalesCall(
   }
 
   return { call: data as SalesCall, proposal, backupUrl };
+}
+
+// The kickoff email now sends clients to /connect/[lqClientId] (Calendar +
+// Facebook Page + Ads Manager access, no separate onboarding portal — see
+// git history for that removal) instead of a one-off portal token, so a
+// closed deal needs a real lq_clients row to link to. Matches by email
+// first in case Lucky already added this business by hand from the Client
+// Accounts tab, so closing the loop through a sales call doesn't create a
+// duplicate entry for the same client.
+async function findOrCreateLqClient(
+  sb: ReturnType<typeof createSupabaseClient>,
+  businessName: string,
+  email: string,
+  phone: string | null
+): Promise<string> {
+  const { data: existing } = await sb.from("lq_clients").select("id").eq("email", email).maybeSingle();
+  if (existing) return existing.id;
+
+  const { data: inserted, error } = await sb
+    .from("lq_clients")
+    .insert({ name: businessName, email, phone, timezone: "Pacific/Auckland" })
+    .select("id")
+    .single();
+  if (error || !inserted) throw new Error(error?.message || "Could not create lq_clients row");
+  return inserted.id;
 }

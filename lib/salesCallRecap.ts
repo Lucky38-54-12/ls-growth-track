@@ -1,5 +1,6 @@
 import { FirefliesTranscript } from "./fireflies";
 import { sendFreeformEmail } from "./email";
+import { generateCallRecapEmail } from "./ai";
 
 // Fireflies lists every attendee (Lucky included) with no flag for which one
 // is the actual prospect — the prospect is just whoever isn't Lucky. Filters
@@ -32,33 +33,26 @@ export function pickRecapRecipients(transcript: FirefliesTranscript): string[] {
   return external;
 }
 
-function overviewToHtml(overview: string): string {
-  return overview
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => `<p style="margin:0 0 10px">${line.replace(/^[-*]\s*/, "")}</p>`)
-    .join("");
-}
-
-export function buildRecapEmail(transcript: FirefliesTranscript): { subject: string; html: string } {
-  const subject = `Recap: ${transcript.title || "our call"}`;
-  const overviewHtml = transcript.summary?.overview
-    ? overviewToHtml(transcript.summary.overview)
-    : `<p style="margin:0 0 10px">Thanks for the call today — recording and transcript are on file if you want to revisit anything.</p>`;
-  const actionItemsHtml = transcript.summary?.action_items
-    ? `<p style="margin:16px 0 6px;font-weight:bold">Next steps</p>${overviewToHtml(transcript.summary.action_items)}`
-    : "";
-
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.6;max-width:560px;">
-  <p style="margin:0 0 12px">Hey,</p>
-  <p style="margin:0 0 12px">Here's a quick recap of our call:</p>
-  ${overviewHtml}
-  ${actionItemsHtml}
-  <p style="margin:16px 0 0">Cheers,<br>Lucky<br>LS Growth</p>
-</div>`;
-
-  return { subject, html };
+// Rewrites Fireflies' own bullet-point call summary into a proper recap
+// email in Lucky's voice (prose, not a notes dump) — see lib/ai.ts
+// generateCallRecapEmail for the exact structure. prospectName/dealTerms
+// come from parseCallSummary's own read of the transcript (lib/salesCallsAi.ts),
+// the same data already saved on the sales_calls row, so the email and the
+// dashboard record never disagree about what was actually said.
+export async function buildRecapEmail(
+  transcript: FirefliesTranscript,
+  prospectName: string,
+  businessName: string,
+  dealTerms: string | null
+): Promise<{ subject: string; html: string }> {
+  const { subject, bodyHtml } = await generateCallRecapEmail({
+    prospectName,
+    businessName,
+    overview: transcript.summary?.overview || "",
+    actionItems: transcript.summary?.action_items || "",
+    dealTerms,
+  });
+  return { subject, html: bodyHtml };
 }
 
 // Sends an already-approved recap (subject/html as reviewed on the dashboard,

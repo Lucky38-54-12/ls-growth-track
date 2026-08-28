@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { getTranscript } from "@/lib/fireflies";
 import { logSalesCall } from "@/lib/logSalesCall";
-import { buildRecapEmail, pickRecapRecipients } from "@/lib/salesCallRecap";
+import { buildRecapEmail, pickRecapRecipients, sendPreparedRecap } from "@/lib/salesCallRecap";
 import { findLeadForCall } from "@/lib/salesCallLeadMatch";
 
 interface FirefliesWebhookPayload {
@@ -71,19 +71,33 @@ export async function POST(request: NextRequest) {
     const recapEmail = recipients[0] || lead?.email || null;
     const { call, proposal } = await logSalesCall(sb, transcript.text, "", meetingId, recapEmail || undefined, lead);
 
-    // Recap is drafted for every call regardless of outcome, but held as
-    // pending rather than sent — Lucky reviews/edits it on the sales-calls
-    // dashboard and sends it himself. A failure here must not undo the
-    // sales_calls insert that already succeeded above.
+    // Recap is drafted and sent automatically for every call regardless of
+    // outcome (Lucky's explicit call — this used to hold pending for manual
+    // review/send, see git history). A failure here must not undo the
+    // sales_calls insert that already succeeded above; if the send itself
+    // fails, the draft is still saved as "pending" so it isn't lost — Lucky
+    // can send it by hand from the dashboard as a fallback.
     try {
       if (recapEmail) {
-        const { subject, html } = buildRecapEmail(transcript);
-        await sb.from("sales_calls").update({
-          recap_status: "pending",
-          recap_subject: subject,
-          recap_html: html,
-          recap_recipient: recapEmail,
-        }).eq("id", call.id);
+        const { subject, html } = await buildRecapEmail(transcript, call.prospect_name, call.business_name, call.deal_terms);
+        try {
+          await sendPreparedRecap(subject, html, [recapEmail]);
+          await sb.from("sales_calls").update({
+            recap_status: "sent",
+            recap_subject: subject,
+            recap_html: html,
+            recap_recipient: recapEmail,
+            recap_sent_at: new Date().toISOString(),
+          }).eq("id", call.id);
+        } catch (sendErr) {
+          console.error("fireflies webhook failed to send call recap, holding as pending", meetingId, sendErr);
+          await sb.from("sales_calls").update({
+            recap_status: "pending",
+            recap_subject: subject,
+            recap_html: html,
+            recap_recipient: recapEmail,
+          }).eq("id", call.id);
+        }
       }
     } catch (err) {
       console.error("fireflies webhook failed to draft call recap", meetingId, err);

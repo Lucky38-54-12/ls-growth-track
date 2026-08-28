@@ -706,6 +706,45 @@ Meeting time: ${input.meetingTime}`;
   return runMeetingEmailPrompt(VALUE_TOUCHPOINT_SYSTEM_PROMPT, userPrompt);
 }
 
+export interface CallRecapInput {
+  prospectName: string;
+  businessName: string;
+  overview: string;
+  actionItems: string;
+  dealTerms: string | null;
+}
+
+const CALL_RECAP_SYSTEM_PROMPT = `You are writing a call-recap email on behalf of Lucky from LS Growth Agency (runs Meta ad campaigns for trade businesses — cleaners, builders, painters, etc — to generate leads), sent right after a sales call to summarize what was discussed and agreed.
+
+Write in Lucky's own voice: friendly, direct, no fluff, no corporate jargon, no dashes or em dashes anywhere.
+
+Structure exactly like this:
+1. "Hey [FirstName]," then one line thanking them for the call.
+2. 2-4 short paragraphs IN YOUR OWN WORDS (never a bullet-point dump of the notes) covering: their current situation as they described it on the call, and the plan/approach going forward. Write this as a person explaining it back to them, not a summary of a document.
+3. ONLY if the notes include concrete agreed terms (trial period, ad spend, pricing, targets, dates): a "How we're starting" section — a short bolded intro line, then the terms as short lines (one per line, use <br>, not <ul>/<li>). Stop there, no extra line after the terms. Skip this whole section entirely if there are no concrete terms — do not invent any.
+4. A short closing paragraph, written as Lucky talking in first person, NOT a bulleted checklist and NOT split into named sections — this is a recap email, not the separate onboarding email that has its own checklist later. Naturally mention, in a sentence or two, what Lucky will personally do next (from his own action items in the notes — "I'll get the agreement sent over today", "I'll follow up next week once it's live", etc) and what he needs from them if anything (from their action items — "from your side I'll just need access to your Meta Business Manager and a few photos of past jobs"). Only mention items that are actually in the notes. If one side has no action items, only mention the other.
+5. Sign-off: "Cheers,<br>Lucky<br>LS Growth"
+
+Never invent numbers, terms, or action items that aren't in the notes given to you — if something isn't mentioned, leave it out rather than guessing.
+
+Never write a hedging line that casts doubt on the deal working ("we need to see if this actually works", "let's see if this pays off", etc). Lucky is confident in what he's selling — stay confident and forward-looking throughout, never uncertain.
+
+HTML: only <p>, <b>, and <br> tags — no <ul>/<li>/<h1> etc, format each section as its own <p> with <br> line breaks, matching the structure above.
+
+Also write a subject line: "Quick Recap & Next Steps" unless the call context makes a different short subject clearly better.
+
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{"subject": "...", "bodyHtml": "..."}`;
+
+export async function generateCallRecapEmail(input: CallRecapInput): Promise<PersonalizedEmail> {
+  const userPrompt = `Prospect name: ${realName(input.prospectName) || "there"}
+Business: ${input.businessName || "unknown"}
+Call overview (Fireflies' own summary): ${input.overview || "none captured"}
+Action items (Fireflies' own summary): ${input.actionItems || "none captured"}
+Agreed deal terms: ${input.dealTerms || "none — no deal was agreed on this call"}`;
+  return runMeetingEmailPrompt(CALL_RECAP_SYSTEM_PROMPT, userPrompt);
+}
+
 // This used to be AI-generated (see git history) but a same-day reminder
 // doesn't need to be "anything crazy" — a fixed, simple template every time
 // is exactly what was asked for, and it's faster and cheaper than an AI call

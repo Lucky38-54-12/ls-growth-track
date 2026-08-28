@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, XCircle, ShieldCheck, Lock, Megaphone, MessageCircle, Copy, Check, ArrowRight, ArrowLeft, Link2, Mail, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, ShieldCheck, Lock, Megaphone, MessageCircle, Copy, Check, ArrowRight, ArrowLeft, Link2, PartyPopper, AlertTriangle } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
@@ -50,7 +50,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
   const [client, setClient] = useState<ClientInfo | null>(null);
   // One thing at a time — landing back from Google's redirect should reopen
   // on whichever step that was, not wherever the state otherwise defaults to.
-  const [step, setStep] = useState<"calendar" | "ads" | "page" | "login">("calendar");
+  const [step, setStep] = useState<"calendar" | "ads" | "page" | "done">("calendar");
 
   // Landed via a direct /connect/[clientId] link — the link is already
   // sitting in the address bar, so pre-fill it into the box exactly as if
@@ -180,7 +180,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
 
       {phase === "found" && client && step === "calendar" && (
         <div>
-          <StepHeader client={client} step={1} of={4} />
+          <StepHeader client={client} step={1} of={3} />
 
           <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Connect your Calendar</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
@@ -247,7 +247,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
             <ArrowLeft style={{ width: 13, height: 13 }} /> Back
           </button>
 
-          <StepHeader client={client} step={2} of={4} />
+          <StepHeader client={client} step={2} of={3} />
 
           <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Facebook Page access</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
@@ -283,7 +283,7 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
             <ArrowLeft style={{ width: 13, height: 13 }} /> Back
           </button>
 
-          <StepHeader client={client} step={3} of={4} />
+          <StepHeader client={client} step={3} of={3} />
 
           <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Ads Manager access</h1>
           <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
@@ -294,107 +294,28 @@ export default function ConnectFlow({ routeClientId }: { routeClientId?: string 
 
           <button
             type="button"
-            onClick={() => setStep("login")}
+            onClick={() => setStep("done")}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
               fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--accent)",
               border: "none", borderRadius: 0, padding: "11px 16px", cursor: "pointer", marginTop: 8,
             }}
           >
-            Next <ArrowRight style={{ width: 15, height: 15 }} />
+            Finish <ArrowRight style={{ width: 15, height: 15 }} />
           </button>
         </div>
       )}
 
-      {phase === "found" && client && step === "login" && (
-        <LoginStep client={client} resolvedClientId={resolvedClientId} onBack={() => setStep("ads")} />
+      {phase === "found" && client && step === "done" && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", padding: "40px 0" }}>
+          <PartyPopper style={{ width: 34, height: 34, color: "var(--accent)", marginBottom: 14 }} />
+          <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 8 }}>All set, {client.name}</h1>
+          <p style={{ fontSize: 14, color: L.muted, lineHeight: 1.5, maxWidth: 340 }}>
+            That&apos;s everything Lucky needs to get your campaigns live. He&apos;ll be in touch once they&apos;re running.
+          </p>
+        </div>
       )}
     </Shell>
-  );
-}
-
-function LoginStep({ client, resolvedClientId, onBack }: { client: ClientInfo; resolvedClientId: string | null; onBack: () => void }) {
-  const [email, setEmail] = useState(client.email || "");
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  async function handleSend() {
-    if (!resolvedClientId || !email.trim()) return;
-    setSending(true);
-    // Save it against the client record too, so future booking-alert emails
-    // (see conversationManager.ts) go to whatever email they confirm here,
-    // not just whatever Lucky may have typed in when first adding them.
-    await fetch(`/api/lead-qual/clients/${resolvedClientId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim() }),
-    });
-    await fetch("/api/portal/request-link", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: resolvedClientId }),
-    });
-    setSending(false);
-    setSent(true);
-  }
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={onBack}
-        style={{
-          display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: L.muted,
-          background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 18,
-        }}
-      >
-        <ArrowLeft style={{ width: 13, height: 13 }} /> Back
-      </button>
-
-      <StepHeader client={client} step={4} of={4} />
-
-      <h1 style={{ fontSize: 27, fontWeight: 900, letterSpacing: "-0.01em", color: L.text, marginBottom: 6 }}>Set up your login</h1>
-      <p style={{ fontSize: 14, color: L.muted, marginBottom: 24, lineHeight: 1.5 }}>
-        So you can check your leads and bookings anytime. No password, just a one-click link emailed to you each time you sign in.
-      </p>
-
-      {sent ? (
-        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: 18 }}>
-          <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "#15803d" }}>
-            <CheckCircle2 style={{ width: 18, height: 18 }} /> Check your email
-          </p>
-          <p style={{ fontSize: 13, color: "#166534", marginTop: 6, lineHeight: 1.5 }}>
-            We&apos;ve sent a sign-in link to {email}. That&apos;s it, you&apos;re all set up.
-          </p>
-        </div>
-      ) : (
-        <>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@business.co.nz"
-            style={{
-              width: "100%", boxSizing: "border-box", fontSize: 13.5, color: L.text,
-              border: `1px solid ${L.border}`, borderRadius: 0, padding: "11px 12px", marginBottom: 12,
-            }}
-          />
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={sending || !email.trim()}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%",
-              fontSize: 14, fontWeight: 700, color: "#fff", background: "var(--accent)",
-              border: "none", borderRadius: 0, padding: "11px 16px", cursor: sending ? "default" : "pointer",
-            }}
-          >
-            <Mail style={{ width: 15, height: 15 }} /> {sending ? "Sending…" : "Email me a login link"}
-          </button>
-        </>
-      )}
-    </div>
   );
 }
 
