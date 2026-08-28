@@ -202,6 +202,7 @@ export interface SalesCall {
   deal_terms: string | null;
   agreement_status: "none" | "generated" | "failed";
   agreement_doc_url: string | null;
+  lead_id: string | null;
   created_at: string;
 }
 

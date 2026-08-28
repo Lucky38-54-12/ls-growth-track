@@ -24,6 +24,8 @@ interface FirefliesTranscriptResponse {
       organizer_email: string | null;
       meeting_attendees: FirefliesAttendee[] | null;
       summary: FirefliesSummary | null;
+      meeting_link: string | null;
+      date: number | null;
     } | null;
   };
   errors?: { message: string }[];
@@ -35,6 +37,8 @@ export interface FirefliesTranscript {
   organizerEmail: string | null;
   attendees: FirefliesAttendee[];
   summary: FirefliesSummary | null;
+  meetingLink: string | null;
+  dateMs: number | null;
 }
 
 // Fireflies' webhook only tells us a meeting finished transcribing — the
@@ -62,6 +66,8 @@ export async function getTranscript(meetingId: string): Promise<FirefliesTranscr
           organizer_email
           meeting_attendees { displayName email name }
           summary { overview action_items }
+          meeting_link
+          date
         }
       }`,
       variables: { id: meetingId },
@@ -81,5 +87,7 @@ export async function getTranscript(meetingId: string): Promise<FirefliesTranscr
     organizerEmail: transcript.organizer_email,
     attendees: transcript.meeting_attendees || [],
     summary: transcript.summary,
+    meetingLink: transcript.meeting_link,
+    dateMs: transcript.date,
   };
 }

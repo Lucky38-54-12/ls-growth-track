@@ -4,6 +4,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 import { getTranscript } from "@/lib/fireflies";
 import { logSalesCall } from "@/lib/logSalesCall";
 import { buildRecapEmail, pickRecapRecipients } from "@/lib/salesCallRecap";
+import { findLeadForCall } from "@/lib/salesCallLeadMatch";
 
 interface FirefliesWebhookPayload {
   meeting_id?: string;
@@ -59,21 +60,29 @@ export async function POST(request: NextRequest) {
 
   try {
     const transcript = await getTranscript(meetingId);
+    // Fireflies' own attendee data is often empty for calls not booked
+    // through a Calendar invite — falling back to a matched lead record
+    // (by Meet link, then email, then scheduled time — see
+    // lib/salesCallLeadMatch.ts) means real client contact info Lucky
+    // already has on file still makes it onto the call, agreement, and
+    // kickoff email even when Fireflies itself captured nothing.
+    const lead = await findLeadForCall(sb, transcript);
     const recipients = pickRecapRecipients(transcript);
-    const { call, proposal } = await logSalesCall(sb, transcript.text, "", meetingId, recipients[0]);
+    const recapEmail = recipients[0] || lead?.email || null;
+    const { call, proposal } = await logSalesCall(sb, transcript.text, "", meetingId, recapEmail || undefined, lead);
 
     // Recap is drafted for every call regardless of outcome, but held as
     // pending rather than sent — Lucky reviews/edits it on the sales-calls
     // dashboard and sends it himself. A failure here must not undo the
     // sales_calls insert that already succeeded above.
     try {
-      if (recipients.length > 0) {
+      if (recapEmail) {
         const { subject, html } = buildRecapEmail(transcript);
         await sb.from("sales_calls").update({
           recap_status: "pending",
           recap_subject: subject,
           recap_html: html,
-          recap_recipient: recipients.join(", "),
+          recap_recipient: recapEmail,
         }).eq("id", call.id);
       }
     } catch (err) {

@@ -7,6 +7,7 @@ import { generateAgreementDoc } from "./agreementMaker";
 import { createSharedUploadFolder } from "./googleDocs";
 import { createOnboardingPortalToken } from "./onboardingPortalAuth";
 import { buildKickoffEmail } from "./onboardingKickoffEmail";
+import { Lead } from "./types";
 
 export interface LogSalesCallResult {
   call: SalesCall;
@@ -24,14 +25,21 @@ export async function logSalesCall(
   rawSummary: string,
   yourTake: string,
   firefliesMeetingId?: string,
-  clientEmail?: string
+  clientEmail?: string,
+  lead?: Lead | null
 ): Promise<LogSalesCallResult> {
   const parsed = await parseCallSummary(rawSummary);
+
+  // A matched lead record (see lib/salesCallLeadMatch.ts) is contact info
+  // Lucky already has on file — prefer it over whatever Fireflies' attendee
+  // list captured (often nothing) or the AI's transcript-parsed guess.
+  const effectiveEmail = lead?.email || clientEmail;
+  const effectiveBusinessName = lead?.company || parsed.business_name;
 
   const call = {
     call_date: parsed.call_date,
     prospect_name: parsed.prospect_name,
-    business_name: parsed.business_name,
+    business_name: effectiveBusinessName,
     outcome: parsed.outcome,
     main_objection: parsed.main_objection,
     next_step_booked: parsed.next_step_booked,
@@ -46,6 +54,7 @@ export async function logSalesCall(
     fireflies_meeting_id: firefliesMeetingId || null,
     deal_agreed: parsed.deal_agreed,
     deal_terms: parsed.deal_terms,
+    lead_id: lead?.lead_id || null,
   };
 
   const { data, error } = await sb.from("sales_calls").insert(call).select().single();
@@ -59,8 +68,8 @@ export async function logSalesCall(
     let agreementUrl: string | null = null;
     try {
       agreementUrl = await generateAgreementDoc({
-        company: parsed.business_name || undefined,
-        email: clientEmail,
+        company: effectiveBusinessName || undefined,
+        email: effectiveEmail,
         dealNotes: parsed.deal_terms,
       });
       await sb.from("sales_calls").update({ agreement_status: "generated", agreement_doc_url: agreementUrl }).eq("id", data.id);
@@ -80,9 +89,10 @@ export async function logSalesCall(
       const { data: onboardingClient, error: onboardingError } = await sb
         .from("onboarding_clients")
         .insert({
-          name: parsed.prospect_name || "Unknown",
-          company: parsed.business_name || "Unknown business",
-          email: clientEmail || null,
+          name: lead?.contact_name || parsed.prospect_name || "Unknown",
+          company: effectiveBusinessName || "Unknown business",
+          email: effectiveEmail || null,
+          phone: lead?.phone || null,
           notes: parsed.deal_terms,
           decision_status: "ready",
           sales_call_id: data.id,
@@ -94,17 +104,17 @@ export async function logSalesCall(
       // Kickoff email needs somewhere to send it and something to send —
       // both the agreement and the client's address have to exist before
       // there's anything worth drafting.
-      if (agreementUrl && clientEmail) {
+      if (agreementUrl && effectiveEmail) {
         try {
           const [photosFolderUrl, portalToken] = await Promise.all([
-            createSharedUploadFolder(`${parsed.business_name || "Client"} — onboarding photos`),
+            createSharedUploadFolder(`${effectiveBusinessName || "Client"} — onboarding photos`),
             createOnboardingPortalToken(onboardingClient.id),
           ]);
           const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
           const portalUrl = `${appUrl}/portal/onboarding/${portalToken}`;
           const { subject, html } = buildKickoffEmail({
-            clientName: parsed.prospect_name || "there",
-            company: parsed.business_name || "your business",
+            clientName: lead?.contact_name || parsed.prospect_name || "there",
+            company: effectiveBusinessName || "your business",
             agreementDocUrl: agreementUrl,
             portalUrl,
             photosFolderUrl,
