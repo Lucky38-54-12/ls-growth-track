@@ -19,10 +19,41 @@ export interface CallbackEmailContent {
   text: string;
 }
 
+// Both booking entry points (drag-to-Booked, and the preview it's built
+// from) previously only passed fields.job_type through as "notes" — which,
+// for a Facebook Lead Ad, is just the generic "Facebook Lead Ad enquiry"
+// fallback, not the actual job details the lead typed into the form.
+// Combines job type/location, the parsed lead-ad Q&A summary (extracted
+// separately by parseLeadgenFields), and Lucky's own manual note on the
+// lead card (lq_leads.notes) into the one block that goes in the email.
+export function composeCallbackNotes(fields: Record<string, unknown>, leadNotes?: string | null): string | null {
+  const parts: string[] = [];
+  const jobType = fields.job_type ? String(fields.job_type) : null;
+  const location = fields.location ? String(fields.location) : null;
+  if (jobType || location) parts.push([jobType, location].filter(Boolean).join(" — "));
+  if (fields.notes) parts.push(String(fields.notes));
+  if (leadNotes?.trim()) parts.push(`Note from Lucky: ${leadNotes.trim()}`);
+  return parts.length ? parts.join("\n") : null;
+}
+
 // Pure text builder shared by the preview endpoint and the actual send, so
 // what Lucky approves is guaranteed to be exactly what goes out — no risk of
 // the preview and the real email drifting apart.
-export function buildCallbackEmail(clientName: string, leadName: string, leadPhone?: string | null, leadEmail?: string | null, notes?: string | null): CallbackEmailContent {
+export function buildCallbackEmail(
+  clientName: string,
+  leadName: string,
+  leadPhone?: string | null,
+  leadEmail?: string | null,
+  notes?: string | null,
+  startISO?: string | null,
+  timeZone: string = "Pacific/Auckland"
+): CallbackEmailContent {
+  const callbackTime = startISO
+    ? new Date(startISO).toLocaleString("en-NZ", {
+        timeZone, weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit",
+      })
+    : null;
+
   const text = [
     `Hey ${clientName.split(" ")[0]},`,
     "",
@@ -31,7 +62,8 @@ export function buildCallbackEmail(clientName: string, leadName: string, leadPho
     leadName,
     leadPhone ? `Phone: ${leadPhone}` : null,
     leadEmail ? `Email: ${leadEmail}` : null,
-    notes || null,
+    callbackTime ? `Call back: ${callbackTime}` : null,
+    notes ? `\n${notes}` : null,
     "",
     "I've put this straight on your calendar so it doesn't slip through.",
     "",
@@ -75,7 +107,10 @@ export async function bookAndNotifyClient(input: BookAndNotifyInput): Promise<{ 
   });
 
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const { subject, text } = buildCallbackEmail(client.name, input.leadName, input.leadPhone, input.leadEmail, input.notes);
+  const { subject, text } = buildCallbackEmail(
+    client.name, input.leadName, input.leadPhone, input.leadEmail, input.notes,
+    input.startISO, input.timeZone || "Pacific/Auckland"
+  );
 
   const { error: sendError } = await resend.emails.send({
     from: "Lucky from LS Growth <outreach@lsgrowth.agency>",

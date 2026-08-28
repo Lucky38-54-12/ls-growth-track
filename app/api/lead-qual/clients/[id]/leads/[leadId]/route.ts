@@ -1,5 +1,5 @@
 import { createSupabaseClient } from "@/lib/supabase";
-import { bookAndNotifyClient } from "@/lib/leadQual/bookCallback";
+import { bookAndNotifyClient, composeCallbackNotes } from "@/lib/leadQual/bookCallback";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: lead } = await sb
     .from("lq_leads")
-    .select("id, pipeline_stage, booking_status, scheduled_at, contact_email, lq_conversations(extracted_fields)")
+    .select("id, pipeline_stage, booking_status, scheduled_at, contact_email, notes, lq_conversations(extracted_fields)")
     .eq("id", leadId)
     .eq("client_id", id)
     .single();
@@ -46,7 +46,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         leadName: String(fields.name || "Lead"),
         leadPhone: fields.phone ? String(fields.phone) : null,
         leadEmail: lead.contact_email,
-        notes: fields.job_type ? String(fields.job_type) : null,
+        notes: composeCallbackNotes(fields, lead.notes),
         startISO: lead.scheduled_at,
       });
       await sb.from("lq_leads").update({
