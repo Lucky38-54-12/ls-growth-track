@@ -296,19 +296,18 @@ function LeadQualPageInner() {
                       <MessageCircle style={{ width: 14, height: 14 }} />
                       {client.page_access_confirmed_at ? "Page access claimed" : "Page access not confirmed"}
                     </span>
-                    {!fbConnection && (
-                      <a
-                        href={`/api/lead-qual/oauth/facebook?clientId=${client.id}`}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 6,
-                          fontSize: 12.5, fontWeight: 700, color: "var(--accent)",
-                          border: "1px solid var(--accent)", borderRadius: 8,
-                          padding: "6px 12px", background: "none", textDecoration: "none",
-                        }}
-                      >
-                        <MessageCircle style={{ width: 13, height: 13 }} /> Connect Facebook
-                      </a>
-                    )}
+                    <a
+                      href={`/api/lead-qual/oauth/facebook?clientId=${client.id}`}
+                      title={fbConnection ? "Re-runs the Facebook OAuth consent — needed after scopes change, since the existing token can't be upgraded in place" : undefined}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        fontSize: 12.5, fontWeight: 700, color: "var(--accent)",
+                        border: "1px solid var(--accent)", borderRadius: 8,
+                        padding: "6px 12px", background: "none", textDecoration: "none",
+                      }}
+                    >
+                      <MessageCircle style={{ width: 13, height: 13 }} /> {fbConnection ? "Reconnect Facebook" : "Connect Facebook"}
+                    </a>
                     {(!fbConnection || !connection || !client.ads_manager_access_confirmed_at || !client.page_access_confirmed_at) && (
                       <button
                         type="button"
