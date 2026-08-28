@@ -117,6 +117,30 @@ export interface DriveImage {
 // link-shareable (view-only) — Docs' insertInlineImage fetches the image
 // from a public URI at insertion time, so a Drive file only this account can
 // see would fail to embed.
+// Creates a fresh Drive folder for a client to drop onboarding photos/videos
+// into, shared "anyone with the link can edit" so they can upload without
+// needing a Google account added as an explicit collaborator first.
+export async function createSharedUploadFolder(name: string): Promise<string> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const drive = google.drive({ version: "v3", auth });
+
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+  const created = await drive.files.create({
+    requestBody: { name, mimeType: "application/vnd.google-apps.folder", parents: [folderId] },
+    fields: "id",
+    supportsAllDrives: true,
+  });
+  const newFolderId = created.data.id!;
+
+  await drive.permissions.create({
+    fileId: newFolderId,
+    requestBody: { role: "writer", type: "anyone" },
+    supportsAllDrives: true,
+  });
+
+  return `https://drive.google.com/drive/folders/${newFolderId}`;
+}
+
 export async function listAndShareImagesInFolder(folderId: string, limit: number = 12): Promise<DriveImage[]> {
   const auth = await getLuckyGoogleAuthedClient();
   const drive = google.drive({ version: "v3", auth });

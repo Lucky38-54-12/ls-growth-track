@@ -39,6 +39,12 @@ function agreementPill(status: SalesCall["agreement_status"] | undefined) {
   return pill("#f1f5f9", "#94a3b8", "No agreement");
 }
 
+function kickoffPill(status: OnboardingClient["kickoff_email_status"]) {
+  if (status === "sent") return pill("#dcfce7", "#166534", "Kickoff sent");
+  if (status === "pending") return pill("#fef3c7", "#92400e", "Kickoff pending");
+  return pill("#f1f5f9", "#94a3b8", "No kickoff email");
+}
+
 export default async function OnboardingOverviewPage() {
   const sb = createSupabaseClient();
 
@@ -77,6 +83,7 @@ export default async function OnboardingOverviewPage() {
                   <div style={{ flexShrink: 0 }}>{call ? outcomePill(call.outcome) : pill("#f1f5f9", "#94a3b8", "No call linked")}</div>
                   <div style={{ flexShrink: 0 }}>{recapPill(call?.recap_status)}</div>
                   <div style={{ flexShrink: 0 }}>{agreementPill(call?.agreement_status)}</div>
+                  <div style={{ flexShrink: 0 }}>{kickoffPill(client.kickoff_email_status)}</div>
                   <div style={{ flexShrink: 0, fontSize: 12, color: L.muted, minWidth: 120, textAlign: "right" }}>
                     Onboarding {stepCount}/{ONBOARDING_STEPS.length}
                   </div>

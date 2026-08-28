@@ -298,6 +298,13 @@ export interface OnboardingClient {
   ad_budget: string | null;
   creatives_needed: string | null;
   sales_call_id: string | null;
+  business_manager_id: string | null;
+  portal_photos_folder_url: string | null;
+  client_intake_submitted_at: string | null;
+  kickoff_email_status: "none" | "pending" | "sent";
+  kickoff_email_subject: string | null;
+  kickoff_email_html: string | null;
+  kickoff_email_sent_at: string | null;
 }
 
 export interface OnboardingNote {

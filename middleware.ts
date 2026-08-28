@@ -22,7 +22,11 @@ const PUBLIC_PATHS = [
 // dashboard's — a client is never given, and should never need, admin
 // credentials. Handled before the admin-session check below so /portal
 // never falls through to a redirect at the admin /login.
-const PORTAL_PUBLIC_PATHS = ["/portal/login", "/portal/verify", "/api/portal"];
+// /portal/onboarding/[token] is a separate, unrelated flow (a client
+// confirming onboarding details after a deal closes, not the lq_clients
+// leads portal) — it authenticates itself via the token in the URL
+// (lib/onboardingPortalAuth.ts), so it never needs the lq_client cookie.
+const PORTAL_PUBLIC_PATHS = ["/portal/login", "/portal/verify", "/portal/onboarding", "/api/portal"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

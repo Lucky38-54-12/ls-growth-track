@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import Topbar from "@/components/Topbar";
 import { ONBOARDING_STEPS } from "@/lib/onboardingSteps";
 import OnboardingChecklist from "@/components/salesCalls/OnboardingChecklist";
-import { SalesCall } from "@/lib/types";
+import { SalesCall, OnboardingClient } from "@/lib/types";
 import ClientCallPanel from "@/components/salesCalls/ClientCallPanel";
+import KickoffEmailCard from "@/components/salesCalls/KickoffEmailCard";
 
 export const revalidate = 0;
 
@@ -31,6 +32,7 @@ export default async function OnboardingDetailPage({ params }: { params: { id: s
             <ClientCallPanel call={call as SalesCall} />
           </div>
         )}
+        <KickoffEmailCard client={client as OnboardingClient} />
         <OnboardingChecklist client={client} steps={ONBOARDING_STEPS} />
       </div>
     </div>

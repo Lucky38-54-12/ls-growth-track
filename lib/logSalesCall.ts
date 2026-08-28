@@ -4,6 +4,9 @@ import { parseCallSummary, runStandingScriptReview, StandingReviewCallRef } from
 import { applyStandingReview, approveScriptProposal, patternsForPrompt } from "./salesCallsPatterns";
 import { runSalesCallsBackup } from "./salesCallsBackupSync";
 import { generateAgreementDoc } from "./agreementMaker";
+import { createSharedUploadFolder } from "./googleDocs";
+import { createOnboardingPortalToken } from "./onboardingPortalAuth";
+import { buildKickoffEmail } from "./onboardingKickoffEmail";
 
 export interface LogSalesCallResult {
   call: SalesCall;
@@ -53,15 +56,16 @@ export async function logSalesCall(
   // than waiting on him to notice and trigger it by hand. Best-effort: a
   // logged, closed deal must never be lost because doc generation failed.
   if (parsed.deal_agreed && parsed.deal_terms) {
+    let agreementUrl: string | null = null;
     try {
-      const url = await generateAgreementDoc({
+      agreementUrl = await generateAgreementDoc({
         company: parsed.business_name || undefined,
         email: clientEmail,
         dealNotes: parsed.deal_terms,
       });
-      await sb.from("sales_calls").update({ agreement_status: "generated", agreement_doc_url: url }).eq("id", data.id);
+      await sb.from("sales_calls").update({ agreement_status: "generated", agreement_doc_url: agreementUrl }).eq("id", data.id);
       data.agreement_status = "generated";
-      data.agreement_doc_url = url;
+      data.agreement_doc_url = agreementUrl;
     } catch (err) {
       console.error("logSalesCall failed to generate agreement doc", data.id, err);
       await sb.from("sales_calls").update({ agreement_status: "failed" }).eq("id", data.id);
@@ -73,14 +77,49 @@ export async function logSalesCall(
     // create one by hand — that's the single record the new onboarding
     // overview page and per-client checklist are built around.
     try {
-      await sb.from("onboarding_clients").insert({
-        name: parsed.prospect_name || "Unknown",
-        company: parsed.business_name || "Unknown business",
-        email: clientEmail || null,
-        notes: parsed.deal_terms,
-        decision_status: "ready",
-        sales_call_id: data.id,
-      });
+      const { data: onboardingClient, error: onboardingError } = await sb
+        .from("onboarding_clients")
+        .insert({
+          name: parsed.prospect_name || "Unknown",
+          company: parsed.business_name || "Unknown business",
+          email: clientEmail || null,
+          notes: parsed.deal_terms,
+          decision_status: "ready",
+          sales_call_id: data.id,
+        })
+        .select()
+        .single();
+      if (onboardingError) throw new Error(onboardingError.message);
+
+      // Kickoff email needs somewhere to send it and something to send —
+      // both the agreement and the client's address have to exist before
+      // there's anything worth drafting.
+      if (agreementUrl && clientEmail) {
+        try {
+          const [photosFolderUrl, portalToken] = await Promise.all([
+            createSharedUploadFolder(`${parsed.business_name || "Client"} — onboarding photos`),
+            createOnboardingPortalToken(onboardingClient.id),
+          ]);
+          const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
+          const portalUrl = `${appUrl}/portal/onboarding/${portalToken}`;
+          const { subject, html } = buildKickoffEmail({
+            clientName: parsed.prospect_name || "there",
+            company: parsed.business_name || "your business",
+            agreementDocUrl: agreementUrl,
+            portalUrl,
+            photosFolderUrl,
+            whatsappNumber: process.env.WHATSAPP_NUMBER || "",
+          });
+          await sb.from("onboarding_clients").update({
+            portal_photos_folder_url: photosFolderUrl,
+            kickoff_email_status: "pending",
+            kickoff_email_subject: subject,
+            kickoff_email_html: html,
+          }).eq("id", onboardingClient.id);
+        } catch (err) {
+          console.error("logSalesCall failed to draft kickoff email", onboardingClient.id, err);
+        }
+      }
     } catch (err) {
       console.error("logSalesCall failed to create onboarding client", data.id, err);
     }
