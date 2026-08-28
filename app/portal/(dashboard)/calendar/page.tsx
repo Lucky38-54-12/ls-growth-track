@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { usePortalLeads } from "@/lib/hooks/usePortalLeads";
 
-const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
+const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 interface Lead {
@@ -58,6 +58,10 @@ function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+function dateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export default function PortalCalendarPage() {
   const { leads, loading } = usePortalLeads<Lead>();
   const [monthStart, setMonthStart] = useState(() => {
@@ -67,13 +71,21 @@ export default function PortalCalendarPage() {
     return d;
   });
 
+  const today = new Date();
+  const todayKey = dateKey(today);
+  const [selected, setSelected] = useState(todayKey);
+
   const jobs = useMemo(() => toBookedJobs(leads), [leads]);
   const grid = useMemo(() => buildMonthGrid(monthStart), [monthStart]);
 
-  const upcoming = useMemo(() => {
-    const now = new Date();
-    return jobs.filter((j) => j.date.getTime() >= now.getTime() - 24 * 60 * 60000).sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 12);
+  const jobsByDay = useMemo(() => {
+    const map: Record<string, BookedJob[]> = {};
+    for (const j of jobs) (map[dateKey(j.date)] ||= []).push(j);
+    for (const key in map) map[key].sort((a, b) => a.date.getTime() - b.date.getTime());
+    return map;
   }, [jobs]);
+
+  const selectedJobs = jobsByDay[selected] || [];
 
   function changeMonth(delta: number) {
     setMonthStart((prev) => {
@@ -83,8 +95,15 @@ export default function PortalCalendarPage() {
     });
   }
 
+  function goToday() {
+    const now = new Date();
+    now.setDate(1);
+    now.setHours(0, 0, 0, 0);
+    setMonthStart(now);
+    setSelected(todayKey);
+  }
+
   const monthLabel = monthStart.toLocaleDateString("en-NZ", { month: "long", year: "numeric" });
-  const today = new Date();
 
   return (
     <div>
@@ -96,73 +115,88 @@ export default function PortalCalendarPage() {
       {loading ? (
         <p style={{ padding: 28, color: L.muted, fontSize: 13 }}>Loading…</p>
       ) : (
-        <div className="portal-page-pad" style={{ display: "flex", gap: 20, padding: "20px 28px 60px", alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div style={{ flex: "1 1 560px", background: L.surface, border: `1px solid ${L.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
-              <button type="button" onClick={() => changeMonth(-1)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-                <ChevronLeft style={{ width: 18, height: 18, color: L.muted }} />
-              </button>
-              <p style={{ fontSize: 15, fontWeight: 800, color: L.text }}>{monthLabel}</p>
-              <button type="button" onClick={() => changeMonth(1)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-                <ChevronRight style={{ width: 18, height: 18, color: L.muted }} />
-              </button>
+        <div className="portal-page-pad" style={{ display: "flex", gap: 16, padding: "20px 28px 60px", alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 480, background: L.surface, border: `1px solid ${L.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${L.border}` }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: L.text }}>{monthLabel}</h2>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button type="button" onClick={goToday} className="pill-hover" style={{ padding: "6px 12px", fontSize: 11.5, fontWeight: 700, border: `1px solid ${L.border}`, background: L.surface, color: L.muted, cursor: "pointer" }}>Today</button>
+                <button type="button" onClick={() => changeMonth(-1)} style={{ width: 32, height: 32, border: `1px solid ${L.border}`, background: L.surface, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <ChevronLeft style={{ width: 14, height: 14, color: L.muted }} />
+                </button>
+                <button type="button" onClick={() => changeMonth(1)} style={{ width: 32, height: 32, border: `1px solid ${L.border}`, background: L.surface, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <ChevronRight style={{ width: 14, height: 14, color: L.muted }} />
+                </button>
+              </div>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
               {WEEKDAYS.map((d) => (
-                <div key={d} style={{ padding: "8px 6px", fontSize: 10.5, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "center", borderBottom: `1px solid ${L.border}` }}>
+                <div key={d} style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: L.dimmed, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: `1px solid ${L.border}` }}>
                   {d}
                 </div>
               ))}
               {grid.map((day, i) => {
+                const key = dateKey(day);
                 const inMonth = day.getMonth() === monthStart.getMonth();
-                const dayJobs = jobs.filter((j) => sameDay(j.date, day));
-                const isToday = sameDay(day, today);
+                const dayJobs = jobsByDay[key] || [];
+                const isToday = key === todayKey;
+                const isSelected = key === selected;
                 return (
                   <div
                     key={i}
+                    onClick={() => setSelected(key)}
+                    className="row-hover"
                     style={{
-                      minHeight: 84, padding: "6px 6px", borderBottom: `1px solid ${L.border}`, borderRight: (i + 1) % 7 === 0 ? "none" : `1px solid ${L.border}`,
-                      background: inMonth ? "#fff" : "#f8fafc",
+                      minHeight: 92, padding: 8, borderBottom: `1px solid ${L.border}`, borderRight: (i + 1) % 7 === 0 ? "none" : `1px solid ${L.border}`,
+                      background: isSelected ? "var(--accent-tint)" : L.surface, opacity: inMonth ? 1 : 0.4, cursor: "pointer",
                     }}
                   >
-                    <p style={{ fontSize: 11.5, fontWeight: isToday ? 800 : 600, color: isToday ? "var(--accent)" : inMonth ? L.text : "#cbd5e1", marginBottom: 4 }}>
-                      {day.getDate()}
-                    </p>
-                    {dayJobs.slice(0, 2).map((j) => (
-                      <div key={j.id} style={{ fontSize: 10, fontWeight: 700, color: "#15803d", background: "#f0fdf4", padding: "2px 5px", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {j.date.toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })} {j.jobType}
-                      </div>
-                    ))}
-                    {dayJobs.length > 2 && (
-                      <p style={{ fontSize: 10, color: L.muted, fontWeight: 600 }}>+{dayJobs.length - 2} more</p>
-                    )}
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      width: 22, height: 22, fontSize: 12, fontWeight: isToday ? 800 : 600,
+                      color: isToday ? "#fff" : L.text, background: isToday ? "var(--accent)" : "transparent",
+                      borderRadius: isToday ? "50%" : 0,
+                    }}>{day.getDate()}</span>
+                    <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+                      {dayJobs.slice(0, 2).map((j) => (
+                        <div key={j.id} style={{ fontSize: 10.5, fontWeight: 600, color: "#15803d", background: "#f0fdf4", padding: "2px 5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {j.date.toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })} {j.jobType}
+                        </div>
+                      ))}
+                      {dayJobs.length > 2 && (
+                        <div style={{ fontSize: 10, color: L.dimmed, fontWeight: 600, padding: "0 5px" }}>+{dayJobs.length - 2} more</div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          <div style={{ flex: "1 1 280px", maxWidth: 320 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: L.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Upcoming</p>
-            {upcoming.length === 0 ? (
-              <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 20, textAlign: "center", color: L.muted, fontSize: 12.5 }}>
-                Nothing booked yet.
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {upcoming.map((j) => (
-                  <div key={j.id} style={{ background: L.surface, border: `1px solid ${L.border}`, borderLeft: "3px solid #15803d", padding: "10px 12px" }}>
-                    <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{j.jobType}</p>
-                    <p style={{ fontSize: 11.5, color: L.muted }}>{j.location}</p>
-                    <p style={{ fontSize: 11.5, color: "#15803d", fontWeight: 600, marginTop: 3 }}>
-                      {j.date.toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+          <div style={{ width: 320, flexShrink: 0, background: L.surface, border: `1px solid ${L.border}` }}>
+            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${L.border}` }}>
+              <h3 style={{ fontSize: 13, fontWeight: 800, color: L.text }}>
+                {new Date(`${selected}T00:00:00`).toLocaleDateString("en-NZ", { weekday: "long", day: "numeric", month: "long" })}
+              </h3>
+              {selected === todayKey && <p style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700, marginTop: 2 }}>Today</p>}
+            </div>
+            <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              {selectedJobs.length === 0 ? (
+                <p style={{ fontSize: 12, color: L.dimmed }}>No jobs booked this day.</p>
+              ) : (
+                selectedJobs.map((j) => (
+                  <div key={j.id} style={{ border: `1px solid ${L.border}`, borderLeft: "3px solid #15803d", padding: 10 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{j.jobType}</p>
+                    <p style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>{j.location}</p>
+                    <p style={{ fontSize: 11.5, color: "#15803d", fontWeight: 600, marginTop: 6 }}>
+                      {j.date.toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })}
                     </p>
-                    {j.phone && <p style={{ fontSize: 11, color: L.muted, marginTop: 2 }}>{j.phone}</p>}
+                    {j.phone && <p style={{ fontSize: 11.5, color: L.muted, marginTop: 4 }}>{j.phone}</p>}
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
