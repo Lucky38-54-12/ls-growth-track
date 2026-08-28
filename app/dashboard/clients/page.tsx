@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Topbar from "@/components/Topbar";
 import { ChevronDown, ChevronRight, Calendar, Mail, Columns3, Settings, CheckCircle2, XCircle } from "lucide-react";
@@ -94,13 +95,45 @@ const TABS = [
 type TabKey = typeof TABS[number]["key"];
 
 export default function ClientsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ClientsPageInner />
+    </Suspense>
+  );
+}
+
+const VALID_TABS = new Set<TabKey>(["calendar", "emails", "pipeline"]);
+
+function ClientsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [clients, setClients] = useState<LqClient[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("client"));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
-  const [tab, setTab] = useState<TabKey>("calendar");
+  const initialTab = searchParams.get("tab");
+  const [tab, setTab] = useState<TabKey>(initialTab && VALID_TABS.has(initialTab as TabKey) ? (initialTab as TabKey) : "calendar");
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
+
+  // Selecting a client or switching tabs writes into the URL (?client=&tab=)
+  // so refreshing — or coming back later — lands back on the same client
+  // instead of resetting to the first one in the list.
+  function selectClient(id: string) {
+    setSelectedId(id);
+    setPickerOpen(false);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("client", id);
+    router.replace(`/dashboard/clients?${params.toString()}`, { scroll: false });
+  }
+
+  function selectTab(key: TabKey) {
+    setTab(key);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", key);
+    router.replace(`/dashboard/clients?${params.toString()}`, { scroll: false });
+  }
 
   useEffect(() => {
     (async () => {
@@ -108,8 +141,15 @@ export default function ClientsPage() {
       const body = await res.json();
       const list: LqClient[] = res.ok ? body.clients : [];
       setClients(list);
-      if (list.length > 0) setSelectedId(list[0].id);
+      const fromUrl = searchParams.get("client");
+      if (fromUrl && list.some((c) => c.id === fromUrl)) {
+        setSelectedId(fromUrl);
+      } else if (list.length > 0) {
+        selectClient(list[0].id);
+      }
     })();
+    // Only run once on mount — selection changes afterwards go through selectClient/selectTab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -187,10 +227,7 @@ export default function ClientsPage() {
                   return (
                     <button
                       key={c.id}
-                      onClick={() => {
-                        setSelectedId(c.id);
-                        setPickerOpen(false);
-                      }}
+                      onClick={() => selectClient(c.id)}
                       style={{
                         display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
                         padding: "10px 14px", border: "none", background: c.id === selectedId ? "var(--accent-tint)" : "transparent",
@@ -241,7 +278,7 @@ export default function ClientsPage() {
               {TABS.map((t) => (
                 <button
                   key={t.key}
-                  onClick={() => setTab(t.key)}
+                  onClick={() => selectTab(t.key)}
                   style={{
                     display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none",
                     background: tab === t.key ? "var(--accent)" : "#e2e8f0",
