@@ -25,6 +25,7 @@ interface Lead {
   contact_email: string | null;
   scheduled_at: string | null;
   pipeline_stage: string | null;
+  notes: string | null;
   created_at: string;
   lq_conversations: { extracted_fields: Record<string, unknown> } | null;
 }
@@ -202,6 +203,25 @@ function ClientDetailPageInner() {
       setAddLeadError("Something went wrong adding this lead.");
     } finally {
       setAddingLead(false);
+    }
+  }
+
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+
+  async function saveNote(leadId: string) {
+    const previous = leads;
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, notes: noteDraft } : l)));
+    setEditingNoteId(null);
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${id}/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: noteDraft }),
+      });
+      if (!res.ok) setLeads(previous);
+    } catch {
+      setLeads(previous);
     }
   }
 
@@ -992,6 +1012,32 @@ function ClientDetailPageInner() {
                             <p style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 4 }}>
                               {new Date(lead.created_at).toLocaleDateString("en-NZ")}
                             </p>
+
+                            {editingNoteId === lead.id ? (
+                              <textarea
+                                autoFocus
+                                value={noteDraft}
+                                onChange={(e) => setNoteDraft(e.target.value)}
+                                onBlur={() => saveNote(lead.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                draggable={false}
+                                onDragStart={(e) => e.stopPropagation()}
+                                rows={2}
+                                placeholder="Note — call outcome, context…"
+                                style={{ width: "100%", boxSizing: "border-box", marginTop: 6, padding: "5px 7px", fontSize: 11.5, border: `1px solid ${L.border}`, fontFamily: "inherit", resize: "vertical" }}
+                              />
+                            ) : (
+                              <p
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setNoteDraft(lead.notes || "");
+                                  setEditingNoteId(lead.id);
+                                }}
+                                style={{ fontSize: 11.5, color: lead.notes ? L.text : L.dimmed, fontStyle: lead.notes ? "normal" : "italic", marginTop: 6, cursor: "text", borderTop: `1px solid ${L.border}`, paddingTop: 5 }}
+                              >
+                                {lead.notes || "+ add note"}
+                              </p>
+                            )}
                           </div>
                         );
                       })

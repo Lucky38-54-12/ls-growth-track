@@ -14,10 +14,19 @@ const STAGES = ["new_inquiry", "followed_up", "not_ready", "booked", "not_a_fit"
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string; leadId: string }> }) {
   const { id, leadId } = await params;
   const body = await request.json();
+  const sb = createSupabaseClient();
+
+  // Notes-only edit (no stage change) — the pipeline card's inline note field
+  // hits this same route with just { notes }.
+  if (typeof body.notes === "string" && body.pipeline_stage === undefined) {
+    const { error } = await sb.from("lq_leads").update({ notes: body.notes }).eq("id", leadId).eq("client_id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
+
   const stage = body.pipeline_stage;
   if (!STAGES.includes(stage)) return NextResponse.json({ error: "invalid stage" }, { status: 400 });
 
-  const sb = createSupabaseClient();
   const { data: lead } = await sb
     .from("lq_leads")
     .select("id, pipeline_stage, booking_status, scheduled_at, contact_email, lq_conversations(extracted_fields)")
