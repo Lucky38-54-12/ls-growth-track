@@ -30,7 +30,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       .limit(100),
     sb
       .from("lq_email_sends")
-      .select("id, lead_id, enrollment_id, step, to_email, subject, body, sent_at")
+      .select("id, lead_id, enrollment_id, step, audience, to_email, subject, body, sent_at")
       .eq("client_id", id)
       .order("sent_at", { ascending: false })
       .limit(200),

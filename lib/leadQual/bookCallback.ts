@@ -84,6 +84,19 @@ export async function bookAndNotifyClient(input: BookAndNotifyInput): Promise<{ 
     text,
   });
 
+  if (!sendError) {
+    const sb = createSupabaseClient();
+    await sb.from("lq_email_sends").insert({
+      client_id: input.clientId,
+      lead_id: null,
+      step: 0,
+      audience: "client",
+      to_email: client.email as string,
+      subject,
+      body: text,
+    });
+  }
+
   await logAdminAction({
     action: "Email sent",
     target: client.email as string,

@@ -51,6 +51,7 @@ interface EmailSend {
   lead_id: string | null;
   enrollment_id: string | null;
   step: number;
+  audience: "client" | "lead";
   to_email: string;
   subject: string;
   body: string;
@@ -178,6 +179,9 @@ function ClientsPageInner() {
     }
     return map;
   }, [overview]);
+
+  const clientEmails = useMemo(() => (overview?.emailSends || []).filter((s) => s.audience === "client"), [overview]);
+  const leadEmails = useMemo(() => (overview?.emailSends || []).filter((s) => s.audience !== "client"), [overview]);
 
   const byStage = useMemo(() => {
     const map: Record<string, Lead[]> = {};
@@ -352,40 +356,28 @@ function ClientsPageInner() {
 
                     <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, overflow: "hidden" }}>
                       <p style={{ padding: "12px 16px", fontSize: 11.5, fontWeight: 700, color: L.dimmed, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${L.border}` }}>
-                        Emails sent ({overview?.emailSends.length ?? 0})
+                        Emails sent to {selectedClient?.name || "client"} ({clientEmails.length})
                       </p>
-                      {(overview?.emailSends.length ?? 0) === 0 ? (
+                      {clientEmails.length === 0 ? (
+                        <p style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 13 }}>No emails sent directly to {selectedClient?.name || "this client"} yet — e.g. lead-callback notifications.</p>
+                      ) : (
+                        clientEmails.map((send) => (
+                          <EmailRow key={send.id} send={send} label={send.to_email} expanded={expandedEmailId === send.id} onToggle={() => setExpandedEmailId(expandedEmailId === send.id ? null : send.id)} />
+                        ))
+                      )}
+                    </div>
+
+                    <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, overflow: "hidden" }}>
+                      <p style={{ padding: "12px 16px", fontSize: 11.5, fontWeight: 700, color: L.dimmed, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${L.border}` }}>
+                        Emails sent to their leads ({leadEmails.length})
+                      </p>
+                      {leadEmails.length === 0 ? (
                         <p style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 13 }}>No emails sent to this client&apos;s leads yet.</p>
                       ) : (
-                        overview!.emailSends.map((send) => {
-                          const expanded = expandedEmailId === send.id;
+                        leadEmails.map((send) => {
                           const leadName = (send.lead_id && leadNameById[send.lead_id]) || send.to_email;
                           return (
-                            <div key={send.id} style={{ borderBottom: `1px solid ${L.border}` }}>
-                              <button
-                                onClick={() => setExpandedEmailId(expanded ? null : send.id)}
-                                style={{
-                                  display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
-                                  padding: "14px 16px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", gap: 10,
-                                }}
-                              >
-                                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                                  {expanded ? <ChevronDown style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} /> : <ChevronRight style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} />}
-                                  <div style={{ minWidth: 0 }}>
-                                    <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{send.subject}</p>
-                                    <p style={{ fontSize: 12, color: L.muted }}>To {leadName} ({send.to_email}) · step {send.step + 1}</p>
-                                  </div>
-                                </div>
-                                <span style={{ fontSize: 11.5, color: L.dimmed, flexShrink: 0 }}>
-                                  {new Date(send.sent_at).toLocaleString("en-NZ", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
-                                </span>
-                              </button>
-                              {expanded && (
-                                <div style={{ padding: "0 16px 16px 39px", fontSize: 13, color: L.text, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
-                                  {send.body}
-                                </div>
-                              )}
-                            </div>
+                            <EmailRow key={send.id} send={send} label={`${leadName} (${send.to_email}) · step ${send.step + 1}`} expanded={expandedEmailId === send.id} onToggle={() => setExpandedEmailId(expandedEmailId === send.id ? null : send.id)} />
                           );
                         })
                       )}
@@ -431,6 +423,36 @@ function ClientsPageInner() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function EmailRow({ send, label, expanded, onToggle }: { send: EmailSend; label: string; expanded: boolean; onToggle: () => void }) {
+  return (
+    <div style={{ borderBottom: `1px solid ${L.border}` }}>
+      <button
+        onClick={onToggle}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+          padding: "14px 16px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", gap: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          {expanded ? <ChevronDown style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} /> : <ChevronRight style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} />}
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{send.subject}</p>
+            <p style={{ fontSize: 12, color: L.muted }}>To {label}</p>
+          </div>
+        </div>
+        <span style={{ fontSize: 11.5, color: L.dimmed, flexShrink: 0 }}>
+          {new Date(send.sent_at).toLocaleString("en-NZ", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+        </span>
+      </button>
+      {expanded && (
+        <div style={{ padding: "0 16px 16px 39px", fontSize: 13, color: L.text, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+          {send.body}
+        </div>
+      )}
     </div>
   );
 }
