@@ -17,6 +17,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const rawSummary = body.raw_summary;
   const yourTake = body.your_take || "";
+  // Optional — lets a manually-pasted call still carry the deal → agreement
+  // → onboarding → kickoff email chain through to completion for testing,
+  // since a real Fireflies call is the only path that normally supplies this
+  // (pulled from meeting attendees).
+  const clientEmail = body.client_email || undefined;
 
   if (!rawSummary || !String(rawSummary).trim()) {
     return NextResponse.json({ error: "Paste the call summary first." }, { status: 400 });
@@ -26,7 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { call, proposal, backupUrl } = await logSalesCall(sb, rawSummary, yourTake);
+    const { call, proposal, backupUrl } = await logSalesCall(sb, rawSummary, yourTake, undefined, clientEmail);
     return NextResponse.json({ call, proposal, backupUrl });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
