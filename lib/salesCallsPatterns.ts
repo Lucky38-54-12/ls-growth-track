@@ -71,6 +71,43 @@ export async function applyStandingReview(
   return { proposalId: proposal.id };
 }
 
+// Applies an approved script proposal: cuts a new current sales_script_versions
+// row from its new_content, and marks the pattern it addresses (if any) as
+// fixed so the next standing review can tell whether the fix actually
+// stuck. Shared by the manual approve endpoint and the auto-apply path in
+// logSalesCall — a proposal is applied the same way regardless of who (or
+// what) approved it.
+export async function approveScriptProposal(
+  sb: SupabaseClient,
+  proposalId: string
+): Promise<{ proposal: Record<string, unknown>; version: Record<string, unknown> } | null> {
+  const { data: proposal } = await sb.from("sales_script_proposals").select("*").eq("id", proposalId).maybeSingle();
+  if (!proposal || proposal.status !== "pending" || !proposal.new_content?.trim()) return null;
+
+  const { data: latest } = await sb.from("sales_script_versions").select("version").order("version", { ascending: false }).limit(1).maybeSingle();
+  const nextVersion = (latest?.version || 0) + 1;
+
+  await sb.from("sales_script_versions").update({ is_current: false }).eq("is_current", true);
+
+  const { data: newVersion, error: versionError } = await sb.from("sales_script_versions").insert({
+    version: nextVersion,
+    content: proposal.new_content,
+    changelog: proposal.summary || "Approved script update.",
+    is_current: true,
+  }).select().single();
+  if (versionError || !newVersion) return null;
+
+  const { data: updatedProposal } = await sb.from("sales_script_proposals")
+    .update({ status: "approved", decided_at: new Date().toISOString() })
+    .eq("id", proposalId).select().single();
+
+  await sb.from("sales_pattern_tracker")
+    .update({ fix_applied_at: new Date().toISOString(), fix_landing_status: "untested" })
+    .eq("fix_proposal_id", proposalId);
+
+  return { proposal: updatedProposal || proposal, version: newVersion };
+}
+
 export function patternsForPrompt(patterns: PatternTracker[]): StandingReviewPatternInput[] {
   return patterns.map((p) => ({
     id: p.id,

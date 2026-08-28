@@ -1,7 +1,7 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { SalesCall, PatternTracker, ScriptProposal } from "./types";
 import { parseCallSummary, runStandingScriptReview, StandingReviewCallRef } from "./salesCallsAi";
-import { applyStandingReview, patternsForPrompt } from "./salesCallsPatterns";
+import { applyStandingReview, approveScriptProposal, patternsForPrompt } from "./salesCallsPatterns";
 import { runSalesCallsBackup } from "./salesCallsBackupSync";
 
 export interface LogSalesCallResult {
@@ -70,8 +70,17 @@ export async function logSalesCall(
       const review = await runStandingScriptReview(currentVersion.content, callRefs, patternsForPrompt((existingPatterns || []) as PatternTracker[]));
       const { proposalId } = await applyStandingReview(sb, review, data.id);
       if (proposalId) {
-        const { data: inserted } = await sb.from("sales_script_proposals").select("*").eq("id", proposalId).maybeSingle();
-        proposal = inserted;
+        // Auto-apply: script proposals used to sit pending for a manual
+        // approve click, but Lucky asked for the whole call → script loop to
+        // run with zero manual steps, so every proposal a call generates
+        // goes straight to a new live script version.
+        const applied = await approveScriptProposal(sb, proposalId);
+        if (applied) {
+          proposal = applied.proposal as unknown as ScriptProposal;
+        } else {
+          const { data: inserted } = await sb.from("sales_script_proposals").select("*").eq("id", proposalId).maybeSingle();
+          proposal = inserted;
+        }
       }
     }
   } catch {
