@@ -6,6 +6,7 @@ import { runSalesCallsBackup } from "./salesCallsBackupSync";
 import { generateAgreementDoc } from "./agreementMaker";
 import { createSharedUploadFolder } from "./googleDocs";
 import { buildKickoffEmail } from "./onboardingKickoffEmail";
+import { sendFreeformEmail } from "./email";
 import { Lead } from "./types";
 
 export interface LogSalesCallResult {
@@ -118,13 +119,30 @@ export async function logSalesCall(
             photosFolderUrl,
             whatsappNumber: process.env.WHATSAPP_NUMBER || "",
           });
-          await sb.from("onboarding_clients").update({
-            portal_photos_folder_url: photosFolderUrl,
-            lq_client_id: lqClientId,
-            kickoff_email_status: "pending",
-            kickoff_email_subject: subject,
-            kickoff_email_html: html,
-          }).eq("id", onboardingClient.id);
+          // Auto-sent, same as the recap — this only fires once a deal is
+          // actually agreed (the agreementUrl && effectiveEmail gate above),
+          // i.e. only once they're genuinely ready to move forward. A failed
+          // send still saves the draft as pending so it isn't lost.
+          try {
+            await sendFreeformEmail(effectiveEmail, subject, html);
+            await sb.from("onboarding_clients").update({
+              portal_photos_folder_url: photosFolderUrl,
+              lq_client_id: lqClientId,
+              kickoff_email_status: "sent",
+              kickoff_email_subject: subject,
+              kickoff_email_html: html,
+              kickoff_email_sent_at: new Date().toISOString(),
+            }).eq("id", onboardingClient.id);
+          } catch (sendErr) {
+            console.error("logSalesCall failed to send kickoff email, holding as pending", onboardingClient.id, sendErr);
+            await sb.from("onboarding_clients").update({
+              portal_photos_folder_url: photosFolderUrl,
+              lq_client_id: lqClientId,
+              kickoff_email_status: "pending",
+              kickoff_email_subject: subject,
+              kickoff_email_html: html,
+            }).eq("id", onboardingClient.id);
+          }
         } catch (err) {
           console.error("logSalesCall failed to draft kickoff email", onboardingClient.id, err);
         }
