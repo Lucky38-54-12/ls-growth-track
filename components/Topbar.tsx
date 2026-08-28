@@ -10,7 +10,7 @@ const SEARCH_ITEMS = [
   { label: "Pipeline", href: "/dashboard", icon: LayoutDashboard },
   { label: "Clients", href: "/dashboard/clients", icon: Users },
   { label: "Email Outreach", href: "/dashboard/email-outreach", icon: Rows3 },
-  { label: "Onboarding", href: "/dashboard/lead-qual", icon: Bot },
+  { label: "Client Onboarding", href: "/dashboard/onboarding", icon: Bot },
   { label: "Campaign Setup", href: "/dashboard/campaign-setup", icon: Target },
   { label: "Sales", href: "/dashboard/sales-calls", icon: PhoneCall },
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar },

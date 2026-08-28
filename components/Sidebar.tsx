@@ -14,7 +14,6 @@ const NAV = [
   { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
   { href: "/dashboard/email-outreach", label: "Email Outreach", icon: Rows3 },
-  { href: "/dashboard/lead-qual", label: "Onboarding", icon: Bot },
   { href: "/dashboard/campaign-setup", label: "Campaign Setup", icon: Target },
   { href: "/dashboard/sales-calls", label: "Sales", icon: PhoneCall },
   { href: "/dashboard/onboarding", label: "Client Onboarding", icon: Handshake },

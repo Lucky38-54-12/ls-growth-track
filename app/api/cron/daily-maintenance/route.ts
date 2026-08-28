@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
       await notifySlack(
         `🔴 Lead-qual Messenger connection dead for ${deadChannels.length} client(s) — leads are not getting replies right now:\n` +
         deadChannels.map((d) => `• *${d.clientName}* (page ${d.pageId}): ${d.reason}`).join("\n") +
-        `\nReconnect from /dashboard/lead-qual.`
+        `\nReconnect from /dashboard/onboarding (Client Accounts tab).`
       );
     }
   } catch (e) {

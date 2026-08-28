@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/connect/${clientId}?calendarError=${encodeURIComponent(error)}`);
   }
   if (!code || !clientId) {
-    return NextResponse.redirect(`${origin}/dashboard/lead-qual?error=missing_code_or_client`);
+    return NextResponse.redirect(`${origin}/dashboard/onboarding?error=missing_code_or_client`);
   }
 
   try {

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/dashboard/lead-qual/${clientId}?fbError=${encodeURIComponent(error)}`);
   }
   if (!code || !clientId) {
-    return NextResponse.redirect(`${origin}/dashboard/lead-qual?fbError=missing_code_or_client`);
+    return NextResponse.redirect(`${origin}/dashboard/onboarding?fbError=missing_code_or_client&tab=accounts`);
   }
 
   try {
