@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { getTranscript } from "@/lib/fireflies";
 import { logSalesCall } from "@/lib/logSalesCall";
+import { buildRecapEmail, pickRecapRecipients } from "@/lib/salesCallRecap";
 
 interface FirefliesWebhookPayload {
   meetingId?: string;
@@ -57,8 +58,28 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { text } = await getTranscript(meetingId);
-    const { call, proposal } = await logSalesCall(sb, text, "", meetingId);
+    const transcript = await getTranscript(meetingId);
+    const recipients = pickRecapRecipients(transcript);
+    const { call, proposal } = await logSalesCall(sb, transcript.text, "", meetingId, recipients[0]);
+
+    // Recap is drafted for every call regardless of outcome, but held as
+    // pending rather than sent — Lucky reviews/edits it on the sales-calls
+    // dashboard and sends it himself. A failure here must not undo the
+    // sales_calls insert that already succeeded above.
+    try {
+      if (recipients.length > 0) {
+        const { subject, html } = buildRecapEmail(transcript);
+        await sb.from("sales_calls").update({
+          recap_status: "pending",
+          recap_subject: subject,
+          recap_html: html,
+          recap_recipient: recipients.join(", "),
+        }).eq("id", call.id);
+      }
+    } catch (err) {
+      console.error("fireflies webhook failed to draft call recap", meetingId, err);
+    }
+
     return NextResponse.json({ ok: true, call_id: call.id, proposal_id: proposal?.id || null });
   } catch (err) {
     console.error("fireflies webhook failed to log call", meetingId, err);

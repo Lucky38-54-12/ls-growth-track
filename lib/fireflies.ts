@@ -5,21 +5,46 @@ interface FirefliesSentence {
   text: string;
 }
 
+interface FirefliesAttendee {
+  displayName: string | null;
+  email: string | null;
+  name: string | null;
+}
+
+interface FirefliesSummary {
+  overview: string | null;
+  action_items: string | null;
+}
+
 interface FirefliesTranscriptResponse {
   data?: {
     transcript?: {
       title: string;
       sentences: FirefliesSentence[];
+      organizer_email: string | null;
+      meeting_attendees: FirefliesAttendee[] | null;
+      summary: FirefliesSummary | null;
     } | null;
   };
   errors?: { message: string }[];
 }
 
+export interface FirefliesTranscript {
+  title: string;
+  text: string;
+  organizerEmail: string | null;
+  attendees: FirefliesAttendee[];
+  summary: FirefliesSummary | null;
+}
+
 // Fireflies' webhook only tells us a meeting finished transcribing — the
-// actual transcript has to be pulled separately via their GraphQL API so we
-// get real speaker-attributed text to feed parseCallSummary(), the same
-// shape it already expects from a manually pasted notetaker summary.
-export async function getTranscript(meetingId: string): Promise<{ title: string; text: string }> {
+// actual transcript, attendee emails, and AI summary all have to be pulled
+// separately via their GraphQL API. The sentence-level text still feeds
+// parseCallSummary() (the same shape it already expects from a manually
+// pasted notetaker summary); the summary/attendees are for the client recap
+// email, which reuses Fireflies' own summary instead of paying for another
+// AI generation pass on every call.
+export async function getTranscript(meetingId: string): Promise<FirefliesTranscript> {
   const apiKey = process.env.FIREFLIES_API_KEY;
   if (!apiKey) throw new Error("FIREFLIES_API_KEY is not configured.");
 
@@ -34,6 +59,9 @@ export async function getTranscript(meetingId: string): Promise<{ title: string;
         transcript(id: $id) {
           title
           sentences { speaker_name text }
+          organizer_email
+          meeting_attendees { displayName email name }
+          summary { overview action_items }
         }
       }`,
       variables: { id: meetingId },
@@ -47,5 +75,11 @@ export async function getTranscript(meetingId: string): Promise<{ title: string;
   if (!transcript) throw new Error("Fireflies returned no transcript for this meeting.");
 
   const text = transcript.sentences.map((s) => `${s.speaker_name || "Speaker"}: ${s.text}`).join("\n");
-  return { title: transcript.title, text };
+  return {
+    title: transcript.title,
+    text,
+    organizerEmail: transcript.organizer_email,
+    attendees: transcript.meeting_attendees || [],
+    summary: transcript.summary,
+  };
 }

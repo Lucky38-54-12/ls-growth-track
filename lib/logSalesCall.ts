@@ -3,6 +3,7 @@ import { SalesCall, PatternTracker, ScriptProposal } from "./types";
 import { parseCallSummary, runStandingScriptReview, StandingReviewCallRef } from "./salesCallsAi";
 import { applyStandingReview, approveScriptProposal, patternsForPrompt } from "./salesCallsPatterns";
 import { runSalesCallsBackup } from "./salesCallsBackupSync";
+import { generateAgreementDoc } from "./agreementMaker";
 
 export interface LogSalesCallResult {
   call: SalesCall;
@@ -19,7 +20,8 @@ export async function logSalesCall(
   sb: ReturnType<typeof createSupabaseClient>,
   rawSummary: string,
   yourTake: string,
-  firefliesMeetingId?: string
+  firefliesMeetingId?: string,
+  clientEmail?: string
 ): Promise<LogSalesCallResult> {
   const parsed = await parseCallSummary(rawSummary);
 
@@ -39,10 +41,50 @@ export async function logSalesCall(
     work_ons: yourTake || parsed.work_ons,
     raw_summary: rawSummary,
     fireflies_meeting_id: firefliesMeetingId || null,
+    deal_agreed: parsed.deal_agreed,
+    deal_terms: parsed.deal_terms,
   };
 
   const { data, error } = await sb.from("sales_calls").insert(call).select().single();
   if (error) throw new Error(error.message);
+
+  // The prospect agreeing to terms on the call is the trigger — draft the
+  // agreement doc right away so it's ready for Lucky to check over, rather
+  // than waiting on him to notice and trigger it by hand. Best-effort: a
+  // logged, closed deal must never be lost because doc generation failed.
+  if (parsed.deal_agreed && parsed.deal_terms) {
+    try {
+      const url = await generateAgreementDoc({
+        company: parsed.business_name || undefined,
+        email: clientEmail,
+        dealNotes: parsed.deal_terms,
+      });
+      await sb.from("sales_calls").update({ agreement_status: "generated", agreement_doc_url: url }).eq("id", data.id);
+      data.agreement_status = "generated";
+      data.agreement_doc_url = url;
+    } catch (err) {
+      console.error("logSalesCall failed to generate agreement doc", data.id, err);
+      await sb.from("sales_calls").update({ agreement_status: "failed" }).eq("id", data.id);
+      data.agreement_status = "failed";
+    }
+
+    // A closed deal is exactly the moment onboarding starts, so give it an
+    // onboarding_clients row straight away instead of waiting for Lucky to
+    // create one by hand — that's the single record the new onboarding
+    // overview page and per-client checklist are built around.
+    try {
+      await sb.from("onboarding_clients").insert({
+        name: parsed.prospect_name || "Unknown",
+        company: parsed.business_name || "Unknown business",
+        email: clientEmail || null,
+        notes: parsed.deal_terms,
+        decision_status: "ready",
+        sales_call_id: data.id,
+      });
+    } catch (err) {
+      console.error("logSalesCall failed to create onboarding client", data.id, err);
+    }
+  }
 
   // Standing review, runs after every call, permanently: reads every logged
   // call (not just this one) plus the open/closed pattern list, ranks

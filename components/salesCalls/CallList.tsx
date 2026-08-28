@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { SalesCall, CallOutcome, CALL_OUTCOME_LABELS, CALL_OUTCOME_COLORS } from "@/lib/types";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import RecapAgreementPanel from "./RecapAgreementPanel";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -92,6 +93,26 @@ export default function CallList({ calls, onUpdated }: { calls: SalesCall[]; onU
                   Next step booked
                 </span>
               )}
+              {c.recap_status === "pending" && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#fef3c7", color: "#92400e", flexShrink: 0, whiteSpace: "nowrap" }}>
+                  Recap ready
+                </span>
+              )}
+              {c.recap_status === "sent" && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#dcfce7", color: "#166534", flexShrink: 0, whiteSpace: "nowrap" }}>
+                  Recap sent
+                </span>
+              )}
+              {c.agreement_status === "generated" && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#dbeafe", color: "#1e40af", flexShrink: 0, whiteSpace: "nowrap" }}>
+                  Agreement drafted
+                </span>
+              )}
+              {c.agreement_status === "failed" && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#fee2e2", color: "#991b1b", flexShrink: 0, whiteSpace: "nowrap" }}>
+                  Agreement failed
+                </span>
+              )}
               {open ? <ChevronUp style={{ width: 14, height: 14, color: L.dimmed, flexShrink: 0 }} /> : <ChevronDown style={{ width: 14, height: 14, color: L.dimmed, flexShrink: 0 }} />}
             </button>
 
@@ -127,6 +148,9 @@ export default function CallList({ calls, onUpdated }: { calls: SalesCall[]; onU
                     {c.raw_summary}
                   </div>
                 </div>
+
+                <RecapAgreementPanel call={c} onUpdated={onUpdated} />
+
                 <button
                   type="button"
                   onClick={() => startEdit(c)}

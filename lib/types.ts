@@ -193,6 +193,15 @@ export interface SalesCall {
   work_ons: string;
   raw_summary: string;
   fireflies_meeting_id: string | null;
+  recap_status: "none" | "pending" | "sent";
+  recap_subject: string | null;
+  recap_html: string | null;
+  recap_recipient: string | null;
+  recap_sent_at: string | null;
+  deal_agreed: boolean;
+  deal_terms: string | null;
+  agreement_status: "none" | "generated" | "failed";
+  agreement_doc_url: string | null;
   created_at: string;
 }
 
@@ -288,6 +297,7 @@ export interface OnboardingClient {
   ads_manager_added: boolean;
   ad_budget: string | null;
   creatives_needed: string | null;
+  sales_call_id: string | null;
 }
 
 export interface OnboardingNote {

@@ -30,6 +30,8 @@ export interface ParsedCall {
   next_step_detail: string;
   went_well: string;
   work_ons: string;
+  deal_agreed: boolean;
+  deal_terms: string;
 }
 
 const PARSE_SYSTEM_PROMPT = `You read raw notetaker summaries of sales calls for Lucky, who runs LS Growth, an agency that sells ad services (Meta ads, lead generation) to trade businesses (electricians, plumbers, builders, cleaners, etc).
@@ -46,11 +48,13 @@ Extract these fields from the summary:
 - next_step_detail: what that next step actually is, in one plain sentence. Empty string if next_step_booked is false.
 - went_well: one or two short sentences on what Lucky did well on this call, from Lucky's side.
 - work_ons: one or two short sentences on what Lucky should do differently next time, from Lucky's side. Be honest and specific, not generic.
+- deal_agreed: true only if the prospect actually agreed to move forward and pay for LS Growth's services on this call — a real yes with terms discussed, not "sounds interesting" or "send me more info". False for anything short of that, including a booked follow-up call.
+- deal_terms: if deal_agreed is true, everything actually agreed on: services included, pricing/fees, payment structure (trial period, deposit, monthly fee, whatever was actually said), start date, and any conditions mentioned. Write it as plain notes, not a contract. Empty string if deal_agreed is false.
 
 ${WRITING_RULES}
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
-{"call_date": "", "prospect_name": "", "business_name": "", "outcome": "", "main_objection": "", "next_step_booked": false, "next_step_detail": "", "went_well": "", "work_ons": ""}`;
+{"call_date": "", "prospect_name": "", "business_name": "", "outcome": "", "main_objection": "", "next_step_booked": false, "next_step_detail": "", "went_well": "", "work_ons": "", "deal_agreed": false, "deal_terms": ""}`;
 
 export async function parseCallSummary(rawSummary: string): Promise<ParsedCall> {
   const today = new Date().toISOString().split("T")[0];
@@ -81,6 +85,8 @@ export async function parseCallSummary(rawSummary: string): Promise<ParsedCall> 
     next_step_detail: stripDashes(parsed.next_step_detail || ""),
     went_well: stripDashes(parsed.went_well || ""),
     work_ons: stripDashes(parsed.work_ons || ""),
+    deal_agreed: !!parsed.deal_agreed,
+    deal_terms: stripDashes(parsed.deal_terms || ""),
   };
 }
 
