@@ -11,6 +11,7 @@ on:
     - cron: "*/15 * * * *"  # every 15 min — personal inbox check (replaces the standalone Inbox page)
     - cron: "0 19 * * *"  # 7am NZT — morning brief (today's meetings + due items, via Slack)
     - cron: "0 21 * * *"  # 9am NZT — daily maintenance (replies, stale-reply pings, etc.)
+    - cron: "0 18 * * *"  # 6am NZT — lead-qual daily sync (catch any Lead Ad forms the webhook missed)
   workflow_dispatch: {}    # lets you trigger a run manually from the Actions tab
 
 jobs:
@@ -90,4 +91,27 @@ jobs:
         if: steps.check.outputs.run == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           curl -sf -X GET "https://app.lsgrowth.agency/api/cron/daily-maintenance" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+  lead-qual-sync:
+    # Same event.schedule collision as morning-brief/daily-maintenance above
+    # (0 18 * * * also lands on a */15 boundary) — check wall-clock instead.
+    # No "already ran today" guard needed: backfillLeadsForClient dedupes on
+    # leadgen_id, so a stray double-run just costs a few extra Graph API
+    # calls, not duplicate leads or duplicate Slack pings.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if it's the 6am NZT (18:00-20:00 UTC) window
+        id: check
+        run: |
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" = "18" ] || [ "$HOUR" = "19" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Call /api/cron/lead-qual-sync
+        if: steps.check.outputs.run == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          curl -sf -X GET "https://app.lsgrowth.agency/api/cron/lead-qual-sync" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
