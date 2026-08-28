@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { getTranscript } from "@/lib/fireflies";
@@ -8,13 +9,20 @@ interface FirefliesWebhookPayload {
   eventType?: string;
 }
 
-// Fireflies doesn't sign webhook payloads with an HMAC — it lets you attach a
-// shared secret as a query param on the webhook URL you configure in its
-// dashboard, so verification here is just a direct string compare.
-function verifySecret(request: NextRequest): boolean {
-  const configured = process.env.FIREFLIES_WEBHOOK_SECRET;
-  if (!configured) return false;
-  return request.nextUrl.searchParams.get("secret") === configured;
+// Fireflies signs every webhook with an x-hub-signature header: a hex
+// HMAC-SHA256 of the raw request body, keyed with the secret set in its
+// Developer Settings — same scheme as the existing Meta webhook
+// (lib/leadQual/meta.ts verifyMetaSignature), just without Meta's "sha256="
+// prefix on the header value.
+function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
+  if (!signatureHeader) return false;
+  const secret = process.env.FIREFLIES_WEBHOOK_SECRET;
+  if (!secret) return false;
+
+  const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  const a = Buffer.from(signatureHeader);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 // Fireflies retries webhooks and fires multiple event types per meeting
@@ -27,11 +35,12 @@ async function alreadyLogged(sb: ReturnType<typeof createSupabaseClient>, meetin
 }
 
 export async function POST(request: NextRequest) {
-  if (!verifySecret(request)) {
-    return NextResponse.json({ error: "invalid secret" }, { status: 401 });
+  const rawBody = await request.text();
+  if (!verifySignature(rawBody, request.headers.get("x-hub-signature"))) {
+    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
-  const payload = (await request.json()) as FirefliesWebhookPayload;
+  const payload = JSON.parse(rawBody) as FirefliesWebhookPayload;
   const meetingId = payload.meetingId;
   if (!meetingId) return NextResponse.json({ ok: true });
 
