@@ -60,13 +60,26 @@ export async function dispatchDueNurtureEmails(): Promise<{ sent: number; errors
         business_name: client?.name || "the team",
       };
 
+      const subject = renderTemplate(step.subject, vars);
+      const body = renderTemplate(step.body_template, vars);
+
       const { error: sendError } = await resend.emails.send({
         from: FROM,
         to: enrollment.contact_email,
-        subject: renderTemplate(step.subject, vars),
-        text: renderTemplate(step.body_template, vars),
+        subject,
+        text: body,
       });
       if (sendError) throw new Error(sendError.message);
+
+      await sb.from("lq_email_sends").insert({
+        enrollment_id: enrollment.id,
+        lead_id: enrollment.lead_id,
+        client_id: enrollment.client_id,
+        step: enrollment.current_step,
+        to_email: enrollment.contact_email,
+        subject,
+        body,
+      });
 
       const nextStep = enrollment.current_step + 1;
       const next = steps[nextStep];

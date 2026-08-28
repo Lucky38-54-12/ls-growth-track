@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const sb = createSupabaseClient();
 
-  const [{ data: client, error: clientError }, { data: leads, error: leadsError }, { data: enrollments, error: enrollmentsError }] = await Promise.all([
+  const [{ data: client, error: clientError }, { data: leads, error: leadsError }, { data: enrollments, error: enrollmentsError }, { data: emailSends, error: emailSendsError }] = await Promise.all([
     sb
       .from("lq_clients")
       .select("*, lq_calendar_connections(google_account_email, connected_at), lq_channels(type, external_page_id)")
@@ -28,11 +28,18 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       .eq("client_id", id)
       .order("enrolled_at", { ascending: false })
       .limit(100),
+    sb
+      .from("lq_email_sends")
+      .select("id, lead_id, enrollment_id, step, to_email, subject, body, sent_at")
+      .eq("client_id", id)
+      .order("sent_at", { ascending: false })
+      .limit(200),
   ]);
 
   if (clientError) return NextResponse.json({ error: clientError.message }, { status: 400 });
   if (leadsError) return NextResponse.json({ error: leadsError.message }, { status: 400 });
   if (enrollmentsError) return NextResponse.json({ error: enrollmentsError.message }, { status: 400 });
+  if (emailSendsError) return NextResponse.json({ error: emailSendsError.message }, { status: 400 });
 
-  return NextResponse.json({ client, leads: leads || [], enrollments: enrollments || [] });
+  return NextResponse.json({ client, leads: leads || [], enrollments: enrollments || [], emailSends: emailSends || [] });
 }

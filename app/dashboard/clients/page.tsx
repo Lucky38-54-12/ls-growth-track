@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Topbar from "@/components/Topbar";
-import { ChevronDown, Calendar, Mail, Columns3, Settings, CheckCircle2, XCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, Calendar, Mail, Columns3, Settings, CheckCircle2, XCircle } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -45,10 +45,22 @@ interface Enrollment {
   lq_nurture_sequences: { steps: NurtureStep[] } | null;
 }
 
+interface EmailSend {
+  id: string;
+  lead_id: string | null;
+  enrollment_id: string | null;
+  step: number;
+  to_email: string;
+  subject: string;
+  body: string;
+  sent_at: string;
+}
+
 interface Overview {
   client: LqClient;
   leads: Lead[];
   enrollments: Enrollment[];
+  emailSends: EmailSend[];
 }
 
 const STAGES = [
@@ -88,6 +100,7 @@ export default function ClientsPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [tab, setTab] = useState<TabKey>("calendar");
+  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -115,6 +128,15 @@ export default function ClientsPage() {
     return overview.leads
       .filter((l) => l.scheduled_at)
       .sort((a, b) => new Date(b.scheduled_at as string).getTime() - new Date(a.scheduled_at as string).getTime());
+  }, [overview]);
+
+  const leadNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const lead of overview?.leads || []) {
+      const fields = lead.lq_conversations?.extracted_fields || {};
+      map[lead.id] = String(fields.name || lead.contact_email || "Lead");
+    }
+    return map;
   }, [overview]);
 
   const byStage = useMemo(() => {
@@ -264,29 +286,73 @@ export default function ClientsPage() {
                 )}
 
                 {tab === "emails" && (
-                  <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, overflow: "hidden" }}>
-                    {(overview?.enrollments.length ?? 0) === 0 ? (
-                      <p style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 13 }}>No email sequences running.</p>
-                    ) : (
-                      overview!.enrollments.map((e) => {
-                        const style = ENROLLMENT_STYLE[e.status] || { bg: "#f1f5f9", color: L.muted, label: e.status };
-                        const fields = e.lq_leads?.lq_conversations?.extracted_fields || {};
-                        const totalSteps = e.lq_nurture_sequences?.steps?.length || 0;
-                        return (
-                          <div key={e.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${L.border}`, flexWrap: "wrap", gap: 8 }}>
-                            <div>
-                              <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text }}>
-                                {String(fields.name || e.contact_email || e.lq_leads?.contact_email || "Lead")}
-                              </p>
-                              <p style={{ fontSize: 12, color: L.muted }}>
-                                Step {e.current_step}{totalSteps ? ` of ${totalSteps}` : ""}{e.next_send_at ? ` · next email ${new Date(e.next_send_at).toLocaleString("en-NZ", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}
-                              </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, overflow: "hidden" }}>
+                      <p style={{ padding: "12px 16px", fontSize: 11.5, fontWeight: 700, color: L.dimmed, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${L.border}` }}>Sequences</p>
+                      {(overview?.enrollments.length ?? 0) === 0 ? (
+                        <p style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 13 }}>No email sequences running.</p>
+                      ) : (
+                        overview!.enrollments.map((e) => {
+                          const style = ENROLLMENT_STYLE[e.status] || { bg: "#f1f5f9", color: L.muted, label: e.status };
+                          const fields = e.lq_leads?.lq_conversations?.extracted_fields || {};
+                          const totalSteps = e.lq_nurture_sequences?.steps?.length || 0;
+                          return (
+                            <div key={e.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${L.border}`, flexWrap: "wrap", gap: 8 }}>
+                              <div>
+                                <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text }}>
+                                  {String(fields.name || e.contact_email || e.lq_leads?.contact_email || "Lead")}
+                                </p>
+                                <p style={{ fontSize: 12, color: L.muted }}>
+                                  Step {e.current_step}{totalSteps ? ` of ${totalSteps}` : ""}{e.next_send_at ? ` · next email ${new Date(e.next_send_at).toLocaleString("en-NZ", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}
+                                </p>
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: style.color, background: style.bg, padding: "3px 10px", borderRadius: 20 }}>{style.label}</span>
                             </div>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: style.color, background: style.bg, padding: "3px 10px", borderRadius: 20 }}>{style.label}</span>
-                          </div>
-                        );
-                      })
-                    )}
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, overflow: "hidden" }}>
+                      <p style={{ padding: "12px 16px", fontSize: 11.5, fontWeight: 700, color: L.dimmed, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${L.border}` }}>
+                        Emails sent ({overview?.emailSends.length ?? 0})
+                      </p>
+                      {(overview?.emailSends.length ?? 0) === 0 ? (
+                        <p style={{ padding: 24, textAlign: "center", color: L.dimmed, fontSize: 13 }}>No emails sent to this client&apos;s leads yet.</p>
+                      ) : (
+                        overview!.emailSends.map((send) => {
+                          const expanded = expandedEmailId === send.id;
+                          const leadName = (send.lead_id && leadNameById[send.lead_id]) || send.to_email;
+                          return (
+                            <div key={send.id} style={{ borderBottom: `1px solid ${L.border}` }}>
+                              <button
+                                onClick={() => setExpandedEmailId(expanded ? null : send.id)}
+                                style={{
+                                  display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+                                  padding: "14px 16px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", gap: 10,
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                                  {expanded ? <ChevronDown style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} /> : <ChevronRight style={{ width: 13, height: 13, color: L.dimmed, flexShrink: 0 }} />}
+                                  <div style={{ minWidth: 0 }}>
+                                    <p style={{ fontSize: 13.5, fontWeight: 700, color: L.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{send.subject}</p>
+                                    <p style={{ fontSize: 12, color: L.muted }}>To {leadName} ({send.to_email}) · step {send.step + 1}</p>
+                                  </div>
+                                </div>
+                                <span style={{ fontSize: 11.5, color: L.dimmed, flexShrink: 0 }}>
+                                  {new Date(send.sent_at).toLocaleString("en-NZ", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                                </span>
+                              </button>
+                              {expanded && (
+                                <div style={{ padding: "0 16px 16px 39px", fontSize: 13, color: L.text, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+                                  {send.body}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
                 )}
 
