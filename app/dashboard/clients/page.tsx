@@ -46,6 +46,7 @@ interface Lead {
   contact_email: string | null;
   scheduled_at: string | null;
   pipeline_stage: string | null;
+  notes: string | null;
   created_at: string;
   lq_conversations: { extracted_fields: Record<string, unknown>; contact: Record<string, unknown> } | null;
 }
@@ -182,6 +183,13 @@ function ClientsPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function reloadOverview() {
+    if (!selectedId) return;
+    fetch(`/api/lead-qual/clients/${selectedId}/overview`)
+      .then((r) => r.json())
+      .then((body) => setOverview(body));
+  }
+
   useEffect(() => {
     if (!selectedId) return;
     setLoadingOverview(true);
@@ -227,6 +235,114 @@ function ClientsPageInner() {
     for (const lead of overview?.leads || []) map[stageFor(lead)].push(lead);
     return map;
   }, [overview]);
+
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const [stageError, setStageError] = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+
+  async function saveNote(leadId: string) {
+    const previous = overview;
+    setOverview((prev) => (prev ? { ...prev, leads: prev.leads.map((l) => (l.id === leadId ? { ...l, notes: noteDraft } : l)) } : prev));
+    setEditingNoteId(null);
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${selectedId}/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: noteDraft }),
+      });
+      if (!res.ok) setOverview(previous);
+    } catch {
+      setOverview(previous);
+    }
+  }
+
+  async function moveLead(leadId: string, stage: string): Promise<boolean> {
+    const previous = overview;
+    setStageError(null);
+    setOverview((prev) => (prev ? { ...prev, leads: prev.leads.map((l) => (l.id === leadId ? { ...l, pipeline_stage: stage } : l)) } : prev));
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${selectedId}/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pipeline_stage: stage }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setOverview(previous);
+        setStageError(body.error || "Could not move this lead");
+        return false;
+      }
+      if (stage === "booked") reloadOverview();
+      return true;
+    } catch {
+      setOverview(previous);
+      setStageError("Something went wrong moving this lead.");
+      return false;
+    }
+  }
+
+  interface BookingPreview {
+    leadId: string;
+    leadName: string;
+    leadPhone: string | null;
+    leadEmail: string | null;
+    notes: string | null;
+    scheduledAt: string;
+    clientName: string;
+    clientEmail: string;
+    emailSubject: string;
+    emailText: string;
+  }
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [bookingPreview, setBookingPreview] = useState<BookingPreview | null>(null);
+  const [confirmingBooking, setConfirmingBooking] = useState(false);
+
+  async function handleDrop(stage: string) {
+    setDragOverStage(null);
+    const leadId = dragId;
+    setDragId(null);
+    if (!leadId) return;
+    const current = overview?.leads.find((l) => l.id === leadId);
+    if (!current || stageFor(current) === stage) return;
+
+    // Booking sends an email + calendar invite to the client, so it gets a
+    // preview-and-confirm step instead of moving straight away like the
+    // other stages — everything else here is just an internal label change.
+    if (stage === "booked") {
+      setPreviewError(null);
+      setPreviewLoading(true);
+      try {
+        const res = await fetch(`/api/lead-qual/clients/${selectedId}/leads/${leadId}/preview-booking`);
+        const body = await res.json();
+        if (!res.ok) {
+          setPreviewError(body.error || "Could not build a preview for this lead");
+          return;
+        }
+        setBookingPreview({ leadId, ...body });
+      } catch {
+        setPreviewError("Something went wrong building the preview.");
+      } finally {
+        setPreviewLoading(false);
+      }
+      return;
+    }
+
+    moveLead(leadId, stage);
+  }
+
+  async function confirmBooking() {
+    if (!bookingPreview) return;
+    setConfirmingBooking(true);
+    try {
+      const ok = await moveLead(bookingPreview.leadId, "booked");
+      if (ok) setBookingPreview(null);
+    } finally {
+      setConfirmingBooking(false);
+    }
+  }
 
   return (
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
@@ -520,46 +636,172 @@ function ClientsPageInner() {
                 )}
 
                 {tab === "pipeline" && (
-                  <div style={{ display: "flex", gap: 14, overflowX: "auto", alignItems: "flex-start" }}>
-                    {STAGES.map((stage) => {
-                      const stageLeads = byStage[stage.key] || [];
-                      return (
-                        <div key={stage.key} style={{ flex: "1 1 220px", minWidth: 220 }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, padding: "0 2px" }}>
-                            <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{stage.label}</p>
-                            <span style={{ fontSize: 11.5, fontWeight: 700, color: stage.color, background: stage.bg, padding: "2px 8px" }}>{stageLeads.length}</span>
+                  <>
+                    {stageError && (
+                      <p style={{ color: "#b91c1c", fontSize: 12.5, marginBottom: 10 }}>{stageError}</p>
+                    )}
+                    {previewError && (
+                      <p style={{ color: "#b91c1c", fontSize: 12.5, marginBottom: 10 }}>{previewError}</p>
+                    )}
+                    <div style={{ display: "flex", gap: 14, overflowX: "auto", alignItems: "flex-start" }}>
+                      {STAGES.map((stage) => {
+                        const stageLeads = byStage[stage.key] || [];
+                        const isDragOver = dragOverStage === stage.key;
+                        return (
+                          <div
+                            key={stage.key}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              if (dragOverStage !== stage.key) setDragOverStage(stage.key);
+                            }}
+                            onDragLeave={() => setDragOverStage((prev) => (prev === stage.key ? null : prev))}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              handleDrop(stage.key);
+                            }}
+                            style={{
+                              flex: "1 1 220px", minWidth: 220, background: isDragOver ? "#f8fafc" : "transparent",
+                              border: isDragOver ? `1px dashed ${stage.color}` : "1px solid transparent",
+                              borderRadius: 8, padding: 6, transition: "background 0.1s",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, padding: "0 4px" }}>
+                              <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>{stage.label}</p>
+                              <span style={{ fontSize: 11.5, fontWeight: 700, color: stage.color, background: stage.bg, padding: "2px 8px", borderRadius: 999 }}>{stageLeads.length}</span>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 60 }}>
+                              {stageLeads.length === 0 ? (
+                                <div style={{ border: `1px dashed ${L.border}`, padding: 16, textAlign: "center", color: "#cbd5e1", fontSize: 12, borderRadius: 6 }}>Empty</div>
+                              ) : (
+                                stageLeads.map((lead) => {
+                                  const fields = lead.lq_conversations?.extracted_fields || {};
+                                  return (
+                                    <div
+                                      key={lead.id}
+                                      draggable
+                                      onDragStart={() => setDragId(lead.id)}
+                                      onDragEnd={() => {
+                                        setDragId(null);
+                                        setDragOverStage(null);
+                                      }}
+                                      style={{
+                                        background: L.surface, border: `1px solid ${L.border}`, borderLeft: `3px solid ${stage.color}`,
+                                        padding: "10px 12px", borderRadius: 6, cursor: "grab", opacity: dragId === lead.id ? 0.4 : 1,
+                                      }}
+                                    >
+                                      <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>
+                                        {fields.name ? `${String(fields.name)} — ${String(fields.job_type || "Job type unknown")}` : String(fields.job_type || "Job type unknown")}
+                                      </p>
+                                      <p style={{ fontSize: 11.5, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
+                                      <p style={{ fontSize: 11, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email || "No contact")}</p>
+                                      {lead.scheduled_at && (
+                                        <p style={{ fontSize: 11, color: stage.key === "booked" ? "#15803d" : L.dimmed, fontWeight: stage.key === "booked" ? 600 : 400, marginTop: 4 }}>
+                                          {stage.key === "booked" ? "Booked: " : "Callback agreed: "}
+                                          {new Date(lead.scheduled_at).toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                                        </p>
+                                      )}
+                                      {!!fields.notes && (
+                                        <p style={{ fontSize: 11, color: L.muted, marginTop: 4, whiteSpace: "pre-line" }}>{String(fields.notes)}</p>
+                                      )}
+                                      <p style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 4 }}>{new Date(lead.created_at).toLocaleDateString("en-NZ")}</p>
+
+                                      {editingNoteId === lead.id ? (
+                                        <textarea
+                                          autoFocus
+                                          value={noteDraft}
+                                          onChange={(e) => setNoteDraft(e.target.value)}
+                                          onBlur={() => saveNote(lead.id)}
+                                          onClick={(e) => e.stopPropagation()}
+                                          draggable={false}
+                                          onDragStart={(e) => e.stopPropagation()}
+                                          rows={2}
+                                          placeholder="Note — call outcome, context…"
+                                          style={{ width: "100%", boxSizing: "border-box", marginTop: 6, padding: "5px 7px", fontSize: 11.5, border: `1px solid ${L.border}`, borderRadius: 4, fontFamily: "inherit", resize: "vertical" }}
+                                        />
+                                      ) : (
+                                        <p
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setNoteDraft(lead.notes || "");
+                                            setEditingNoteId(lead.id);
+                                          }}
+                                          style={{ fontSize: 11.5, color: lead.notes ? L.text : L.dimmed, fontStyle: lead.notes ? "normal" : "italic", marginTop: 6, cursor: "text", borderTop: `1px solid ${L.border}`, paddingTop: 5 }}
+                                        >
+                                          {lead.notes || "+ add note"}
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
                           </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            {stageLeads.length === 0 ? (
-                              <div style={{ border: `1px dashed ${L.border}`, padding: 16, textAlign: "center", color: "#cbd5e1", fontSize: 12, borderRadius: 6 }}>Empty</div>
-                            ) : (
-                              stageLeads.map((lead) => {
-                                const fields = lead.lq_conversations?.extracted_fields || {};
-                                return (
-                                  <div key={lead.id} style={{ background: L.surface, border: `1px solid ${L.border}`, borderLeft: `3px solid ${stage.color}`, padding: "10px 12px", borderRadius: 6 }}>
-                                    <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>
-                                      {fields.name ? `${String(fields.name)} — ${String(fields.job_type || "Job type unknown")}` : String(fields.job_type || "Job type unknown")}
-                                    </p>
-                                    <p style={{ fontSize: 11.5, color: L.muted }}>{String(fields.location || "Location unknown")}</p>
-                                    {!!fields.notes && (
-                                      <p style={{ fontSize: 11, color: L.muted, marginTop: 4, whiteSpace: "pre-line" }}>{String(fields.notes)}</p>
-                                    )}
-                                    <p style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 4 }}>{new Date(lead.created_at).toLocaleDateString("en-NZ")}</p>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </>
             )}
           </>
         )}
       </div>
+
+      {bookingPreview && (
+        <div
+          onClick={() => !confirmingBooking && setBookingPreview(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 50 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: L.surface, borderRadius: 12, padding: 24, maxWidth: 480, width: "100%", maxHeight: "85vh", overflowY: "auto" }}
+          >
+            <p style={{ fontSize: 15, fontWeight: 800, color: L.text, marginBottom: 4 }}>Confirm before sending</p>
+            <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 16 }}>
+              This will book onto {bookingPreview.clientName}&apos;s calendar and send them this email. Nothing goes out until you confirm.
+            </p>
+
+            <div style={{ border: `1px solid ${L.border}`, borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 12.5, color: L.muted }}>
+              <p><strong style={{ color: L.text }}>Lead:</strong> {bookingPreview.leadName}</p>
+              {bookingPreview.leadPhone && <p><strong style={{ color: L.text }}>Phone:</strong> {bookingPreview.leadPhone}</p>}
+              {bookingPreview.leadEmail && <p><strong style={{ color: L.text }}>Email:</strong> {bookingPreview.leadEmail}</p>}
+              {bookingPreview.notes && <p style={{ whiteSpace: "pre-line" }}><strong style={{ color: L.text }}>Notes:</strong> {bookingPreview.notes}</p>}
+              <p><strong style={{ color: L.text }}>Callback time:</strong> {new Date(bookingPreview.scheduledAt).toLocaleString("en-NZ", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</p>
+            </div>
+
+            <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", color: L.muted, marginBottom: 6 }}>
+              Email going to {bookingPreview.clientEmail}
+            </p>
+            <div style={{ background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 8, padding: 12, marginBottom: 18 }}>
+              <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text, marginBottom: 8 }}>{bookingPreview.emailSubject}</p>
+              <pre style={{ fontSize: 12.5, color: L.text, whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0 }}>{bookingPreview.emailText}</pre>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setBookingPreview(null)}
+                disabled={confirmingBooking}
+                style={{ background: "none", border: `1px solid ${L.border}`, color: L.muted, padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmBooking}
+                disabled={confirmingBooking}
+                style={{ background: "var(--accent)", border: "none", color: "#fff", padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+              >
+                {confirmingBooking ? "Booking…" : "Confirm & send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewLoading && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+          <div style={{ background: L.surface, borderRadius: 10, padding: "16px 22px", fontSize: 13, color: L.muted, fontWeight: 600 }}>Building preview…</div>
+        </div>
+      )}
     </div>
   );
 }
