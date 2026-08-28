@@ -6,8 +6,8 @@ import { logSalesCall } from "@/lib/logSalesCall";
 import { buildRecapEmail, pickRecapRecipients } from "@/lib/salesCallRecap";
 
 interface FirefliesWebhookPayload {
-  meetingId?: string;
-  eventType?: string;
+  meeting_id?: string;
+  event?: string;
 }
 
 // Fireflies signs every webhook with an x-hub-signature header shaped like
@@ -40,21 +40,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
-  // TEMP DEBUG — remove once we confirm the real payload shape Fireflies
-  // sends; the second test webhook hit reached this handler and returned
-  // 200 with nothing logged, meaning meetingId/eventType aren't where we
-  // expect them in the actual payload.
-  console.log("fireflies webhook raw body", rawBody);
-
   const payload = JSON.parse(rawBody) as FirefliesWebhookPayload;
-  const meetingId = payload.meetingId;
+  const meetingId = payload.meeting_id;
   if (!meetingId) return NextResponse.json({ ok: true });
 
-  // Fireflies' own event naming for this varies by integration version —
-  // matching case-insensitively on "completed" (rather than an exact string)
-  // avoids silently dropping every call if the exact label differs.
-  const eventType = (payload.eventType || "").toLowerCase();
-  if (eventType && !eventType.includes("completed")) {
+  // Fireflies sends event: "meeting.transcribed" once the transcript is
+  // ready — matching case-insensitively on "transcribed" (rather than an
+  // exact string) avoids silently dropping calls if the exact label varies.
+  const eventType = (payload.event || "").toLowerCase();
+  if (eventType && !eventType.includes("transcribed")) {
     return NextResponse.json({ ok: true });
   }
 
