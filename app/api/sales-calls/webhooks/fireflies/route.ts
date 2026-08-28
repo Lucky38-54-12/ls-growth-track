@@ -40,6 +40,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
+  // TEMP DEBUG — remove once we confirm the real payload shape Fireflies
+  // sends; the second test webhook hit reached this handler and returned
+  // 200 with nothing logged, meaning meetingId/eventType aren't where we
+  // expect them in the actual payload.
+  console.log("fireflies webhook raw body", rawBody);
+
   const payload = JSON.parse(rawBody) as FirefliesWebhookPayload;
   const meetingId = payload.meetingId;
   if (!meetingId) return NextResponse.json({ ok: true });
