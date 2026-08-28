@@ -18,7 +18,8 @@ export interface LogSalesCallResult {
 export async function logSalesCall(
   sb: ReturnType<typeof createSupabaseClient>,
   rawSummary: string,
-  yourTake: string
+  yourTake: string,
+  firefliesMeetingId?: string
 ): Promise<LogSalesCallResult> {
   const parsed = await parseCallSummary(rawSummary);
 
@@ -31,8 +32,13 @@ export async function logSalesCall(
     next_step_booked: parsed.next_step_booked,
     next_step_detail: parsed.next_step_detail,
     went_well: parsed.went_well,
-    work_ons: yourTake,
+    // yourTake is Lucky's own manual take when he pastes a call in himself —
+    // automated sources (e.g. the Fireflies webhook) have no human typing
+    // anything, so fall back to the AI's own extracted work_ons instead of
+    // silently discarding it.
+    work_ons: yourTake || parsed.work_ons,
     raw_summary: rawSummary,
+    fireflies_meeting_id: firefliesMeetingId || null,
   };
 
   const { data, error } = await sb.from("sales_calls").insert(call).select().single();

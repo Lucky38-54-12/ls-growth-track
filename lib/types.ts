@@ -192,6 +192,7 @@ export interface SalesCall {
   went_well: string;
   work_ons: string;
   raw_summary: string;
+  fireflies_meeting_id: string | null;
   created_at: string;
 }
 
