@@ -844,10 +844,7 @@ function ClientsPageInner() {
             onClick={(e) => e.stopPropagation()}
             style={{ background: L.surface, borderRadius: 12, padding: 24, maxWidth: 480, width: "100%", maxHeight: "85vh", overflowY: "auto" }}
           >
-            <p style={{ fontSize: 15, fontWeight: 800, color: L.text, marginBottom: 4 }}>Confirm before sending</p>
-            <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 16 }}>
-              This will book onto {bookingPreview.clientName}&apos;s calendar and send them this email. Nothing goes out until you confirm.
-            </p>
+            <p style={{ fontSize: 15, fontWeight: 800, color: L.text, marginBottom: 16 }}>Confirm before sending</p>
 
             <div style={{ border: `1px solid ${L.border}`, borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 12.5, color: L.muted }}>
               <p><strong style={{ color: L.text }}>Lead:</strong> {bookingPreview.leadName}</p>
@@ -900,10 +897,7 @@ function ClientsPageInner() {
             onClick={(e) => e.stopPropagation()}
             style={{ background: L.surface, borderRadius: 12, padding: 24, maxWidth: 360, width: "100%" }}
           >
-            <p style={{ fontSize: 15, fontWeight: 800, color: L.text, marginBottom: 4 }}>Set a callback time</p>
-            <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 16 }}>
-              This lead has no callback time yet — pick one to book it onto the calendar.
-            </p>
+            <p style={{ fontSize: 15, fontWeight: 800, color: L.text, marginBottom: 16 }}>Set a callback time</p>
             <input
               type="datetime-local"
               value={scheduleValue}
