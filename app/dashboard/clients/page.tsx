@@ -120,6 +120,20 @@ function stageFor(lead: Lead): string {
   return "new_inquiry";
 }
 
+function firstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] || fullName;
+}
+
+function humanizeJobType(jobType: string): string {
+  const cleaned = jobType.replace(/_/g, " ").trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function cardHeadline(fields: Record<string, unknown>, fallback: string): string {
+  const jobType = humanizeJobType(String(fields.job_type || fallback));
+  return fields.name ? `${firstName(String(fields.name))} - ${jobType}` : jobType;
+}
+
 const TABS = [
   { key: "calendar", label: "Calendar", icon: Calendar },
   { key: "emails", label: "Emails", icon: Mail },
@@ -585,7 +599,7 @@ function ClientsPageInner() {
                                   const fields = lead.lq_conversations?.extracted_fields || {};
                                   return (
                                     <div key={lead.id} style={{ fontSize: 10.5, fontWeight: 600, color: "#15803d", background: "#f0fdf4", padding: "2px 5px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.3 }}>
-                                      {new Date(lead.scheduled_at as string).toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })} {String(fields.name || fields.job_type || "Booking")}
+                                      {new Date(lead.scheduled_at as string).toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })} {fields.name ? firstName(String(fields.name)) : humanizeJobType(String(fields.job_type || "Booking"))}
                                     </div>
                                   );
                                 })}
@@ -621,8 +635,7 @@ function ClientsPageInner() {
                                   style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, cursor: "pointer" }}
                                 >
                                   <div style={{ minWidth: 0 }}>
-                                    <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{String(fields.name || fields.job_type || "Booking")}</p>
-                                    {!!(fields.job_type && fields.name) && <p style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>{String(fields.job_type)}</p>}
+                                    <p style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{cardHeadline(fields, "Booking")}</p>
                                     <p style={{ fontSize: 11.5, color: isPast ? L.dimmed : "#15803d", fontWeight: 600, marginTop: 4 }}>
                                       {new Date(lead.scheduled_at as string).toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" })}
                                     </p>
@@ -771,7 +784,7 @@ function ClientsPageInner() {
                                         style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, cursor: "pointer" }}
                                       >
                                         <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text, minWidth: 0 }}>
-                                          {fields.name ? `${String(fields.name)} — ${String(fields.job_type || "Job type unknown")}` : String(fields.job_type || "Job type unknown")}
+                                          {cardHeadline(fields, "Job type unknown")}
                                         </p>
                                         {isOpen ? <ChevronDown style={{ width: 14, height: 14, color: L.dimmed, flexShrink: 0 }} /> : <ChevronRight style={{ width: 14, height: 14, color: L.dimmed, flexShrink: 0 }} />}
                                       </div>

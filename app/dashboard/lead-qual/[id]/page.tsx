@@ -54,6 +54,20 @@ function stageFor(lead: Lead): string {
   return "new_inquiry";
 }
 
+function firstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] || fullName;
+}
+
+function humanizeJobType(jobType: string): string {
+  const cleaned = jobType.replace(/_/g, " ").trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function cardHeadline(fields: Record<string, unknown>, fallback: string): string {
+  const jobType = humanizeJobType(String(fields.job_type || fallback));
+  return fields.name ? `${firstName(String(fields.name))} - ${jobType}` : jobType;
+}
+
 const QUALITY_STYLE: Record<string, { bg: string; color: string; label: string }> = {
   qualified: { bg: "#f0fdf4", color: "#15803d", label: "HIGH" },
   nurture: { bg: "#fffbeb", color: "#b45309", label: "MEDIUM" },
@@ -1044,13 +1058,12 @@ function ClientDetailPageInner() {
                           >
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
                               <p style={{ fontSize: 12.5, fontWeight: 700, color: L.text }}>
-                                {fields.name ? String(fields.name) : "Unnamed lead"}
+                                {cardHeadline(fields, "Unnamed lead")}
                               </p>
                               <span style={{ fontSize: 10, fontWeight: 700, color: quality.color, background: quality.bg, padding: "2px 6px", borderRadius: 20, whiteSpace: "nowrap" }}>
                                 {quality.label}
                               </span>
                             </div>
-                            {!!fields.job_type && <p style={{ fontSize: 11.5, color: L.muted, marginTop: 2 }}>{String(fields.job_type)}</p>}
                             <p style={{ fontSize: 11, color: L.muted, marginTop: 4 }}>{String(fields.phone || lead.contact_email || "No contact")}</p>
                             {lead.scheduled_at && (
                               <p style={{ fontSize: 11, color: stage.key === "callback_booked" ? "#15803d" : L.dimmed, fontWeight: stage.key === "callback_booked" ? 600 : 400, marginTop: 4 }}>
