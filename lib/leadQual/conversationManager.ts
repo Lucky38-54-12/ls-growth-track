@@ -3,6 +3,7 @@ import { runQualifyingTurn, runPostCloseTurn, ClientConfigData, ConversationTurn
 import { evaluate, Rule, defaultRules } from "./qualification";
 import { bookJobOnClientCalendar, resolveAvailableSlot } from "./googleCalendar";
 import { enrollInNurture } from "./nurture";
+import { findExistingLeadByPhone, mergeFieldsIntoExistingLead } from "./dedupe";
 import { notifySlack } from "@/lib/slackNotify";
 import { sendReminderEmail } from "@/lib/email";
 
@@ -44,6 +45,18 @@ export interface FacebookFormLeadInput {
 // re-processed) so callers can count it as skipped rather than imported.
 export async function createLeadFromFacebookForm({ clientId, channelId, leadgenId, fields, submittedAt }: FacebookFormLeadInput): Promise<boolean> {
   const sb = createSupabaseClient();
+
+  // Same person may have already messaged this client on Messenger before
+  // filling out the Lead Ad form — fold the form answers into that existing
+  // lead instead of spawning a second pipeline card for the same person.
+  const existingLead = await findExistingLeadByPhone(clientId, fields.phone);
+  if (existingLead) {
+    await mergeFieldsIntoExistingLead(existingLead, fields);
+    if (fields.email && !existingLead.contact_email) {
+      await sb.from("lq_leads").update({ contact_email: fields.email }).eq("id", existingLead.id);
+    }
+    return false;
+  }
 
   const { data: conversation, error } = await sb
     .from("lq_conversations")
@@ -283,18 +296,36 @@ async function finishQualifyingTurn(
 
     if (result.outcome !== "needs_human") {
       const contactEmail = typeof mergedFields.email === "string" ? mergedFields.email : undefined;
-      const { data: lead } = await sb
-        .from("lq_leads")
-        .insert({
-          conversation_id: conversation.id,
-          client_id: clientId,
+      const contactPhone = typeof mergedFields.phone === "string" ? mergedFields.phone : undefined;
+
+      // Same person may already have a lead on file from another channel
+      // (e.g. they also filled out a Facebook Lead Ad form) — update that
+      // record instead of creating a second pipeline card for them.
+      const existingLead = await findExistingLeadByPhone(clientId, contactPhone);
+      let lead: { id: string } | null;
+      if (existingLead) {
+        await mergeFieldsIntoExistingLead(existingLead, mergedFields);
+        await sb.from("lq_leads").update({
           outcome: result.outcome,
           score: result.score,
-          contact_email: contactEmail || null,
-          pipeline_stage: result.outcome === "disqualified" ? "not_a_fit" : result.outcome === "nurture" ? "followed_up" : "new_inquiry",
-        })
-        .select()
-        .single();
+          contact_email: contactEmail || existingLead.contact_email || null,
+        }).eq("id", existingLead.id);
+        lead = { id: existingLead.id };
+      } else {
+        const { data: newLead } = await sb
+          .from("lq_leads")
+          .insert({
+            conversation_id: conversation.id,
+            client_id: clientId,
+            outcome: result.outcome,
+            score: result.score,
+            contact_email: contactEmail || null,
+            pipeline_stage: result.outcome === "disqualified" ? "not_a_fit" : result.outcome === "nurture" ? "followed_up" : "new_inquiry",
+          })
+          .select()
+          .single();
+        lead = newLead;
+      }
 
       if (result.outcome === "qualified" && lead) {
         try {
