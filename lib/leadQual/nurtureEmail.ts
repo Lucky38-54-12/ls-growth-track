@@ -42,7 +42,7 @@ export async function dispatchDueNurtureEmails(): Promise<{ sent: number; errors
       const [{ data: sequence }, { data: lead }, { data: client }] = await Promise.all([
         sb.from("lq_nurture_sequences").select("steps").eq("id", enrollment.sequence_id).single(),
         sb.from("lq_leads").select("conversation_id").eq("id", enrollment.lead_id).single(),
-        sb.from("lq_clients").select("name, email").eq("id", enrollment.client_id).single(),
+        sb.from("lq_clients").select("name, contact_name, email").eq("id", enrollment.client_id).single(),
       ]);
       const steps = (sequence?.steps as NurtureStep[]) || [];
       const step = steps[enrollment.current_step];
@@ -58,18 +58,20 @@ export async function dispatchDueNurtureEmails(): Promise<{ sent: number; errors
         .single();
       const fields = (conversation?.extracted_fields as Record<string, string>) || {};
 
+      const businessName = client?.name || "the team";
+      const signOff = client?.contact_name ? `${client.contact_name} from ${businessName}` : businessName;
       const vars = {
         job_type: fields.job_type || "your job",
         location: fields.location || "your area",
-        business_name: client?.name || "the team",
+        business_name: businessName,
+        contact_name: client?.contact_name || businessName,
       };
 
       const subject = renderTemplate(step.subject, vars);
       const body = renderTemplate(step.body_template, vars);
 
-      const businessName = client?.name || "the team";
       const { error: sendError } = await resend.emails.send({
-        from: `"${businessName.replace(/"/g, "")}" <${FROM_DOMAIN}>`,
+        from: `"${signOff.replace(/"/g, "")}" <${FROM_DOMAIN}>`,
         to: enrollment.contact_email,
         ...(client?.email ? { replyTo: client.email } : {}),
         subject,

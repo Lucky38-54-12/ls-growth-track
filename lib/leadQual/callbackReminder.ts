@@ -50,7 +50,7 @@ export async function dispatchDueCallbackReminders(): Promise<{ sent: number; er
   for (const lead of (due || []) as DueLead[]) {
     try {
       const [{ data: client }, { data: conversation }] = await Promise.all([
-        sb.from("lq_clients").select("name, email, timezone").eq("id", lead.client_id).single(),
+        sb.from("lq_clients").select("name, contact_name, email, timezone").eq("id", lead.client_id).single(),
         lead.conversation_id
           ? sb.from("lq_conversations").select("extracted_fields").eq("id", lead.conversation_id).single()
           : Promise.resolve({ data: null }),
@@ -58,24 +58,26 @@ export async function dispatchDueCallbackReminders(): Promise<{ sent: number; er
       const fields = (conversation?.extracted_fields as Record<string, unknown>) || {};
       const leadFirstName = typeof fields.name === "string" ? String(fields.name).trim().split(/\s+/)[0] : null;
       const businessName = client?.name || "the team";
+      const callerName = client?.contact_name || businessName;
+      const signOff = client?.contact_name ? `${client.contact_name} from ${businessName}` : businessName;
       const timezone = client?.timezone || "Pacific/Auckland";
 
       const callTime = new Date(lead.scheduled_at).toLocaleString("en-NZ", {
         timeZone: timezone, hour: "numeric", minute: "2-digit",
       });
 
-      const subject = `${businessName} will be calling you shortly`;
+      const subject = `${signOff} will be calling you shortly`;
       const text = [
         `Hi${leadFirstName ? ` ${leadFirstName}` : ""},`,
         "",
-        `${businessName} will call you in about half an hour, around ${callTime}.`,
+        `${callerName} will call you in about half an hour, around ${callTime}.`,
         "",
         "Talk soon,",
-        businessName,
+        signOff,
       ].join("\n");
 
       const { error: sendError } = await resend.emails.send({
-        from: `"${businessName.replace(/"/g, "")}" <${FROM_DOMAIN}>`,
+        from: `"${signOff.replace(/"/g, "")}" <${FROM_DOMAIN}>`,
         to: lead.contact_email as string,
         ...(client?.email ? { replyTo: client.email } : {}),
         subject,
