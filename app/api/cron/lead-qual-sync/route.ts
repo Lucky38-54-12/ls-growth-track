@@ -6,14 +6,15 @@ import { notifySlack } from "@/lib/slackNotify";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Daily safety net on top of the live webhook: catches Lead Ad form
-// submissions the webhook missed (token permission gaps, Meta retries that
-// never landed, a Page reconnected mid-day) so the portal never silently
-// drifts behind what's actually in the client's form. backfillLeadsForClient
-// is dedupe-safe (checks leadgen_id before inserting), so re-checking every
-// client's full history daily costs nothing beyond the Graph API calls
-// themselves — no AI spend, unlike the Anthropic-heavy jobs in
-// daily-maintenance.
+// Twice-daily safety net on top of the live webhook (6am and 12pm NZT, see
+// .github/workflows/cron.yml): catches Lead Ad form submissions the webhook
+// missed (token permission gaps, Meta retries that never landed, a Page
+// reconnected mid-day) so the portal never silently drifts behind what's
+// actually in the client's form, and a morning miss doesn't sit unnoticed
+// until the next day. backfillLeadsForClient is dedupe-safe (checks
+// leadgen_id before inserting), so re-checking every client's full history
+// twice a day costs nothing beyond the Graph API calls themselves — no AI
+// spend, unlike the Anthropic-heavy jobs in daily-maintenance.
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
   if (secret !== process.env.CRON_SECRET) {
