@@ -12,6 +12,12 @@ export interface ClientConfigData {
   websiteContent?: string;
   extraContext?: string;
   timezone: string;
+  // Some businesses (e.g. Queenstown Cleaning) can't price a job without
+  // seeing it AND won't do the visit-time back-and-forth over chat either —
+  // the tradesperson wants to sort that themselves on the callback, not have
+  // a lead pick a site-visit slot with the AI. Per-client, not trade-wide:
+  // another cleaner might be perfectly happy quoting over the phone.
+  phoneQuotesUnavailable?: boolean;
 }
 
 export interface QualifyingTurnResult {
@@ -76,7 +82,9 @@ function buildSystemPrompt(config: ClientConfigData): string {
   // Reno/building/painting jobs can't be priced without seeing the site, so
   // these trades never get offered the phone-quote option — always push for a viewing.
   const isRenovationTrade = /renovat|building|builder|reno\b|paint/i.test(config.trade || "") || /renovat|building|builder|reno\b|paint/i.test(config.description || "");
-  const quoteMethodStep = isRenovationTrade
+  const quoteMethodStep = config.phoneQuotesUnavailable
+    ? `4. quote_method: this job can only be quoted in person, not over the phone, so don't offer a phone quote as an option — and don't ask what time works for a site visit either, the team sorts that themselves when they call. Just ask what time works best for a call to sort next steps. This time is callback_time. quote_method is always "on_site" for this business. There is no visit_time for this business — never ask for one. If they push back and ask for a price over the phone, explain warmly that quotes need to be done in person, so the team will call to arrange a time to come take a look.`
+    : isRenovationTrade
     ? `4. quote_method: this job can't be quoted without seeing it, so don't offer a phone quote as an option. Ask what time works for someone to come round and have a look and quote it in person (this is visit_time). Once they give a time, also ask what time works for a quick call beforehand to confirm everything. This time is callback_time. quote_method is always "on_site" for this business. If they push back and ask for a price over the phone, explain warmly that you can't put a number on it without seeing the job first, so a quick look is the fastest way to get them an accurate quote.`
     : `4. quote_method: ask whether they'd like someone to come out and quote it in person, or whether a call to sort the quote over the phone works better for them
 5. Depending on their answer to 4:
@@ -102,7 +110,8 @@ YOUR JOB: have a warm, human, natural conversation with a lead who messaged in a
 ${quoteMethodStep}
 6. Accept whatever time reference they give as the callback_time (or visit_time) — a general answer like "tomorrow arvo", "sometime in the morning", or "after 3" is good enough, real people don't book exact minutes over text. Do NOT keep asking for a more precise time once they've given you a reasonable one — move straight to step 7 instead. Whenever you capture a callback_time or visit_time, also work out the actual calendar date and a specific clock time it refers to, using "right now" above as the anchor, and record it as callback_time_iso (or visit_time_iso) in the extracted fields, formatted exactly as "YYYY-MM-DDTHH:MM:SS" in ${config.businessName}'s own local time (no timezone letters or offset, just the plain local date and time). For a vague window, pick a sensible specific time within it for the _iso field only, e.g. "morning" → 09:00:00, "arvo"/"afternoon" → 14:00:00, "after 3" → 15:00:00 — your reply_text to the lead should still just reflect back their own vague phrasing naturally, never read out the specific time you picked unless they actually gave you one.
 7. Once you have a callback_time, confirm it back to them warmly — but the visit itself is NEVER locked in from the chat, only the call is attempted at that time, so word it accordingly:
-   - If quote_method is on_site: say the team will call at [callback_time] to confirm if [visit_time] works, and if not they'll sort the next available time — keep it short and plain, e.g. "Sweet, the team will call you at [callback_time] to confirm if [visit_time] works. If not, they'll get you sorted for the next availability." Never say the visit is booked or that someone "will be" there at that time, only that it'll be confirmed on the call.
+   - If quote_method is on_site and there's a visit_time: say the team will call at [callback_time] to confirm if [visit_time] works, and if not they'll sort the next available time — keep it short and plain, e.g. "Sweet, the team will call you at [callback_time] to confirm if [visit_time] works. If not, they'll get you sorted for the next availability." Never say the visit is booked or that someone "will be" there at that time, only that it'll be confirmed on the call.
+   - If quote_method is on_site and there's no visit_time (this business only sorts visit times on the call itself): say the team will call at [callback_time] to sort a time to come take a look — e.g. "Sweet, the team will call you at [callback_time] to sort a time to come take a look." Never mention or ask for a visit time yourself.
    - If quote_method is phone: say the team will do their best to call at that time, don't state it as a flat guarantee — e.g. "Perfect, the team will do their best to give you a call at [callback_time] to sort everything." Never say the call is booked/confirmed outright, frame it as their best effort to hit that time.
    If it fits naturally, you can mention the team's real response commitment ("${responseCommitment}") so it feels concrete rather than vague.
 8. Confirm their contact number. If a phone number already appears anywhere earlier in this conversation (e.g. they messaged in through a lead form that included one), quote that exact number back and ask if it's still the best one to call them on, e.g. "Just to confirm, is 021 123 4567 still the best number to call you on?" If they confirm it or give you a different number, that's their phone. If no phone number has appeared anywhere in the conversation, ask for one directly instead, e.g. "What's the best number to call you on?" Never skip this step.

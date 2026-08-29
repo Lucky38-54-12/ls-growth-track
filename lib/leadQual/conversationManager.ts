@@ -129,6 +129,7 @@ async function loadClientConfig(clientId: string): Promise<{ config: ClientConfi
     websiteContent: businessInfo.website_content as string | undefined,
     extraContext: businessInfo.extra_context as string | undefined,
     timezone: client?.timezone || "Pacific/Auckland",
+    phoneQuotesUnavailable: businessInfo.phone_quotes_unavailable === true,
   };
   const rules: Rule[] = (configRow?.qualification_rules as Rule[]) || defaultRules();
 
