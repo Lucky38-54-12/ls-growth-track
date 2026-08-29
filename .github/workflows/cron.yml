@@ -33,6 +33,18 @@ jobs:
           curl -sf -X GET "https://app.lsgrowth.agency/api/cron/check-personal-inbox" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
+  lead-qual-callback-reminders:
+    # Leads with a booked callback/visit get a heads-up email 20-40 minutes
+    # before it's due — same 15-min cadence as check-personal-inbox above,
+    # wide enough window that no booking falls through a gap between runs.
+    if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/lead-qual-callback-reminders
+        run: |
+          curl -sf -X GET "https://app.lsgrowth.agency/api/cron/lead-qual-callback-reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
   morning-brief:
     # Not gated on github.event.schedule: when two schedules in this workflow
     # coincide (0 19 * * * always lands on a */15 boundary), GitHub Actions
