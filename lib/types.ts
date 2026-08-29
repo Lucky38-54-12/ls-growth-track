@@ -302,6 +302,7 @@ export interface OnboardingClient {
   lq_client_id: string | null;
   business_manager_id: string | null;
   portal_photos_folder_url: string | null;
+  photos_file_count: number;
   client_intake_submitted_at: string | null;
   kickoff_email_status: "none" | "pending" | "sent";
   kickoff_email_subject: string | null;
