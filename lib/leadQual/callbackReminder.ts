@@ -68,7 +68,7 @@ export async function dispatchDueCallbackReminders(): Promise<{ sent: number; er
       const text = [
         `Hi${leadFirstName ? ` ${leadFirstName}` : ""},`,
         "",
-        `Just a heads up — ${businessName} will be giving you a call in about half an hour, around ${callTime}.`,
+        `${businessName} will call you in about half an hour, around ${callTime}.`,
         "",
         "Talk soon,",
         businessName,
