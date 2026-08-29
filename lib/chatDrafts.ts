@@ -1,4 +1,5 @@
 import { createSupabaseClient } from "./supabase";
+import { notifySlack } from "./slackNotify";
 
 export interface ChatDraft {
   id: string;
@@ -39,4 +40,28 @@ export async function getPendingChatDrafts(sb: ReturnType<typeof createSupabaseC
     lead: d.lead_id ? leadsById.get(d.lead_id) || null : null,
     payload: d.payload as Record<string, unknown> | null,
   }));
+}
+
+export interface NewChatDraft {
+  kind: string;
+  title: string;
+  content: string;
+  lead_id?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
+// A drafted action used to sit purely in the chat_drafts table with nothing
+// telling Lucky it existed until he happened to open /dashboard/approvals —
+// every draft insert now goes through this instead of a raw .insert() so a
+// Slack ping always goes with it. Same shape callers already used, just
+// wrapped, so this is a drop-in replacement.
+export async function createChatDraft(
+  sb: ReturnType<typeof createSupabaseClient>,
+  draft: NewChatDraft
+): Promise<{ error: { message: string } | null }> {
+  const { error } = await sb.from("chat_drafts").insert(draft);
+  if (!error) {
+    await notifySlack(`New approval waiting: *${draft.title}* (${draft.kind}) — /dashboard/approvals`);
+  }
+  return { error };
 }

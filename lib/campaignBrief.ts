@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createSupabaseClient } from "@/lib/supabase";
 import { parseJsonResponse } from "@/lib/ai";
 import { createDocWithId, appendMarkedTextToDocTab, replaceMarkedTextInDoc, replaceMarkedTextInDocTab, appendBoxedBlock } from "@/lib/googleDocs";
-import { notifySlack } from "@/lib/slack";
+import { notifySlack } from "@/lib/slackNotify";
 import { findWorkingAds } from "@/lib/adResearch";
 
 // One service's full creative testing plan — this is the actual unit of

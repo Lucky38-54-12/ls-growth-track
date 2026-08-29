@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createSupabaseClient } from "./supabase";
 import { parseJsonResponse } from "./ai";
 import { getCampaignInsights, CampaignInsight } from "./metaAds";
+import { notifySlack } from "./slackNotify";
 
 export interface PerformanceRecommendation {
   title: string;
@@ -103,7 +104,7 @@ Diagnose this client's campaigns and recommend the highest-priority actions.`;
   const toInsert = recommendations.filter((r) => !existingTitles.has(r.title));
 
   if (toInsert.length > 0) {
-    await sb.from("chat_drafts").insert(
+    const { error } = await sb.from("chat_drafts").insert(
       toInsert.map((r) => ({
         kind: "recommendation",
         title: r.title,
@@ -112,6 +113,9 @@ Diagnose this client's campaigns and recommend the highest-priority actions.`;
         payload: { clientId, clientName: client.name, category: r.category, priority: r.priority },
       }))
     );
+    if (!error) {
+      await notifySlack(`${toInsert.length} new performance recommendation${toInsert.length === 1 ? "" : "s"} for *${client.name}* — /dashboard/approvals`);
+    }
   }
 
   return { clientName: client.name, recommendations, inserted: toInsert.length };

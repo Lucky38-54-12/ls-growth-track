@@ -12,6 +12,7 @@ import { prepSalesCall } from "@/lib/prepSalesCall";
 import { generateAndSaveCampaignBrief } from "@/lib/campaignBrief";
 import { AD_LEARNING_CONFIDENCE, AdLearningConfidence } from "@/lib/adLearnings";
 import { proposeCodeChange } from "@/lib/codeChange";
+import { createChatDraft } from "@/lib/chatDrafts";
 import { LeadStatus } from "@/lib/types";
 
 const VALID_LEAD_STATUSES: readonly LeadStatus[] = [
@@ -195,7 +196,7 @@ async function resolveDraft(
       payload.follow_up_at ? `Set follow-up date to ${payload.follow_up_at}.` : "",
     ].filter(Boolean);
 
-    const { error } = await sb.from("chat_drafts").insert({
+    const { error } = await createChatDraft(sb, {
       kind: "lead_update",
       title: "Update lead",
       lead_id: leadUuid,
@@ -225,7 +226,7 @@ async function resolveDraft(
     const when = start.toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
     const content = `${payload.summary}\nWith: ${payload.attendeeName || payload.attendeeEmail}\nWhen: ${when} (${payload.durationMinutes} min)`;
 
-    const { error } = await sb.from("chat_drafts").insert({ kind: "calendar_booking", title: payload.summary, content, payload });
+    const { error } = await createChatDraft(sb, { kind: "calendar_booking", title: payload.summary, content, payload });
     return { appendText: "", draftCreated: !error };
   }
 
@@ -257,7 +258,7 @@ async function resolveDraft(
     const multiNote = matches.length > 1 ? ` (matched ${matches.length} upcoming events for "${payload.query}" — using the soonest, ${match.summary || wasWhen})` : "";
     const content = `${match.summary || payload.query}\nMoving from ${wasWhen} to ${when}${multiNote}`;
 
-    const { error } = await sb.from("chat_drafts").insert({ kind: "reschedule_booking", title: match.summary || `Reschedule: ${payload.query}`, content, payload });
+    const { error } = await createChatDraft(sb, { kind: "reschedule_booking", title: match.summary || `Reschedule: ${payload.query}`, content, payload });
     return { appendText: "", draftCreated: !error };
   }
 
@@ -286,7 +287,7 @@ async function resolveDraft(
       payload.notes ? `Notes: ${payload.notes}` : "",
     ].filter(Boolean);
 
-    const { error } = await sb.from("chat_drafts").insert({ kind: "sheet_update", title: `Update sheet row: ${payload.company}`, content: summaryLines.join("\n"), payload });
+    const { error } = await createChatDraft(sb, { kind: "sheet_update", title: `Update sheet row: ${payload.company}`, content: summaryLines.join("\n"), payload });
     return { appendText: "", draftCreated: !error };
   }
 
@@ -503,7 +504,7 @@ async function resolveDraft(
       payload.nextTest ? `Next test: ${payload.nextTest}` : "",
     ].filter(Boolean);
 
-    const { error } = await sb.from("chat_drafts").insert({
+    const { error } = await createChatDraft(sb, {
       kind: "ad_learning",
       title: `Bank ad learning: ${client.name}`,
       content: summaryLines.join("\n"),
@@ -517,7 +518,7 @@ async function resolveDraft(
     return { appendText: "", draftCreated: false, error: `There's already a pending ${draft.kind} waiting on your decision for this — didn't create another.` };
   }
 
-  const { error } = await sb.from("chat_drafts").insert({
+  const { error } = await createChatDraft(sb, {
     kind: draft.kind,
     title: fallbackTitle,
     lead_id: leadUuid,

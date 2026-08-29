@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { backfillLeadsForClient } from "@/lib/leadQual/leadAdsBackfill";
-import { notifySlack } from "@/lib/slack";
+import { notifySlack } from "@/lib/slackNotify";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
