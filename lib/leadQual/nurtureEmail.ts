@@ -2,7 +2,11 @@ import { Resend } from "resend";
 import { createSupabaseClient } from "@/lib/supabase";
 import type { NurtureStep } from "./nurture";
 
-const FROM = "Lucky from LS Growth <outreach@lsgrowth.agency>";
+// These go to the client's own lead, not the client — showing up as "Lucky
+// from LS Growth" would read as some agency butting in on their enquiry.
+// Sent from our verified domain (so it actually delivers) but under the
+// business's name, with replies routed to the business's own inbox.
+const FROM_DOMAIN = "outreach@lsgrowth.agency";
 
 function renderTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || "");
@@ -38,7 +42,7 @@ export async function dispatchDueNurtureEmails(): Promise<{ sent: number; errors
       const [{ data: sequence }, { data: lead }, { data: client }] = await Promise.all([
         sb.from("lq_nurture_sequences").select("steps").eq("id", enrollment.sequence_id).single(),
         sb.from("lq_leads").select("conversation_id").eq("id", enrollment.lead_id).single(),
-        sb.from("lq_clients").select("name").eq("id", enrollment.client_id).single(),
+        sb.from("lq_clients").select("name, email").eq("id", enrollment.client_id).single(),
       ]);
       const steps = (sequence?.steps as NurtureStep[]) || [];
       const step = steps[enrollment.current_step];
@@ -63,9 +67,11 @@ export async function dispatchDueNurtureEmails(): Promise<{ sent: number; errors
       const subject = renderTemplate(step.subject, vars);
       const body = renderTemplate(step.body_template, vars);
 
+      const businessName = client?.name || "the team";
       const { error: sendError } = await resend.emails.send({
-        from: FROM,
+        from: `"${businessName.replace(/"/g, "")}" <${FROM_DOMAIN}>`,
         to: enrollment.contact_email,
+        ...(client?.email ? { replyTo: client.email } : {}),
         subject,
         text: body,
       });

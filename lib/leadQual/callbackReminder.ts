@@ -2,7 +2,12 @@ import { Resend } from "resend";
 import { createSupabaseClient } from "@/lib/supabase";
 import { logAdminAction } from "@/lib/adminActivityLog";
 
-const FROM = "Lucky from LS Growth <outreach@lsgrowth.agency>";
+// This goes to the client's own lead, not to the client — showing up as
+// "Lucky from LS Growth" would read as some agency butting in on a call the
+// lead booked with the business itself. Sent from our verified domain (so
+// it actually delivers) but under the business's name, with replies routed
+// to the business's own inbox.
+const FROM_DOMAIN = "outreach@lsgrowth.agency";
 
 // Booked calls/visits are only reminded once, in the window 20-40 minutes
 // before scheduled_at. Runs on a 15-min cron (see
@@ -45,7 +50,7 @@ export async function dispatchDueCallbackReminders(): Promise<{ sent: number; er
   for (const lead of (due || []) as DueLead[]) {
     try {
       const [{ data: client }, { data: conversation }] = await Promise.all([
-        sb.from("lq_clients").select("name, timezone").eq("id", lead.client_id).single(),
+        sb.from("lq_clients").select("name, email, timezone").eq("id", lead.client_id).single(),
         lead.conversation_id
           ? sb.from("lq_conversations").select("extracted_fields").eq("id", lead.conversation_id).single()
           : Promise.resolve({ data: null }),
@@ -70,8 +75,9 @@ export async function dispatchDueCallbackReminders(): Promise<{ sent: number; er
       ].join("\n");
 
       const { error: sendError } = await resend.emails.send({
-        from: FROM,
+        from: `"${businessName.replace(/"/g, "")}" <${FROM_DOMAIN}>`,
         to: lead.contact_email as string,
+        ...(client?.email ? { replyTo: client.email } : {}),
         subject,
         text,
       });
