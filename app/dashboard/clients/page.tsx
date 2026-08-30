@@ -267,6 +267,51 @@ function ClientsPageInner() {
   const [noteDraft, setNoteDraft] = useState("");
   const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set());
 
+  const [showAddLeadForm, setShowAddLeadForm] = useState(false);
+  const [addingLead, setAddingLead] = useState(false);
+  const [newLeadName, setNewLeadName] = useState("");
+  const [newLeadPhone, setNewLeadPhone] = useState("");
+  const [newLeadEmail, setNewLeadEmail] = useState("");
+  const [newLeadNotes, setNewLeadNotes] = useState("");
+  const [newLeadScheduledAt, setNewLeadScheduledAt] = useState("");
+  const [addLeadError, setAddLeadError] = useState<string | null>(null);
+
+  async function handleAddLead(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newLeadName.trim() || !newLeadScheduledAt || addingLead || !selectedId) return;
+    setAddingLead(true);
+    setAddLeadError(null);
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${selectedId}/leads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadName: newLeadName,
+          leadPhone: newLeadPhone || null,
+          leadEmail: newLeadEmail || null,
+          notes: newLeadNotes || null,
+          scheduledAt: new Date(newLeadScheduledAt).toISOString(),
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setAddLeadError(body.error || "Could not add lead");
+        return;
+      }
+      setOverview((prev) => (prev ? { ...prev, leads: [body.lead, ...prev.leads] } : prev));
+      setNewLeadName("");
+      setNewLeadPhone("");
+      setNewLeadEmail("");
+      setNewLeadNotes("");
+      setNewLeadScheduledAt("");
+      setShowAddLeadForm(false);
+    } catch {
+      setAddLeadError("Something went wrong adding this lead.");
+    } finally {
+      setAddingLead(false);
+    }
+  }
+
   function toggleExpanded(leadId: string) {
     setExpandedLeadIds((prev) => {
       const next = new Set(prev);
@@ -726,6 +771,44 @@ function ClientsPageInner() {
 
                 {tab === "pipeline" && (
                   <>
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+                      <button
+                        onClick={() => setShowAddLeadForm((v) => !v)}
+                        style={{ background: "var(--accent)", color: "#fff", border: "none", padding: "6px 14px", fontSize: 12.5, fontWeight: 700, borderRadius: 8, cursor: "pointer" }}
+                      >
+                        + Add lead
+                      </button>
+                    </div>
+
+                    {showAddLeadForm && (
+                      <form onSubmit={handleAddLead} style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+                          <input value={newLeadName} onChange={(e) => setNewLeadName(e.target.value)} placeholder="Lead name *" style={{ padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }} />
+                          <input value={newLeadPhone} onChange={(e) => setNewLeadPhone(e.target.value)} placeholder="Phone" style={{ padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }} />
+                          <input value={newLeadEmail} onChange={(e) => setNewLeadEmail(e.target.value)} placeholder="Email" style={{ padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }} />
+                          <input type="datetime-local" value={newLeadScheduledAt} onChange={(e) => setNewLeadScheduledAt(e.target.value)} required style={{ padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8 }} />
+                        </div>
+                        <textarea
+                          value={newLeadNotes}
+                          onChange={(e) => setNewLeadNotes(e.target.value)}
+                          placeholder="Notes — what they need, context from the call, etc."
+                          rows={2}
+                          style={{ width: "100%", marginTop: 10, padding: "8px 10px", fontSize: 13, border: `1px solid ${L.border}`, borderRadius: 8, fontFamily: "inherit" }}
+                        />
+                        {addLeadError && <p style={{ color: "#b91c1c", fontSize: 12.5, marginTop: 8 }}>{addLeadError}</p>}
+                        <button
+                          type="submit"
+                          disabled={addingLead || !newLeadName.trim() || !newLeadScheduledAt}
+                          style={{
+                            marginTop: 12, background: addingLead ? L.dimmed : "var(--accent)", color: "#fff", border: "none",
+                            padding: "8px 16px", fontSize: 13, fontWeight: 700, borderRadius: 8, cursor: addingLead ? "default" : "pointer",
+                          }}
+                        >
+                          {addingLead ? "Adding…" : "Add to pipeline"}
+                        </button>
+                      </form>
+                    )}
+
                     {stageError && (
                       <p style={{ color: "#b91c1c", fontSize: 12.5, marginBottom: 10 }}>{stageError}</p>
                     )}
