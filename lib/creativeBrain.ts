@@ -4,7 +4,8 @@ import { parseJsonResponse } from "./ai";
 import { getAdCreatives, AdCreativeInsight } from "./metaAds";
 import { getAdLearningsForClient, AD_LEARNING_PRIORITY, AdLearningPriority } from "./adLearnings";
 import { syncAdCreativesArchive, getArchivedCreatives } from "./adCreativesArchive";
-import { searchDriveDocs, readGoogleDocText } from "./googleDocs";
+import { searchDriveDocs, readGoogleDocText, replaceMarkedTextInDocTab, appendBoxedBlock } from "./googleDocs";
+import { AdLearning } from "./adLearnings";
 import { notifySlack } from "./slackNotify";
 
 export interface CreativeRecommendation {
@@ -149,7 +150,7 @@ export async function generateCreativeHypotheses(clientId: string): Promise<Crea
 
   const [ads, { data: brief }, learnings, driveMatches] = await Promise.all([
     getAdCreatives(client.meta_ad_account_id, "last_30d"),
-    sb.from("campaign_briefs").select("ideal_customer, budget_targeting, service_details").eq("client_id", clientId).maybeSingle(),
+    sb.from("campaign_briefs").select("ideal_customer, budget_targeting, service_details, google_doc_id").eq("client_id", clientId).maybeSingle(),
     getAdLearningsForClient(sb, clientId, 30),
     searchDriveDocs(`${client.name} strategy`, 2).catch(() => []),
   ]);
@@ -307,7 +308,7 @@ Analyse this client's creative testing so far and recommend what to test next.`;
     }
   }
 
-  return {
+  const result: CreativeBrainAnalysis = {
     clientName: client.name,
     whatWeKnow: parsed.what_we_know || "",
     whatWeveTested: parsed.what_weve_tested || "",
@@ -315,4 +316,89 @@ Analyse this client's creative testing so far and recommend what to test next.`;
     recommendations,
     inserted: toInsert.length,
   };
+
+  // Mirror this run into the client's existing Campaign Master Doc — the
+  // same doc Campaign Setup already writes to (Overview + per-service tabs +
+  // Testing Summary), so there's one running written record instead of the
+  // data only living in the app. Best-effort: a client with no doc yet
+  // (google_doc_id null — hasn't run Campaign Setup) or any Docs API hiccup
+  // should never fail the analysis itself.
+  if (brief?.google_doc_id) {
+    writeCreativeBrainToDoc(brief.google_doc_id, client.name, result, learnings, ads).catch(() => {});
+  }
+
+  return result;
+}
+
+function creativeCardLines(r: CreativeRecommendation): string[] {
+  return [
+    `Angle: ${r.angle}`,
+    `Segment: ${r.segment || "—"}`,
+    "",
+    `Hypothesis: ${r.hypothesis}`,
+    `Why we're testing it: ${r.whyTesting}`,
+    "",
+    `Hook: ${r.hook || "—"}`,
+    `Format: ${r.format || "—"}`,
+    `Headline: ${r.headline || "—"}`,
+    `Primary text: ${r.primaryText || "—"}`,
+    `Offer: ${r.offer || "—"}`,
+    `CTA: ${r.cta || "—"}`,
+    ...(r.visualDirection ? [`Visual direction: ${r.visualDirection}`] : []),
+    ...(r.voiceoverScript ? [`Voiceover/script: ${r.voiceoverScript}`] : []),
+    "",
+    `Winner looks like: ${r.winnerCriteria || "—"}`,
+  ];
+}
+
+function learningCardLines(l: AdLearning): string[] {
+  return [
+    `Status: ${l.status}${l.priority ? ` · ${l.priority} priority` : ""}${l.confidence ? ` · ${l.confidence}` : ""}`,
+    `Segment / angle: ${l.segment || "—"} / ${l.angle || "—"}`,
+    `Hook: ${l.hook || "—"}`,
+    "",
+    l.observed,
+    ...(l.next_test ? [`Next test: ${l.next_test}`] : []),
+  ];
+}
+
+// Rebuilds the "Creative Brain" tab from scratch on every run — same
+// pattern as rebuildTestingSummaryTab in campaignBrief.ts — so the doc
+// always shows the CURRENT state (live creatives, banked learnings, latest
+// recommendation) rather than an ever-growing history of past runs.
+async function writeCreativeBrainToDoc(
+  googleDocId: string,
+  clientName: string,
+  analysis: CreativeBrainAnalysis,
+  learnings: AdLearning[],
+  ads: AdCreativeInsight[]
+): Promise<void> {
+  const tab = "Creative Brain";
+  await replaceMarkedTextInDocTab(googleDocId, tab, `# Creative Brain — ${clientName}\n\nLast updated: ${new Date().toISOString().slice(0, 10)}`);
+
+  await appendBoxedBlock(googleDocId, tab, "What We Know", [analysis.whatWeKnow || "—"]);
+  await appendBoxedBlock(googleDocId, tab, "What We've Tested", [analysis.whatWeveTested || "—"]);
+  await appendBoxedBlock(googleDocId, tab, "Gaps", [analysis.gaps || "—"]);
+
+  for (const r of analysis.recommendations) {
+    await appendBoxedBlock(googleDocId, tab, `Recommended Test — ${r.creativeName} (${r.priority} priority)`, creativeCardLines(r));
+  }
+
+  const runningAds = ads.filter((a) => a.spend > 0);
+  if (runningAds.length) {
+    await appendBoxedBlock(
+      googleDocId,
+      tab,
+      "Creatives Currently Running",
+      runningAds.flatMap((a, i) => [
+        `${a.campaignName} — "${[a.title, a.body].filter(Boolean).join(" — ") || "no copy on file"}"`,
+        `  Spend $${a.spend.toFixed(2)} · ${a.results ?? 0} results · cost/result ${a.costPerResult ? `$${a.costPerResult.toFixed(2)}` : "n/a"} · CTR ${a.ctr.toFixed(2)}%`,
+        ...(i < runningAds.length - 1 ? [""] : []),
+      ])
+    );
+  }
+
+  for (const l of learnings) {
+    await appendBoxedBlock(googleDocId, tab, `Tried & Tested — ${l.segment || l.creative || "General"}`, learningCardLines(l));
+  }
 }
