@@ -3,6 +3,7 @@ import { createSupabaseClient } from "./supabase";
 import { parseJsonResponse } from "./ai";
 import { getAdCreatives, AdCreativeInsight } from "./metaAds";
 import { getAdLearningsForClient, AD_LEARNING_CONFIDENCE, AdLearningConfidence } from "./adLearnings";
+import { syncAdCreativesArchive, getArchivedCreatives } from "./adCreativesArchive";
 import { searchDriveDocs, readGoogleDocText } from "./googleDocs";
 import { notifySlack } from "./slackNotify";
 
@@ -58,6 +59,19 @@ export async function generateCreativeHypotheses(clientId: string): Promise<{ cl
     return { clientName: client.name, hypotheses: [], inserted: 0 };
   }
 
+  // Mirror this pull into the permanent archive (facts, not AI judgment —
+  // no approval needed), then pull the archive back so the model sees ads
+  // that have since ended/dropped out of Meta's 30-day window too, not just
+  // what's live right now.
+  await syncAdCreativesArchive(clientId, ads).catch(() => {});
+  const archived = await getArchivedCreatives(clientId).catch(() => []);
+  const liveIds = new Set(ads.map((a) => a.id));
+  const endedAdsSummary = archived
+    .filter((a) => !liveIds.has(a.ad_id))
+    .slice(0, 15)
+    .map((a) => `- [${a.campaign_name || "—"}] "${[a.title, a.body].filter(Boolean).join(" — ") || "no copy on file"}" (ended, last seen ${a.last_seen.slice(0, 10)}): spend $${a.spend.toFixed(2)}, ${a.results ?? 0} results, cost/result ${a.cost_per_result ? `$${a.cost_per_result.toFixed(2)}` : "n/a"}, CTR ${a.ctr.toFixed(2)}%`)
+    .join("\n") || "No archived (ended) ads on file yet.";
+
   const serviceDetails = (brief?.service_details || {}) as Record<string, { recommendedOffer?: string; ads?: { angle: string; name: string }[] }>;
   const strategySummary = Object.entries(serviceDetails)
     .map(([svc, d]) => `- ${svc}: offer "${d.recommendedOffer || "not set"}"${d.ads?.length ? `, running angles: ${d.ads.map((a) => a.angle).join(" / ")}` : ""}`)
@@ -105,6 +119,9 @@ ${learningsSummary}
 
 Live ad-level performance, last 30 days (real creative copy + real numbers):
 ${summarizeAds(ads)}
+
+Ended/archived ads from this client's full history (dropped out of the 30-day window or since removed in Meta, but recorded permanently the first time they were seen — do not repeat an angle/offer that already ended badly here):
+${endedAdsSummary}
 
 Diagnose what's working and what isn't at the creative level, and propose specific next hypotheses to test.`;
 

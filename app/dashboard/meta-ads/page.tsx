@@ -97,6 +97,21 @@ interface AdCreativeInsight {
   resultType: string | null;
 }
 
+interface ArchivedAdCreative {
+  id: string;
+  ad_id: string;
+  campaign_name: string | null;
+  title: string | null;
+  body: string | null;
+  status: string | null;
+  spend: number;
+  results: number | null;
+  cost_per_result: number | null;
+  ctr: number;
+  first_seen: string;
+  last_seen: string;
+}
+
 interface AdLearning {
   id: string;
   client_id: string;
@@ -423,6 +438,8 @@ function CreativeBrainTab() {
   const [adsError, setAdsError] = useState("");
 
   const [learnings, setLearnings] = useState<AdLearning[] | null>(null);
+  const [archive, setArchive] = useState<ArchivedAdCreative[] | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
 
   const [hypotheses, setHypotheses] = useState<CreativeHypothesis[] | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -436,11 +453,13 @@ function CreativeBrainTab() {
 
   const activeAccount = accounts.find(a => a.value === account) || accounts[0];
 
-  const loadAds = useCallback(async (acc: string) => {
+  const loadAds = useCallback(async (acc: string, clientId: string | null) => {
     setAdsLoading(true);
     setAdsError("");
     try {
-      const res = await fetch(`/api/meta-ads/creatives?account=${acc}&date_preset=last_30d`);
+      const qs = new URLSearchParams({ account: acc, date_preset: "last_30d" });
+      if (clientId) qs.set("clientId", clientId);
+      const res = await fetch(`/api/meta-ads/creatives?${qs.toString()}`);
       const data = await res.json();
       if (data.error) { setAdsError(data.error); setAds(null); return; }
       setAds(data.ads);
@@ -461,15 +480,30 @@ function CreativeBrainTab() {
     }
   }, []);
 
+  const loadArchive = useCallback(async (clientId: string) => {
+    try {
+      const res = await fetch(`/api/meta-ads/creative-archive?clientId=${clientId}`);
+      const data = await res.json();
+      setArchive(data.archive || []);
+    } catch {
+      setArchive([]);
+    }
+  }, []);
+
   useEffect(() => {
     if (!account) return;
-    loadAds(account);
+    loadAds(account, activeAccount?.clientId || null);
     setHypotheses(null);
     setGenError("");
     setInsertedCount(null);
-    if (activeAccount?.clientId) loadLearnings(activeAccount.clientId);
-    else setLearnings([]);
-  }, [account, loadAds, loadLearnings, activeAccount?.clientId]);
+    if (activeAccount?.clientId) {
+      loadLearnings(activeAccount.clientId);
+      loadArchive(activeAccount.clientId);
+    } else {
+      setLearnings([]);
+      setArchive([]);
+    }
+  }, [account, loadAds, loadLearnings, loadArchive, activeAccount?.clientId]);
 
   async function generate() {
     if (!activeAccount?.clientId) return;
@@ -619,6 +653,55 @@ function CreativeBrainTab() {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      <div>
+        <button
+          onClick={() => setShowArchive(v => !v)}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 0, marginBottom: 10, cursor: "pointer" }}
+        >
+          {showArchive ? <ChevronDown style={{ width: 12, height: 12, color: L.muted }} /> : <ChevronRight style={{ width: 12, height: 12, color: L.muted }} />}
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted }}>
+            Creative library — everything ever run{archive ? ` (${archive.length})` : ""}
+          </span>
+        </button>
+        {showArchive && (
+          archive === null ? (
+            <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13 }}>Loading…</div>
+          ) : archive.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13, background: L.surface, border: `1px solid ${L.border}` }}>
+              Nothing archived yet — every ad pulled above gets permanently recorded here from now on, even after it ends.
+            </div>
+          ) : (
+            <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${L.border}` }}>
+                    {["Ad copy", "Campaign", "First seen", "Last seen", "Spend", "Cost/Result", "CTR"].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {archive.map(a => (
+                    <tr key={a.id} style={{ borderBottom: `1px solid ${L.border}` }}>
+                      <td style={{ padding: "12px 14px", color: L.text, maxWidth: 340 }}>
+                        <div style={{ fontWeight: 600 }}>{a.title || "(untitled)"}</div>
+                        {a.body && <div style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>{a.body}</div>}
+                      </td>
+                      <td style={{ padding: "12px 14px", color: L.muted }}>{a.campaign_name || "—"}</td>
+                      <td style={{ padding: "12px 14px", color: L.muted }}>{a.first_seen.slice(0, 10)}</td>
+                      <td style={{ padding: "12px 14px", color: L.muted }}>{a.last_seen.slice(0, 10)}</td>
+                      <td style={{ padding: "12px 14px", color: L.text }}>{money(a.spend)}</td>
+                      <td style={{ padding: "12px 14px", color: L.text }}>{a.cost_per_result ? money(a.cost_per_result) : "—"}</td>
+                      <td style={{ padding: "12px 14px", color: L.text }}>{a.ctr.toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
       </div>
     </div>
