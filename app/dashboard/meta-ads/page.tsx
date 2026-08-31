@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, useEffect, useState, useCallback } from "react";
 import Topbar from "@/components/Topbar";
-import { RefreshCw, ChevronDown, ChevronRight, Sparkles, Search, MapPin, ExternalLink, LineChart } from "lucide-react";
+import { RefreshCw, ChevronDown, ChevronRight, Sparkles, Search, MapPin, ExternalLink, LineChart, Brain } from "lucide-react";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -61,14 +61,15 @@ const DATE_PRESETS = [
 // Fallback accounts to show while lq_clients accounts are loading, or if
 // none of Lucky's clients have a meta_ad_account_id set yet.
 const FALLBACK_ACCOUNTS = [
-  { value: "1410791492649615", label: "HRC", trade: "electricians, EV charger installation, solar" },
-  { value: "206264138206064", label: "Katies Cleaning", trade: "house cleaning services, deep cleaning, move-out cleaning" },
+  { value: "1410791492649615", label: "HRC", trade: "electricians, EV charger installation, solar", clientId: null },
+  { value: "206264138206064", label: "Katies Cleaning", trade: "house cleaning services, deep cleaning, move-out cleaning", clientId: null },
 ];
 
 interface AdAccount {
   value: string;
   label: string;
   trade: string;
+  clientId: string | null;
 }
 
 interface LqClient {
@@ -77,6 +78,56 @@ interface LqClient {
   trade: string | null;
   meta_ad_account_id: string | null;
 }
+
+interface AdCreativeInsight {
+  id: string;
+  name: string;
+  campaignName: string;
+  status: string;
+  title: string | null;
+  body: string | null;
+  imageUrl: string | null;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  cpc: number;
+  results: number | null;
+  costPerResult: number | null;
+  resultType: string | null;
+}
+
+interface AdLearning {
+  id: string;
+  client_id: string;
+  service: string | null;
+  angle: string | null;
+  creative: string | null;
+  offer: string | null;
+  observed: string;
+  inference: string | null;
+  next_test: string | null;
+  confidence: "early_signal" | "promising" | "strong_evidence" | "proven";
+  created_at: string;
+}
+
+interface CreativeHypothesis {
+  service: string | null;
+  angle: string | null;
+  creative: string | null;
+  offer: string | null;
+  observed: string;
+  inference: string | null;
+  nextTest: string | null;
+  confidence: "early_signal" | "promising" | "strong_evidence" | "proven";
+}
+
+const CONFIDENCE_STYLE: Record<string, { color: string; bg: string }> = {
+  early_signal: { color: "#64748b", bg: "#f8fafc" },
+  promising: { color: "#b45309", bg: "#fffbeb" },
+  strong_evidence: { color: "#0369a1", bg: "#f0f9ff" },
+  proven: { color: "#16a34a", bg: "#f0fdf4" },
+};
 
 // loaded starts false so callers can wait for the real per-client list
 // before picking a default/URL-requested account — resolving against
@@ -93,7 +144,7 @@ function useAdAccounts(): { accounts: AdAccount[]; loaded: boolean } {
       .then((data: { clients?: LqClient[] }) => {
         const linked = (data.clients || [])
           .filter((c) => c.meta_ad_account_id)
-          .map((c) => ({ value: c.meta_ad_account_id as string, label: c.name, trade: c.trade || "" }));
+          .map((c) => ({ value: c.meta_ad_account_id as string, label: c.name, trade: c.trade || "", clientId: c.id }));
         if (linked.length > 0) setAccounts(linked);
       })
       .catch(() => {})
@@ -363,6 +414,217 @@ function PerformanceTab() {
   );
 }
 
+function CreativeBrainTab() {
+  const { accounts, loaded: accountsLoaded } = useAdAccounts();
+  const [account, setAccount] = useState<string | null>(null);
+
+  const [ads, setAds] = useState<AdCreativeInsight[] | null>(null);
+  const [adsLoading, setAdsLoading] = useState(true);
+  const [adsError, setAdsError] = useState("");
+
+  const [learnings, setLearnings] = useState<AdLearning[] | null>(null);
+
+  const [hypotheses, setHypotheses] = useState<CreativeHypothesis[] | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
+  const [insertedCount, setInsertedCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (account !== null || !accountsLoaded) return;
+    if (accounts.length > 0) setAccount(accounts[0].value);
+  }, [accounts, accountsLoaded, account]);
+
+  const activeAccount = accounts.find(a => a.value === account) || accounts[0];
+
+  const loadAds = useCallback(async (acc: string) => {
+    setAdsLoading(true);
+    setAdsError("");
+    try {
+      const res = await fetch(`/api/meta-ads/creatives?account=${acc}&date_preset=last_30d`);
+      const data = await res.json();
+      if (data.error) { setAdsError(data.error); setAds(null); return; }
+      setAds(data.ads);
+    } catch {
+      setAdsError("Failed to load ad creatives.");
+    } finally {
+      setAdsLoading(false);
+    }
+  }, []);
+
+  const loadLearnings = useCallback(async (clientId: string) => {
+    try {
+      const res = await fetch(`/api/meta-ads/learnings?clientId=${clientId}`);
+      const data = await res.json();
+      setLearnings(data.learnings || []);
+    } catch {
+      setLearnings([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!account) return;
+    loadAds(account);
+    setHypotheses(null);
+    setGenError("");
+    setInsertedCount(null);
+    if (activeAccount?.clientId) loadLearnings(activeAccount.clientId);
+    else setLearnings([]);
+  }, [account, loadAds, loadLearnings, activeAccount?.clientId]);
+
+  async function generate() {
+    if (!activeAccount?.clientId) return;
+    setGenerating(true);
+    setGenError("");
+    setHypotheses(null);
+    setInsertedCount(null);
+    try {
+      const res = await fetch("/api/meta-ads/creative-brain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: activeAccount.clientId }),
+      });
+      const data = await res.json();
+      if (data.error) { setGenError(data.error); return; }
+      setHypotheses(data.hypotheses);
+      setInsertedCount(data.inserted);
+    } catch {
+      setGenError("Failed to generate hypotheses.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  const runningAds = ads?.filter(a => a.spend > 0) ?? null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <select
+          value={account || ""}
+          onChange={e => setAccount(e.target.value)}
+          style={{ padding: "8px 12px", border: `1px solid ${L.border}`, fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none" }}
+        >
+          {accounts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+        </select>
+        <button
+          onClick={generate}
+          disabled={generating || !activeAccount?.clientId}
+          title={!activeAccount?.clientId ? "This ad account isn't linked to a client record yet" : undefined}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--accent)", border: "none", padding: "9px 16px", fontSize: 12, fontWeight: 700, color: "#fff", cursor: generating || !activeAccount?.clientId ? "default" : "pointer", opacity: generating || !activeAccount?.clientId ? 0.6 : 1 }}
+        >
+          <Brain style={{ width: 13, height: 13 }} className={generating ? "spin" : ""} />
+          {generating ? "Diagnosing…" : "Generate hypotheses"}
+        </button>
+      </div>
+
+      {genError && (
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: 16, fontSize: 13 }}>{genError}</div>
+      )}
+
+      {hypotheses !== null && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 10 }}>
+            New hypotheses{insertedCount !== null && insertedCount > 0 ? ` — ${insertedCount} sent to Approvals` : hypotheses.length > 0 ? " — already queued in Approvals" : ""}
+          </div>
+          {hypotheses.length === 0 ? (
+            <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13, background: L.surface, border: `1px solid ${L.border}` }}>
+              Not enough spend/data yet to form a real hypothesis for this client.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {hypotheses.map((h, i) => {
+                const conf = CONFIDENCE_STYLE[h.confidence];
+                return (
+                  <div key={i} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      {h.service && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h.service}</span>}
+                      {h.angle && <span style={{ fontSize: 12, fontWeight: 700, color: L.text }}>{h.angle}</span>}
+                      <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: conf.color, background: conf.bg, padding: "2px 6px", borderRadius: 3, textTransform: "uppercase" }}>{h.confidence.replace(/_/g, " ")}</span>
+                    </div>
+                    <p style={{ fontSize: 13, color: L.text, lineHeight: 1.5, margin: "0 0 6px" }}>{h.observed}</p>
+                    {h.inference && <p style={{ fontSize: 12, color: L.muted, lineHeight: 1.5, margin: "0 0 6px" }}>{h.inference}</p>}
+                    {h.nextTest && <p style={{ fontSize: 12, color: L.text, lineHeight: 1.5, margin: 0 }}><strong>Try next:</strong> {h.nextTest}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 10 }}>Tried &amp; tested</div>
+        {learnings === null ? (
+          <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13 }}>Loading…</div>
+        ) : learnings.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13, background: L.surface, border: `1px solid ${L.border}` }}>
+            No banked learnings for this client yet — generate hypotheses and approve them to start building this up.
+          </div>
+        ) : (
+          <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
+            {learnings.map((l, i) => {
+              const conf = CONFIDENCE_STYLE[l.confidence];
+              return (
+                <div key={l.id} style={{ padding: "12px 16px", borderBottom: i < learnings.length - 1 ? `1px solid ${L.border}` : "none", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: conf.color, background: conf.bg, padding: "2px 6px", borderRadius: 3, textTransform: "uppercase", flexShrink: 0, marginTop: 2 }}>{l.confidence.replace(/_/g, " ")}</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: L.text, marginBottom: 2 }}>
+                      {[l.service, l.angle].filter(Boolean).join(" — ") || "General"}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: L.muted, lineHeight: 1.5 }}>{l.observed}</div>
+                    {l.next_test && <div style={{ fontSize: 12, color: L.text, marginTop: 4 }}><strong>Next test:</strong> {l.next_test}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 10 }}>Creatives currently running</div>
+        {adsError && (
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: 16, fontSize: 13 }}>{adsError}</div>
+        )}
+        {adsLoading && !ads && (
+          <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13 }}>Loading creatives…</div>
+        )}
+        {runningAds && runningAds.length === 0 && !adsError && (
+          <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13, background: L.surface, border: `1px solid ${L.border}` }}>No ads with spend in the last 30 days.</div>
+        )}
+        {runningAds && runningAds.length > 0 && (
+          <div style={{ background: L.surface, border: `1px solid ${L.border}`, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${L.border}` }}>
+                  {["Ad copy", "Campaign", "Spend", "Results", "Cost/Result", "CTR"].map(h => (
+                    <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: L.muted }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {runningAds.map(a => (
+                  <tr key={a.id} style={{ borderBottom: `1px solid ${L.border}` }}>
+                    <td style={{ padding: "12px 14px", color: L.text, maxWidth: 340 }}>
+                      <div style={{ fontWeight: 600 }}>{a.title || a.name}</div>
+                      {a.body && <div style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>{a.body}</div>}
+                    </td>
+                    <td style={{ padding: "12px 14px", color: L.muted }}>{a.campaignName}</td>
+                    <td style={{ padding: "12px 14px", color: L.text }}>{money(a.spend)}</td>
+                    <td style={{ padding: "12px 14px", color: L.text }}>{a.results ?? "—"}</td>
+                    <td style={{ padding: "12px 14px", color: L.text }}>{a.costPerResult ? money(a.costPerResult) : "—"}</td>
+                    <td style={{ padding: "12px 14px", color: L.text }}>{a.ctr.toFixed(2)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ResearchTab() {
   const [niche, setNiche] = useState("");
   const [location, setLocation] = useState("New Zealand");
@@ -509,7 +771,7 @@ function ResearchTab() {
 }
 
 export default function MetaAdsPage() {
-  const [tab, setTab] = useState<"performance" | "research">("performance");
+  const [tab, setTab] = useState<"performance" | "creative-brain" | "research">("performance");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
@@ -519,6 +781,7 @@ export default function MetaAdsPage() {
         <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${L.border}` }}>
           {([
             { key: "performance" as const, label: "Performance", icon: LineChart },
+            { key: "creative-brain" as const, label: "Creative Brain", icon: Brain },
             { key: "research" as const, label: "Research", icon: Sparkles },
           ]).map(t => {
             const Icon = t.icon;
@@ -540,7 +803,7 @@ export default function MetaAdsPage() {
           })}
         </div>
 
-        {tab === "performance" ? <PerformanceTab /> : <ResearchTab />}
+        {tab === "performance" ? <PerformanceTab /> : tab === "creative-brain" ? <CreativeBrainTab /> : <ResearchTab />}
       </div>
     </div>
   );

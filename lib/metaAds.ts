@@ -47,6 +47,100 @@ function pickPrimaryResult(row: GraphInsightRow | undefined): { count: number | 
   return { count: Number(best.value), costPer: costRow ? Number(costRow.value) : null, type: best.action_type };
 }
 
+export interface AdCreativeInsight {
+  id: string;
+  name: string;
+  campaignName: string;
+  status: string;
+  title: string | null;
+  body: string | null;
+  imageUrl: string | null;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  cpc: number;
+  results: number | null;
+  costPerResult: number | null;
+  resultType: string | null;
+}
+
+interface GraphCreative {
+  title?: string;
+  body?: string;
+  image_url?: string;
+  thumbnail_url?: string;
+  object_story_spec?: {
+    link_data?: { message?: string; name?: string; picture?: string };
+    video_data?: { title?: string; message?: string; image_url?: string };
+  };
+}
+
+interface GraphAd {
+  id: string;
+  name: string;
+  status: string;
+  campaign?: { name: string };
+  creative?: GraphCreative;
+  insights?: { data: GraphInsightRow[] };
+}
+
+// Ad copy comes from wildly different shapes depending on how the ad was
+// built (simple creative vs link_data vs video_data), so pull the first
+// non-empty candidate from each rather than assuming one path always exists.
+function extractCreativeText(creative: GraphCreative | undefined): { title: string | null; body: string | null; imageUrl: string | null } {
+  if (!creative) return { title: null, body: null, imageUrl: null };
+  const link = creative.object_story_spec?.link_data;
+  const video = creative.object_story_spec?.video_data;
+  return {
+    title: creative.title || link?.name || video?.title || null,
+    body: creative.body || link?.message || video?.message || null,
+    imageUrl: creative.image_url || creative.thumbnail_url || link?.picture || video?.image_url || null,
+  };
+}
+
+// Ad-level (not campaign-level) performance + actual creative copy — this is
+// what the Creative Brain diagnoses against, since "campaign X is losing"
+// tells you nothing about *which hook or offer* to change without seeing
+// the real ad text running under it.
+export async function getAdCreatives(adAccountId: string, datePreset = "last_30d"): Promise<AdCreativeInsight[]> {
+  const token = process.env.META_SYSTEM_USER_TOKEN;
+  if (!token) throw new Error("META_SYSTEM_USER_TOKEN env var is not set");
+
+  const accountId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const fields = `id,name,status,campaign{name},creative{title,body,image_url,thumbnail_url,object_story_spec},insights.date_preset(${datePreset}){spend,impressions,clicks,ctr,cpc,actions,cost_per_action_type}`;
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${accountId}/ads?fields=${encodeURIComponent(fields)}&limit=200&access_token=${encodeURIComponent(token)}`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || "Meta API error");
+
+  const ads: GraphAd[] = data.data || [];
+
+  return ads.map((a) => {
+    const row = a.insights?.data?.[0];
+    const primary = pickPrimaryResult(row);
+    const text = extractCreativeText(a.creative);
+    return {
+      id: a.id,
+      name: a.name,
+      campaignName: a.campaign?.name || "—",
+      status: a.status,
+      title: text.title,
+      body: text.body,
+      imageUrl: text.imageUrl,
+      spend: Number(row?.spend || 0),
+      impressions: Number(row?.impressions || 0),
+      clicks: Number(row?.clicks || 0),
+      ctr: Number(row?.ctr || 0),
+      cpc: Number(row?.cpc || 0),
+      results: primary.count,
+      costPerResult: primary.costPer,
+      resultType: primary.type,
+    };
+  }).sort((a, b) => b.spend - a.spend);
+}
+
 export async function getCampaignInsights(adAccountId: string, datePreset = "last_30d"): Promise<CampaignInsight[]> {
   const token = process.env.META_SYSTEM_USER_TOKEN;
   if (!token) throw new Error("META_SYSTEM_USER_TOKEN env var is not set");
