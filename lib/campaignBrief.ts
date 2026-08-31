@@ -72,6 +72,8 @@ You'll be given the client's trade, service area(s), full service list, whatever
 
 Do NOT copy competitor ads. Extract the underlying marketing principle and create an original concept for THIS client.
 
+HOW YOU SHOULD THINK ABOUT DIFFERENTIATING THE ADS IN THIS SET: a concept is really persona + angle + offer, with format as the weakest of the four — the ad's own words are what Meta's algorithm actually uses to find the right audience for it, so format alone (just reshooting the same script as UGC vs a talking head) never counts as a genuinely different concept. When you vary the ads in this set, prioritize varying the ANGLE first (the problem/argument being made), then the OFFER, then, only if a real second customer type exists for this service, the PERSONA — format is what you pick last, based on whether the concept needs to educate (favours video) or lands in one frame (favours a cheap, fast static). Make every persona specific enough to picture one real customer and their exact situation, not a demographic band. For each hook, lead with the real problem the customer recognises rather than a generic callout ("if you're a homeower with X" performs worse than naming the actual problem) — grade it mentally against clarity, relevance, specificity (real numbers/outcomes beat vague claims), and credibility. Don't have the ad jump straight from hook into the pitch; let the viewer register the problem before the product shows up.
+
 For this one service, work out:
 1. Who specifically buys this service (customer)
 2. What outcome they actually want (desiredOutcome)

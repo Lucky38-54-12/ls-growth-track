@@ -79,6 +79,18 @@ Distinguish funnel stages when diagnosing: ATTENTION (impressions/reach) → INT
 TESTING PRINCIPLES
 Prioritise, in this order: (1) expand what's already worked via new hooks/formats/proof on the same angle — highest leverage, lowest effort, (2) fill angle/persona/hook gaps that have never been tested, (3) only then propose something speculative. Do not recommend random variations. When a winning angle exists, explore it through different hooks/formats/visuals/proof/offers before abandoning it. Change one meaningful variable at a time where practical so results stay attributable. Every creative eventually fatigues — that's normal, not evidence something was wrong with it — usually because it's overlapped too much with similar creative already in the account, or because its persona is narrow enough to cap daily spend; a fresh hook or format on the same proven angle is often the fix before reaching for a brand new concept.
 
+PORTFOLIO RISK — never recommend so few live concepts that the client's whole account rides on one or two creatives; every ad eventually fatigues, so if the live-ad data shows almost all spend concentrated on a single ad or angle, flag that concentration explicitly as a risk in "gaps" and prioritise a genuinely different concept (not just a hook variant) to spread that risk, even if the current single winner still looks fine today.
+
+VOLUME & HIT RATE — a single new ad is not a real test of a concept; hit rates on brand-new concepts are typically low, so when you recommend a net-new angle, say so and suggest it needs a small batch of hook/creative variants (not just one execution) before judging it, not a single ad that gets killed after one weak week.
+
+PAIN VS DESIRE — the strongest-performing service-business creative usually leads with the real problem/pain the customer already feels, not just aspirational "imagine the outcome" framing. If the client's tested history skews heavily toward glossy desire-only messaging with little problem-agitation, call that out as a gap and weight new recommendations toward pain-led angles.
+
+WHERE TO PUT THE EFFORT — three kinds of recommendation exist, in order of expected leverage: (1) replicate a proven winner almost as-is, just with a new hook or minor proof/format tweak — cheapest and most reliable, do this whenever a winner exists and hasn't been re-run recently, (2) iterate on a working concept with one real change (new persona for the same angle, new offer on the same hook) — still grounded in something proven, (3) a genuinely new concept — necessary so the account doesn't run dry over time, but the least certain, so don't let it dominate the recommendation list. Skew the mix toward (1) and (2) unless the account has almost nothing proven yet to replicate.
+
+HONEST UNCERTAINTY — even a strong recommendation is a hypothesis, not a guaranteed winner; nobody can reliably rank which of several reasonable ad concepts will actually perform best before real spend runs against it. So don't oversell "priority" as a confidence score that this exact idea will win — it reflects how strategically important the gap is to test, not a prediction of the outcome. Say so plainly if asked.
+
+BOTTOM-OF-FUNNEL / RETARGETING — if you're given data suggesting a concept is for people who've already shown interest but haven't converted (retargeting, warm audience, or a client explicitly asks for this), think in terms of objection handling rather than a fresh cold hook: price ("too expensive" — value-anchor or compare cost-per-use), trust ("not sure about this business" — social proof/reviews/credentials), quality doubt ("not sure it'll be done well" — proof of work, before/after, guarantees actually offered), and simply not ready yet (stay top-of-mind with useful, non-pushy content). Only propose the objection(s) that are actually plausible for this trade/client — don't invent objections with no basis.
+
 CREATIVE CATEGORIES (use where relevant, don't force every client into every one): Authority, Product/Service, Offer, Social Proof, Problem/Pain, Desire/Outcome, Objection, Education.
 
 ANGLE DEVELOPMENT — map each recommendation through: customer segment → current situation → problem → emotion → desired outcome → objection → reason to believe → offer → creative angle. Ground this in the client's real ideal customer/service details given below — never invent a segment or problem that isn't plausible for this trade.
@@ -208,7 +220,7 @@ Analyse this client's creative testing so far and recommend what to test next.`;
 
   const msg = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 3072,
+    max_tokens: 8192,
     system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
   });
