@@ -178,6 +178,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const payload = (draft.payload || {}) as {
       clientId: string; service: string | null; angle: string | null; creative: string | null; offer: string | null;
       observed: string; inference: string | null; nextTest: string | null; confidence: string;
+      segment?: string | null; hook?: string | null; format?: string | null; headline?: string | null;
+      primaryText?: string | null; cta?: string | null; visualDirection?: string | null; hypothesis?: string | null;
+      priority?: string | null; priorityReason?: string | null;
     };
     const { error: insertError } = await sb.from("ad_learnings").insert({
       client_id: payload.clientId,
@@ -189,6 +192,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       inference: payload.inference,
       next_test: payload.nextTest,
       confidence: payload.confidence,
+      segment: payload.segment ?? null,
+      hook: payload.hook ?? null,
+      format: payload.format ?? null,
+      headline: payload.headline ?? null,
+      primary_text: payload.primaryText ?? null,
+      cta: payload.cta ?? null,
+      visual_direction: payload.visualDirection ?? null,
+      hypothesis: payload.hypothesis ?? null,
+      priority: payload.priority ?? null,
+      priority_reason: payload.priorityReason ?? null,
     });
     if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
 

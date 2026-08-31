@@ -123,18 +123,46 @@ interface AdLearning {
   inference: string | null;
   next_test: string | null;
   confidence: "early_signal" | "promising" | "strong_evidence" | "proven";
+  segment: string | null;
+  hook: string | null;
+  format: string | null;
+  headline: string | null;
+  primary_text: string | null;
+  cta: string | null;
+  visual_direction: string | null;
+  hypothesis: string | null;
+  priority: "high" | "medium" | "low" | null;
+  priority_reason: string | null;
+  status: "untested" | "testing" | "winner" | "loser" | "needs_more_data" | "iteration_opportunity" | "retired";
   created_at: string;
 }
 
-interface CreativeHypothesis {
-  service: string | null;
-  angle: string | null;
-  creative: string | null;
+interface CreativeRecommendation {
+  creativeName: string;
+  segment: string | null;
+  angle: string;
+  hypothesis: string;
+  hook: string | null;
+  format: string | null;
+  visualDirection: string | null;
+  voiceoverScript: string | null;
+  primaryText: string | null;
+  headline: string | null;
   offer: string | null;
-  observed: string;
-  inference: string | null;
-  nextTest: string | null;
-  confidence: "early_signal" | "promising" | "strong_evidence" | "proven";
+  cta: string | null;
+  whyTesting: string;
+  winnerCriteria: string;
+  priority: "high" | "medium" | "low";
+  priorityReason: string;
+}
+
+interface CreativeBrainAnalysis {
+  clientName: string;
+  whatWeKnow: string;
+  whatWeveTested: string;
+  gaps: string;
+  recommendations: CreativeRecommendation[];
+  inserted: number;
 }
 
 const CONFIDENCE_STYLE: Record<string, { color: string; bg: string }> = {
@@ -142,6 +170,22 @@ const CONFIDENCE_STYLE: Record<string, { color: string; bg: string }> = {
   promising: { color: "#b45309", bg: "#fffbeb" },
   strong_evidence: { color: "#0369a1", bg: "#f0f9ff" },
   proven: { color: "#16a34a", bg: "#f0fdf4" },
+};
+
+const PRIORITY_STYLE: Record<string, { color: string; bg: string }> = {
+  high: { color: "#b91c1c", bg: "#fef2f2" },
+  medium: { color: "#b45309", bg: "#fffbeb" },
+  low: { color: "#64748b", bg: "#f8fafc" },
+};
+
+const STATUS_STYLE: Record<string, { color: string; bg: string }> = {
+  untested: { color: "#64748b", bg: "#f8fafc" },
+  testing: { color: "#0369a1", bg: "#f0f9ff" },
+  winner: { color: "#16a34a", bg: "#f0fdf4" },
+  loser: { color: "#dc2626", bg: "#fef2f2" },
+  needs_more_data: { color: "#64748b", bg: "#f8fafc" },
+  iteration_opportunity: { color: "#b45309", bg: "#fffbeb" },
+  retired: { color: "#94a3b8", bg: "#f8fafc" },
 };
 
 // loaded starts false so callers can wait for the real per-client list
@@ -441,10 +485,9 @@ function CreativeBrainTab() {
   const [archive, setArchive] = useState<ArchivedAdCreative[] | null>(null);
   const [showArchive, setShowArchive] = useState(false);
 
-  const [hypotheses, setHypotheses] = useState<CreativeHypothesis[] | null>(null);
+  const [analysis, setAnalysis] = useState<CreativeBrainAnalysis | null>(null);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState("");
-  const [insertedCount, setInsertedCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (account !== null || !accountsLoaded) return;
@@ -493,9 +536,8 @@ function CreativeBrainTab() {
   useEffect(() => {
     if (!account) return;
     loadAds(account, activeAccount?.clientId || null);
-    setHypotheses(null);
+    setAnalysis(null);
     setGenError("");
-    setInsertedCount(null);
     if (activeAccount?.clientId) {
       loadLearnings(activeAccount.clientId);
       loadArchive(activeAccount.clientId);
@@ -509,8 +551,7 @@ function CreativeBrainTab() {
     if (!activeAccount?.clientId) return;
     setGenerating(true);
     setGenError("");
-    setHypotheses(null);
-    setInsertedCount(null);
+    setAnalysis(null);
     try {
       const res = await fetch("/api/meta-ads/creative-brain", {
         method: "POST",
@@ -519,10 +560,9 @@ function CreativeBrainTab() {
       });
       const data = await res.json();
       if (data.error) { setGenError(data.error); return; }
-      setHypotheses(data.hypotheses);
-      setInsertedCount(data.inserted);
+      setAnalysis(data);
     } catch {
-      setGenError("Failed to generate hypotheses.");
+      setGenError("Failed to generate recommendations.");
     } finally {
       setGenerating(false);
     }
@@ -547,7 +587,7 @@ function CreativeBrainTab() {
           style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--accent)", border: "none", padding: "9px 16px", fontSize: 12, fontWeight: 700, color: "#fff", cursor: generating || !activeAccount?.clientId ? "default" : "pointer", opacity: generating || !activeAccount?.clientId ? 0.6 : 1 }}
         >
           <Brain style={{ width: 13, height: 13 }} className={generating ? "spin" : ""} />
-          {generating ? "Diagnosing…" : "Generate hypotheses"}
+          {generating ? "Analysing…" : "Analyse & recommend tests"}
         </button>
       </div>
 
@@ -555,34 +595,60 @@ function CreativeBrainTab() {
         <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: 16, fontSize: 13 }}>{genError}</div>
       )}
 
-      {hypotheses !== null && (
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 10 }}>
-            New hypotheses{insertedCount !== null && insertedCount > 0 ? ` — ${insertedCount} sent to Approvals` : hypotheses.length > 0 ? " — already queued in Approvals" : ""}
+      {analysis && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+            {[
+              { label: "What we know", text: analysis.whatWeKnow },
+              { label: "What we've tested", text: analysis.whatWeveTested },
+              { label: "Gaps", text: analysis.gaps },
+            ].map(section => (
+              <div key={section.label} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 8 }}>{section.label}</div>
+                <p style={{ fontSize: 12.5, color: L.text, lineHeight: 1.6, margin: 0 }}>{section.text || "—"}</p>
+              </div>
+            ))}
           </div>
-          {hypotheses.length === 0 ? (
-            <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13, background: L.surface, border: `1px solid ${L.border}` }}>
-              Not enough spend/data yet to form a real hypothesis for this client.
+
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 10 }}>
+              Recommended next tests{analysis.inserted > 0 ? ` — ${analysis.inserted} sent to Approvals` : analysis.recommendations.length > 0 ? " — already queued in Approvals" : ""}
             </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {hypotheses.map((h, i) => {
-                const conf = CONFIDENCE_STYLE[h.confidence];
-                return (
-                  <div key={i} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      {h.service && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h.service}</span>}
-                      {h.angle && <span style={{ fontSize: 12, fontWeight: 700, color: L.text }}>{h.angle}</span>}
-                      <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: conf.color, background: conf.bg, padding: "2px 6px", borderRadius: 3, textTransform: "uppercase" }}>{h.confidence.replace(/_/g, " ")}</span>
+            {analysis.recommendations.length === 0 ? (
+              <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13, background: L.surface, border: `1px solid ${L.border}` }}>
+                Not enough data yet, or the matrix is already well-covered — no new recommendation for this client right now.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {analysis.recommendations.map((r, i) => {
+                  const pri = PRIORITY_STYLE[r.priority];
+                  return (
+                    <div key={i} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{r.creativeName}</span>
+                        {r.segment && <span style={{ fontSize: 11, color: L.muted }}>· {r.segment}</span>}
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{r.angle}</span>
+                        <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: pri.color, background: pri.bg, padding: "2px 6px", borderRadius: 3, textTransform: "uppercase" }}>{r.priority} priority</span>
+                      </div>
+                      <p style={{ fontSize: 13, color: L.text, lineHeight: 1.5, margin: "0 0 8px" }}>{r.hypothesis}</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "4px 16px", fontSize: 12, color: L.muted, marginBottom: 8 }}>
+                        {r.hook && <div><strong style={{ color: L.text }}>Hook:</strong> {r.hook}</div>}
+                        {r.format && <div><strong style={{ color: L.text }}>Format:</strong> {r.format}</div>}
+                        {r.headline && <div><strong style={{ color: L.text }}>Headline:</strong> {r.headline}</div>}
+                        {r.offer && <div><strong style={{ color: L.text }}>Offer:</strong> {r.offer}</div>}
+                        {r.cta && <div><strong style={{ color: L.text }}>CTA:</strong> {r.cta}</div>}
+                        {r.visualDirection && <div><strong style={{ color: L.text }}>Visual:</strong> {r.visualDirection}</div>}
+                      </div>
+                      {r.primaryText && <p style={{ fontSize: 12.5, color: L.text, lineHeight: 1.5, margin: "0 0 8px", fontStyle: "italic" }}>&ldquo;{r.primaryText}&rdquo;</p>}
+                      {r.voiceoverScript && <p style={{ fontSize: 12.5, color: L.text, lineHeight: 1.5, margin: "0 0 8px" }}><strong>Script:</strong> {r.voiceoverScript}</p>}
+                      <p style={{ fontSize: 12, color: L.muted, lineHeight: 1.5, margin: "0 0 4px" }}><strong style={{ color: L.text }}>Why:</strong> {r.whyTesting}</p>
+                      {r.winnerCriteria && <p style={{ fontSize: 12, color: L.muted, lineHeight: 1.5, margin: 0 }}><strong style={{ color: L.text }}>Winner looks like:</strong> {r.winnerCriteria}</p>}
                     </div>
-                    <p style={{ fontSize: 13, color: L.text, lineHeight: 1.5, margin: "0 0 6px" }}>{h.observed}</p>
-                    {h.inference && <p style={{ fontSize: 12, color: L.muted, lineHeight: 1.5, margin: "0 0 6px" }}>{h.inference}</p>}
-                    {h.nextTest && <p style={{ fontSize: 12, color: L.text, lineHeight: 1.5, margin: 0 }}><strong>Try next:</strong> {h.nextTest}</p>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -597,14 +663,20 @@ function CreativeBrainTab() {
         ) : (
           <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>
             {learnings.map((l, i) => {
-              const conf = CONFIDENCE_STYLE[l.confidence];
+              const status = STATUS_STYLE[l.status] || STATUS_STYLE.untested;
+              const pri = l.priority ? PRIORITY_STYLE[l.priority] : null;
               return (
                 <div key={l.id} style={{ padding: "12px 16px", borderBottom: i < learnings.length - 1 ? `1px solid ${L.border}` : "none", display: "flex", alignItems: "flex-start", gap: 10 }}>
-                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: conf.color, background: conf.bg, padding: "2px 6px", borderRadius: 3, textTransform: "uppercase", flexShrink: 0, marginTop: 2 }}>{l.confidence.replace(/_/g, " ")}</span>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: L.text, marginBottom: 2 }}>
-                      {[l.service, l.angle].filter(Boolean).join(" — ") || "General"}
+                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: status.color, background: status.bg, padding: "2px 6px", borderRadius: 3, textTransform: "uppercase", flexShrink: 0, marginTop: 2 }}>{l.status.replace(/_/g, " ")}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: L.text }}>
+                        {[l.segment, l.angle].filter(Boolean).join(" — ") || l.creative || "General"}
+                      </span>
+                      {pri && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: pri.color, background: pri.bg, padding: "1px 5px", borderRadius: 3, textTransform: "uppercase" }}>{l.priority}</span>}
+                      <span style={{ fontSize: 9, fontWeight: 700, color: CONFIDENCE_STYLE[l.confidence]?.color, textTransform: "uppercase", letterSpacing: "0.04em" }}>{l.confidence.replace(/_/g, " ")}</span>
                     </div>
+                    {l.hook && <div style={{ fontSize: 12, color: L.text, marginBottom: 2 }}><strong>Hook:</strong> {l.hook}</div>}
                     <div style={{ fontSize: 12.5, color: L.muted, lineHeight: 1.5 }}>{l.observed}</div>
                     {l.next_test && <div style={{ fontSize: 12, color: L.text, marginTop: 4 }}><strong>Next test:</strong> {l.next_test}</div>}
                   </div>

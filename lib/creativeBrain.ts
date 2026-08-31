@@ -2,30 +2,103 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createSupabaseClient } from "./supabase";
 import { parseJsonResponse } from "./ai";
 import { getAdCreatives, AdCreativeInsight } from "./metaAds";
-import { getAdLearningsForClient, AD_LEARNING_CONFIDENCE, AdLearningConfidence } from "./adLearnings";
+import { getAdLearningsForClient, AD_LEARNING_PRIORITY, AdLearningPriority } from "./adLearnings";
 import { syncAdCreativesArchive, getArchivedCreatives } from "./adCreativesArchive";
 import { searchDriveDocs, readGoogleDocText } from "./googleDocs";
 import { notifySlack } from "./slackNotify";
 
-export interface CreativeHypothesis {
-  service: string | null;
-  angle: string | null;
-  creative: string | null;
+export interface CreativeRecommendation {
+  creativeName: string;
+  segment: string | null;
+  angle: string;
+  hypothesis: string;
+  hook: string | null;
+  format: string | null;
+  visualDirection: string | null;
+  voiceoverScript: string | null;
+  primaryText: string | null;
+  headline: string | null;
   offer: string | null;
-  observed: string;
-  inference: string | null;
-  nextTest: string | null;
-  confidence: AdLearningConfidence;
+  cta: string | null;
+  whyTesting: string;
+  winnerCriteria: string;
+  priority: AdLearningPriority;
+  priorityReason: string;
 }
 
-const SYSTEM_PROMPT = `You are the Creative Brain for Lucky at LS Growth, a lead generation agency running Meta ads for trade and home service businesses in NZ/AU. Given one client's real, live ad-level Meta performance (actual creative copy, not just campaign names) alongside their confirmed strategy docs and every hook/angle/offer already banked as a past learning, produce a short list of hypotheses: "X isn't working because Y, so try Z."
+export interface CreativeBrainAnalysis {
+  clientName: string;
+  whatWeKnow: string;
+  whatWeveTested: string;
+  gaps: string;
+  recommendations: CreativeRecommendation[];
+  inserted: number;
+}
 
-Treat every ad as a hypothesis test: which angle, which hook/creative, which offer, tested against which audience. Compare ads within the same service against each other to isolate what's actually different between the winner and the loser (same offer but different hook → hook is the variable; same hook but different offer → offer is the variable). Never repeat a next_test that's already listed as a past learning's next_test or angle for this client — check the banked learnings before proposing anything.
+// Lucky's own words on scope (2026-09-01): only worry about coming up with
+// new hooks/creatives to test within the client's existing campaign
+// structure — not proposing a new campaign/audience/budget setup from
+// scratch, that's performanceBrain.ts's job. Also explicitly deferred:
+// linking a specific lead/booking/revenue outcome back to the ad that
+// generated it doesn't exist yet, so this only ever reasons from what Meta
+// actually reports (spend, CTR, CPC, "results" = leads/messages) — never
+// fabricate qualification/appointment/booking/revenue numbers it wasn't given.
+const SYSTEM_PROMPT = `You are the Creative Strategy AI for LS Growth, a lead generation agency running Meta ads for trade and home service businesses in NZ/AU.
 
-Grade confidence honestly: "early_signal" for a handful of leads or under ~$20 spend on that specific ad, "promising" for a consistent pattern over more spend, "strong_evidence" for a clear pattern across multiple ads/weeks, "proven" only for something already validated repeatedly. If the data is too thin to say anything real (no ads, or every ad under $10 spend), return an empty hypotheses array rather than inventing a pattern.
+Your job is NOT to simply generate ads. Your job is to analyse what has already been tested, identify what the market is responding to, find gaps in the creative testing matrix, and recommend specific new hooks/creatives to test next — within the client's existing campaign structure, not a new campaign from scratch.
+
+CORE OBJECTIVE
+Help discover which customer segments, problems, desires, angles, hooks, offers, creative formats, and CTAs produce the best leads. You are only given Meta-level metrics (spend, impressions, CTR, CPC, "results" = leads/messages, cost per result) — you are NOT given qualified-lead, appointment, booking, or revenue data. Never invent or assume those numbers. Optimise your reasoning around lead volume/cost as the best available proxy, but say so explicitly rather than pretending you know quality/booking outcomes.
+
+CREATIVE MEMORY
+You'll be given every creative currently live, every creative ever archived (including ones that have since ended), and every learning already banked. Do not recommend testing something as "new" if an equivalent angle/hook has already been tested — check the full history first.
+
+ANALYSIS — when given new data, work through:
+1. Compare current performance against past/archived performance.
+2. Identify winning patterns and losing patterns.
+3. Identify patterns with insufficient data (don't overreact to a handful of leads or <$20 spend).
+4. Identify angles/segments/hooks that have not been tested at all — that's the highest-value gap.
+5. Identify winning concepts worth iterating further (new hook/format/proof on the same angle) before moving to something completely new.
+
+Distinguish funnel stages when diagnosing: ATTENTION (impressions/reach) → INTEREST (CTR) → ENQUIRY (results/leads) → cost per result. High CTR + few results suggests a post-click/offer problem, not a bad hook. Low CTR + decent cost-per-result suggests the hook needs work while the underlying offer may be fine.
+
+TESTING PRINCIPLES
+Prioritise, in this order: (1) expand what's already worked via new hooks/formats/proof on the same angle, (2) fill angle/segment/hook gaps that have never been tested, (3) only then propose something speculative. Do not recommend random variations. When a winning angle exists, explore it through different hooks/formats/visuals/proof/offers before abandoning it. Change one meaningful variable at a time where practical so results stay attributable.
+
+CREATIVE CATEGORIES (use where relevant, don't force every client into every one): Authority, Product/Service, Offer, Social Proof, Problem/Pain, Desire/Outcome, Objection, Education.
+
+ANGLE DEVELOPMENT — map each recommendation through: customer segment → current situation → problem → emotion → desired outcome → objection → reason to believe → offer → creative angle. Ground this in the client's real ideal customer/service details given below — never invent a segment or problem that isn't plausible for this trade.
+
+IMPORTANT RULES
+Never fabricate testimonials, results, statistics, customer experiences, services, offers, pricing, guarantees, or claims. Every recommendation needs a strategic reason tied to the real data given, not "it sounds good." Don't kill a pattern prematurely on thin data. Don't keep proposing variations of an angle that's already been thoroughly tested — that's a gap-filling failure, not thoroughness.
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
-{"hypotheses": [{"service": "..." or null, "angle": "..." or null, "creative": "..." or null, "offer": "..." or null, "observed": "...", "inference": "..." or null, "next_test": "..." or null, "confidence": "early_signal"|"promising"|"strong_evidence"|"proven"}]}`;
+{
+  "what_we_know": "2-4 sentences on what's currently working, what isn't, and any meaningful recent change",
+  "what_weve_tested": "a few sentences summarizing the angles/segments/formats/offers/hooks already covered by the live + archived + banked data",
+  "gaps": "a few sentences on the most important untested angles/segments/hooks in the creative matrix",
+  "recommendations": [
+    {
+      "creative_name": "short internal label",
+      "segment": "customer segment or null",
+      "angle": "the marketing angle",
+      "hypothesis": "why this should work, grounded in the real data/gap identified",
+      "hook": "the opening hook/line" or null,
+      "format": "image | video | carousel | before-after | testimonial | etc" or null,
+      "visual_direction": "what the creative should show" or null,
+      "voiceover_script": "script if video/voiceover, else null",
+      "primary_text": "the ad body copy" or null,
+      "headline": "the ad headline" or null,
+      "offer": "the specific offer/CTA hook" or null,
+      "cta": "button/CTA text" or null,
+      "why_testing": "the strategic reason, referencing real data or a real gap",
+      "winner_criteria": "what result would make this a winner given this client's typical cost/result",
+      "priority": "high"|"medium"|"low",
+      "priority_reason": "why this priority"
+    }
+  ]
+}
+Cap it at 5 recommendations, highest priority first. If there truly isn't enough data or the matrix is already well-covered, return an empty recommendations array rather than inventing filler.`;
 
 function summarizeAds(ads: AdCreativeInsight[]): string {
   return ads
@@ -37,7 +110,7 @@ function summarizeAds(ads: AdCreativeInsight[]): string {
     .join("\n");
 }
 
-export async function generateCreativeHypotheses(clientId: string): Promise<{ clientName: string; hypotheses: CreativeHypothesis[]; inserted: number }> {
+export async function generateCreativeHypotheses(clientId: string): Promise<CreativeBrainAnalysis> {
   const sb = createSupabaseClient();
 
   const { data: client, error: clientError } = await sb
@@ -51,18 +124,14 @@ export async function generateCreativeHypotheses(clientId: string): Promise<{ cl
   const [ads, { data: brief }, learnings, driveMatches] = await Promise.all([
     getAdCreatives(client.meta_ad_account_id, "last_30d"),
     sb.from("campaign_briefs").select("ideal_customer, budget_targeting, service_details").eq("client_id", clientId).maybeSingle(),
-    getAdLearningsForClient(sb, clientId, 20),
+    getAdLearningsForClient(sb, clientId, 30),
     searchDriveDocs(`${client.name} strategy`, 2).catch(() => []),
   ]);
 
   if (!ads.some((a) => a.spend > 0)) {
-    return { clientName: client.name, hypotheses: [], inserted: 0 };
+    return { clientName: client.name, whatWeKnow: "No live spend in the last 30 days.", whatWeveTested: "", gaps: "", recommendations: [], inserted: 0 };
   }
 
-  // Mirror this pull into the permanent archive (facts, not AI judgment —
-  // no approval needed), then pull the archive back so the model sees ads
-  // that have since ended/dropped out of Meta's 30-day window too, not just
-  // what's live right now.
   await syncAdCreativesArchive(clientId, ads).catch(() => {});
   const archived = await getArchivedCreatives(clientId).catch(() => []);
   const liveIds = new Set(ads.map((a) => a.id));
@@ -78,11 +147,9 @@ export async function generateCreativeHypotheses(clientId: string): Promise<{ cl
     .join("\n") || "No confirmed strategy on file yet.";
 
   const learningsSummary = learnings
-    .map((l) => `- [${l.confidence}] ${l.service || "general"} / ${l.angle || "no angle tagged"}: ${l.observed}${l.inference ? ` → ${l.inference}` : ""}${l.next_test ? ` (next test: ${l.next_test})` : ""}`)
-    .join("\n") || "No banked learnings yet.";
+    .map((l) => `- [${l.status}${l.priority ? `, ${l.priority} priority` : ""}${l.confidence ? `, ${l.confidence}` : ""}] ${l.service || "general"} / ${l.segment || "no segment"} / ${l.angle || "no angle"} / hook: ${l.hook || "n/a"}: ${l.observed}${l.next_test ? ` (next test: ${l.next_test})` : ""}`)
+    .join("\n") || "No banked creative memory yet.";
 
-  // Drive docs are best-effort context, same as the Brain chat's own search —
-  // a missing/unreadable doc should never block generating hypotheses.
   let docsSummary = "No matching strategy docs found in Drive.";
   if (driveMatches.length > 0) {
     const texts = await Promise.all(
@@ -114,20 +181,20 @@ ${strategySummary}
 Relevant strategy docs from Drive:
 ${docsSummary}
 
-Past banked learnings for this client (do not repeat these next_test ideas):
+Full creative memory already banked for this client (do not repeat these angles/hooks/next_test ideas):
 ${learningsSummary}
 
 Live ad-level performance, last 30 days (real creative copy + real numbers):
 ${summarizeAds(ads)}
 
-Ended/archived ads from this client's full history (dropped out of the 30-day window or since removed in Meta, but recorded permanently the first time they were seen — do not repeat an angle/offer that already ended badly here):
+Ended/archived ads from this client's full history:
 ${endedAdsSummary}
 
-Diagnose what's working and what isn't at the creative level, and propose specific next hypotheses to test.`;
+Analyse this client's creative testing so far and recommend what to test next.`;
 
   const msg = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 2048,
+    max_tokens: 3072,
     system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
   });
@@ -135,60 +202,91 @@ Diagnose what's working and what isn't at the creative level, and propose specif
   const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
   if (!text) throw new Error("Unexpected response from AI");
 
-  const parsed = parseJsonResponse<{ hypotheses?: Array<{ service?: string | null; angle?: string | null; creative?: string | null; offer?: string | null; observed?: string; inference?: string | null; next_test?: string | null; confidence?: string }> }>(text);
-  const hypotheses: CreativeHypothesis[] = (parsed.hypotheses || [])
-    .filter((h) => h.observed)
-    .map((h) => ({
-      service: h.service || null,
-      angle: h.angle || null,
-      creative: h.creative || null,
-      offer: h.offer || null,
-      observed: h.observed as string,
-      inference: h.inference || null,
-      nextTest: h.next_test || null,
-      confidence: AD_LEARNING_CONFIDENCE.includes(h.confidence as AdLearningConfidence) ? (h.confidence as AdLearningConfidence) : "early_signal",
+  interface RawRecommendation {
+    creative_name?: string; segment?: string | null; angle?: string; hypothesis?: string; hook?: string | null;
+    format?: string | null; visual_direction?: string | null; voiceover_script?: string | null; primary_text?: string | null;
+    headline?: string | null; offer?: string | null; cta?: string | null; why_testing?: string; winner_criteria?: string;
+    priority?: string; priority_reason?: string;
+  }
+  const parsed = parseJsonResponse<{ what_we_know?: string; what_weve_tested?: string; gaps?: string; recommendations?: RawRecommendation[] }>(text);
+
+  const recommendations: CreativeRecommendation[] = (parsed.recommendations || [])
+    .filter((r) => r.angle && r.hypothesis)
+    .map((r) => ({
+      creativeName: r.creative_name || r.angle || "Untitled test",
+      segment: r.segment || null,
+      angle: r.angle as string,
+      hypothesis: r.hypothesis as string,
+      hook: r.hook || null,
+      format: r.format || null,
+      visualDirection: r.visual_direction || null,
+      voiceoverScript: r.voiceover_script || null,
+      primaryText: r.primary_text || null,
+      headline: r.headline || null,
+      offer: r.offer || null,
+      cta: r.cta || null,
+      whyTesting: r.why_testing || "",
+      winnerCriteria: r.winner_criteria || "",
+      priority: AD_LEARNING_PRIORITY.includes(r.priority as AdLearningPriority) ? (r.priority as AdLearningPriority) : "medium",
+      priorityReason: r.priority_reason || "",
     }));
 
-  // Same "don't re-propose what's already sitting in the queue" guard used
-  // elsewhere in the Brain — dedupe on the observed text, not just title,
-  // since ad_learning drafts don't currently carry a separate title field.
+  // Dedupe against whatever's still sitting unapproved in the queue for this
+  // client, same guard used elsewhere in the Brain.
   const { data: existingPending } = await sb
     .from("chat_drafts")
     .select("content, payload")
     .eq("kind", "ad_learning")
     .eq("status", "pending");
-  const existingObserved = new Set(
+  const existingHypotheses = new Set(
     (existingPending || [])
       .filter((d) => (d.payload as { clientId?: string } | null)?.clientId === clientId)
       .map((d) => d.content)
   );
 
-  const toInsert = hypotheses.filter((h) => !existingObserved.has(h.observed));
+  const toInsert = recommendations.filter((r) => !existingHypotheses.has(r.hypothesis));
 
   if (toInsert.length > 0) {
     const { error } = await sb.from("chat_drafts").insert(
-      toInsert.map((h) => ({
+      toInsert.map((r) => ({
         kind: "ad_learning",
-        title: `${h.service || client.trade || "General"}: ${h.angle || "new hypothesis"}`,
-        content: h.observed,
+        title: `${r.creativeName} (${r.priority} priority)`,
+        content: r.hypothesis,
         status: "pending",
         payload: {
           clientId,
-          service: h.service,
-          angle: h.angle,
-          creative: h.creative,
-          offer: h.offer,
-          observed: h.observed,
-          inference: h.inference,
-          nextTest: h.nextTest,
-          confidence: h.confidence,
+          service: null,
+          angle: r.angle,
+          creative: r.creativeName,
+          offer: r.offer,
+          observed: r.hypothesis,
+          inference: r.whyTesting,
+          nextTest: r.winnerCriteria,
+          confidence: "early_signal",
+          segment: r.segment,
+          hook: r.hook,
+          format: r.format,
+          headline: r.headline,
+          primaryText: r.primaryText,
+          cta: r.cta,
+          visualDirection: r.visualDirection,
+          hypothesis: r.hypothesis,
+          priority: r.priority,
+          priorityReason: r.priorityReason,
         },
       }))
     );
     if (!error) {
-      await notifySlack(`${toInsert.length} new creative hypothesis${toInsert.length === 1 ? "" : "es"} for *${client.name}* — /dashboard/approvals`);
+      await notifySlack(`${toInsert.length} new creative test recommendation${toInsert.length === 1 ? "" : "s"} for *${client.name}* — /dashboard/approvals`);
     }
   }
 
-  return { clientName: client.name, hypotheses, inserted: toInsert.length };
+  return {
+    clientName: client.name,
+    whatWeKnow: parsed.what_we_know || "",
+    whatWeveTested: parsed.what_weve_tested || "",
+    gaps: parsed.gaps || "",
+    recommendations,
+    inserted: toInsert.length,
+  };
 }
