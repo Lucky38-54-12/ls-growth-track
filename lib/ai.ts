@@ -62,6 +62,44 @@ export function stripDashes(text: string): string {
     .replace(/,(\s*[.!?])/g, "$1");
 }
 
+// The model sometimes writes a literal line break inside a JSON string value
+// (e.g. a multi-line ad script or primary text), which JSON.parse rejects
+// outright — raw control characters aren't legal inside a JSON string, only
+// their escaped form (\n) is. This scans char-by-char tracking whether we're
+// inside a string/escape sequence and escapes any raw newline/tab/carriage
+// return it finds there, leaving structural whitespace between tokens alone.
+function escapeRawControlCharsInStrings(s: string): string {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (const ch of s) {
+    if (inString) {
+      if (escaped) {
+        out += ch;
+        escaped = false;
+      } else if (ch === "\\") {
+        out += ch;
+        escaped = true;
+      } else if (ch === '"') {
+        out += ch;
+        inString = false;
+      } else if (ch === "\n") {
+        out += "\\n";
+      } else if (ch === "\r") {
+        out += "\\r";
+      } else if (ch === "\t") {
+        out += "\\t";
+      } else {
+        out += ch;
+      }
+    } else {
+      out += ch;
+      if (ch === '"') inString = true;
+    }
+  }
+  return out;
+}
+
 // Models sometimes wrap JSON in ```json fences, or (despite explicit
 // instructions not to) write out a full reasoning narration before the JSON
 // object — try increasingly permissive extraction strategies before giving
@@ -84,6 +122,14 @@ export function parseJsonResponse<T>(text: string): T {
       const end = stripped.lastIndexOf("}");
       if (start === -1 || end === -1 || end < start) throw new Error("no trailing object found");
       return JSON.parse(stripped.slice(start, end + 1));
+    },
+    // Same greedy extraction as above, but repairing raw control characters
+    // inside string values first — catches the common "multi-line ad copy
+    // broke the JSON" failure the plain attempts above can't recover from.
+    () => {
+      const m = stripped.match(/\{[\s\S]*\}/);
+      if (!m) throw new Error("no braces found");
+      return JSON.parse(escapeRawControlCharsInStrings(m[0]));
     },
   ];
 
