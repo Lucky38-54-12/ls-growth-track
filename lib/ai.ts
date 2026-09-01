@@ -281,7 +281,7 @@ export interface EmailQualityInput {
   // app/api/generate-email/route.ts) has a fixed structure with no CTA at
   // all — the meeting is already booked, so the email just confirms the
   // [MEETING LINK] (in its own paragraph, not last) and closes with a fixed
-  // logistics line ("Shouldn't take more than 20-30 minutes..."). Checks 3
+  // logistics line ("Shouldn't take more than 10-15 minutes..."). Checks 3
   // and 6 as written assume every email ends with CTA-then-closing, which
   // doesn't apply here and was flagging every meeting-confirmation email as
   // held for a structure problem that isn't actually one.

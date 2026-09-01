@@ -119,7 +119,7 @@ A) MEETING_BOOKED:
 - After the greeting, write one line: "Looking forward to our chat [day] at [time]. Here's the link to join:" using the actual day and time from the notes, written naturally (e.g. "today at 1pm", "Wednesday at 3:30pm")
 - Include [MEETING LINK] on its own line in its own paragraph directly after that line
 - One paragraph referencing the specific problem or objection they raised on the call and framing the meeting around addressing that — this is the most important part, make it feel personal not generic
-- End with this exact line as its own paragraph: "Shouldn't take more than 20-30 minutes. If anything comes up and you need to shift the time, just flick me a text."
+- End with this exact line as its own paragraph: "Shouldn't take more than 10-15 minutes. If anything comes up and you need to shift the time, just flick me a text."
 - Do not add anything else
 
 B) WANTS_INFO:
