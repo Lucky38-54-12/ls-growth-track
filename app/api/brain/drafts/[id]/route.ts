@@ -5,6 +5,7 @@ import { statusTimestampUpdates } from "@/lib/leads";
 import { createBooking, findUpcomingEventsByQuery, rescheduleBooking, fillMeetingLink } from "@/lib/calendar";
 import { findSheetRowByCompany, getRawRange, updateSheetCell } from "@/lib/sheets-connector";
 import { recordLearningFromDecision } from "@/lib/brainLearnings";
+import { insertAdLearning, AdLearningInsert } from "@/lib/adLearnings";
 import { Lead } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -186,39 +187,42 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       painOrDesire?: string | null; whatThisProves?: string | null; whatThisDoesNotProve?: string | null;
       relatedConcepts?: string[] | null; testsCompleted?: string[] | null; decisionMade?: string | null; outcome?: string | null;
     };
-    const { error: insertError } = await sb.from("ad_learnings").insert({
-      client_id: payload.clientId,
-      service: payload.service,
-      angle: payload.angle,
-      creative: payload.creative,
-      offer: payload.offer,
-      observed: payload.observed,
-      inference: payload.inference,
-      next_test: payload.nextTest,
-      confidence: payload.confidence,
-      segment: payload.segment ?? null,
-      hook: payload.hook ?? null,
-      format: payload.format ?? null,
-      headline: payload.headline ?? null,
-      primary_text: payload.primaryText ?? null,
-      cta: payload.cta ?? null,
-      visual_direction: payload.visualDirection ?? null,
-      hypothesis: payload.hypothesis ?? null,
-      priority: payload.priority ?? null,
-      priority_reason: payload.priorityReason ?? null,
-      learning_type: payload.learningType ?? null,
-      situation: payload.situation ?? null,
-      desire: payload.desire ?? null,
-      awareness_stage: payload.awarenessStage ?? null,
-      pain_or_desire: payload.painOrDesire ?? null,
-      what_this_proves: payload.whatThisProves ?? null,
-      what_this_does_not_prove: payload.whatThisDoesNotProve ?? null,
-      related_concepts: payload.relatedConcepts ?? null,
-      tests_completed: payload.testsCompleted ?? null,
-      decision_made: payload.decisionMade ?? null,
-      outcome: payload.outcome ?? null,
-    });
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+    try {
+      await insertAdLearning(sb, {
+        clientId: payload.clientId,
+        service: payload.service,
+        angle: payload.angle,
+        creative: payload.creative,
+        offer: payload.offer,
+        observed: payload.observed,
+        inference: payload.inference,
+        nextTest: payload.nextTest,
+        confidence: payload.confidence as AdLearningInsert["confidence"],
+        segment: payload.segment,
+        hook: payload.hook,
+        format: payload.format,
+        headline: payload.headline,
+        primaryText: payload.primaryText,
+        cta: payload.cta,
+        visualDirection: payload.visualDirection,
+        hypothesis: payload.hypothesis,
+        priority: payload.priority,
+        priorityReason: payload.priorityReason,
+        learningType: payload.learningType,
+        situation: payload.situation,
+        desire: payload.desire,
+        awarenessStage: payload.awarenessStage,
+        painOrDesire: payload.painOrDesire,
+        whatThisProves: payload.whatThisProves,
+        whatThisDoesNotProve: payload.whatThisDoesNotProve,
+        relatedConcepts: payload.relatedConcepts,
+        testsCompleted: payload.testsCompleted,
+        decisionMade: payload.decisionMade,
+        outcome: payload.outcome,
+      });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to insert ad learning." }, { status: 500 });
+    }
 
     const { data: updated, error: updateError } = await sb.from("chat_drafts")
       .update({ status: "applied", decided_at: new Date().toISOString() })

@@ -689,7 +689,7 @@ function CreativeBrainTab() {
 
           <div>
             <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 10 }}>
-              Recommended next tests{analysis.inserted > 0 ? ` — ${analysis.inserted} sent to Approvals` : analysis.recommendations.length > 0 ? " — already queued in Approvals" : ""}
+              Recommended next tests{analysis.inserted > 0 ? ` — ${analysis.inserted} banked below` : analysis.recommendations.length > 0 ? " — already banked below" : ""}
             </div>
             {analysis.recommendations.length === 0 ? (
               <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13, background: L.surface, border: `1px solid ${L.border}` }}>
@@ -747,7 +747,7 @@ function CreativeBrainTab() {
           <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13 }}>Loading…</div>
         ) : learnings.length === 0 ? (
           <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13, background: L.surface, border: `1px solid ${L.border}` }}>
-            No banked learnings for this client yet — generate hypotheses and approve them to start building this up.
+            No banked learnings for this client yet — generate hypotheses to start building this up.
           </div>
         ) : (
           <div style={{ background: L.surface, border: `1px solid ${L.border}` }}>

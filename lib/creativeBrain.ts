@@ -2,10 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createSupabaseClient } from "./supabase";
 import { parseJsonResponse } from "./ai";
 import { getAdCreatives, AdCreativeInsight } from "./metaAds";
-import { getAdLearningsForClient, AdLearning, AdLearningPriority, AD_LEARNING_PRIORITY } from "./adLearnings";
+import { getAdLearningsForClient, insertAdLearning, AdLearning, AdLearningPriority, AD_LEARNING_PRIORITY } from "./adLearnings";
 import { syncAdCreativesArchive, getArchivedCreatives } from "./adCreativesArchive";
 import { searchDriveDocs, readGoogleDocText, replaceMarkedTextInDocTab, appendBoxedBlock } from "./googleDocs";
 import { notifySlack } from "./slackNotify";
+import { buildBrainContext } from "./brainContext";
 
 export interface AccountDiagnosis {
   bottleneck: string;
@@ -331,11 +332,18 @@ export async function generateCreativeHypotheses(clientId: string): Promise<Crea
   if (clientError || !client) throw new Error(`Unknown client_id "${clientId}"`);
   if (!client.meta_ad_account_id) throw new Error(`${client.name} has no Meta ad account linked yet — set one on Campaign Setup first.`);
 
-  const [ads, { data: brief }, learnings, driveMatches] = await Promise.all([
+  const [ads, { data: brief }, learnings, driveMatches, fullClientContext] = await Promise.all([
     getAdCreatives(client.meta_ad_account_id, "last_30d"),
     sb.from("campaign_briefs").select("ideal_customer, budget_targeting, service_details, google_doc_id").eq("client_id", clientId).maybeSingle(),
     getAdLearningsForClient(sb, clientId, 30),
     searchDriveDocs(`${client.name} strategy`, 2).catch(() => []),
+    // Everything else the Brain already knows about this client/agency
+    // (lead pipeline, calendar, sales calls, campaigns/revenue, banked
+    // agency-wide learnings, etc.) — same context sources the general
+    // /dashboard/brain chat uses, so this employee isn't scoped to
+    // ads-only data. Best-effort: a slow/failed section here should never
+    // block the creative analysis itself.
+    buildBrainContext(client.name).catch(() => ""),
   ]);
 
   const emptyDiagnosis: AccountDiagnosis = {
@@ -411,6 +419,9 @@ ${summarizeAds(ads)}
 
 Ended/archived ads from this client's full history:
 ${endedAdsSummary}
+
+Wider agency context on this client (lead pipeline, calendar, sales calls, campaigns/revenue, banked agency learnings — use anything relevant, ignore anything that isn't):
+${fullClientContext || "Not available for this run."}
 
 Build the account state, diagnose the account, determine the highest-leverage strategic move, and only then produce creative recommendations.`;
 
@@ -505,29 +516,20 @@ Build the account state, diagnose the account, determine the highest-leverage st
       whatThisTestIsDesignedToLearn: r.what_this_test_is_designed_to_learn || null,
     }));
 
-  // Dedupe against whatever's still sitting unapproved in the queue for this
-  // client, same guard used elsewhere in the Brain.
-  const { data: existingPending } = await sb
-    .from("chat_drafts")
-    .select("content, payload")
-    .eq("kind", "ad_learning")
-    .eq("status", "pending");
-  const existingHypotheses = new Set(
-    (existingPending || [])
-      .filter((d) => (d.payload as { clientId?: string } | null)?.clientId === clientId)
-      .map((d) => d.content)
-  );
-
+  // Dedupe against what's already banked in ad_learnings for this client
+  // (the `learnings` fetched above, up to 30 most recent).
+  const existingHypotheses = new Set(learnings.map((l) => l.hypothesis).filter(Boolean));
   const toInsert = recommendations.filter((r) => !existingHypotheses.has(r.hypothesis));
 
+  // Writes straight into ad_learnings — no chat_drafts/approval step. Per
+  // Lucky (2026-09-01): this analysis doesn't take any real-world action
+  // (no email, no spend, no live campaign change) — it only banks a
+  // learning and mirrors it into the client's doc — so unlike every other
+  // Brain action kind, it doesn't need his approve/reject first.
   if (toInsert.length > 0) {
-    const { error } = await sb.from("chat_drafts").insert(
-      toInsert.map((r) => ({
-        kind: "ad_learning",
-        title: `${r.creativeName} (${r.priority} priority)`,
-        content: r.hypothesis,
-        status: "pending",
-        payload: {
+    await Promise.all(
+      toInsert.map((r) =>
+        insertAdLearning(sb, {
           clientId,
           service: null,
           angle: r.angle,
@@ -558,12 +560,10 @@ Build the account state, diagnose the account, determine the highest-leverage st
           testsCompleted: [],
           decisionMade: strategicDecision?.decision || null,
           outcome: null,
-        },
-      }))
+        }).catch(() => {})
+      )
     );
-    if (!error) {
-      await notifySlack(`${toInsert.length} new creative test recommendation${toInsert.length === 1 ? "" : "s"} for *${client.name}* — /dashboard/approvals`);
-    }
+    await notifySlack(`${toInsert.length} new creative test recommendation${toInsert.length === 1 ? "" : "s"} banked for *${client.name}* — /dashboard/meta-ads`);
   }
 
   const result: CreativeBrainAnalysis = {

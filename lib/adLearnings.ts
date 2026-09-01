@@ -63,6 +63,80 @@ export interface AdLearning {
 
 const SELECT_COLUMNS = "id, client_id, service, angle, creative, offer, observed, inference, next_test, confidence, segment, hook, format, headline, primary_text, cta, visual_direction, hypothesis, priority, priority_reason, status, learning_type, situation, desire, awareness_stage, pain_or_desire, what_this_proves, what_this_does_not_prove, related_concepts, tests_completed, decision_made, outcome, belief_status, created_at, updated_at";
 
+export interface AdLearningInsert {
+  clientId: string;
+  service: string | null;
+  angle: string | null;
+  creative: string | null;
+  offer: string | null;
+  observed: string;
+  inference: string | null;
+  nextTest: string | null;
+  confidence: AdLearningConfidence;
+  segment?: string | null;
+  hook?: string | null;
+  format?: string | null;
+  headline?: string | null;
+  primaryText?: string | null;
+  cta?: string | null;
+  visualDirection?: string | null;
+  hypothesis?: string | null;
+  priority?: string | null;
+  priorityReason?: string | null;
+  learningType?: string | null;
+  situation?: string | null;
+  desire?: string | null;
+  awarenessStage?: string | null;
+  painOrDesire?: string | null;
+  whatThisProves?: string | null;
+  whatThisDoesNotProve?: string | null;
+  relatedConcepts?: string[] | null;
+  testsCompleted?: string[] | null;
+  decisionMade?: string | null;
+  outcome?: string | null;
+}
+
+// Shared by the chat_drafts "ad_learning" approval route and any caller that
+// writes straight into ad_learnings (e.g. creativeBrain.ts's own analysis
+// runs, which Lucky's confirmed don't need the approve/reject gate since the
+// only artifact they produce is a banked learning + a doc, not a real
+// external action) — one insert shape instead of two copies drifting apart.
+export async function insertAdLearning(sb: ReturnType<typeof createSupabaseClient>, payload: AdLearningInsert): Promise<void> {
+  const { error } = await sb.from("ad_learnings").insert({
+    client_id: payload.clientId,
+    service: payload.service,
+    angle: payload.angle,
+    creative: payload.creative,
+    offer: payload.offer,
+    observed: payload.observed,
+    inference: payload.inference,
+    next_test: payload.nextTest,
+    confidence: payload.confidence,
+    segment: payload.segment ?? null,
+    hook: payload.hook ?? null,
+    format: payload.format ?? null,
+    headline: payload.headline ?? null,
+    primary_text: payload.primaryText ?? null,
+    cta: payload.cta ?? null,
+    visual_direction: payload.visualDirection ?? null,
+    hypothesis: payload.hypothesis ?? null,
+    priority: payload.priority ?? null,
+    priority_reason: payload.priorityReason ?? null,
+    learning_type: payload.learningType ?? null,
+    situation: payload.situation ?? null,
+    desire: payload.desire ?? null,
+    awareness_stage: payload.awarenessStage ?? null,
+    pain_or_desire: payload.painOrDesire ?? null,
+    what_this_proves: payload.whatThisProves ?? null,
+    what_this_does_not_prove: payload.whatThisDoesNotProve ?? null,
+    related_concepts: payload.relatedConcepts ?? null,
+    tests_completed: payload.testsCompleted ?? null,
+    decision_made: payload.decisionMade ?? null,
+    outcome: payload.outcome ?? null,
+  });
+  if (error) throw error;
+}
+
 export async function getAdLearningsForClient(
   sb: ReturnType<typeof createSupabaseClient>,
   clientId: string,
