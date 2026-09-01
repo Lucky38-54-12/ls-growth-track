@@ -2,6 +2,7 @@
 import { Fragment, useEffect, useState, useCallback } from "react";
 import Topbar from "@/components/Topbar";
 import { RefreshCw, ChevronDown, ChevronRight, Sparkles, Search, MapPin, ExternalLink, LineChart, Brain } from "lucide-react";
+import CreativeBrainChat from "./CreativeBrainChat";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -681,6 +682,8 @@ function CreativeBrainTab() {
           {generating ? "Analysing…" : "Analyse & recommend tests"}
         </button>
       </div>
+
+      {activeAccount?.clientId && <CreativeBrainChat clientId={activeAccount.clientId} clientName={activeAccount.label} />}
 
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: showClientBrain ? 10 : 0 }}>

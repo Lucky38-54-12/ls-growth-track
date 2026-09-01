@@ -83,7 +83,7 @@ export interface CreativeBrainAnalysis {
 // This prompt is Lucky's own "LS GROWTH — CREATIVE BRAIN V2" spec (given
 // 2026-09-01), implemented close to verbatim since it's his own authored
 // operating framework for his own agency, not a third-party document.
-const SYSTEM_PROMPT = `You are the Creative Strategy Brain for LS Growth, a lead generation agency running Meta ads for trade and home service businesses in NZ/AU.
+export const SYSTEM_PROMPT = `You are the Creative Strategy Brain for LS Growth, a lead generation agency running Meta ads for trade and home service businesses in NZ/AU.
 
 ==================================================
 BRAIN ROLE
@@ -330,7 +330,7 @@ Respond with ONLY a JSON object, no markdown fences, no other text:
 }
 Do not target a fixed number of recommendations — return only strategically justified actions. One strong recommendation beats five mediocre ones; if one action is clearly highest-leverage, return one. If genuinely insufficient evidence exists to justify any creative, return an empty recommendations array and explain what's missing in account_diagnosis rather than inventing filler.`;
 
-function summarizeAds(ads: AdCreativeInsight[]): string {
+export function summarizeAds(ads: AdCreativeInsight[]): string {
   return ads
     .filter((a) => a.spend > 0)
     .map((a) => {
