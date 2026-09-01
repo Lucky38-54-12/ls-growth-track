@@ -7,6 +7,10 @@ import { syncAdCreativesArchive, getArchivedCreatives } from "./adCreativesArchi
 import { searchDriveDocs, readGoogleDocText, replaceMarkedTextInDocTab, appendBoxedBlock } from "./googleDocs";
 import { notifySlack } from "./slackNotify";
 import { buildBrainContext } from "./brainContext";
+import { getClientBrain, summarizeClientBrain } from "./clientBrain";
+import { getActiveHypotheses, summarizeHypotheses, recordHypothesis } from "./creativeHypotheses";
+import { getRecentDecisions, summarizeDecisions, recordDecision } from "./brainDecisions";
+import { getStrategicState, summarizeStrategicState, upsertStrategicState } from "./strategicState";
 
 export interface AccountDiagnosis {
   bottleneck: string;
@@ -103,6 +107,21 @@ GROUND TRUTH — what is objectively true about the client: services, pricing, o
 EVIDENCE — what current/historical Meta data actually shows: spend, impressions, reach, frequency, CTR, CPC, leads, CPL, dates, status.
 MEMORY — what the account has already tested, what happened, what was previously believed, what decisions were made, and what questions remain unresolved.
 A previous interpretation is not ground truth. A single result is not a universal rule. A hypothesis is not a fact.
+
+==================================================
+CONTEXT PRIORITY
+==================================================
+When information is extensive, prioritise relevant and authoritative information in this general order: (1) verified client ground truth (the Client Brain below), (2) current live Meta data, (3) this client's historical performance, (4) this client's stored learnings, (5) this client's confirmed strategy, (6) relevant market/strategy-doc research, (7) agency-level cross-client learnings, (8) this framework's general knowledge, (9) general assumptions. Always weight relevance to the current decision over strict ordering — but never let a general framework or an agency-level pattern override strong client-specific evidence. When information conflicts, say so explicitly rather than silently picking one side.
+
+==================================================
+CLIENT BRAIN — persistent ground truth (separate from this reasoning framework)
+==================================================
+You are given a Client Brain below covering business facts, customer profile, offers, proof, and market/competitor context. Treat it as authoritative unless the live data given elsewhere explicitly supersedes it. Never invent a missing Client Brain fact — if a section is empty or thin, say so and treat it as an unresolved gap (feed it into "what we need to find out") rather than guessing.
+
+==================================================
+AGENCY-LEVEL MEMORY — two tiers, client evidence always wins
+==================================================
+You're given two levels of memory: CLIENT memory (this specific account's history — everything below under creative memory/hypotheses/decisions) and AGENCY memory (patterns observed across LS Growth's other clients in the same trade, given separately). Agency-level patterns are hypotheses about the trade in general, not proven facts about this client — they can inform a test idea, but must never override what this specific account's own real evidence is showing. If an agency pattern and this client's own evidence conflict, trust this client's evidence and say so.
 
 ==================================================
 ACCOUNT STATE
@@ -332,7 +351,7 @@ export async function generateCreativeHypotheses(clientId: string): Promise<Crea
   if (clientError || !client) throw new Error(`Unknown client_id "${clientId}"`);
   if (!client.meta_ad_account_id) throw new Error(`${client.name} has no Meta ad account linked yet — set one on Campaign Setup first.`);
 
-  const [ads, { data: brief }, learnings, driveMatches, fullClientContext] = await Promise.all([
+  const [ads, { data: brief }, learnings, driveMatches, fullClientContext, clientBrain, activeHypotheses, recentDecisions, priorStrategicState] = await Promise.all([
     getAdCreatives(client.meta_ad_account_id, "last_30d"),
     sb.from("campaign_briefs").select("ideal_customer, budget_targeting, service_details, google_doc_id").eq("client_id", clientId).maybeSingle(),
     getAdLearningsForClient(sb, clientId, 30),
@@ -344,7 +363,35 @@ export async function generateCreativeHypotheses(clientId: string): Promise<Crea
     // ads-only data. Best-effort: a slow/failed section here should never
     // block the creative analysis itself.
     buildBrainContext(client.name).catch(() => ""),
+    // The four V2 memory layers (Lucky's spec, 2026-09-01): Client Brain
+    // (ground truth, never invented — read only), Hypothesis Memory,
+    // Decision History, and the Brain's own last Strategic State snapshot.
+    // All best-effort — a missing/failed layer degrades gracefully rather
+    // than blocking analysis, since most clients won't have these
+    // populated yet.
+    getClientBrain(sb, clientId).catch(() => null),
+    getActiveHypotheses(sb, clientId).catch(() => []),
+    getRecentDecisions(sb, clientId).catch(() => []),
+    getStrategicState(sb, clientId).catch(() => null),
   ]);
+
+  // Agency-level memory: patterns from OTHER clients in the same trade —
+  // hypotheses, not universal laws, always subordinate to this client's own
+  // evidence (see CONTEXT PRIORITY in the system prompt). Best-effort.
+  const agencyPatternsSummary = await (async () => {
+    if (!client.trade) return "No trade set for this client — can't pull cross-client agency patterns.";
+    const { data: peers } = await sb
+      .from("ad_learnings")
+      .select("service, angle, hook, observed, inference, confidence, lq_clients!inner(trade)")
+      .eq("lq_clients.trade", client.trade)
+      .neq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(15);
+    if (!peers || !peers.length) return `No banked learnings yet from other ${client.trade} clients to draw agency-level patterns from.`;
+    return peers
+      .map((p) => `- [${p.confidence}] ${p.service || "general"} / ${p.angle || "no angle"} / hook: ${p.hook || "n/a"}: ${p.observed}${p.inference ? ` → ${p.inference}` : ""}`)
+      .join("\n");
+  })().catch(() => "Agency-level pattern lookup failed for this run.");
 
   const emptyDiagnosis: AccountDiagnosis = {
     bottleneck: "No live spend in the last 30 days",
@@ -402,6 +449,9 @@ export async function generateCreativeHypotheses(clientId: string): Promise<Crea
 
   const userPrompt = `Client: ${client.name} (${client.trade || "trade unknown"})
 
+CLIENT BRAIN (ground truth — authoritative unless live data below supersedes it):
+${summarizeClientBrain(clientBrain)}
+
 Ideal customer: ${brief?.ideal_customer || "not set"}
 Budget + targeting: ${brief?.budget_targeting || "not set"}
 
@@ -413,6 +463,18 @@ ${docsSummary}
 
 Full creative memory already banked for this client — the account's history, do not repeat these angles/hooks/next_test ideas, and treat any belief marked superseded/rejected as no longer trusted:
 ${learningsSummary}
+
+Active hypotheses already being tracked for this client (don't re-propose these as if new — either build on them or explain why they're now resolved):
+${summarizeHypotheses(activeHypotheses)}
+
+Recent strategic decisions made for this client (review before deciding again — don't repeatedly recommend the same thing evidence has already addressed):
+${summarizeDecisions(recentDecisions)}
+
+The Brain's own last Strategic State snapshot for this client:
+${summarizeStrategicState(priorStrategicState)}
+
+Agency-level patterns from OTHER LS Growth clients in the same trade (${client.trade || "unknown"}) — treat as hypotheses about the trade in general, never override this client's own evidence:
+${agencyPatternsSummary}
 
 Live ad-level performance, last 30 days (real creative copy + real numbers):
 ${summarizeAds(ads)}
@@ -573,6 +635,38 @@ Build the account state, diagnose the account, determine the highest-leverage st
     recommendations,
     inserted: toInsert.length,
   };
+
+  // Update the three persistent memory layers with this run's outcome —
+  // best-effort, never blocks returning the analysis to the UI.
+  upsertStrategicState(sb, clientId, {
+    primaryBottleneck: accountDiagnosis.bottleneck || null,
+    secondaryBottlenecks: [],
+    strongestProvenMechanism: null,
+    strongestCurrentConcept: null,
+    largestPortfolioRisk: accountDiagnosis.portfolioRisk || null,
+    largestTestingGap: accountDiagnosis.whatWeNeedToFindOut || null,
+    activeHypotheses: strategicDecision ? [strategicDecision.hypothesis] : [],
+    currentStrategicPriority: accountDiagnosis.strategicOpportunity || null,
+    recommendedAction: strategicDecision?.decision || null,
+    confidence: accountDiagnosis.confidence,
+    whatWouldChangeTheDecision: strategicDecision?.failureCriteria || null,
+  }).catch(() => {});
+
+  if (strategicDecision) {
+    recordDecision(sb, clientId, {
+      decision: strategicDecision.decision,
+      reasoning: strategicDecision.whyNow,
+      hypothesis: strategicDecision.hypothesis,
+      confidence: accountDiagnosis.confidence,
+    }).catch(() => {});
+
+    recordHypothesis(sb, clientId, {
+      question: accountDiagnosis.strategicOpportunity || null,
+      claim: strategicDecision.hypothesis,
+      variableTested: strategicDecision.variableBeingTested,
+      nextTest: strategicDecision.testStructure || null,
+    }).catch(() => {});
+  }
 
   // Mirror this run into the client's existing Campaign Master Doc — the
   // same doc Campaign Setup already writes to (Overview + per-service tabs +
