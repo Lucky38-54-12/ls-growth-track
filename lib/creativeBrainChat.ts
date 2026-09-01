@@ -27,44 +27,46 @@ export interface CreativeBrainChatResult {
 // its full strategic reasoning framework (SYSTEM_PROMPT, imported from
 // creativeBrain.ts, the same one "Generate hypotheses" uses) so the two
 // surfaces reason identically, just through a different output shape.
+const BANK_MARKER = "===BANK_LEARNING===";
+
 const CHAT_INSTRUCTIONS = `
 ==================================================
 LIVE CHAT MODE
 ==================================================
 You're now talking directly with Lucky in a live chat about this one client, not producing a full account audit. Answer conversationally and specifically, grounded in the CONTEXT block given below (client ground truth, live ad data, banked learnings, hypotheses, decisions, strategic state, and wider agency context). Don't force the full account-diagnosis structure into every reply — match the depth of your answer to what he actually asked. A quick question gets a quick, direct answer; a genuine "what should we do" question earns the full diagnosis → bottleneck → decision → recommendation reasoning.
 
-You can bank a new creative learning directly into this client's permanent memory when the conversation surfaces one worth keeping — either because Lucky explicitly tells you to remember/bank something, or because your own analysis in this reply lands on a pattern worth remembering (Promising confidence or higher, never a bare Early Signal). This does NOT need his approval first — it only writes a learning to this client's record and mirrors into their doc, no external/real-world action, so write it immediately when it's genuinely warranted. Don't invent a learning just to have one — most turns should have none.
+Just write your reply as normal conversational text — no JSON, no wrapper, nothing structured required for a normal answer. Never break character to describe your own output format.
 
-Respond with ONLY a JSON object, no markdown fences, no other text:
+You can bank a new creative learning directly into this client's permanent memory when the conversation surfaces one worth keeping — either because Lucky explicitly tells you to remember/bank something, or because your own analysis in this reply lands on a pattern worth remembering (Promising confidence or higher, never a bare Early Signal). This does NOT need his approval first — it only writes a learning to this client's record and mirrors into their doc, no external/real-world action, so write it immediately when it's genuinely warranted. Don't invent a learning just to have one — most turns should have none, and most replies should be plain text with nothing after them.
+
+Only when you're actually banking a learning, put this exact marker on its own line at the very end of your reply, followed by ONLY a JSON object (no markdown fences, no other text after it):
+${BANK_MARKER}
 {
-  "reply": "your conversational answer, always present",
-  "bank_learning": null OR {
-    "learning_type": "creative"|"offer"|"persona"|"angle"|"hook"|"format"|"portfolio"|"funnel"|"market",
-    "service": "..." or null,
-    "segment": "..." or null,
-    "situation": "..." or null,
-    "angle": "..." or null,
-    "hook": "..." or null,
-    "format": "..." or null,
-    "headline": "..." or null,
-    "primary_text": "..." or null,
-    "cta": "..." or null,
-    "offer": "..." or null,
-    "visual_direction": "..." or null,
-    "creative": "..." or null,
-    "desire": "..." or null,
-    "awareness_stage": "..." or null,
-    "pain_or_desire": "pain"|"desire"|"mixed" or null,
-    "observed": "the concrete thing the data/conversation showed, required",
-    "inference": "your read on why, framed as inference not fact" or null,
-    "what_this_proves": "..." or null,
-    "what_this_does_not_prove": "..." or null,
-    "next_test": "what would confirm/reject this" or null,
-    "hypothesis": "..." or null,
-    "confidence": "early_signal"|"promising"|"strong_evidence"|"proven",
-    "priority": "high"|"medium"|"low" or null,
-    "priority_reason": "..." or null
-  }
+  "learning_type": "creative"|"offer"|"persona"|"angle"|"hook"|"format"|"portfolio"|"funnel"|"market",
+  "service": "..." or null,
+  "segment": "..." or null,
+  "situation": "..." or null,
+  "angle": "..." or null,
+  "hook": "..." or null,
+  "format": "..." or null,
+  "headline": "..." or null,
+  "primary_text": "..." or null,
+  "cta": "..." or null,
+  "offer": "..." or null,
+  "visual_direction": "..." or null,
+  "creative": "..." or null,
+  "desire": "..." or null,
+  "awareness_stage": "..." or null,
+  "pain_or_desire": "pain"|"desire"|"mixed" or null,
+  "observed": "the concrete thing the data/conversation showed, required",
+  "inference": "your read on why, framed as inference not fact" or null,
+  "what_this_proves": "..." or null,
+  "what_this_does_not_prove": "..." or null,
+  "next_test": "what would confirm/reject this" or null,
+  "hypothesis": "..." or null,
+  "confidence": "early_signal"|"promising"|"strong_evidence"|"proven",
+  "priority": "high"|"medium"|"low" or null,
+  "priority_reason": "..." or null
 }`;
 
 async function gatherChatContext(clientId: string): Promise<{ clientName: string; contextBlock: string }> {
@@ -189,12 +191,32 @@ export async function chatWithCreativeBrain(clientId: string, message: string, h
   const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
   if (!text) throw new Error("Unexpected response from AI");
 
-  const parsed = parseJsonResponse<{ reply?: string; bank_learning?: RawBankLearning | null }>(text);
-  const reply = parsed.reply || text;
+  // The reply is plain conversational text by default — only split off a
+  // learning to bank if the model actually included the trailing marker.
+  // This is the whole fix for the old bug: a normal chat turn never goes
+  // through JSON.parse at all, so a model that just answers in plain
+  // English (which it should, most turns) can never produce a "could not
+  // parse as JSON" error — there's nothing here that requires JSON unless
+  // the marker is present.
+  const markerIndex = text.indexOf(BANK_MARKER);
+  const reply = (markerIndex === -1 ? text : text.slice(0, markerIndex)).trim();
+  const bankJsonText = markerIndex === -1 ? null : text.slice(markerIndex + BANK_MARKER.length).trim();
 
-  const bl = parsed.bank_learning;
+  if (!bankJsonText) {
+    return { reply: reply || text, bankedLearning: false };
+  }
+
+  let bl: RawBankLearning | null = null;
+  try {
+    bl = parseJsonResponse<RawBankLearning>(bankJsonText);
+  } catch {
+    // A malformed bank block should never take down the reply Lucky's
+    // actually waiting on — just skip banking this turn.
+    return { reply: reply || text, bankedLearning: false };
+  }
+
   if (!bl || !bl.observed?.trim()) {
-    return { reply, bankedLearning: false };
+    return { reply: reply || text, bankedLearning: false };
   }
 
   const confidence = AD_LEARNING_CONFIDENCE.includes(bl.confidence as AdLearningConfidence) ? (bl.confidence as AdLearningConfidence) : "early_signal";
