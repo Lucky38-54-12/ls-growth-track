@@ -181,6 +181,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       segment?: string | null; hook?: string | null; format?: string | null; headline?: string | null;
       primaryText?: string | null; cta?: string | null; visualDirection?: string | null; hypothesis?: string | null;
       priority?: string | null; priorityReason?: string | null;
+      // Creative Brain V2 memory-object fields
+      learningType?: string | null; situation?: string | null; desire?: string | null; awarenessStage?: string | null;
+      painOrDesire?: string | null; whatThisProves?: string | null; whatThisDoesNotProve?: string | null;
+      relatedConcepts?: string[] | null; testsCompleted?: string[] | null; decisionMade?: string | null; outcome?: string | null;
     };
     const { error: insertError } = await sb.from("ad_learnings").insert({
       client_id: payload.clientId,
@@ -202,6 +206,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       hypothesis: payload.hypothesis ?? null,
       priority: payload.priority ?? null,
       priority_reason: payload.priorityReason ?? null,
+      learning_type: payload.learningType ?? null,
+      situation: payload.situation ?? null,
+      desire: payload.desire ?? null,
+      awareness_stage: payload.awarenessStage ?? null,
+      pain_or_desire: payload.painOrDesire ?? null,
+      what_this_proves: payload.whatThisProves ?? null,
+      what_this_does_not_prove: payload.whatThisDoesNotProve ?? null,
+      related_concepts: payload.relatedConcepts ?? null,
+      tests_completed: payload.testsCompleted ?? null,
+      decision_made: payload.decisionMade ?? null,
+      outcome: payload.outcome ?? null,
     });
     if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
 

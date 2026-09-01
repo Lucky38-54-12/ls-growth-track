@@ -134,16 +134,34 @@ interface AdLearning {
   priority: "high" | "medium" | "low" | null;
   priority_reason: string | null;
   status: "untested" | "testing" | "winner" | "loser" | "needs_more_data" | "iteration_opportunity" | "retired";
+  learning_type: string | null;
+  situation: string | null;
+  desire: string | null;
+  awareness_stage: string | null;
+  pain_or_desire: "pain" | "desire" | "mixed" | null;
+  what_this_proves: string | null;
+  what_this_does_not_prove: string | null;
+  related_concepts: string[] | null;
+  tests_completed: string[] | null;
+  decision_made: string | null;
+  outcome: string | null;
+  belief_status: "active" | "inconclusive" | "superseded" | "confirmed" | "rejected";
   created_at: string;
+  updated_at: string;
 }
 
 interface CreativeRecommendation {
   creativeName: string;
   segment: string | null;
+  situation: string | null;
+  problem: string | null;
+  desire: string | null;
   angle: string;
   hypothesis: string;
   hook: string | null;
   format: string | null;
+  awarenessStage: string | null;
+  painOrDesire: "pain" | "desire" | "mixed" | null;
   visualDirection: string | null;
   voiceoverScript: string | null;
   primaryText: string | null;
@@ -154,13 +172,39 @@ interface CreativeRecommendation {
   winnerCriteria: string;
   priority: "high" | "medium" | "low";
   priorityReason: string;
+  creativeReference: string | null;
+  whatChangesFromPreviousTest: string | null;
+  whatRemainsConstant: string | null;
+  whatThisTestIsDesignedToLearn: string | null;
+}
+
+interface AccountDiagnosis {
+  bottleneck: string;
+  evidence: string;
+  confidence: "high" | "medium" | "low";
+  whatWeKnow: string;
+  whatWeThink: string;
+  whatWeDontKnow: string;
+  whatWeNeedToFindOut: string;
+  portfolioRisk: string;
+  strategicOpportunity: string;
+}
+
+interface StrategicDecision {
+  decision: string;
+  variableBeingTested: "angle" | "offer" | "persona" | "format" | "execution";
+  whyNow: string;
+  whatNotToDo: string;
+  hypothesis: string;
+  testStructure: string;
+  winnerCriteria: string;
+  failureCriteria: string;
 }
 
 interface CreativeBrainAnalysis {
   clientName: string;
-  whatWeKnow: string;
-  whatWeveTested: string;
-  gaps: string;
+  accountDiagnosis: AccountDiagnosis;
+  strategicDecision: StrategicDecision | null;
   recommendations: CreativeRecommendation[];
   inserted: number;
 }
@@ -597,18 +641,51 @@ function CreativeBrainTab() {
 
       {analysis && (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-            {[
-              { label: "What we know", text: analysis.whatWeKnow },
-              { label: "What we've tested", text: analysis.whatWeveTested },
-              { label: "Gaps", text: analysis.gaps },
-            ].map(section => (
-              <div key={section.label} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 8 }}>{section.label}</div>
-                <p style={{ fontSize: 12.5, color: L.text, lineHeight: 1.6, margin: 0 }}>{section.text || "—"}</p>
-              </div>
-            ))}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted }}>Account Diagnosis</div>
+              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: CONFIDENCE_STYLE[analysis.accountDiagnosis.confidence === "high" ? "proven" : analysis.accountDiagnosis.confidence === "medium" ? "promising" : "early_signal"]?.color, background: CONFIDENCE_STYLE[analysis.accountDiagnosis.confidence === "high" ? "proven" : analysis.accountDiagnosis.confidence === "medium" ? "promising" : "early_signal"]?.bg, padding: "2px 6px", borderRadius: 3, textTransform: "uppercase" }}>{analysis.accountDiagnosis.confidence} confidence</span>
+            </div>
+            <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: L.text, marginBottom: 4 }}>Bottleneck: {analysis.accountDiagnosis.bottleneck || "—"}</div>
+              <p style={{ fontSize: 12.5, color: L.muted, lineHeight: 1.5, margin: 0 }}>{analysis.accountDiagnosis.evidence || "—"}</p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              {[
+                { label: "What we know", text: analysis.accountDiagnosis.whatWeKnow },
+                { label: "What we think", text: analysis.accountDiagnosis.whatWeThink },
+                { label: "What we don't know", text: analysis.accountDiagnosis.whatWeDontKnow },
+                { label: "What we need to find out", text: analysis.accountDiagnosis.whatWeNeedToFindOut },
+                { label: "Portfolio risk", text: analysis.accountDiagnosis.portfolioRisk },
+                { label: "Strategic opportunity", text: analysis.accountDiagnosis.strategicOpportunity },
+              ].map(section => (
+                <div key={section.label} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 8 }}>{section.label}</div>
+                  <p style={{ fontSize: 12.5, color: L.text, lineHeight: 1.6, margin: 0 }}>{section.text || "—"}</p>
+                </div>
+              ))}
+            </div>
           </div>
+
+          {analysis.strategicDecision && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 10 }}>Strategic Decision</div>
+              <div style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: L.text }}>{analysis.strategicDecision.decision}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.04em" }}>testing: {analysis.strategicDecision.variableBeingTested}</span>
+                </div>
+                <p style={{ fontSize: 12.5, color: L.muted, lineHeight: 1.5, margin: "0 0 6px" }}><strong style={{ color: L.text }}>Why now:</strong> {analysis.strategicDecision.whyNow || "—"}</p>
+                <p style={{ fontSize: 12.5, color: L.muted, lineHeight: 1.5, margin: "0 0 6px" }}><strong style={{ color: L.text }}>What NOT to do:</strong> {analysis.strategicDecision.whatNotToDo || "—"}</p>
+                <p style={{ fontSize: 12.5, color: L.text, lineHeight: 1.5, margin: "0 0 6px" }}><strong>Hypothesis:</strong> {analysis.strategicDecision.hypothesis || "—"}</p>
+                <p style={{ fontSize: 12.5, color: L.muted, lineHeight: 1.5, margin: "0 0 6px" }}><strong style={{ color: L.text }}>Test structure:</strong> {analysis.strategicDecision.testStructure || "—"}</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8, fontSize: 12, color: L.muted }}>
+                  <div><strong style={{ color: L.text }}>Winner criteria:</strong> {analysis.strategicDecision.winnerCriteria || "—"}</div>
+                  <div><strong style={{ color: L.text }}>Failure criteria:</strong> {analysis.strategicDecision.failureCriteria || "—"}</div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 10 }}>
@@ -632,6 +709,11 @@ function CreativeBrainTab() {
                       </div>
                       <p style={{ fontSize: 13, color: L.text, lineHeight: 1.5, margin: "0 0 8px" }}>{r.hypothesis}</p>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "4px 16px", fontSize: 12, color: L.muted, marginBottom: 8 }}>
+                        {r.situation && <div><strong style={{ color: L.text }}>Situation:</strong> {r.situation}</div>}
+                        {r.problem && <div><strong style={{ color: L.text }}>Problem:</strong> {r.problem}</div>}
+                        {r.desire && <div><strong style={{ color: L.text }}>Desire:</strong> {r.desire}</div>}
+                        {r.awarenessStage && <div><strong style={{ color: L.text }}>Awareness:</strong> {r.awarenessStage}</div>}
+                        {r.painOrDesire && <div><strong style={{ color: L.text }}>Pain/Desire:</strong> {r.painOrDesire}</div>}
                         {r.hook && <div><strong style={{ color: L.text }}>Hook:</strong> {r.hook}</div>}
                         {r.format && <div><strong style={{ color: L.text }}>Format:</strong> {r.format}</div>}
                         {r.headline && <div><strong style={{ color: L.text }}>Headline:</strong> {r.headline}</div>}
@@ -642,6 +724,13 @@ function CreativeBrainTab() {
                       {r.primaryText && <p style={{ fontSize: 12.5, color: L.text, lineHeight: 1.5, margin: "0 0 8px", fontStyle: "italic" }}>&ldquo;{r.primaryText}&rdquo;</p>}
                       {r.voiceoverScript && <p style={{ fontSize: 12.5, color: L.text, lineHeight: 1.5, margin: "0 0 8px" }}><strong>Script:</strong> {r.voiceoverScript}</p>}
                       <p style={{ fontSize: 12, color: L.muted, lineHeight: 1.5, margin: "0 0 4px" }}><strong style={{ color: L.text }}>Why:</strong> {r.whyTesting}</p>
+                      {r.whatThisTestIsDesignedToLearn && <p style={{ fontSize: 12, color: L.muted, lineHeight: 1.5, margin: "0 0 4px" }}><strong style={{ color: L.text }}>Designed to learn:</strong> {r.whatThisTestIsDesignedToLearn}</p>}
+                      {(r.whatChangesFromPreviousTest || r.whatRemainsConstant) && (
+                        <p style={{ fontSize: 12, color: L.muted, lineHeight: 1.5, margin: "0 0 4px" }}>
+                          {r.whatChangesFromPreviousTest && <><strong style={{ color: L.text }}>Changes:</strong> {r.whatChangesFromPreviousTest} </>}
+                          {r.whatRemainsConstant && <><strong style={{ color: L.text }}>Constant:</strong> {r.whatRemainsConstant}</>}
+                        </p>
+                      )}
                       {r.winnerCriteria && <p style={{ fontSize: 12, color: L.muted, lineHeight: 1.5, margin: 0 }}><strong style={{ color: L.text }}>Winner looks like:</strong> {r.winnerCriteria}</p>}
                     </div>
                   );
@@ -676,8 +765,12 @@ function CreativeBrainTab() {
                       {pri && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: pri.color, background: pri.bg, padding: "1px 5px", borderRadius: 3, textTransform: "uppercase" }}>{l.priority}</span>}
                       <span style={{ fontSize: 9, fontWeight: 700, color: CONFIDENCE_STYLE[l.confidence]?.color, textTransform: "uppercase", letterSpacing: "0.04em" }}>{l.confidence.replace(/_/g, " ")}</span>
                     </div>
+                    {l.situation && <div style={{ fontSize: 12, color: L.text, marginBottom: 2 }}><strong>Situation:</strong> {l.situation}</div>}
                     {l.hook && <div style={{ fontSize: 12, color: L.text, marginBottom: 2 }}><strong>Hook:</strong> {l.hook}</div>}
                     <div style={{ fontSize: 12.5, color: L.muted, lineHeight: 1.5 }}>{l.observed}</div>
+                    {l.what_this_proves && <div style={{ fontSize: 12, color: L.text, marginTop: 4 }}><strong>Proves:</strong> {l.what_this_proves}</div>}
+                    {l.what_this_does_not_prove && <div style={{ fontSize: 12, color: L.muted, marginTop: 2 }}><strong>Does NOT prove:</strong> {l.what_this_does_not_prove}</div>}
+                    {l.belief_status !== "active" && <div style={{ fontSize: 11, color: "#b45309", marginTop: 4, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>Belief: {l.belief_status}</div>}
                     {l.next_test && <div style={{ fontSize: 12, color: L.text, marginTop: 4 }}><strong>Next test:</strong> {l.next_test}</div>}
                   </div>
                 </div>
