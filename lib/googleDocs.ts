@@ -628,3 +628,56 @@ export async function readGoogleDocText(docId: string, maxChars: number = 6000):
   text = text.trim();
   return text.length > maxChars ? text.slice(0, maxChars) + "\n...(truncated)" : text;
 }
+
+interface DocContentElement {
+  paragraph?: { elements?: { textRun?: { content?: string | null } | null }[] | null } | null;
+  table?: { tableRows?: { tableCells?: { content?: DocContentElement[] | null }[] | null }[] | null } | null;
+}
+
+function extractTextFromContent(content: DocContentElement[]): string {
+  let text = "";
+  for (const element of content) {
+    for (const run of element.paragraph?.elements || []) {
+      if (run.textRun?.content) text += run.textRun.content;
+    }
+    // ad_creatives cards, strategy boxes etc live inside 1x1 tables — walk
+    // into cell content too so bordered "card" blocks aren't skipped.
+    for (const row of element.table?.tableRows || []) {
+      for (const cell of row.tableCells || []) {
+        text += extractTextFromContent((cell.content || []) as DocContentElement[]);
+      }
+    }
+  }
+  return text;
+}
+
+// Multi-tab docs (like a client's Campaign Master Doc — Creative Strategy,
+// Testing Summary, one tab per service, Creative Brain, etc) keep their real
+// content under doc.data.tabs, not doc.data.body — readGoogleDocText alone
+// only ever sees whichever tab Docs treats as the "default" body, which is
+// usually empty or just the very first tab. This walks every tab so a full
+// extraction (e.g. building a Client Brain from what's already written)
+// actually sees everything Lucky has in the doc.
+export async function readGoogleDocAllTabsText(docId: string, maxCharsPerTab: number = 4000): Promise<string> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const docs = google.docs({ version: "v1", auth });
+
+  const doc = await docs.documents.get({ documentId: docId, includeTabsContent: true });
+  const tabs = flattenTabs(doc.data.tabs as TabNode[] | undefined);
+
+  if (!tabs.length) {
+    // Not a tabbed doc — fall back to the plain single-body reader.
+    return readGoogleDocText(docId, maxCharsPerTab);
+  }
+
+  const sections: string[] = [];
+  for (const tab of tabs) {
+    const title = tab.tabProperties?.title || "Untitled tab";
+    const content = (tab.documentTab?.body?.content || []) as DocContentElement[];
+    let text = extractTextFromContent(content).trim();
+    if (!text) continue;
+    if (text.length > maxCharsPerTab) text = text.slice(0, maxCharsPerTab) + "\n...(truncated)";
+    sections.push(`--- Tab: ${title} ---\n${text}`);
+  }
+  return sections.join("\n\n") || "(doc has tabs but no readable text content)";
+}

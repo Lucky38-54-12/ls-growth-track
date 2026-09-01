@@ -201,6 +201,16 @@ interface StrategicDecision {
   failureCriteria: string;
 }
 
+interface ClientBrain {
+  clientId: string;
+  business: Record<string, string | string[] | undefined>;
+  customer: Record<string, string | string[] | undefined>;
+  offer: Record<string, string | string[] | undefined>;
+  proof: Record<string, string | string[] | undefined>;
+  market: Record<string, string | string[] | undefined>;
+  updatedAt: string;
+}
+
 interface CreativeBrainAnalysis {
   clientName: string;
   accountDiagnosis: AccountDiagnosis;
@@ -533,6 +543,11 @@ function CreativeBrainTab() {
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState("");
 
+  const [clientBrain, setClientBrain] = useState<ClientBrain | null>(null);
+  const [clientBrainLoading, setClientBrainLoading] = useState(false);
+  const [clientBrainError, setClientBrainError] = useState("");
+  const [showClientBrain, setShowClientBrain] = useState(false);
+
   useEffect(() => {
     if (account !== null || !accountsLoaded) return;
     if (accounts.length > 0) setAccount(accounts[0].value);
@@ -577,6 +592,16 @@ function CreativeBrainTab() {
     }
   }, []);
 
+  const loadClientBrain = useCallback(async (clientId: string) => {
+    try {
+      const res = await fetch(`/api/meta-ads/client-brain?clientId=${clientId}`);
+      const data = await res.json();
+      setClientBrain(data.clientBrain || null);
+    } catch {
+      setClientBrain(null);
+    }
+  }, []);
+
   useEffect(() => {
     if (!account) return;
     loadAds(account, activeAccount?.clientId || null);
@@ -585,11 +610,33 @@ function CreativeBrainTab() {
     if (activeAccount?.clientId) {
       loadLearnings(activeAccount.clientId);
       loadArchive(activeAccount.clientId);
+      loadClientBrain(activeAccount.clientId);
     } else {
       setLearnings([]);
       setArchive([]);
+      setClientBrain(null);
     }
-  }, [account, loadAds, loadLearnings, loadArchive, activeAccount?.clientId]);
+  }, [account, loadAds, loadLearnings, loadArchive, loadClientBrain, activeAccount?.clientId]);
+
+  async function buildClientBrain() {
+    if (!activeAccount?.clientId) return;
+    setClientBrainLoading(true);
+    setClientBrainError("");
+    try {
+      const res = await fetch("/api/meta-ads/client-brain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: activeAccount.clientId }),
+      });
+      const data = await res.json();
+      if (data.error) { setClientBrainError(data.error); return; }
+      setClientBrain(data.clientBrain);
+    } catch {
+      setClientBrainError("Failed to build Client Brain from docs.");
+    } finally {
+      setClientBrainLoading(false);
+    }
+  }
 
   async function generate() {
     if (!activeAccount?.clientId) return;
@@ -633,6 +680,58 @@ function CreativeBrainTab() {
           <Brain style={{ width: 13, height: 13 }} className={generating ? "spin" : ""} />
           {generating ? "Analysing…" : "Analyse & recommend tests"}
         </button>
+      </div>
+
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: showClientBrain ? 10 : 0 }}>
+          <button
+            onClick={() => setShowClientBrain(v => !v)}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 0, cursor: "pointer" }}
+          >
+            {showClientBrain ? <ChevronDown style={{ width: 12, height: 12, color: L.muted }} /> : <ChevronRight style={{ width: 12, height: 12, color: L.muted }} />}
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted }}>
+              Client Brain{clientBrain ? ` — updated ${clientBrain.updatedAt.slice(0, 10)}` : " — not built yet"}
+            </span>
+          </button>
+          <button
+            onClick={buildClientBrain}
+            disabled={clientBrainLoading || !activeAccount?.clientId}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${L.border}`, padding: "6px 12px", fontSize: 11, fontWeight: 700, color: L.muted, cursor: clientBrainLoading ? "default" : "pointer" }}
+          >
+            <RefreshCw style={{ width: 11, height: 11 }} className={clientBrainLoading ? "spin" : ""} />
+            {clientBrainLoading ? "Building…" : clientBrain ? "Rebuild from docs" : "Build from docs"}
+          </button>
+        </div>
+        {clientBrainError && (
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: 16, fontSize: 13, marginTop: 8 }}>{clientBrainError}</div>
+        )}
+        {showClientBrain && (
+          clientBrain === null ? (
+            <div style={{ padding: 20, textAlign: "center", color: L.dimmed, fontSize: 13, background: L.surface, border: `1px solid ${L.border}` }}>
+              No Client Brain yet — click &quot;Build from docs&quot; to extract business/customer/offer/proof/market facts straight out of this client&apos;s Campaign Master Doc and any other Drive strategy docs. Only pulls what&apos;s actually written — never invents anything.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              {([["Business", clientBrain.business], ["Customer", clientBrain.customer], ["Offer", clientBrain.offer], ["Proof", clientBrain.proof], ["Market", clientBrain.market]] as const).map(([label, section]) => {
+                const entries = Object.entries(section).filter(([, v]) => v && (!Array.isArray(v) || v.length > 0));
+                return (
+                  <div key={label} style={{ background: L.surface, border: `1px solid ${L.border}`, padding: 14 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 8 }}>{label}</div>
+                    {entries.length === 0 ? (
+                      <p style={{ fontSize: 12, color: L.dimmed, margin: 0 }}>Nothing found in the docs for this section.</p>
+                    ) : (
+                      entries.map(([k, v]) => (
+                        <div key={k} style={{ fontSize: 12, color: L.text, marginBottom: 4 }}>
+                          <strong style={{ color: L.muted, textTransform: "capitalize" }}>{k.replace(/([A-Z])/g, " $1").trim()}:</strong> {Array.isArray(v) ? v.join("; ") : v}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )
+        )}
       </div>
 
       {genError && (
