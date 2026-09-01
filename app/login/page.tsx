@@ -20,7 +20,7 @@ function LoginForm() {
     });
     setLoading(false);
     if (res.ok) {
-      router.push(params.get("next") || "/dashboard");
+      router.push(params.get("next") || "/dashboard/today");
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));

@@ -44,7 +44,9 @@ export default function Sidebar() {
         className="dashboard-topbar"
         style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 30, alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "#fff", borderBottom: "1px solid #e6eaf0" }}
       >
-        <img src="/logo.png" alt="LS Growth" style={{ height: 26, width: "auto", objectFit: "contain" }} />
+        <Link href="/dashboard/today" style={{ display: "flex", alignItems: "center" }}>
+          <img src="/logo.png" alt="LS Growth" style={{ height: 26, width: "auto", objectFit: "contain" }} />
+        </Link>
         <button
           type="button"
           onClick={() => setNavOpen((v) => !v)}
@@ -63,7 +65,7 @@ export default function Sidebar() {
         boxShadow: "1px 0 0 rgba(15,23,42,0.02), 4px 0 16px rgba(15,23,42,0.03)",
       }}>
         {/* Brand */}
-        <div style={{ height: 64, display: "flex", alignItems: "center", gap: 10, padding: "0 16px", borderBottom: "1px solid #e6eaf0" }}>
+        <Link href="/dashboard/today" style={{ height: 64, display: "flex", alignItems: "center", gap: 10, padding: "0 16px", borderBottom: "1px solid #e6eaf0", textDecoration: "none" }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #fff 0%, var(--accent-tint) 100%)",
             border: "1px solid #d6ecfb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
@@ -76,7 +78,7 @@ export default function Sidebar() {
             </div>
             <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600, letterSpacing: "0.04em", marginTop: 3 }}>Outreach Agency</div>
           </div>
-        </div>
+        </Link>
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: "14px 10px", overflowY: "auto" }}>
