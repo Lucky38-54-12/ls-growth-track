@@ -353,6 +353,17 @@ export function daysUntilMeeting(startISO: string, timeZone = "Pacific/Auckland"
   return Math.round((startDay.getTime() - today.getTime()) / 86400000);
 }
 
+// Just the clock time, e.g. "3:30pm" — for templates that already state the
+// day themselves ("tomorrow at ...", "today at ..." 2 hours out) and would
+// otherwise double up with describeMeetingTime's own day label below.
+export function formatMeetingClockTime(startISO: string, timeZone = "Pacific/Auckland"): string {
+  const start = new Date(startISO);
+  return new Intl.DateTimeFormat("en-NZ", { timeZone, hour: "numeric", minute: "2-digit", hour12: true })
+    .format(start)
+    .replace(" ", "")
+    .toLowerCase();
+}
+
 // Describes a meeting time relative to today, e.g. "today at 3:30pm",
 // "tomorrow at 10am", "Wednesday at 3:30pm".
 export function describeMeetingTime(startISO: string, timeZone = "Pacific/Auckland"): string {
@@ -364,10 +375,7 @@ export function describeMeetingTime(startISO: string, timeZone = "Pacific/Auckla
   else if (dayDiff === 1) dayLabel = "tomorrow";
   else dayLabel = new Intl.DateTimeFormat("en-NZ", { timeZone, weekday: "long" }).format(start);
 
-  const timeStr = new Intl.DateTimeFormat("en-NZ", { timeZone, hour: "numeric", minute: "2-digit", hour12: true })
-    .format(start)
-    .replace(" ", "")
-    .toLowerCase();
+  const timeStr = formatMeetingClockTime(startISO, timeZone);
 
   return `${dayLabel} at ${timeStr}`;
 }

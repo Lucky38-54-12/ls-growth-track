@@ -50,6 +50,16 @@ function realName(name: string | null | undefined): string {
   return trimmed && trimmed.toLowerCase() !== "there" ? trimmed : "";
 }
 
+// Just the first name off a stored contact_name (which may be a full name,
+// or empty/"there" for leads with none on file) — used by the meeting
+// emails below so "Sarah Johnson" reads as "Hey Sarah," not "Hey Sarah
+// Johnson,", and a missing name falls back to a bare "Hey," rather than
+// "Hey there,".
+function firstName(name: string | null | undefined): string {
+  const real = realName(name);
+  return real ? real.split(/\s+/)[0] : "";
+}
+
 // The model reliably slips an em/en dash into cold outreach copy no matter
 // how the "no dashes" rule is worded — it's a stylistic habit that prompt
 // wording alone hasn't fixed after repeated attempts. Enforce it
@@ -634,7 +644,7 @@ const MEETING_SYSTEM_PROMPT = `You are writing a short meeting confirmation emai
 A lead just booked a quick call with Lucky through his booking page. There is NO prior conversation — Lucky has never spoken to this person before. Do NOT invent any prior context, price figures, objections, or anything discussed previously. There is nothing to reference.
 
 Write a short, casual confirmation email:
-- Address them by name at the start (e.g. "Hey Mike,")
+- Address them by their first name only at the start (e.g. "Hey Mike,") — if no name is given, just "Hey,"
 - Confirm the day/time of the call and include the meeting link paragraph
 - One light sentence about what the call covers: just a quick chat about their lead flow and how LS Growth works
 - Include a paragraph containing exactly "[MEETING LINK]" and nothing else, on its own line with no other text
@@ -657,7 +667,7 @@ export async function generateMeetingConfirmationEmail(input: MeetingConfirmatio
   const client = new Anthropic({ apiKey });
 
   const userPrompt = `Company: ${input.company}
-Contact name: ${realName(input.contactName) || "unknown"}
+Contact first name: ${firstName(input.contactName) || "unknown"}
 Meeting time: ${input.meetingTime}`;
 
   const msg = await client.messages.create({
@@ -726,32 +736,6 @@ async function runMeetingEmailPrompt(systemPrompt: string, userPrompt: string): 
   return { subject: parsed.subject, bodyHtml: parsed.bodyHtml };
 }
 
-const VALUE_TOUCHPOINT_SYSTEM_PROMPT = `You are writing a short "value" touchpoint email on behalf of Lucky from LS Growth Agency, which runs Meta ad campaigns for trade businesses (cleaners, builders, plumbers, etc) to generate leads.
-
-This lead has ALREADY booked a call with Lucky for later this week. This email is NOT a reminder about the call logistics, it's sent a few days beforehand purely to stay top of mind and give them one genuinely useful, specific tip about generating or converting leads for their trade, so the call doesn't feel like the first contact in a week.
-
-Write a short, casual email:
-- Address them by name at the start (e.g. "Hey Mike,")
-- Give ONE concrete, specific, useful tip related to getting more leads or booking more jobs (e.g. speed to lead, follow-up cadence, review requests, seasonal demand), make it feel like genuine advice, not a pitch
-- Briefly mention the upcoming call ahead of time (day/time), so they're reminded it's coming, but keep this to one line
-- No invented case studies, stats, or client names
-- 2-3 short paragraphs max
-- No dashes or em dashes anywhere
-- No sign-off (added separately)
-- HTML: only <p> and <a> tags, nothing else
-
-Also write a short subject line (4-7 words) that's about the tip, not "reminder" or "upcoming call".
-
-Respond with ONLY a JSON object, no markdown fences, no other text:
-{"subject": "...", "bodyHtml": "..."}`;
-
-export async function generateValueTouchpointEmail(input: MeetingTouchpointInput): Promise<PersonalizedEmail> {
-  const userPrompt = `Company: ${input.company}
-Contact name: ${realName(input.contactName) || "unknown"}
-Meeting time: ${input.meetingTime}`;
-  return runMeetingEmailPrompt(VALUE_TOUCHPOINT_SYSTEM_PROMPT, userPrompt);
-}
-
 export interface CallRecapInput {
   prospectName: string;
   businessName: string;
@@ -797,12 +781,27 @@ Agreed deal terms: ${input.dealTerms || "none — no deal was agreed on this cal
 // for something this mechanical. Kept as a plain function (not
 // runMeetingEmailPrompt) since there's no generation step at all.
 export async function generateMeetingDayReminderEmail(input: MeetingTouchpointInput): Promise<PersonalizedEmail> {
-  const name = realName(input.contactName) || "there";
+  const name = firstName(input.contactName);
   const subject = `Quick reminder — our meeting today at ${input.meetingTime}`;
   const bodyHtml = [
-    `<p>Hey ${name},</p>`,
+    `<p>Hey${name ? ` ${name}` : ""},</p>`,
     `<p>Just a reminder we have our meeting today at ${input.meetingTime}. Looking forward to chatting!</p>`,
     `<p>You can join here: [MEETING LINK]</p>`,
+  ].join("\n");
+  return { subject, bodyHtml };
+}
+
+// The AI-generated "value" tip touchpoint (git history) got replaced with
+// this plain day-before heads-up — same reasoning as the day-of reminder
+// above, a fixed template is simpler and cheaper than a generation step for
+// something this mechanical.
+export async function generateDayBeforeReminderEmail(input: MeetingTouchpointInput): Promise<PersonalizedEmail> {
+  const name = firstName(input.contactName);
+  const subject = `Quick reminder — your appointment tomorrow at ${input.meetingTime}`;
+  const bodyHtml = [
+    `<p>Hey${name ? ` ${name}` : ""},</p>`,
+    `<p>Quick reminder we've got your appointment booked in for tomorrow at ${input.meetingTime}. Looking forward to it!</p>`,
+    `<p>Give me a shout if anything changes on your end.</p>`,
   ].join("\n");
   return { subject, bodyHtml };
 }

@@ -1,13 +1,13 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { generateLeadId } from "./leads";
-import { generateMeetingConfirmationEmail, generateValueTouchpointEmail, generateMeetingDayReminderEmail } from "./ai";
-// Meeting logistics (confirmation, pre-call value email, day-of reminder)
-// go through Lucky's personal Gmail, not outreach@lsgrowth.agency — these
-// are one-to-one conversations with someone who already booked a real call,
-// not cold outreach, and mixing them into the same Resend/outreach mailbox
-// as the campaign sequence would make that inbox messy for no reason.
+import { generateMeetingConfirmationEmail, generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from "./ai";
+// Meeting logistics (confirmation, day-before reminder, 2-hours-before
+// reminder) go through Lucky's personal Gmail, not outreach@lsgrowth.agency —
+// these are one-to-one conversations with someone who already booked a real
+// call, not cold outreach, and mixing them into the same Resend/outreach
+// mailbox as the campaign sequence would make that inbox messy for no reason.
 import { sendGmailFollowup } from "./email";
-import { listUpcomingBookings, describeMeetingTime, daysUntilMeeting, fillMeetingLink, CalendarBooking } from "./calendar";
+import { listUpcomingBookings, describeMeetingTime, formatMeetingClockTime, fillMeetingLink, CalendarBooking } from "./calendar";
 import { Lead } from "./types";
 
 export interface CalendarSyncResult {
@@ -139,61 +139,80 @@ interface TrackedBooking {
   lead_id: string | null;
   start_iso: string | null;
   hangout_link: string | null;
-  value_email_sent_at: string | null;
+  day_before_email_sent_at: string | null;
   reminder_email_sent_at: string | null;
 }
 
 export interface TouchpointResult {
   checked: number;
-  valueSent: number;
+  dayBeforeSent: number;
   reminderSent: number;
   errors: string[];
 }
 
-// Sends the two extra touchpoint emails around a booked meeting: a "value"
-// email about a week out, and a reminder the morning of the meeting (this
-// runs on the same daily cron as syncCalendarBookings, which fires ~9-10am
-// NZT). Each is sent at most once per booking, tracked via the
-// *_email_sent_at columns on calendar_bookings.
+// 7pm the evening before, and 2 hours before the meeting itself — same
+// cadence as the AI lead-qual callback reminders (lib/leadQual/callbackReminder.ts).
+const DAY_BEFORE_HOUR = 19; // 7pm local, the evening before the meeting
+const SAME_DAY_LEAD_MINUTES = 120;
+const SAME_DAY_WINDOW_MINUTES = 15; // ±15min so the 15-min cron always lands inside it
+
+// Sends the two reminder emails around a booked meeting: a simple heads-up
+// at 7pm the evening before, and a simple heads-up 2 hours before the
+// meeting itself. Runs on a 15-min cron (see /api/cron/calendar-sync). Each
+// is sent at most once per booking, tracked via the *_email_sent_at columns
+// on calendar_bookings.
 export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
   const sb = createSupabaseClient();
   const rows = await fetchAllRows<TrackedBooking>((from, to) => sb.from("calendar_bookings").select("*").range(from, to));
+  const timeZone = "Pacific/Auckland";
+  const dateFmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+  const hourFmt = new Intl.DateTimeFormat("en-NZ", { timeZone, hour: "2-digit", hour12: false });
 
-  let valueSent = 0;
+  let dayBeforeSent = 0;
   let reminderSent = 0;
   const errors: string[] = [];
 
   for (const row of rows) {
     if (!row.lead_id || !row.start_iso) continue;
-    const daysUntil = daysUntilMeeting(row.start_iso);
-    if (daysUntil < 0) continue;
+    if (row.day_before_email_sent_at && row.reminder_email_sent_at) continue;
 
     try {
+      const now = new Date();
+      const start = new Date(row.start_iso);
+      if (start.getTime() < now.getTime()) continue;
+
+      const nowDateStr = dateFmt.format(now);
+      const nowHour = parseInt(hourFmt.format(now), 10);
+      const dayBeforeDateStr = dateFmt.format(new Date(start.getTime() - 24 * 60 * 60 * 1000));
+      const minutesUntil = (start.getTime() - now.getTime()) / 60_000;
+
+      const isDayBeforeDue = !row.day_before_email_sent_at && nowDateStr === dayBeforeDateStr && nowHour === DAY_BEFORE_HOUR;
+      const isSameDayDue =
+        !row.reminder_email_sent_at &&
+        minutesUntil <= SAME_DAY_LEAD_MINUTES + SAME_DAY_WINDOW_MINUTES &&
+        minutesUntil >= SAME_DAY_LEAD_MINUTES - SAME_DAY_WINDOW_MINUTES;
+
+      if (!isDayBeforeDue && !isSameDayDue) continue;
+
       const { data: lead } = await sb.from("leads").select("*").eq("lead_id", row.lead_id).maybeSingle();
       if (!lead) continue;
 
-      const meetingTime = describeMeetingTime(row.start_iso);
+      const clockTime = formatMeetingClockTime(row.start_iso, timeZone);
 
-      // Window (not an exact day match) so a missed cron run doesn't skip
-      // the email entirely; the sent_at flag keeps it to a single send.
-      // Centered on 3 days out, not a week — close enough to the meeting
-      // that the tip actually feels tied to it, not a random touchpoint.
-      if (!row.value_email_sent_at && daysUntil >= 2 && daysUntil <= 3) {
-        const { subject, bodyHtml } = await generateValueTouchpointEmail({
+      if (isDayBeforeDue) {
+        const { subject, bodyHtml } = await generateDayBeforeReminderEmail({
           company: lead.company,
           contactName: lead.contact_name,
-          meetingTime,
+          meetingTime: clockTime,
         });
-        await sendGmailFollowup(lead as Lead, subject, bodyHtml, "meeting_value_touchpoint");
-        await sb.from("calendar_bookings").update({ value_email_sent_at: new Date().toISOString() }).eq("event_id", row.event_id);
-        valueSent++;
-      }
-
-      if (!row.reminder_email_sent_at && daysUntil === 0) {
+        await sendGmailFollowup(lead as Lead, subject, bodyHtml, "meeting_day_before_reminder");
+        await sb.from("calendar_bookings").update({ day_before_email_sent_at: new Date().toISOString() }).eq("event_id", row.event_id);
+        dayBeforeSent++;
+      } else {
         const { subject, bodyHtml } = await generateMeetingDayReminderEmail({
           company: lead.company,
           contactName: lead.contact_name,
-          meetingTime,
+          meetingTime: clockTime,
         });
         const finalBody = fillMeetingLink(bodyHtml, row.hangout_link || "");
         await sendGmailFollowup(lead as Lead, subject, finalBody, "meeting_day_reminder");
@@ -205,5 +224,5 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
     }
   }
 
-  return { checked: rows.length, valueSent, reminderSent, errors };
+  return { checked: rows.length, dayBeforeSent, reminderSent, errors };
 }

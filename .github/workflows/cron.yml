@@ -34,10 +34,25 @@ jobs:
           curl -sf -X GET "https://app.lsgrowth.agency/api/cron/check-personal-inbox" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
+  calendar-sync:
+    # Cold-call meeting bookings: syncs new calendar bookings (sends the
+    # booking confirmation) and dispatches the day-before (7pm local) /
+    # 2-hours-before reminder emails — same 15-min cadence as
+    # check-personal-inbox above, so each send window is always hit by at
+    # least one run.
+    if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/calendar-sync
+        run: |
+          curl -sf -X GET "https://app.lsgrowth.agency/api/cron/calendar-sync" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
   lead-qual-callback-reminders:
-    # Leads with a booked callback/visit get a heads-up email 20-40 minutes
-    # before it's due — same 15-min cadence as check-personal-inbox above,
-    # wide enough window that no booking falls through a gap between runs.
+    # Leads with a booked callback/visit get two heads-up emails: one at 7pm
+    # local the evening before, one 2 hours before the call itself — same
+    # 15-min cadence as check-personal-inbox above, so each send window is
+    # always hit by at least one run.
     if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
