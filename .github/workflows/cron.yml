@@ -8,7 +8,14 @@ on:
   schedule:
     # Campaign sends are paused (2026-08-14) while the send pipeline is
     # reviewed — see campaign-send below, now workflow_dispatch-only.
-    - cron: "*/15 * * * *"  # every 15 min — personal inbox check (replaces the standalone Inbox page)
+    #
+    # Offset 7 minutes off the :00/:15/:30/:45 boundaries on purpose: GitHub's
+    # own docs warn that scheduled workflows are delayed (or dropped
+    # entirely) hardest right at those round-number marks, because every
+    # scheduled workflow on GitHub piles onto the same moment. Observed here
+    # as runs landing 1-5 hours apart instead of every 15 min — sitting on
+    # the boundary was making it worse, not just "a bit jittery".
+    - cron: "7,22,37,52 * * * *"  # every 15 min (offset) — personal inbox check (replaces the standalone Inbox page)
     - cron: "0 19 * * *"  # 7am NZT — morning brief (today's meetings + due items, via Slack)
     - cron: "0 21 * * *"  # 9am NZT — daily maintenance (replies, stale-reply pings, etc.)
     - cron: "0 18 * * *"  # 6am NZT — lead-qual daily sync (catch any Lead Ad forms the webhook missed)
@@ -26,7 +33,7 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
   check-personal-inbox:
-    if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '7,22,37,52 * * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Call /api/cron/check-personal-inbox
@@ -40,7 +47,7 @@ jobs:
     # 2-hours-before reminder emails — same 15-min cadence as
     # check-personal-inbox above, so each send window is always hit by at
     # least one run.
-    if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '7,22,37,52 * * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Call /api/cron/calendar-sync
@@ -53,7 +60,7 @@ jobs:
     # local the evening before, one 2 hours before the call itself — same
     # 15-min cadence as check-personal-inbox above, so each send window is
     # always hit by at least one run.
-    if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '7,22,37,52 * * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Call /api/cron/lead-qual-callback-reminders
