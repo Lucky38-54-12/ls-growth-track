@@ -6,8 +6,9 @@ import { generateMeetingConfirmationEmail, generateDayBeforeReminderEmail, gener
 // these are one-to-one conversations with someone who already booked a real
 // call, not cold outreach, and mixing them into the same Resend/outreach
 // mailbox as the campaign sequence would make that inbox messy for no reason.
-import { sendGmailFollowup } from "./email";
+import { sendGmailFollowup, sendPlainGmail } from "./email";
 import { listUpcomingBookings, describeMeetingTime, formatMeetingClockTime, fillMeetingLink, CalendarBooking } from "./calendar";
+import { notifySlack } from "./slackNotify";
 import { Lead } from "./types";
 
 export interface CalendarSyncResult {
@@ -85,10 +86,18 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
   for (const booking of bookings) {
     const { data: already } = await sb
       .from("calendar_bookings")
-      .select("event_id")
+      .select("event_id, attendee_email")
       .eq("event_id", booking.eventId)
       .maybeSingle();
     if (already) {
+      // Backfills attendee_email/attendee_name/summary onto rows created
+      // before those columns existed, so sendMeetingTouchpoints can still
+      // reach them without needing every booking re-created from scratch.
+      if (!already.attendee_email) {
+        await sb.from("calendar_bookings").update({
+          attendee_email: booking.attendeeEmail, attendee_name: booking.attendeeName, summary: booking.summary,
+        }).eq("event_id", booking.eventId);
+      }
       skipped++;
       continue;
     }
@@ -97,10 +106,13 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
       const lead = await findOrCreateLead(sb, booking);
       if (!lead) {
         // Not a recognizable business meeting and not an existing lead —
-        // record it as seen so it's not re-evaluated every day, but don't
-        // create a fake lead or send anything for it.
+        // don't create a fake pipeline lead or send the lead-pipeline
+        // confirmation email. Attendee/summary are still recorded so
+        // sendMeetingTouchpoints below can still remind whoever's on the
+        // invite (and Slack-ping Lucky) even without a lead record.
         await sb.from("calendar_bookings").insert({
           event_id: booking.eventId, lead_id: null, start_iso: booking.startISO, hangout_link: booking.hangoutLink,
+          attendee_email: booking.attendeeEmail, attendee_name: booking.attendeeName, summary: booking.summary,
         });
         skipped++;
         continue;
@@ -124,6 +136,9 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
         lead_id: lead.lead_id,
         start_iso: booking.startISO,
         hangout_link: booking.hangoutLink,
+        attendee_email: booking.attendeeEmail,
+        attendee_name: booking.attendeeName,
+        summary: booking.summary,
       });
       sent++;
     } catch (err) {
@@ -139,6 +154,9 @@ interface TrackedBooking {
   lead_id: string | null;
   start_iso: string | null;
   hangout_link: string | null;
+  attendee_email: string | null;
+  attendee_name: string | null;
+  summary: string | null;
   day_before_email_sent_at: string | null;
   reminder_email_sent_at: string | null;
 }
@@ -173,7 +191,7 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
   const errors: string[] = [];
 
   for (const row of rows) {
-    if (!row.lead_id || !row.start_iso) continue;
+    if (!row.start_iso) continue;
     if (row.day_before_email_sent_at && row.reminder_email_sent_at) continue;
 
     try {
@@ -194,28 +212,48 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
 
       if (!isDayBeforeDue && !isSameDayDue) continue;
 
-      const { data: lead } = await sb.from("leads").select("*").eq("lead_id", row.lead_id).maybeSingle();
-      if (!lead) continue;
-
+      // Lead is optional now — bookings that never matched the "meet/call
+      // with X" pattern (see findOrCreateLead) still have an attendee_email
+      // from the calendar invite and still get reminded, they just don't
+      // go through the lead-tracking pixel/CTA rewriting sendGmailFollowup
+      // does. Lucky gets a Slack ping either way so nothing on his calendar
+      // is silently unreminded, lead or not.
+      const lead = row.lead_id ? await sb.from("leads").select("*").eq("lead_id", row.lead_id).maybeSingle().then((r) => r.data as Lead | null) : null;
+      const contactName = lead?.contact_name || row.attendee_name || "";
+      const label = lead?.company || row.summary || row.attendee_email || "your meeting";
       const clockTime = formatMeetingClockTime(row.start_iso, timeZone);
 
       if (isDayBeforeDue) {
-        const { subject, bodyHtml } = await generateDayBeforeReminderEmail({
-          company: lead.company,
-          contactName: lead.contact_name,
-          meetingTime: clockTime,
-        });
-        await sendGmailFollowup(lead as Lead, subject, bodyHtml, "meeting_day_before_reminder");
+        if (lead || row.attendee_email) {
+          const { subject, bodyHtml } = await generateDayBeforeReminderEmail({
+            company: lead?.company || label,
+            contactName,
+            meetingTime: clockTime,
+          });
+          if (lead) {
+            await sendGmailFollowup(lead, subject, bodyHtml, "meeting_day_before_reminder");
+          } else if (row.attendee_email) {
+            await sendPlainGmail(row.attendee_email, subject, bodyHtml);
+          }
+        }
+        await notifySlack(`📅 Reminder sent: *${label}* is tomorrow at ${clockTime}.`);
         await sb.from("calendar_bookings").update({ day_before_email_sent_at: new Date().toISOString() }).eq("event_id", row.event_id);
         dayBeforeSent++;
       } else {
-        const { subject, bodyHtml } = await generateMeetingDayReminderEmail({
-          company: lead.company,
-          contactName: lead.contact_name,
-          meetingTime: clockTime,
-        });
-        const finalBody = fillMeetingLink(bodyHtml, row.hangout_link || "");
-        await sendGmailFollowup(lead as Lead, subject, finalBody, "meeting_day_reminder");
+        if (lead || row.attendee_email) {
+          const { subject, bodyHtml } = await generateMeetingDayReminderEmail({
+            company: lead?.company || label,
+            contactName,
+            meetingTime: clockTime,
+          });
+          const finalBody = fillMeetingLink(bodyHtml, row.hangout_link || "");
+          if (lead) {
+            await sendGmailFollowup(lead, subject, finalBody, "meeting_day_reminder");
+          } else if (row.attendee_email) {
+            await sendPlainGmail(row.attendee_email, subject, finalBody);
+          }
+        }
+        await notifySlack(`📅 Heads up: *${label}* is in ~2 hours (${clockTime})${row.hangout_link ? ` — ${row.hangout_link}` : ""}.`);
         await sb.from("calendar_bookings").update({ reminder_email_sent_at: new Date().toISOString() }).eq("event_id", row.event_id);
         reminderSent++;
       }

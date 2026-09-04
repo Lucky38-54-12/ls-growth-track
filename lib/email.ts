@@ -144,6 +144,21 @@ ${filledBody}
   await logSend(lead.lead_id, step, subject, html);
 }
 
+// Same personal-Gmail send as sendGmailFollowup, minus the lead-tracking
+// pixel/CTA rewriting/logSend — for meeting attendees who booked directly on
+// the calendar and were never turned into a lead record (e.g. a title that
+// doesn't match the "meet/call with X" pattern), so there's no lead_id to
+// tag the send against.
+export async function sendPlainGmail(to: string, subject: string, bodyHtml: string) {
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+${bodyHtml}
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+</div>`;
+  const text = htmlToText(bodyHtml);
+  const transport = getTransport();
+  await transport.sendMail({ from: FROM, to, subject, html, text });
+}
+
 // Turns the AI-written bodyHtml + deterministic CTA block into the exact
 // HTML that actually goes out — {{CTA_LINK}} filled in, links rewritten
 // through the click tracker, signature and pixel appended. Exported so
