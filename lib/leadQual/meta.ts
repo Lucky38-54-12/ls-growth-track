@@ -112,6 +112,25 @@ export async function connectMessengerPage(clientId: string, pageId: string, pag
   }
 }
 
+// Facebook doesn't return messages byte-for-byte identical to what we sent —
+// smart quotes/dashes get substituted, whitespace gets collapsed — so a raw
+// string comparison between our stored text and Facebook's copy of it flags
+// nearly every real message as "unrecognized", tripping the human-takeover
+// lock on the very first reply of almost every conversation before any human
+// was ever involved (confirmed via Vaughan Flanagan's Buildit All lead: the
+// lock fired 3 seconds after the AI's own first message, 41 minutes before a
+// human actually replied). Normalizing both sides to the same canonical form
+// before comparing is what makes this check compare content instead of bytes.
+function normalizeMessageText(text: string): string {
+  return text
+    .normalize("NFKC")
+    .replace(/[‘’‚′]/g, "'")
+    .replace(/[“”„″]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // Every other "don't talk over a human" check (isHumanStaffEcho, paused_at)
 // depends on Meta's echo webhook event actually arriving — which is exactly
 // what silently failed for a Katie's Elite Cleaning lead (Ying Wood): staff
@@ -157,11 +176,11 @@ export async function humanRepliedOnFacebook(
   const msgBody = await msgRes.json();
   if (msgBody.error) throw new Error(`humanRepliedOnFacebook messages lookup failed: ${JSON.stringify(msgBody.error)}`);
 
-  const normalized = knownAssistantTexts.map((t) => t.trim());
+  const normalized = knownAssistantTexts.map(normalizeMessageText);
   const lastPageMessage = (msgBody.data || []).find(
     (msg: { from?: { id?: string }; message?: string }) => msg.from?.id === pageId
   );
-  if (lastPageMessage?.message && !normalized.includes(lastPageMessage.message.trim())) {
+  if (lastPageMessage?.message && !normalized.includes(normalizeMessageText(lastPageMessage.message))) {
     return { humanReplied: true, message: lastPageMessage.message };
   }
   return { humanReplied: false };
