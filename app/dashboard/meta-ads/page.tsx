@@ -1,8 +1,9 @@
 "use client";
 import { Fragment, useEffect, useState, useCallback } from "react";
 import Topbar from "@/components/Topbar";
-import { RefreshCw, ChevronDown, ChevronRight, Sparkles, Search, MapPin, ExternalLink, LineChart, Brain } from "lucide-react";
+import { RefreshCw, ChevronDown, ChevronRight, Sparkles, Search, MapPin, ExternalLink, LineChart, Brain, LayoutGrid } from "lucide-react";
 import CreativeBrainChat from "./CreativeBrainChat";
+import CreativeBuilder from "./CreativeBuilder";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
 
@@ -975,6 +976,38 @@ function CreativeBrainTab() {
   );
 }
 
+function CreativeBuilderTab() {
+  const { accounts, loaded: accountsLoaded } = useAdAccounts();
+  const [account, setAccount] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (account !== null || !accountsLoaded) return;
+    if (accounts.length > 0) setAccount(accounts[0].value);
+  }, [accounts, accountsLoaded, account]);
+
+  const activeAccount = accounts.find(a => a.value === account) || accounts[0];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <select
+        value={account || ""}
+        onChange={e => setAccount(e.target.value)}
+        style={{ padding: "8px 12px", border: `1px solid ${L.border}`, fontSize: 13, fontWeight: 700, color: L.text, fontFamily: "inherit", background: L.surface, outline: "none", alignSelf: "flex-start" }}
+      >
+        {accounts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+      </select>
+
+      {activeAccount?.clientId ? (
+        <CreativeBuilder clientId={activeAccount.clientId} />
+      ) : (
+        <div style={{ padding: 40, textAlign: "center", color: L.dimmed, fontSize: 13, background: L.surface, border: `1px solid ${L.border}` }}>
+          This ad account isn&apos;t linked to a client record yet.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ResearchTab() {
   const [niche, setNiche] = useState("");
   const [location, setLocation] = useState("New Zealand");
@@ -1121,7 +1154,7 @@ function ResearchTab() {
 }
 
 export default function MetaAdsPage() {
-  const [tab, setTab] = useState<"performance" | "creative-brain" | "research">("performance");
+  const [tab, setTab] = useState<"performance" | "creative-brain" | "creative-builder" | "research">("performance");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
@@ -1132,6 +1165,7 @@ export default function MetaAdsPage() {
           {([
             { key: "performance" as const, label: "Performance", icon: LineChart },
             { key: "creative-brain" as const, label: "Creative Brain", icon: Brain },
+            { key: "creative-builder" as const, label: "Creative Builder", icon: LayoutGrid },
             { key: "research" as const, label: "Research", icon: Sparkles },
           ]).map(t => {
             const Icon = t.icon;
@@ -1153,7 +1187,7 @@ export default function MetaAdsPage() {
           })}
         </div>
 
-        {tab === "performance" ? <PerformanceTab /> : tab === "creative-brain" ? <CreativeBrainTab /> : <ResearchTab />}
+        {tab === "performance" ? <PerformanceTab /> : tab === "creative-brain" ? <CreativeBrainTab /> : tab === "creative-builder" ? <CreativeBuilderTab /> : <ResearchTab />}
       </div>
     </div>
   );
