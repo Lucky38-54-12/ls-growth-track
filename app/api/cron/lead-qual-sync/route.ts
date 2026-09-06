@@ -4,7 +4,12 @@ import { backfillLeadsForClient } from "@/lib/leadQual/leadAdsBackfill";
 import { notifySlack } from "@/lib/slackNotify";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Was 60s, but this loops over every client's full Lead Ad history
+// sequentially (Graph API + DB round trips per lead) and has been timing
+// out intermittently since June as the client list grew. Bumped to the
+// same ceiling used elsewhere (brain/chat, campaign-brief) plus running
+// clients concurrently below, since each client's backfill is independent.
+export const maxDuration = 280;
 
 // Twice-daily safety net on top of the live webhook (6am and 12pm NZT, see
 // .github/workflows/cron.yml): catches Lead Ad form submissions the webhook
@@ -24,20 +29,24 @@ export async function GET(req: NextRequest) {
   const sb = createSupabaseClient();
   const { data: clients } = await sb.from("lq_clients").select("id, name");
 
-  const results: { client: string; imported: number; error?: string }[] = [];
-
-  for (const client of clients || []) {
-    try {
-      const result = await backfillLeadsForClient(client.id);
-      results.push({ client: client.name, imported: result.leadsImported });
-    } catch (err: any) {
-      // "no connected Facebook Page" just means this client hasn't hooked
-      // up a Page yet — not a sync failure worth alerting on.
-      const message = err?.message || "unknown error";
-      if (message.includes("no connected Facebook Page")) continue;
-      results.push({ client: client.name, imported: 0, error: message });
-    }
-  }
+  // Each client's backfill is independent (own Page token, own leads), so
+  // run them concurrently instead of one at a time — the sequential version
+  // was blowing past the function timeout once there were enough clients.
+  const settled = await Promise.all(
+    (clients || []).map(async (client) => {
+      try {
+        const result = await backfillLeadsForClient(client.id);
+        return { client: client.name, imported: result.leadsImported };
+      } catch (err: any) {
+        // "no connected Facebook Page" just means this client hasn't hooked
+        // up a Page yet — not a sync failure worth alerting on.
+        const message = err?.message || "unknown error";
+        if (message.includes("no connected Facebook Page")) return null;
+        return { client: client.name, imported: 0, error: message };
+      }
+    })
+  );
+  const results = settled.filter((r): r is { client: string; imported: number; error?: string } => r !== null);
 
   const newLeads = results.filter((r) => r.imported > 0);
   const failed = results.filter((r) => r.error);
