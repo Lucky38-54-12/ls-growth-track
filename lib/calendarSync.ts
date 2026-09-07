@@ -172,7 +172,7 @@ export interface TouchpointResult {
 // cadence as the AI lead-qual callback reminders (lib/leadQual/callbackReminder.ts).
 const DAY_BEFORE_HOUR = 19; // 7pm local, the evening before the meeting
 const SAME_DAY_LEAD_MINUTES = 120;
-const SAME_DAY_WINDOW_MINUTES = 15; // ±15min so the 15-min cron always lands inside it
+const SAME_DAY_WINDOW_MINUTES = 15; // pads the 120min mark so a run isn't required to land exactly on it; isSameDayDue below also catches up late if a run lands after it
 
 // Sends the two reminder emails around a booked meeting: a simple heads-up
 // at 7pm the evening before, and a simple heads-up 2 hours before the
@@ -204,11 +204,19 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
       const dayBeforeDateStr = dateFmt.format(new Date(start.getTime() - 24 * 60 * 60 * 1000));
       const minutesUntil = (start.getTime() - now.getTime()) / 60_000;
 
-      const isDayBeforeDue = !row.day_before_email_sent_at && nowDateStr === dayBeforeDateStr && nowHour === DAY_BEFORE_HOUR;
+      // ">=" rather than "===" on both checks below: the GitHub Actions cron
+      // this runs on is documented to land late (observed gaps of 3-5+
+      // hours despite an offset schedule meant to dodge scheduler pileup —
+      // see cron.yml), so a run can easily land after its target window
+      // instead of inside it. Catching up as soon as a run notices a
+      // reminder is overdue beats requiring one to land in a narrow slot
+      // and risking a silent miss. The nowDateStr===dayBeforeDateStr guard
+      // still stops it firing on the wrong calendar day; the upper bound on
+      // isSameDayDue still stops it firing hours early.
+      const isDayBeforeDue = !row.day_before_email_sent_at && nowDateStr === dayBeforeDateStr && nowHour >= DAY_BEFORE_HOUR;
       const isSameDayDue =
         !row.reminder_email_sent_at &&
-        minutesUntil <= SAME_DAY_LEAD_MINUTES + SAME_DAY_WINDOW_MINUTES &&
-        minutesUntil >= SAME_DAY_LEAD_MINUTES - SAME_DAY_WINDOW_MINUTES;
+        minutesUntil <= SAME_DAY_LEAD_MINUTES + SAME_DAY_WINDOW_MINUTES;
 
       if (!isDayBeforeDue && !isSameDayDue) continue;
 

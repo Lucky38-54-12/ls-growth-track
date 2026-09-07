@@ -71,11 +71,19 @@ export async function dispatchDueCallbackReminders(): Promise<{ sent: number; er
       const dayBeforeDateStr = dateFmt.format(new Date(scheduled.getTime() - 24 * 60 * 60 * 1000));
       const minutesUntilCall = (scheduled.getTime() - now.getTime()) / 60_000;
 
-      const isDayBeforeDue = !lead.day_before_reminder_sent_at && nowDateStr === dayBeforeDateStr && nowHour === DAY_BEFORE_HOUR;
+      // ">=" rather than "===" on both checks below: the GitHub Actions cron
+      // this runs on is documented to land late (observed gaps of 3-5+
+      // hours despite an offset schedule meant to dodge scheduler pileup —
+      // see cron.yml), so a run can easily land after its target window
+      // instead of inside it. Catching up as soon as a run notices a
+      // reminder is overdue beats requiring one to land in a narrow slot
+      // and risking a silent miss. The nowDateStr===dayBeforeDateStr guard
+      // still stops it firing on the wrong calendar day; the upper bound on
+      // isSameDayDue still stops it firing hours early.
+      const isDayBeforeDue = !lead.day_before_reminder_sent_at && nowDateStr === dayBeforeDateStr && nowHour >= DAY_BEFORE_HOUR;
       const isSameDayDue =
         !lead.same_day_reminder_sent_at &&
-        minutesUntilCall <= SAME_DAY_LEAD_MINUTES + SAME_DAY_WINDOW_MINUTES &&
-        minutesUntilCall >= SAME_DAY_LEAD_MINUTES - SAME_DAY_WINDOW_MINUTES;
+        minutesUntilCall <= SAME_DAY_LEAD_MINUTES + SAME_DAY_WINDOW_MINUTES;
 
       if (!isDayBeforeDue && !isSameDayDue) continue;
       const kind: "day_before" | "same_day" = isDayBeforeDue ? "day_before" : "same_day";
