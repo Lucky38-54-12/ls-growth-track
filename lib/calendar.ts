@@ -38,14 +38,24 @@ export async function listUpcomingBookings(): Promise<CalendarBooking[]> {
   for (const ev of res.data.items || []) {
     if (!ev.id || !ev.start?.dateTime) continue;
     const attendee = (ev.attendees || []).find((a) => !a.self && a.email);
-    if (!attendee?.email) continue;
+    // createBooking (our own self-service booking flow) can't add a real
+    // Calendar attendee without Domain-Wide Delegation, so it stores the
+    // guest as "Name <email>" in the description instead (see createBooking
+    // below). Fall back to parsing that when there's no attendees array, or
+    // every booking made through the app itself silently never gets synced
+    // (confirmed missing entirely from calendar_bookings 2026-09-08 — Karl,
+    // Slade, Ricki all booked via the app, none picked up here).
+    const descMatch = ev.description?.match(/^(.*?)\s*<([^<>\s]+@[^<>\s]+)>\s*$/);
+    const attendeeEmail = attendee?.email?.toLowerCase() || descMatch?.[2]?.toLowerCase() || "";
+    const attendeeName = attendee?.displayName || descMatch?.[1]?.trim() || "";
+    if (!attendeeEmail) continue;
 
     bookings.push({
       eventId: ev.id,
       summary: ev.summary || "",
       startISO: ev.start.dateTime,
-      attendeeEmail: attendee.email.toLowerCase(),
-      attendeeName: attendee.displayName || "",
+      attendeeEmail,
+      attendeeName,
       hangoutLink: ev.hangoutLink || "",
     });
   }
