@@ -119,6 +119,9 @@ A) MEETING_BOOKED:
 - After the greeting, write one line: "Looking forward to our chat [day] at [time]. Here's the link to join:" using the actual day and time from the notes, written naturally (e.g. "today at 1pm", "Wednesday at 3:30pm")
 - Include [MEETING LINK] on its own line in its own paragraph directly after that line
 - One paragraph referencing the specific problem or objection they raised on the call and framing the meeting around addressing that — this is the most important part, make it feel personal not generic
+- Next, two paragraphs in this shape (use the actual company name and the specific job types this business does, e.g. "switchboard upgrade and EV charger work" — not a generic phrase):
+  "Before the call, I'll spend some time going through [Company] and looking at your current setup, competitors and where I think there could be opportunities to bring in more [specific job type(s)] work."
+  "I'll bring what I find to the call and walk you through it. Even if we decide there's nothing worth doing together, you'll have a few things you can take away from the conversation."
 - End with this exact line as its own paragraph: "Shouldn't take more than 10-15 minutes. If anything comes up and you need to shift the time, just flick me a text."
 - Do not add anything else
 
