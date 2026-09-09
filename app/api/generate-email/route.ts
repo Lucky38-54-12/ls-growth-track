@@ -199,7 +199,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     const bodyHtml = stripDashes(parsed.bodyHtml);
 
     const caseStudyBlock = `<p>If you want to see some case studies, here's a link to our website:</p><p><a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>`;
-    const finalBodyHtml = bodyHtml + caseStudyBlock;
+    const finalBodyHtml = parsed.call_type === "WANTS_INFO" ? bodyHtml + caseStudyBlock : bodyHtml;
 
     return NextResponse.json({
       company: parsed.company || "",
