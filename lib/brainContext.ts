@@ -86,12 +86,12 @@ async function matchingLeads(sb: ReturnType<typeof createSupabaseClient>, userQu
   const words = significantWords(userQuestion);
   if (words.length === 0) return "";
 
-  const seen = new Map<string, { lead_id: string; company: string; contact_name: string; email: string; status: string }>();
+  const seen = new Map<string, { lead_id: string; company: string; contact_name: string; email: string; status: string; notes: string | null; text_notes: string | null }>();
   for (const word of words.slice(0, 6)) {
     const boundary = `\\y${word}\\y`;
     const { data } = await sb
       .from("leads")
-      .select("lead_id, company, contact_name, email, status")
+      .select("lead_id, company, contact_name, email, status, notes, text_notes")
       .or(`company.imatch.${boundary},contact_name.imatch.${boundary}`)
       .limit(5);
     for (const row of data || []) seen.set(row.lead_id, row);
@@ -100,7 +100,12 @@ async function matchingLeads(sb: ReturnType<typeof createSupabaseClient>, userQu
   if (seen.size === 0) return "";
 
   return Array.from(seen.values())
-    .map((l) => `lead_id: ${l.lead_id} | company: ${l.company} | contact: ${l.contact_name || "unknown"} | email: ${l.email} | status: ${l.status}`)
+    .map((l) => {
+      const base = `lead_id: ${l.lead_id} | company: ${l.company} | contact: ${l.contact_name || "unknown"} | email: ${l.email} | status: ${l.status}`;
+      const callNotes = l.notes?.trim() ? `\n  Call notes: ${l.notes.trim()}` : "";
+      const textNotes = l.text_notes?.trim() ? `\n  Text/WhatsApp notes: ${l.text_notes.trim()}` : "";
+      return `${base}${callNotes}${textNotes}`;
+    })
     .join("\n");
 }
 
