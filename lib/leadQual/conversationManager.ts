@@ -130,6 +130,7 @@ async function loadClientConfig(clientId: string): Promise<{ config: ClientConfi
     extraContext: businessInfo.extra_context as string | undefined,
     timezone: client?.timezone || "Pacific/Auckland",
     phoneQuotesUnavailable: businessInfo.phone_quotes_unavailable === true,
+    warmHandoffOnly: businessInfo.warm_handoff_only === true,
   };
   const rules: Rule[] = (configRow?.qualification_rules as Rule[]) || defaultRules();
 
@@ -328,7 +329,26 @@ async function finishQualifyingTurn(
         lead = newLead;
       }
 
-      if (result.outcome === "qualified" && lead) {
+      if (result.outcome === "qualified" && lead && config.warmHandoffOnly) {
+        // Ray/Buildit All only: the AI never asked for or locked in a
+        // callback time — it just warmed the lead up and told them the team
+        // will text to sort a time. So nothing gets auto-booked onto the
+        // calendar here; the lead lands in "Followed Up" for a human to
+        // call/text and book manually via the existing pipeline
+        // drag-to-book flow.
+        await sb.from("lq_leads").update({ pipeline_stage: "followed_up" }).eq("id", lead.id);
+
+        const isOnSite = mergedFields.quote_method === "on_site";
+        // Awaited, not fire-and-forget — this runs inside a serverless
+        // webhook handler that returns shortly after, and an un-awaited
+        // fetch can get cut off mid-flight when the function terminates.
+        await notifySlack(
+          `🔥 Lead warmed up — *${config.businessName}*\n` +
+          `${mergedFields.job_type || "Job"} in ${mergedFields.location || "location TBC"}${isOnSite ? " (wants someone to come out)" : " (phone quote)"}\n` +
+          `${mergedFields.phone ? `Phone: ${mergedFields.phone}\n` : ""}` +
+          `Text them to sort a time — ${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/lead-qual/${clientId}`
+        );
+      } else if (result.outcome === "qualified" && lead) {
         try {
           const clientRecord = (await sb.from("lq_clients").select("timezone, email").eq("id", clientId).single()).data;
           const timezone = clientRecord?.timezone || "Pacific/Auckland";
