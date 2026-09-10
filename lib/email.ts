@@ -9,7 +9,7 @@ const FROM = `Lucky <${process.env.GMAIL_USER}>`;
 const ZOHO_FROM = `Lucky <${process.env.ZOHO_EMAIL_USER}>`;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
 export const BOOKING_URL = process.env.BOOKING_URL || "https://lsgrowth.agency/book";
-const LOGO_URL = `${APP_URL}/logo.png`;
+const LOGO_URL = `${APP_URL}/logo-long.png`;
 
 // Bulk/automated outreach (cold initial emails, follow-up sequences, campaign
 // emails) goes through Resend on the verified lsgrowth.agency domain instead
@@ -137,7 +137,7 @@ export async function sendGmailFollowup(lead: Lead, subject: string, bodyHtml: s
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
   <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
-  <p><a href="https://lsgrowth.agency"><img src="${LOGO_URL}" alt="LS Growth" style="max-width:160px;height:auto;border:0;" /></a></p>
+  <p><a href="https://lsgrowth.agency"><img src="${LOGO_URL}" alt="LS Growth" style="max-width:220px;height:auto;border:0;" /></a></p>
   ${pixel}
 </div>`;
   const text = htmlToText(filledBody);
@@ -155,7 +155,7 @@ export async function sendPlainGmail(to: string, subject: string, bodyHtml: stri
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${bodyHtml}
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-  <p><a href="https://lsgrowth.agency"><img src="${LOGO_URL}" alt="LS Growth" style="max-width:160px;height:auto;border:0;" /></a></p>
+  <p><a href="https://lsgrowth.agency"><img src="${LOGO_URL}" alt="LS Growth" style="max-width:220px;height:auto;border:0;" /></a></p>
 </div>`;
   const text = htmlToText(bodyHtml);
   const transport = getTransport();
@@ -176,7 +176,7 @@ export function buildFinalEmailHtml(lead: Lead, bodyHtml: string, step: string):
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-  <p><a href="https://lsgrowth.agency"><img src="${LOGO_URL}" alt="LS Growth" style="max-width:160px;height:auto;border:0;" /></a></p>
+  <p><a href="https://lsgrowth.agency"><img src="${LOGO_URL}" alt="LS Growth" style="max-width:220px;height:auto;border:0;" /></a></p>
   ${pixel}
 </div>`;
   return { html, text: htmlToText(filledBody) };
