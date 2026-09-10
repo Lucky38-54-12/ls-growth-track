@@ -9,13 +9,20 @@ on:
     # Campaign sends are paused (2026-08-14) while the send pipeline is
     # reviewed — see campaign-send below, now workflow_dispatch-only.
     #
-    # Offset 7 minutes off the :00/:15/:30/:45 boundaries on purpose: GitHub's
-    # own docs warn that scheduled workflows are delayed (or dropped
-    # entirely) hardest right at those round-number marks, because every
-    # scheduled workflow on GitHub piles onto the same moment. Observed here
-    # as runs landing 1-5 hours apart instead of every 15 min — sitting on
-    # the boundary was making it worse, not just "a bit jittery".
-    - cron: "7,22,37,52 * * * *"  # every 15 min (offset) — personal inbox check (replaces the standalone Inbox page)
+    # The old 15-min "7,22,37,52 * * * *" entry that drove check-personal-inbox,
+    # calendar-sync, and lead-qual-callback-reminders was replaced with an
+    # hourly one 2026-09-11: GitHub Actions was observed landing those runs
+    # 1-5 hours apart instead of every 15 min (confirmed via run history —
+    # gaps like 21:16->23:21), even with the offset meant to dodge scheduler
+    # pileup at round-number marks. GitHub docs confirm this is worst for
+    # sub-hourly schedules specifically, so hourly (still on the round hour,
+    # accepted trade-off for landing reliably) should hold up far better.
+    # Each of the three jobs' underlying route already re-checks whether its
+    # send windows (day-before at 7-9pm local, same-day 3-hours-before) are
+    # due on every call and marks what it's already sent, so an hourly
+    # cadence just means up to ~1hr of slack on when a due reminder actually
+    # goes out — no duplicates, no missed sends.
+    - cron: "0 * * * *"  # hourly — personal inbox check, calendar-sync touchpoints, lead-qual callback reminders
     - cron: "0 19 * * *"  # 7am NZT — morning brief (today's meetings + due items, via Slack)
     - cron: "0 21 * * *"  # 9am NZT — daily maintenance (replies, stale-reply pings, etc.)
     - cron: "0 18 * * *"  # 6am NZT — lead-qual daily sync (catch any Lead Ad forms the webhook missed)
@@ -33,7 +40,7 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
   check-personal-inbox:
-    if: github.event.schedule == '7,22,37,52 * * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '0 * * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Call /api/cron/check-personal-inbox
@@ -42,12 +49,10 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
   calendar-sync:
-    # Cold-call meeting bookings: syncs new calendar bookings (sends the
-    # booking confirmation) and dispatches the day-before (7pm local) /
-    # 2-hours-before reminder emails — same 15-min cadence as
-    # check-personal-inbox above, so each send window is always hit by at
-    # least one run.
-    if: github.event.schedule == '7,22,37,52 * * * *' || github.event_name == 'workflow_dispatch'
+    # Cold-call meeting bookings: syncs new calendar bookings and dispatches
+    # the day-before (7-9pm local window) / 3-hours-before reminder emails —
+    # same hourly cadence as check-personal-inbox above.
+    if: github.event.schedule == '0 * * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Call /api/cron/calendar-sync
@@ -56,11 +61,10 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
   lead-qual-callback-reminders:
-    # Leads with a booked callback/visit get two heads-up emails: one at 7pm
-    # local the evening before, one 2 hours before the call itself — same
-    # 15-min cadence as check-personal-inbox above, so each send window is
-    # always hit by at least one run.
-    if: github.event.schedule == '7,22,37,52 * * * *' || github.event_name == 'workflow_dispatch'
+    # Leads with a booked callback/visit get two heads-up emails: one in the
+    # 7-9pm local window the evening before, one 3 hours before the call
+    # itself — same hourly cadence as check-personal-inbox above.
+    if: github.event.schedule == '0 * * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Call /api/cron/lead-qual-callback-reminders
@@ -70,11 +74,11 @@ jobs:
 
   morning-brief:
     # Not gated on github.event.schedule: when two schedules in this workflow
-    # coincide (0 19 * * * always lands on a */15 boundary), GitHub Actions
-    # fires a single run and event.schedule reflects only one of them - in
-    # practice always '*/15 * * * *', so an event.schedule match here never
-    # fired and this job silently no-op'd every day. Check wall-clock time
-    # instead, which is robust to the collision.
+    # coincide (0 19 * * * always lands on the hourly "0 * * * *" boundary),
+    # GitHub Actions fires a single run and event.schedule reflects only one
+    # of them - in practice always the hourly one, so an event.schedule match
+    # here never fired and this job silently no-op'd every day. Check
+    # wall-clock time instead, which is robust to the collision.
     #
     # The window is 2 hours, not 15 minutes: this workflow's actual runs have
     # been observed landing 20-40+ minutes late (GitHub Actions scheduling
@@ -104,8 +108,8 @@ jobs:
 
   daily-maintenance:
     # Same event.schedule collision as morning-brief above (0 21 * * * also
-    # lands on a */15 boundary), same 2-hour window for the same reason, and
-    # safe for the same reason - the route now checks an "already ran today"
+    # lands on the hourly "0 * * * *" boundary), same 2-hour window for the
+    # same reason, and safe for the same reason - the route now checks an "already ran today"
     # DB flag before doing any work (see api/cron/daily-maintenance/route.ts),
     # which matters more here than most: several of this route's steps call
     # the Anthropic API and aren't behind COLD_OUTREACH_PAUSED, so an
@@ -130,7 +134,7 @@ jobs:
 
   lead-qual-sync:
     # Same event.schedule collision as morning-brief/daily-maintenance above
-    # (0 18/0 * * * also lands on a */15 boundary) — check wall-clock instead.
+    # (0 18/0 * * * also lands on the hourly "0 * * * *" boundary) — check wall-clock instead.
     # Runs twice a day (6am and 12pm NZT) so a lead the webhook missed in the
     # morning doesn't sit until the next day. No "already ran today" guard
     # needed: backfillLeadsForClient dedupes on leadgen_id, so a stray

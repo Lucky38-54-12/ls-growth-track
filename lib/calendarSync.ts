@@ -1,13 +1,13 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { generateLeadId } from "./leads";
-import { generateMeetingConfirmationEmail, generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from "./ai";
+import { generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from "./ai";
 // Meeting logistics (confirmation, day-before reminder, 2-hours-before
 // reminder) go through Lucky's personal Gmail, not outreach@lsgrowth.agency —
 // these are one-to-one conversations with someone who already booked a real
 // call, not cold outreach, and mixing them into the same Resend/outreach
 // mailbox as the campaign sequence would make that inbox messy for no reason.
 import { sendGmailFollowup, sendPlainGmail } from "./email";
-import { listUpcomingBookings, describeMeetingTime, formatMeetingClockTime, fillMeetingLink, CalendarBooking } from "./calendar";
+import { listUpcomingBookings, formatMeetingClockTime, fillMeetingLink, CalendarBooking } from "./calendar";
 import { notifySlack } from "./slackNotify";
 import { Lead } from "./types";
 
@@ -102,6 +102,24 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
       continue;
     }
 
+    // Google Calendar sometimes hands back two different event IDs for what
+    // is really the same meeting (observed live: a reschedule left both the
+    // old and new event on the feed, same attendee, same start time). The
+    // event_id check above misses that, so each one became its own
+    // calendar_bookings row and sendMeetingTouchpoints reminded the same
+    // person twice for the same meeting. Treat same attendee + same start
+    // time as the same booking regardless of event_id.
+    const { data: duplicateBooking } = await sb
+      .from("calendar_bookings")
+      .select("event_id")
+      .eq("start_iso", booking.startISO)
+      .eq("attendee_email", booking.attendeeEmail)
+      .maybeSingle();
+    if (duplicateBooking) {
+      skipped++;
+      continue;
+    }
+
     try {
       const lead = await findOrCreateLead(sb, booking);
       if (!lead) {
@@ -117,17 +135,6 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
         skipped++;
         continue;
       }
-      const meetingTime = describeMeetingTime(booking.startISO);
-
-      const { subject, bodyHtml } = await generateMeetingConfirmationEmail({
-        company: lead.company,
-        contactName: lead.contact_name,
-        meetingTime,
-      });
-
-      const finalBody = fillMeetingLink(bodyHtml, booking.hangoutLink);
-      await sendGmailFollowup(lead, subject, finalBody, "meeting_confirmation");
-
       const today = new Date().toISOString().split("T")[0];
       await sb.from("leads").update({ status: "booked", date_contacted: lead.date_contacted || today }).eq("lead_id", lead.lead_id);
 
@@ -168,17 +175,24 @@ export interface TouchpointResult {
   errors: string[];
 }
 
-// 7pm the evening before, and 2 hours before the meeting itself — same
+// 7pm the evening before, and 3 hours before the meeting itself — same
 // cadence as the AI lead-qual callback reminders (lib/leadQual/callbackReminder.ts).
 const DAY_BEFORE_HOUR = 19; // 7pm local, the evening before the meeting
-const SAME_DAY_LEAD_MINUTES = 120;
-const SAME_DAY_WINDOW_MINUTES = 15; // pads the 120min mark so a run isn't required to land exactly on it; isSameDayDue below also catches up late if a run lands after it
+// Cron catch-up (see comment below) used to have no upper bound, so a run
+// landing hours late (observed: GitHub Actions gaps of 3-5+ hours) sent the
+// "day before" email as late as 11pm — unprofessional to land in a client's
+// inbox at that hour. Past this cutoff, skip the day-before touch entirely
+// for that booking rather than send it in the middle of the night; the
+// same-day reminder still covers it.
+const DAY_BEFORE_CUTOFF_HOUR = 21; // 9pm local — stop trying after this
+const SAME_DAY_LEAD_MINUTES = 180; // 3 hours before the meeting
+const SAME_DAY_WINDOW_MINUTES = 15; // pads the 180min mark so a run isn't required to land exactly on it; isSameDayDue below also catches up late if a run lands after it
 
 // Sends the two reminder emails around a booked meeting: a simple heads-up
-// at 7pm the evening before, and a simple heads-up 2 hours before the
-// meeting itself. Runs on a 15-min cron (see /api/cron/calendar-sync). Each
-// is sent at most once per booking, tracked via the *_email_sent_at columns
-// on calendar_bookings.
+// at 7pm the evening before, and a simple heads-up 3 hours before the
+// meeting itself. Runs on an hourly cron (see /api/cron/calendar-sync and
+// cron.yml). Each is sent at most once per booking, tracked via the
+// *_email_sent_at columns on calendar_bookings.
 export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
   const sb = createSupabaseClient();
   const rows = await fetchAllRows<TrackedBooking>((from, to) => sb.from("calendar_bookings").select("*").range(from, to));
@@ -213,7 +227,11 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
       // and risking a silent miss. The nowDateStr===dayBeforeDateStr guard
       // still stops it firing on the wrong calendar day; the upper bound on
       // isSameDayDue still stops it firing hours early.
-      const isDayBeforeDue = !row.day_before_email_sent_at && nowDateStr === dayBeforeDateStr && nowHour >= DAY_BEFORE_HOUR;
+      const isDayBeforeDue =
+        !row.day_before_email_sent_at &&
+        nowDateStr === dayBeforeDateStr &&
+        nowHour >= DAY_BEFORE_HOUR &&
+        nowHour < DAY_BEFORE_CUTOFF_HOUR;
       const isSameDayDue =
         !row.reminder_email_sent_at &&
         minutesUntil <= SAME_DAY_LEAD_MINUTES + SAME_DAY_WINDOW_MINUTES;
@@ -261,7 +279,7 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
             await sendPlainGmail(row.attendee_email, subject, finalBody);
           }
         }
-        await notifySlack(`📅 Heads up: *${label}* is in ~2 hours (${clockTime})${row.hangout_link ? ` — ${row.hangout_link}` : ""}.`);
+        await notifySlack(`📅 Heads up: *${label}* is in ~3 hours (${clockTime})${row.hangout_link ? ` — ${row.hangout_link}` : ""}.`);
         await sb.from("calendar_bookings").update({ reminder_email_sent_at: new Date().toISOString() }).eq("event_id", row.event_id);
         reminderSent++;
       }

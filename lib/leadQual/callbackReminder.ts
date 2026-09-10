@@ -10,14 +10,22 @@ import { logAdminAction } from "@/lib/adminActivityLog";
 const FROM_DOMAIN = "outreach@lsgrowth.agency";
 
 // Two touches per booking: one at 7pm the evening before (when tradespeople
-// are off the tools and actually checking email), one 2 hours before the
+// are off the tools and actually checking email), one 3 hours before the
 // call itself — replaces the old single ~30-min-before reminder, which
-// wasn't landing reliably. Runs on the same 15-min cron (see
-// /api/cron/lead-qual-callback-reminders).
+// wasn't landing reliably. Runs on the same hourly cron (see
+// /api/cron/lead-qual-callback-reminders and cron.yml).
 const DAY_BEFORE_HOUR = 19; // 7pm local, the evening before the call
-// 2 hours before the call, ±15min either side so the 15-min cron cadence is
-// guaranteed to land inside the window at least once.
-const SAME_DAY_LEAD_MINUTES = 120;
+// Cron catch-up (see comment below) used to have no upper bound, so a run
+// landing hours late (observed: GitHub Actions gaps of 3-5+ hours) sent the
+// "day before" email as late as 11pm — unprofessional to land in a lead's
+// inbox at that hour. Past this cutoff, skip the day-before touch entirely
+// for that call rather than send it in the middle of the night; the
+// same-day reminder still covers it.
+const DAY_BEFORE_CUTOFF_HOUR = 21; // 9pm local — stop trying after this
+// 3 hours before the call, ±15min padding; the ">=" catch-up logic below
+// means an hourly cron still fires this within about an hour of the target,
+// it just isn't pinned to a narrow 15-min slot anymore.
+const SAME_DAY_LEAD_MINUTES = 180;
 const SAME_DAY_WINDOW_MINUTES = 15;
 
 interface DueLead {
@@ -80,7 +88,11 @@ export async function dispatchDueCallbackReminders(): Promise<{ sent: number; er
       // and risking a silent miss. The nowDateStr===dayBeforeDateStr guard
       // still stops it firing on the wrong calendar day; the upper bound on
       // isSameDayDue still stops it firing hours early.
-      const isDayBeforeDue = !lead.day_before_reminder_sent_at && nowDateStr === dayBeforeDateStr && nowHour >= DAY_BEFORE_HOUR;
+      const isDayBeforeDue =
+        !lead.day_before_reminder_sent_at &&
+        nowDateStr === dayBeforeDateStr &&
+        nowHour >= DAY_BEFORE_HOUR &&
+        nowHour < DAY_BEFORE_CUTOFF_HOUR;
       const isSameDayDue =
         !lead.same_day_reminder_sent_at &&
         minutesUntilCall <= SAME_DAY_LEAD_MINUTES + SAME_DAY_WINDOW_MINUTES;
