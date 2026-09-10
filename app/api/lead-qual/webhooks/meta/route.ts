@@ -183,10 +183,28 @@ export async function POST(request: NextRequest) {
           let humanTookOver = !!stillActive?.paused_at;
           if (!humanTookOver) {
             try {
+              // Scoped to every conversation row for this same lead (psid),
+              // not just result.conversationId — Facebook's own thread is
+              // one continuous history per lead regardless of how many
+              // lq_conversations rows we've split it into on our side (e.g.
+              // a qualified/nurtured lead's conversation gets reused, but a
+              // manually reset/deleted row starts a fresh one with no
+              // memory of what was already sent). Scoping to only the
+              // current conversation meant the very last message actually
+              // sent to this lead on Facebook could be invisible here,
+              // making a perfectly normal AI reply look like an
+              // unrecognized human takeover.
+              const { data: siblingConversations } = await sb
+                .from("lq_conversations")
+                .select("id")
+                .eq("client_id", channel.clientId)
+                .eq("channel_id", channel.channelId)
+                .contains("contact", { psid: event.sender.id });
+              const conversationIds = (siblingConversations || []).map((c) => c.id);
               const { data: recentAssistantMsgs } = await sb
                 .from("lq_messages")
                 .select("content")
-                .eq("conversation_id", result.conversationId)
+                .in("conversation_id", conversationIds.length ? conversationIds : [result.conversationId])
                 .eq("role", "assistant")
                 .order("created_at", { ascending: false })
                 .limit(5);
