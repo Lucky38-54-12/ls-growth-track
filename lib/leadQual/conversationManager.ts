@@ -131,6 +131,7 @@ async function loadClientConfig(clientId: string): Promise<{ config: ClientConfi
     timezone: client?.timezone || "Pacific/Auckland",
     phoneQuotesUnavailable: businessInfo.phone_quotes_unavailable === true,
     warmHandoffOnly: businessInfo.warm_handoff_only === true,
+    minimalHandoff: businessInfo.minimal_handoff === true,
   };
   const rules: Rule[] = (configRow?.qualification_rules as Rule[]) || defaultRules();
 
