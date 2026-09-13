@@ -51,6 +51,7 @@ export async function buildRecapEmail(
     overview: transcript.summary?.overview || "",
     actionItems: transcript.summary?.action_items || "",
     dealTerms,
+    rawTranscript: transcript.text,
   });
   return { subject, html: bodyHtml };
 }

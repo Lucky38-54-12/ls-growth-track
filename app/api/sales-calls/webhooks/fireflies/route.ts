@@ -77,30 +77,45 @@ export async function POST(request: NextRequest) {
     // sales_calls insert that already succeeded above; if the send itself
     // fails, the draft is still saved as "pending" so it isn't lost — Lucky
     // can send it by hand from the dashboard as a fallback.
-    try {
-      if (recapEmail) {
-        const { subject, html } = await buildRecapEmail(transcript, call.prospect_name, call.business_name, call.deal_terms);
-        try {
-          await sendPreparedRecap(subject, html, [recapEmail]);
-          await sb.from("sales_calls").update({
-            recap_status: "sent",
-            recap_subject: subject,
-            recap_html: html,
-            recap_recipient: recapEmail,
-            recap_sent_at: new Date().toISOString(),
-          }).eq("id", call.id);
-        } catch (sendErr) {
-          console.error("fireflies webhook failed to send call recap, holding as pending", meetingId, sendErr);
-          await sb.from("sales_calls").update({
-            recap_status: "pending",
-            recap_subject: subject,
-            recap_html: html,
-            recap_recipient: recapEmail,
-          }).eq("id", call.id);
-        }
+    if (recapEmail) {
+      let subject: string, html: string;
+      try {
+        ({ subject, html } = await buildRecapEmail(transcript, call.prospect_name, call.business_name, call.deal_terms));
+      } catch (draftErr) {
+        // AI drafting can still refuse (e.g. a near-silent or garbled call
+        // with nothing usable in the transcript either). Never let that mean
+        // the recap silently vanishes — leave a placeholder draft pending so
+        // it shows up on the dashboard for Lucky to write by hand instead.
+        console.error("fireflies webhook failed to draft call recap, leaving placeholder pending", meetingId, draftErr);
+        subject = "Quick Recap & Next Steps";
+        html = "<p>Auto-drafting this recap failed (not enough captured from the call to summarize). Write it by hand and send from here.</p>";
+        await sb.from("sales_calls").update({
+          recap_status: "pending",
+          recap_subject: subject,
+          recap_html: html,
+          recap_recipient: recapEmail,
+        }).eq("id", call.id);
+        return NextResponse.json({ ok: true, call_id: call.id, proposal_id: proposal?.id || null });
       }
-    } catch (err) {
-      console.error("fireflies webhook failed to draft call recap", meetingId, err);
+
+      try {
+        await sendPreparedRecap(subject, html, [recapEmail]);
+        await sb.from("sales_calls").update({
+          recap_status: "sent",
+          recap_subject: subject,
+          recap_html: html,
+          recap_recipient: recapEmail,
+          recap_sent_at: new Date().toISOString(),
+        }).eq("id", call.id);
+      } catch (sendErr) {
+        console.error("fireflies webhook failed to send call recap, holding as pending", meetingId, sendErr);
+        await sb.from("sales_calls").update({
+          recap_status: "pending",
+          recap_subject: subject,
+          recap_html: html,
+          recap_recipient: recapEmail,
+        }).eq("id", call.id);
+      }
     }
 
     return NextResponse.json({ ok: true, call_id: call.id, proposal_id: proposal?.id || null });

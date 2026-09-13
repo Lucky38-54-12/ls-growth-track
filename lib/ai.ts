@@ -742,6 +742,12 @@ export interface CallRecapInput {
   overview: string;
   actionItems: string;
   dealTerms: string | null;
+  // Fireflies' own AI summary (overview/actionItems) is generated as a
+  // separate async step after transcription and is often still empty when
+  // our webhook fires — this is the raw sentence-by-sentence transcript
+  // (lib/fireflies.ts getTranscript) to fall back on so a recap can still be
+  // written directly off what was actually said, instead of failing.
+  rawTranscript?: string;
 }
 
 const CALL_RECAP_SYSTEM_PROMPT = `You are writing a call-recap email on behalf of Lucky from LS Growth Agency (runs Meta ad campaigns for trade businesses — cleaners, builders, painters, etc — to generate leads), sent right after a sales call to summarize what was discussed and agreed.
@@ -767,10 +773,19 @@ Respond with ONLY a JSON object, no markdown fences, no other text:
 {"subject": "...", "bodyHtml": "..."}`;
 
 export async function generateCallRecapEmail(input: CallRecapInput): Promise<PersonalizedEmail> {
+  // Fireflies' summary fields are often both empty (see rawTranscript above)
+  // — fall back to the raw transcript so there's still something to work
+  // from instead of the notes reading as "nothing was discussed."
+  const noSummary = !input.overview && !input.actionItems;
+  const notesSection =
+    noSummary && input.rawTranscript
+      ? `Fireflies hadn't generated its call summary yet, so here is the raw call transcript instead — read it yourself and pull out the overview, action items, and any agreed terms:\n${input.rawTranscript.slice(0, 12000)}`
+      : `Call overview (Fireflies' own summary): ${input.overview || "none captured"}
+Action items (Fireflies' own summary): ${input.actionItems || "none captured"}`;
+
   const userPrompt = `Prospect name: ${realName(input.prospectName) || "there"}
 Business: ${input.businessName || "unknown"}
-Call overview (Fireflies' own summary): ${input.overview || "none captured"}
-Action items (Fireflies' own summary): ${input.actionItems || "none captured"}
+${notesSection}
 Agreed deal terms: ${input.dealTerms || "none — no deal was agreed on this call"}`;
   return runMeetingEmailPrompt(CALL_RECAP_SYSTEM_PROMPT, userPrompt);
 }
