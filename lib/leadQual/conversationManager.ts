@@ -330,13 +330,14 @@ async function finishQualifyingTurn(
         lead = newLead;
       }
 
-      if (result.outcome === "qualified" && lead && config.warmHandoffOnly) {
-        // Ray/Buildit All only: the AI never asked for or locked in a
-        // callback time — it just warmed the lead up and told them the team
-        // will text to sort a time. So nothing gets auto-booked onto the
-        // calendar here; the lead lands in "Followed Up" for a human to
-        // call/text and book manually via the existing pipeline
-        // drag-to-book flow.
+      if (result.outcome === "qualified" && lead && (config.warmHandoffOnly || config.minimalHandoff)) {
+        // Ray/Buildit All (warmHandoffOnly) and Queenstown Cleaning
+        // (minimalHandoff): the AI never asked for or locked in a callback
+        // time — it just warmed the lead up (or, for minimalHandoff, just
+        // confirmed their phone) and told them the team will be in touch.
+        // So nothing gets auto-booked onto the calendar here; the lead lands
+        // in "Followed Up" for a human to call/text and book manually via
+        // the existing pipeline drag-to-book flow.
         await sb.from("lq_leads").update({ pipeline_stage: "followed_up" }).eq("id", lead.id);
 
         const isOnSite = mergedFields.quote_method === "on_site";
