@@ -58,7 +58,13 @@ export async function listUpcomingBookings(): Promise<CalendarBooking[]> {
       endISO: ev.end?.dateTime || new Date(new Date(ev.start.dateTime).getTime() + 30 * 60000).toISOString(),
       attendeeEmail,
       attendeeName,
-      hangoutLink: ev.hangoutLink || "",
+      // createBooking (below) can't attach a real Meet conference without
+      // Domain-Wide Delegation, so it puts the fixed Meet room straight into
+      // the event's `location` field instead — meaning ev.hangoutLink is
+      // always empty for every app-created booking, and every day-before/
+      // same-day reminder silently dropped the meeting link (confirmed live
+      // 2026-09-16 on a test booking). Fall back to location for those.
+      hangoutLink: ev.hangoutLink || ev.location || "",
     });
   }
 

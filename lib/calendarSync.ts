@@ -87,7 +87,7 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
   for (const booking of bookings) {
     const { data: already } = await sb
       .from("calendar_bookings")
-      .select("event_id, attendee_email")
+      .select("event_id, attendee_email, hangout_link")
       .eq("event_id", booking.eventId)
       .maybeSingle();
     if (already) {
@@ -98,6 +98,13 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
         await sb.from("calendar_bookings").update({
           attendee_email: booking.attendeeEmail, attendee_name: booking.attendeeName, summary: booking.summary,
         }).eq("event_id", booking.eventId);
+      }
+      // Backfills hangout_link onto rows synced before the location-field
+      // fallback existed (see listUpcomingBookings) — those rows have an
+      // empty hangout_link and every reminder for them silently drops the
+      // meeting link.
+      if (!already.hangout_link && booking.hangoutLink) {
+        await sb.from("calendar_bookings").update({ hangout_link: booking.hangoutLink }).eq("event_id", booking.eventId);
       }
       skipped++;
       continue;
