@@ -9,6 +9,7 @@ import { generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from 
 import { sendGmailFollowup, sendPlainGmail } from "./email";
 import { listUpcomingBookings, formatMeetingClockTime, fillMeetingLink, CalendarBooking } from "./calendar";
 import { notifySlack } from "./slackNotify";
+import { buildMeetingIcs } from "./ics";
 import { Lead } from "./types";
 
 export interface CalendarSyncResult {
@@ -129,7 +130,7 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
         // sendMeetingTouchpoints below can still remind whoever's on the
         // invite (and Slack-ping Lucky) even without a lead record.
         await sb.from("calendar_bookings").insert({
-          event_id: booking.eventId, lead_id: null, start_iso: booking.startISO, hangout_link: booking.hangoutLink,
+          event_id: booking.eventId, lead_id: null, start_iso: booking.startISO, end_iso: booking.endISO, hangout_link: booking.hangoutLink,
           attendee_email: booking.attendeeEmail, attendee_name: booking.attendeeName, summary: booking.summary,
         });
         skipped++;
@@ -142,6 +143,7 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
         event_id: booking.eventId,
         lead_id: lead.lead_id,
         start_iso: booking.startISO,
+        end_iso: booking.endISO,
         hangout_link: booking.hangoutLink,
         attendee_email: booking.attendeeEmail,
         attendee_name: booking.attendeeName,
@@ -160,6 +162,7 @@ interface TrackedBooking {
   event_id: string;
   lead_id: string | null;
   start_iso: string | null;
+  end_iso: string | null;
   hangout_link: string | null;
   attendee_email: string | null;
   attendee_name: string | null;
@@ -248,6 +251,25 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
       const contactName = lead?.contact_name || row.attendee_name || "";
       const label = lead?.company || row.summary || row.attendee_email || "your meeting";
       const clockTime = formatMeetingClockTime(row.start_iso, timeZone);
+      const attendeeEmail = lead?.email || row.attendee_email || "";
+      // A real calendar invite attached to the reminder itself — Gmail/Outlook
+      // render a text/calendar;method=REQUEST part as an actual invitation
+      // (Yes/No/Maybe, add-to-calendar), which is far harder to miss than a
+      // plain-text reminder. Falls back to start+30min for bookings synced
+      // before end_iso was tracked (see supabase_migration_calendar_bookings_end_iso.sql).
+      const icsInvite =
+        attendeeEmail && process.env.GMAIL_USER
+          ? buildMeetingIcs({
+              eventId: row.event_id,
+              startISO: row.start_iso,
+              endISO: row.end_iso || new Date(start.getTime() + 30 * 60000).toISOString(),
+              summary: row.summary || label,
+              location: row.hangout_link || undefined,
+              organizerEmail: process.env.GMAIL_USER,
+              attendeeEmail,
+              attendeeName: contactName || undefined,
+            })
+          : undefined;
 
       if (isDayBeforeDue) {
         if (lead || row.attendee_email) {
@@ -256,10 +278,11 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
             contactName,
             meetingTime: clockTime,
           });
+          const finalBody = fillMeetingLink(bodyHtml, row.hangout_link || "");
           if (lead) {
-            await sendGmailFollowup(lead, subject, bodyHtml, "meeting_day_before_reminder");
+            await sendGmailFollowup(lead, subject, finalBody, "meeting_day_before_reminder", icsInvite);
           } else if (row.attendee_email) {
-            await sendPlainGmail(row.attendee_email, subject, bodyHtml);
+            await sendPlainGmail(row.attendee_email, subject, finalBody, icsInvite);
           }
         }
         await notifySlack(`📅 Reminder sent: *${label}* is tomorrow at ${clockTime}.`);
@@ -274,9 +297,9 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           });
           const finalBody = fillMeetingLink(bodyHtml, row.hangout_link || "");
           if (lead) {
-            await sendGmailFollowup(lead, subject, finalBody, "meeting_day_reminder");
+            await sendGmailFollowup(lead, subject, finalBody, "meeting_day_reminder", icsInvite);
           } else if (row.attendee_email) {
-            await sendPlainGmail(row.attendee_email, subject, finalBody);
+            await sendPlainGmail(row.attendee_email, subject, finalBody, icsInvite);
           }
         }
         await notifySlack(`📅 Heads up: *${label}* is in ~3 hours (${clockTime})${row.hangout_link ? ` — ${row.hangout_link}` : ""}.`);

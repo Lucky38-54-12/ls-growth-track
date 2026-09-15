@@ -816,6 +816,7 @@ export async function generateDayBeforeReminderEmail(input: MeetingTouchpointInp
   const bodyHtml = [
     `<p>Hey${name ? ` ${name}` : ""},</p>`,
     `<p>Quick reminder we've got your appointment booked in for tomorrow at ${input.meetingTime}. Looking forward to it!</p>`,
+    `<p>You can join here: [MEETING LINK]</p>`,
     `<p>Give me a shout if anything changes on your end.</p>`,
   ].join("\n");
   return { subject, bodyHtml };

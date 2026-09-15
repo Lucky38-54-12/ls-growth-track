@@ -15,7 +15,7 @@ import { sendLowQueueNudge } from "@/lib/callQueueNudge";
 import { checkMessengerChannelHealth, reconcileHumanTakeovers, resubscribeAllMessengerChannels } from "@/lib/leadQual/meta";
 import { checkOnboardingPhotoUploads } from "@/lib/onboardingPhotoCheck";
 import { notifySlack } from "@/lib/slackNotify";
-import { reportAutomationStatus } from "@/lib/automationStatus";
+import { reportAutomationStatus, checkCronHeartbeats } from "@/lib/automationStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -168,6 +168,18 @@ export async function GET(req: NextRequest) {
     results.onboardingPhotoUploads = await checkOnboardingPhotoUploads();
   } catch (e) {
     results.onboardingPhotoUploads = { error: e instanceof Error ? e.message : "onboarding photo upload check failed" };
+  }
+
+  try {
+    const { stale } = await checkCronHeartbeats(sb);
+    results.cronHeartbeats = { stale };
+    if (stale.length > 0) {
+      await notifySlack(
+        `🔴 Cron watchdog: ${stale.join(", ")} hasn't reported in over 30 min — reminder emails may be silently stalled. Check the cron-job.org job history and CRON_SECRET before assuming the app logic is broken.`
+      );
+    }
+  } catch (e) {
+    results.cronHeartbeats = { error: e instanceof Error ? e.message : "cron heartbeat check failed" };
   }
 
   const failedTasks = Object.entries(results).filter(([, v]) => v && typeof v === "object" && "error" in v);

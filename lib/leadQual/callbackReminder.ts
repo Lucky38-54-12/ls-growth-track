@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { createSupabaseClient } from "@/lib/supabase";
 import { logAdminAction } from "@/lib/adminActivityLog";
+import { buildMeetingIcs } from "@/lib/ics";
 
 // This goes to the client's own lead, not to the client — showing up as
 // "Lucky from LS Growth" would read as some agency butting in on a call the
@@ -125,12 +126,33 @@ export async function dispatchDueCallbackReminders(): Promise<{ sent: number; er
         signOff,
       ].join("\n");
 
+      // Attach a real calendar invite for the callback itself — a plain-text
+      // reminder is easy to skim past, but Gmail/Outlook render a
+      // text/calendar;method=REQUEST attachment as an actual invitation
+      // (Yes/No/Maybe, add-to-calendar), much harder to miss. Organizer is
+      // the client's own reply-to address where we have one, so it reads as
+      // the business inviting the lead, not LS Growth.
+      const icsInvite = buildMeetingIcs({
+        eventId: lead.id,
+        startISO: lead.scheduled_at,
+        endISO: new Date(scheduled.getTime() + 30 * 60000).toISOString(),
+        summary: `Call with ${businessName}`,
+        organizerEmail: client?.email || FROM_DOMAIN,
+        organizerName: signOff,
+        attendeeEmail: lead.contact_email as string,
+        attendeeName: leadFirstName || undefined,
+      });
+
       const { error: sendError } = await resend.emails.send({
         from: `"${signOff.replace(/"/g, "")}" <${FROM_DOMAIN}>`,
         to: lead.contact_email as string,
         ...(client?.email ? { replyTo: client.email } : {}),
         subject,
         text,
+        // Resend's API expects attachment content base64-encoded (the SDK
+        // does no encoding itself — a raw string here would be sent verbatim
+        // and render as garbled attachment content).
+        attachments: [{ filename: "invite.ics", content: Buffer.from(icsInvite).toString("base64"), content_type: "text/calendar; charset=utf-8; method=REQUEST" }],
       });
 
       if (sendError) throw new Error(sendError.message);

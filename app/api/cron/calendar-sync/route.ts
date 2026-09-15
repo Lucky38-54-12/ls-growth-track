@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 import { syncCalendarBookings, sendMeetingTouchpoints } from "@/lib/calendarSync";
+import { createSupabaseClient } from "@/lib/supabase";
+import { reportAutomationStatus } from "@/lib/automationStatus";
 
 // syncCalendarBookings picks up new bookings + sends the confirmation email;
 // sendMeetingTouchpoints (day-before + 2-hours-before reminders) re-enabled
@@ -16,8 +18,15 @@ async function run(req: NextRequest) {
   try {
     const sync = await syncCalendarBookings();
     const touchpoints = await sendMeetingTouchpoints();
+    await reportAutomationStatus(
+      createSupabaseClient(),
+      "calendar-sync",
+      touchpoints.errors.length > 0 ? "error" : "ok",
+      `Synced ${sync.checked}, reminders: ${touchpoints.dayBeforeSent} day-before, ${touchpoints.reminderSent} same-day, ${touchpoints.errors.length} error(s).`
+    );
     return NextResponse.json({ sync, touchpoints });
   } catch (e) {
+    await reportAutomationStatus(createSupabaseClient(), "calendar-sync", "error", e instanceof Error ? e.message : "Could not sync calendar");
     return NextResponse.json({ error: e instanceof Error ? e.message : "Could not sync calendar" }, { status: 400 });
   }
 }

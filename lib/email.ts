@@ -127,7 +127,7 @@ export async function sendFreeformEmail(
   });
 }
 
-export async function sendGmailFollowup(lead: Lead, subject: string, bodyHtml: string, step: string = "custom") {
+export async function sendGmailFollowup(lead: Lead, subject: string, bodyHtml: string, step: string = "custom", icsInvite?: string) {
   // Never had open/click tracking wired in at all (unlike sendPersonalizedEmail
   // below) — every cold-call email showed 0% opens/clicks on Email Tracking
   // regardless of what actually happened, since there was no pixel and no
@@ -142,7 +142,17 @@ ${filledBody}
 </div>`;
   const text = htmlToText(filledBody);
   const transport = getTransport();
-  await transport.sendMail({ from: FROM, to: lead.email, subject, html, text });
+  await transport.sendMail({
+    from: FROM,
+    to: lead.email,
+    subject,
+    html,
+    text,
+    // nodemailer's icalEvent builds the text/calendar;method=REQUEST part
+    // Gmail/Outlook render as a real invite (Yes/No/Maybe, add-to-calendar)
+    // instead of a plain email — see lib/ics.ts.
+    ...(icsInvite && { icalEvent: { method: "REQUEST", content: icsInvite } }),
+  });
   await logSend(lead.lead_id, step, subject, html);
 }
 
@@ -151,7 +161,7 @@ ${filledBody}
 // the calendar and were never turned into a lead record (e.g. a title that
 // doesn't match the "meet/call with X" pattern), so there's no lead_id to
 // tag the send against.
-export async function sendPlainGmail(to: string, subject: string, bodyHtml: string) {
+export async function sendPlainGmail(to: string, subject: string, bodyHtml: string, icsInvite?: string) {
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${bodyHtml}
   <p>Cheers,<br>Lucky<br>LS Growth</p>
@@ -159,7 +169,14 @@ ${bodyHtml}
 </div>`;
   const text = htmlToText(bodyHtml);
   const transport = getTransport();
-  await transport.sendMail({ from: FROM, to, subject, html, text });
+  await transport.sendMail({
+    from: FROM,
+    to,
+    subject,
+    html,
+    text,
+    ...(icsInvite && { icalEvent: { method: "REQUEST", content: icsInvite } }),
+  });
 }
 
 // Turns the AI-written bodyHtml + deterministic CTA block into the exact

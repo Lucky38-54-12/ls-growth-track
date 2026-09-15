@@ -13,6 +13,7 @@ export interface CalendarBooking {
   eventId: string;
   summary: string;
   startISO: string;
+  endISO: string;
   attendeeEmail: string;
   attendeeName: string;
   hangoutLink: string;
@@ -54,6 +55,7 @@ export async function listUpcomingBookings(): Promise<CalendarBooking[]> {
       eventId: ev.id,
       summary: ev.summary || "",
       startISO: ev.start.dateTime,
+      endISO: ev.end?.dateTime || new Date(new Date(ev.start.dateTime).getTime() + 30 * 60000).toISOString(),
       attendeeEmail,
       attendeeName,
       hangoutLink: ev.hangoutLink || "",
