@@ -68,7 +68,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // post-call follow-up — matches the messy free-text trade values seen on
   // cold-call leads (e.g. "builder", "Builders", "home builder / renovation",
   // "construction / renovations"), not just an exact "Builders" match.
-  const isBuilderTrade = /build|renovat|construction/i.test(lead.trade || "");
+  // Off by default (VIDEO_FOLLOWUP_ENABLED unset) — Lucky wants to review the
+  // surrounding email copy before this can fire on a real call unreviewed.
+  const isBuilderTrade = process.env.VIDEO_FOLLOWUP_ENABLED === "true" && /build|renovat|construction/i.test(lead.trade || "");
 
   if (resolvedSubject && resolvedBody) {
     try {
