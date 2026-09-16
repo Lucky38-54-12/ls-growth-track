@@ -16,6 +16,10 @@ const PUBLIC_PATHS = [
   // fetches these over plain HTTP with no session cookie, so they can't sit
   // behind the dashboard login.
   "/agreement-assets",
+  // Video + thumbnail sent to leads in follow-up emails — a lead opening the
+  // link isn't logged into the dashboard, so this can't sit behind the
+  // session cookie either (same reasoning as /agreement-assets above).
+  "/videos",
 ];
 
 // The client portal has its own login entirely separate from the internal
