@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { createSupabaseClient } from "@/lib/supabase";
 import { sendGmailFollowup } from "@/lib/email";
 import { createBooking, fillMeetingLink } from "@/lib/calendar";
+import { buildMeetingIcs } from "@/lib/ics";
 import { Lead } from "@/lib/types";
 import { generateCallFollowupEmail } from "@/lib/generateCallEmail";
 import { statusTimestampUpdates } from "@/lib/leads";
@@ -34,17 +35,35 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let meetingLink = "";
   let meetingBooked = false;
   let meetingError: string | null = null;
+  let meetingIcsInvite: string | undefined;
   if (meetingDateTime) {
     try {
       const contactName = lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : "";
+      const summary = `Meet with ${contactName || lead.company}`;
       const booking = await createBooking({
-        summary: `Meet with ${contactName || lead.company}`,
+        summary,
         attendeeEmail: lead.email,
         attendeeName: contactName || undefined,
         startISO: meetingDateTime,
       });
       meetingLink = booking.hangoutLink;
       meetingBooked = true;
+      // Same real invite treatment as the day-before/day-of reminders (see
+      // calendarSync.ts) — Gmail renders this as an actual Yes/No/Maybe
+      // invite card, not just a plain link, right on the confirmation email
+      // itself rather than only on Google's separate native invite.
+      if (lead.email && process.env.GMAIL_USER) {
+        meetingIcsInvite = buildMeetingIcs({
+          eventId: booking.eventId,
+          startISO: booking.startISO,
+          endISO: booking.endISO,
+          summary,
+          location: booking.hangoutLink || undefined,
+          organizerEmail: process.env.GMAIL_USER,
+          attendeeEmail: lead.email,
+          attendeeName: contactName || undefined,
+        });
+      }
     } catch (e) {
       meetingError = e instanceof Error ? e.message : "Calendar booking failed";
     }
@@ -53,29 +72,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let sent = false;
   let sendError: string | null = null;
 
+  // Builder-trade leads get a "hey it's Lucky" video intro dropped into the
+  // email that goes out once a meeting's actually booked on the call — not
+  // every post-call follow-up, only the "great, let's jump on a call" one.
+  // Trade match covers the messy free-text values seen on cold-call leads
+  // (e.g. "builder", "Builders", "home builder / renovation", "construction
+  // / renovations"), not just an exact "Builders" match.
+  // Off by default (VIDEO_FOLLOWUP_ENABLED unset) — Lucky wants to review the
+  // surrounding email copy before this can fire on a real call unreviewed.
+  const isBuilderVideoLead =
+    process.env.VIDEO_FOLLOWUP_ENABLED === "true" && meetingBooked && /build|renovat|construction/i.test(lead.trade || "");
+
   // Auto-generate email from call notes if no manual email was provided
   let resolvedSubject = subject?.trim() || "";
   let resolvedBody = bodyHtml?.trim() || "";
   if (!resolvedSubject && callNotes?.trim() && lead.email) {
-    const generated = await generateCallFollowupEmail(lead as Lead, callNotes);
+    const generated = await generateCallFollowupEmail(lead as Lead, callNotes, { includesVideo: isBuilderVideoLead });
     if (generated) {
       resolvedSubject = generated.subject;
       resolvedBody = generated.bodyHtml;
     }
   }
 
-  // Builder-trade leads get a "hey it's Lucky" video intro dropped into the
-  // post-call follow-up — matches the messy free-text trade values seen on
-  // cold-call leads (e.g. "builder", "Builders", "home builder / renovation",
-  // "construction / renovations"), not just an exact "Builders" match.
-  // Off by default (VIDEO_FOLLOWUP_ENABLED unset) — Lucky wants to review the
-  // surrounding email copy before this can fire on a real call unreviewed.
-  const isBuilderTrade = process.env.VIDEO_FOLLOWUP_ENABLED === "true" && /build|renovat|construction/i.test(lead.trade || "");
-
   if (resolvedSubject && resolvedBody) {
     try {
       let finalBody = fillMeetingLink(resolvedBody, meetingLink);
-      if (isBuilderTrade) {
+      if (isBuilderVideoLead) {
         const base = process.env.APP_URL || "https://app.lsgrowth.agency";
         const videoUrl = `${base}/videos/lucky-intro.mp4`;
         const thumbUrl = `${base}/videos/lucky-intro-thumb.jpg`;
@@ -85,7 +107,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         // BombBomb) actually uses under the hood.
         finalBody += `<p><a href="${videoUrl}"><img src="${thumbUrl}" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`;
       }
-      await sendGmailFollowup(lead as Lead, resolvedSubject, finalBody);
+      await sendGmailFollowup(lead as Lead, resolvedSubject, finalBody, "meeting_booked_confirmation", meetingIcsInvite);
       sent = true;
       updates.last_followup = today;
       updates.followup_count = (lead.followup_count || 0) + 1;

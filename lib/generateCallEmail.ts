@@ -5,7 +5,8 @@ import { stripDashes, withWritingStyle } from "@/lib/ai";
 
 export async function generateCallFollowupEmail(
   lead: Lead,
-  callNotes: string
+  callNotes: string,
+  opts: { includesVideo?: boolean } = {}
 ): Promise<{ subject: string; bodyHtml: string } | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
@@ -50,6 +51,10 @@ export async function generateCallFollowupEmail(
   const combinedNotes = [callNotes.trim(), lead.notes?.trim()].filter(Boolean).join("\n---\n");
   const notesBlock = combinedNotes ? `NOTES (most recent first):\n${combinedNotes}` : "";
 
+  const videoLine = opts.includesVideo
+    ? `\n- A short video from Lucky gets attached right after your final paragraph (a thumbnail card, not embedded). End your last sentence with a natural lead-in to it — e.g. mention you recorded a quick video/clip for them — don't say "click below" or describe the image itself.`
+    : "";
+
   const prompt = await withWritingStyle(`You are writing a follow-up email for Lucky at LS Growth Agency. LS Growth gets trade businesses more booked jobs — specific jobs, real revenue, never describe the mechanism or process.
 
 Today: ${today}
@@ -77,7 +82,7 @@ Write a short follow-up email. Rules:
 - Never use: "circle back", "hope this finds you well", "I wanted to reach out", "just checking in", "following up on my last email"
 - No sign-off (added separately)
 - HTML: only <p> and <a> tags
-- Subject: 4–6 words, real and specific, no "Following up"
+- Subject: 4–6 words, real and specific, no "Following up"${videoLine}
 
 Respond ONLY with valid JSON, no markdown:
 {"subject": "", "bodyHtml": ""}`);

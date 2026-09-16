@@ -80,6 +80,8 @@ export interface CreateBookingInput {
 export interface CreatedBooking {
   eventId: string;
   hangoutLink: string;
+  startISO: string;
+  endISO: string;
 }
 
 // Returns the UTC offset (in minutes) of timeZone at the given instant,
@@ -144,7 +146,12 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   if (!ev.id) throw new Error("Calendar API did not return an event id");
   // Falls back to the fixed room only if conferenceData somehow didn't come
   // back (shouldn't happen once real-account OAuth is connected).
-  return { eventId: ev.id, hangoutLink: ev.hangoutLink || process.env.GOOGLE_MEET_LINK || "" };
+  return {
+    eventId: ev.id,
+    hangoutLink: ev.hangoutLink || process.env.GOOGLE_MEET_LINK || "",
+    startISO: ev.start?.dateTime || start.toISOString(),
+    endISO: ev.end?.dateTime || end.toISOString(),
+  };
 }
 
 export interface CalendarEventMatch {

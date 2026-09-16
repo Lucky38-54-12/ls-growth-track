@@ -797,7 +797,7 @@ Agreed deal terms: ${input.dealTerms || "none — no deal was agreed on this cal
 // runMeetingEmailPrompt) since there's no generation step at all.
 export async function generateMeetingDayReminderEmail(input: MeetingTouchpointInput): Promise<PersonalizedEmail> {
   const name = firstName(input.contactName);
-  const subject = `Quick reminder — our meeting today at ${input.meetingTime}`;
+  const subject = `Quick reminder: our meeting today at ${input.meetingTime}`;
   const bodyHtml = [
     `<p>Hey${name ? ` ${name}` : ""},</p>`,
     `<p>Just a reminder we have our meeting today at ${input.meetingTime}. Looking forward to chatting!</p>`,
@@ -813,12 +813,12 @@ export async function generateMeetingDayReminderEmail(input: MeetingTouchpointIn
 // something this mechanical.
 export async function generateDayBeforeReminderEmail(input: MeetingTouchpointInput): Promise<PersonalizedEmail> {
   const name = firstName(input.contactName);
-  const subject = `Quick reminder — your appointment tomorrow at ${input.meetingTime}`;
+  const subject = `Quick reminder: your appointment tomorrow at ${input.meetingTime}`;
   const bodyHtml = [
     `<p>Hey${name ? ` ${name}` : ""},</p>`,
     `<p>Quick reminder we've got your appointment booked in for tomorrow at ${input.meetingTime}. Looking forward to it!</p>`,
     `<p>You can join here: [MEETING LINK]</p>`,
-    `<p>Can you reply "all good" so I know you're still set? If tomorrow no longer works, just text or call me on 021 028 20190 and I'll grab another time — takes two seconds either way.</p>`,
+    `<p>If tomorrow no longer works, just reply to this email or <a href="{{CTA_LINK}}">grab another time here</a>, no problem either way.</p>`,
   ].join("\n");
   return { subject, bodyHtml };
 }

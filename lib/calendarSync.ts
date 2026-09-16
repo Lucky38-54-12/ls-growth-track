@@ -6,7 +6,7 @@ import { generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from 
 // these are one-to-one conversations with someone who already booked a real
 // call, not cold outreach, and mixing them into the same Resend/outreach
 // mailbox as the campaign sequence would make that inbox messy for no reason.
-import { sendGmailFollowup, sendPlainGmail } from "./email";
+import { sendGmailFollowup, sendPlainGmail, BOOKING_URL } from "./email";
 import { listUpcomingBookings, formatMeetingClockTime, fillMeetingLink, CalendarBooking } from "./calendar";
 import { notifySlack } from "./slackNotify";
 import { buildMeetingIcs } from "./ics";
@@ -289,7 +289,7 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           if (lead) {
             await sendGmailFollowup(lead, subject, finalBody, "meeting_day_before_reminder", icsInvite);
           } else if (row.attendee_email) {
-            await sendPlainGmail(row.attendee_email, subject, finalBody, icsInvite);
+            await sendPlainGmail(row.attendee_email, subject, finalBody.replace(/\{\{CTA_LINK\}\}/g, BOOKING_URL), icsInvite);
           }
         }
         await notifySlack(`📅 Reminder sent: *${label}* is tomorrow at ${clockTime}.`);
