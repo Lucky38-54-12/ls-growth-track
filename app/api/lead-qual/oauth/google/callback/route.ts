@@ -1,12 +1,13 @@
 import { exchangeCodeAndStore } from "@/lib/leadQual/googleCalendar";
 import { exchangeCodeAndStoreForLucky } from "@/lib/luckyGoogleAuth";
+import { exchangeCodeAndStoreForBooking } from "@/lib/bookingCalendarAuth";
 import { checkAndNotifyOnboardingComplete } from "@/lib/leadQual/onboardingNotify";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
-  const clientId = searchParams.get("state"); // lq_clients.id, round-tripped via `state` — or "lucky" for Lucky's own connection (see lib/luckyGoogleAuth.ts), which reuses this exact route/redirect URI to avoid needing a second one registered in Google Cloud Console.
+  const clientId = searchParams.get("state"); // lq_clients.id, round-tripped via `state` — or "lucky"/"booking-calendar" for Lucky's own connections (see lib/luckyGoogleAuth.ts, lib/bookingCalendarAuth.ts), which reuse this exact route/redirect URI to avoid needing extra ones registered in Google Cloud Console.
   const error = searchParams.get("error");
 
   if (clientId === "lucky") {
@@ -18,6 +19,18 @@ export async function GET(request: NextRequest) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown_error";
       return NextResponse.redirect(`${origin}/settings?googleError=${encodeURIComponent(message)}`);
+    }
+  }
+
+  if (clientId === "booking-calendar") {
+    if (error) return NextResponse.redirect(`${origin}/settings?bookingCalendarError=${encodeURIComponent(error)}`);
+    if (!code) return NextResponse.redirect(`${origin}/settings?bookingCalendarError=missing_code`);
+    try {
+      await exchangeCodeAndStoreForBooking(code);
+      return NextResponse.redirect(`${origin}/settings?bookingCalendarConnected=1`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "unknown_error";
+      return NextResponse.redirect(`${origin}/settings?bookingCalendarError=${encodeURIComponent(message)}`);
     }
   }
 

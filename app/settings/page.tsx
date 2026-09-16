@@ -22,9 +22,12 @@ function SettingsPageInner() {
   const searchParams = useSearchParams();
   const [loggingOut, setLoggingOut] = useState(false);
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null);
+  const [bookingCalendarStatus, setBookingCalendarStatus] = useState<GoogleStatus | null>(null);
 
   const googleConnected = searchParams.get("googleConnected");
   const googleError = searchParams.get("googleError");
+  const bookingCalendarConnected = searchParams.get("bookingCalendarConnected");
+  const bookingCalendarError = searchParams.get("bookingCalendarError");
 
   useEffect(() => {
     fetch("/api/admin/google-connect/status")
@@ -32,6 +35,13 @@ function SettingsPageInner() {
       .then(setGoogleStatus)
       .catch(() => setGoogleStatus({ connected: false, email: null }));
   }, [googleConnected]);
+
+  useEffect(() => {
+    fetch("/api/admin/booking-calendar-connect/status")
+      .then((r) => r.json())
+      .then(setBookingCalendarStatus)
+      .catch(() => setBookingCalendarStatus({ connected: false, email: null }));
+  }, [bookingCalendarConnected]);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -109,6 +119,49 @@ function SettingsPageInner() {
           }}
         >
           {googleStatus?.connected ? "Reconnect Google" : "Connect Google"}
+        </a>
+      </div>
+
+      <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 8, padding: 24 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: L.text, marginBottom: 8 }}>Booking Calendar Connection</h2>
+        <p style={{ color: L.muted, fontSize: 14, marginBottom: 16 }}>
+          Connect the lsgrowthagency.co@gmail.com Google account so cold-call meeting bookings send real Calendar
+          invites (Guests, RSVP, a real per-meeting Meet link) instead of a service account that Google blocks from
+          inviting attendees. Log into lsgrowthagency.co@gmail.com in this browser before clicking connect.
+        </p>
+
+        {bookingCalendarConnected && (
+          <p style={{ color: "#16a34a", fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Connected successfully.</p>
+        )}
+        {bookingCalendarError && (
+          <p style={{ color: "#dc2626", fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+            Couldn&apos;t connect: {bookingCalendarError}
+          </p>
+        )}
+
+        {bookingCalendarStatus?.connected ? (
+          <p style={{ color: L.text, fontSize: 14, marginBottom: 16 }}>
+            Connected as <strong>{bookingCalendarStatus.email}</strong>.
+          </p>
+        ) : (
+          <p style={{ color: L.muted, fontSize: 14, marginBottom: 16 }}>Not connected yet.</p>
+        )}
+
+        <a
+          href="/api/admin/booking-calendar-connect"
+          style={{
+            display: "inline-block",
+            padding: "10px 16px",
+            background: bookingCalendarStatus?.connected ? "#fff" : "var(--accent)",
+            color: bookingCalendarStatus?.connected ? L.text : "white",
+            border: bookingCalendarStatus?.connected ? `1px solid ${L.border}` : "none",
+            borderRadius: 6,
+            fontWeight: 600,
+            textDecoration: "none",
+            fontSize: 14,
+          }}
+        >
+          {bookingCalendarStatus?.connected ? "Reconnect Booking Calendar" : "Connect Booking Calendar"}
         </a>
       </div>
     </div>

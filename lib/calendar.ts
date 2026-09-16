@@ -1,12 +1,14 @@
 import { google } from "googleapis";
+import { getBookingGoogleAuthedClient } from "@/lib/bookingCalendarAuth";
 
-const SCOPES = ["https://www.googleapis.com/auth/calendar"];
-
+// Was a bare service account — Google explicitly refuses to let a service
+// account add Calendar attendees or send real invites without Domain-Wide
+// Delegation (Workspace-only; confirmed live 2026-09-16: "Service accounts
+// cannot invite attendees without Domain-Wide Delegation of Authority").
+// Authenticating as the real lsgrowthagency.co@gmail.com account via OAuth
+// (see lib/bookingCalendarAuth.ts) has no such restriction.
 function getAuth() {
-  const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!key) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY env var is not set");
-  const credentials = JSON.parse(key);
-  return new google.auth.GoogleAuth({ credentials, scopes: SCOPES });
+  return getBookingGoogleAuthedClient();
 }
 
 export interface CalendarBooking {
@@ -23,7 +25,7 @@ export interface CalendarBooking {
 // going back 1 day to catch bookings made just before their slot.
 export async function listUpcomingBookings(): Promise<CalendarBooking[]> {
   const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
-  const auth = getAuth();
+  const auth = await getAuth();
   const calendar = google.calendar({ version: "v3", auth });
 
   const timeMin = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -39,13 +41,9 @@ export async function listUpcomingBookings(): Promise<CalendarBooking[]> {
   for (const ev of res.data.items || []) {
     if (!ev.id || !ev.start?.dateTime) continue;
     const attendee = (ev.attendees || []).find((a) => !a.self && a.email);
-    // createBooking (our own self-service booking flow) can't add a real
-    // Calendar attendee without Domain-Wide Delegation, so it stores the
-    // guest as "Name <email>" in the description instead (see createBooking
-    // below). Fall back to parsing that when there's no attendees array, or
-    // every booking made through the app itself silently never gets synced
-    // (confirmed missing entirely from calendar_bookings 2026-09-08 — Karl,
-    // Slade, Ricki all booked via the app, none picked up here).
+    // createBooking now adds a real attendee (see below), but events created
+    // before that OAuth migration only have "Name <email>" in the
+    // description — keep the fallback so those old bookings still sync.
     const descMatch = ev.description?.match(/^(.*?)\s*<([^<>\s]+@[^<>\s]+)>\s*$/);
     const attendeeEmail = attendee?.email?.toLowerCase() || descMatch?.[2]?.toLowerCase() || "";
     const attendeeName = attendee?.displayName || descMatch?.[1]?.trim() || "";
@@ -58,12 +56,11 @@ export async function listUpcomingBookings(): Promise<CalendarBooking[]> {
       endISO: ev.end?.dateTime || new Date(new Date(ev.start.dateTime).getTime() + 30 * 60000).toISOString(),
       attendeeEmail,
       attendeeName,
-      // createBooking (below) can't attach a real Meet conference without
-      // Domain-Wide Delegation, so it puts the fixed Meet room straight into
-      // the event's `location` field instead — meaning ev.hangoutLink is
-      // always empty for every app-created booking, and every day-before/
-      // same-day reminder silently dropped the meeting link (confirmed live
-      // 2026-09-16 on a test booking). Fall back to location for those.
+      // createBooking now requests a real conferenceData Meet link, which
+      // populates ev.hangoutLink directly. Events created before that OAuth
+      // migration only have the fixed Meet room in `location` instead
+      // (confirmed live 2026-09-16 — every reminder for those silently
+      // dropped the link) — fall back to it for those older bookings.
       hangoutLink: ev.hangoutLink || ev.location || "",
     });
   }
@@ -112,25 +109,32 @@ function parseDateTime(value: string, timeZone: string): Date {
 // e.g. when a meeting time is agreed during a cold call.
 export async function createBooking(input: CreateBookingInput): Promise<CreatedBooking> {
   const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
-  const auth = getAuth();
+  const auth = await getAuth();
   const calendar = google.calendar({ version: "v3", auth });
 
   const timeZone = input.timeZone || "Pacific/Auckland";
   const start = parseDateTime(input.startISO, timeZone);
   const end = new Date(start.getTime() + (input.durationMinutes ?? 30) * 60000);
 
-  // Note: attendees aren't added and no conferenceData is requested here —
-  // service accounts can't send calendar invites or auto-create Meet links
-  // without Domain-Wide Delegation (Workspace-only, not available on a plain
-  // Gmail account). Instead we use one fixed Meet room from GOOGLE_MEET_LINK
-  // and the lead gets that link via the follow-up email itself.
-  const meetLink = process.env.GOOGLE_MEET_LINK || "";
+  // Now that we authenticate as the real lsgrowthagency.co@gmail.com account
+  // (not a service account — see getAuth above), a real attendee + a real
+  // per-meeting Meet conference both work exactly like they do when you add
+  // a guest by hand in the Calendar UI: Google shows them in "Guests", sends
+  // its own native invite email with RSVP, and syncs responses back.
   const res = await calendar.events.insert({
     calendarId,
+    sendUpdates: "all",
+    conferenceDataVersion: 1,
     requestBody: {
       summary: input.summary,
       description: `${input.attendeeName || ""} <${input.attendeeEmail}>`.trim(),
-      location: meetLink,
+      attendees: [{ email: input.attendeeEmail, displayName: input.attendeeName }],
+      conferenceData: {
+        createRequest: {
+          requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
+      },
       start: { dateTime: start.toISOString(), timeZone },
       end: { dateTime: end.toISOString(), timeZone },
     },
@@ -138,7 +142,9 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
 
   const ev = res.data;
   if (!ev.id) throw new Error("Calendar API did not return an event id");
-  return { eventId: ev.id, hangoutLink: meetLink };
+  // Falls back to the fixed room only if conferenceData somehow didn't come
+  // back (shouldn't happen once real-account OAuth is connected).
+  return { eventId: ev.id, hangoutLink: ev.hangoutLink || process.env.GOOGLE_MEET_LINK || "" };
 }
 
 export interface CalendarEventMatch {
@@ -163,7 +169,7 @@ export interface CalendarEventMatch {
 // event moved again or was cancelled in between.
 async function searchUpcomingEvents(query: string): Promise<CalendarEventMatch[]> {
   const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
-  const auth = getAuth();
+  const auth = await getAuth();
   const calendar = google.calendar({ version: "v3", auth });
 
   const timeMin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -229,7 +235,7 @@ export interface RescheduleBookingInput {
 // the event's current length is read and preserved rather than assuming 30.
 export async function rescheduleBooking(input: RescheduleBookingInput): Promise<void> {
   const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
-  const auth = getAuth();
+  const auth = await getAuth();
   const calendar = google.calendar({ version: "v3", auth });
 
   let durationMinutes = input.durationMinutes;
@@ -275,7 +281,7 @@ export interface CalendarEvent {
 // rendering a calendar view.
 export async function listCalendarEvents(timeMinISO: string, timeMaxISO: string): Promise<CalendarEvent[]> {
   const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
-  const auth = getAuth();
+  const auth = await getAuth();
   const calendar = google.calendar({ version: "v3", auth });
 
   const res = await calendar.events.list({
