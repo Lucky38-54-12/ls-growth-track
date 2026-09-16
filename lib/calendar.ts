@@ -275,6 +275,7 @@ export interface CalendarEvent {
   description: string;
   leadCompany: string;
   leadContactName: string;
+  showStatus: "showed" | "no_show" | "rescheduled" | null;
 }
 
 // Lists all events (not just lead bookings) in the given UTC range, e.g. for
@@ -316,6 +317,7 @@ export async function listCalendarEvents(timeMinISO: string, timeMaxISO: string)
       description: ev.description || "",
       leadCompany: "",
       leadContactName: "",
+      showStatus: null,
     });
   }
 

@@ -18,7 +18,15 @@ interface CalendarEvent {
   location: string;
   leadCompany: string;
   leadContactName: string;
+  showStatus: "showed" | "no_show" | "rescheduled" | null;
 }
+
+const OUTCOME_LABELS: Record<string, string> = { showed: "Showed", no_show: "No-show", rescheduled: "Rescheduled" };
+const OUTCOME_COLORS: Record<string, { bg: string; text: string }> = {
+  showed: { bg: "#dcfce7", text: "#166534" },
+  no_show: { bg: "#fee2e2", text: "#991b1b" },
+  rescheduled: { bg: "#fef9c3", text: "#854d0e" },
+};
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -81,6 +89,15 @@ export default function CalendarPage() {
   }, [events]);
 
   const selectedEvents = eventsByDay[selected] || [];
+
+  function markOutcome(eventId: string, showStatus: "showed" | "no_show" | "rescheduled") {
+    setEvents((prev) => prev.map((ev) => (ev.eventId === eventId ? { ...ev, showStatus } : ev)));
+    fetch("/api/calendar/outcome", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId, showStatus }),
+    }).catch(() => {});
+  }
 
   function shiftMonth(delta: number) {
     setCursor((c) => new Date(c.getFullYear(), c.getMonth() + delta, 1));
@@ -181,7 +198,10 @@ export default function CalendarPage() {
                 const wrapperProps = ev.hangoutLink
                   ? { href: ev.hangoutLink, target: "_blank", rel: "noreferrer" as const }
                   : {};
+                const isPast = !ev.allDay && new Date(ev.endISO).getTime() < Date.now();
+                const isBusinessMeeting = Boolean(ev.hangoutLink || ev.leadCompany);
                 return (
+                  <div key={ev.eventId}>
                   <Wrapper
                     key={ev.eventId}
                     {...wrapperProps}
@@ -220,6 +240,26 @@ export default function CalendarPage() {
                       <p style={{ fontSize: 11, color: "#2563eb", fontWeight: 600, marginTop: 6 }}>Click to join Meet →</p>
                     )}
                   </Wrapper>
+                  {isPast && isBusinessMeeting && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                      {ev.showStatus ? (
+                        <span style={{
+                          fontSize: 10.5, fontWeight: 700, padding: "3px 8px",
+                          background: OUTCOME_COLORS[ev.showStatus].bg, color: OUTCOME_COLORS[ev.showStatus].text,
+                        }}>{OUTCOME_LABELS[ev.showStatus]}</span>
+                      ) : (
+                        (["showed", "no_show", "rescheduled"] as const).map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => markOutcome(ev.eventId, s)}
+                            className="pill-hover"
+                            style={{ padding: "3px 8px", fontSize: 10.5, fontWeight: 700, border: `1px solid ${L.border}`, background: L.surface, color: L.muted, cursor: "pointer" }}
+                          >{OUTCOME_LABELS[s]}</button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  </div>
                 );
               })
             )}

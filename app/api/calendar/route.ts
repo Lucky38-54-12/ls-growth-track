@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listCalendarEvents, getDayRangeUTC } from "@/lib/calendar";
+import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calendar";
 import { createSupabaseClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +17,12 @@ export async function GET(req: NextRequest) {
     const { endISO } = getDayRangeUTC(to);
     const events = await listCalendarEvents(startISO, endISO);
 
+    const supabase = createSupabaseClient();
+
     // Collect all attendee emails to look up in leads table
     const emails = [...new Set(events.map((e) => e.attendeeEmail).filter(Boolean))];
 
     if (emails.length > 0) {
-      const supabase = createSupabaseClient();
       const { data: leads } = await supabase
         .from("leads")
         .select("email, company, contact_name")
@@ -38,6 +39,22 @@ export async function GET(req: NextRequest) {
             ev.leadCompany = match.company || "";
             ev.leadContactName = match.contact_name || "";
           }
+        }
+      }
+    }
+
+    const eventIds = events.map((e) => e.eventId);
+    if (eventIds.length > 0) {
+      const { data: outcomes } = await supabase
+        .from("meeting_outcomes")
+        .select("event_id, show_status")
+        .in("event_id", eventIds);
+
+      if (outcomes && outcomes.length > 0) {
+        const outcomeMap = new Map(outcomes.map((o) => [o.event_id, o.show_status]));
+        for (const ev of events) {
+          const status = outcomeMap.get(ev.eventId);
+          if (status) ev.showStatus = status as CalendarEvent["showStatus"];
         }
       }
     }

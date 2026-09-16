@@ -802,6 +802,7 @@ export async function generateMeetingDayReminderEmail(input: MeetingTouchpointIn
     `<p>Hey${name ? ` ${name}` : ""},</p>`,
     `<p>Just a reminder we have our meeting today at ${input.meetingTime}. Looking forward to chatting!</p>`,
     `<p>You can join here: [MEETING LINK]</p>`,
+    `<p>If something's come up and you can't make it, text or call me on 021 028 20190 and I'll find another time — no problem either way.</p>`,
   ].join("\n");
   return { subject, bodyHtml };
 }
@@ -817,7 +818,7 @@ export async function generateDayBeforeReminderEmail(input: MeetingTouchpointInp
     `<p>Hey${name ? ` ${name}` : ""},</p>`,
     `<p>Quick reminder we've got your appointment booked in for tomorrow at ${input.meetingTime}. Looking forward to it!</p>`,
     `<p>You can join here: [MEETING LINK]</p>`,
-    `<p>Give me a shout if anything changes on your end.</p>`,
+    `<p>Can you reply "all good" so I know you're still set? If tomorrow no longer works, just text or call me on 021 028 20190 and I'll grab another time — takes two seconds either way.</p>`,
   ].join("\n");
   return { subject, bodyHtml };
 }
