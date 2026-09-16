@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createBooking, fillMeetingLink, formatMeetingClockTime } from "@/lib/calendar";
 import { buildMeetingIcs } from "@/lib/ics";
 import { sendGmailFollowup } from "@/lib/email";
-import { generateCallFollowupEmail } from "@/lib/generateCallEmail";
 import { generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from "@/lib/ai";
 import { getBookingGoogleAuthedClient } from "@/lib/bookingCalendarAuth";
 import { google } from "googleapis";
@@ -62,28 +61,36 @@ export async function GET(req: NextRequest) {
     const clockTime = formatMeetingClockTime(booking.startISO);
     const results: Record<string, unknown> = { eventId: booking.eventId };
 
-    // Email 1/4 — simple video intro, no calendar invite attached. Just the
-    // "hey it's Lucky" video, same as the AI-written recap would lead into,
-    // but kept plain here since this one's just the face/video on its own.
-    const callNotes =
-      "Had a great chat with Lucky at Build It Well, a bathroom renovation company in Nelson. They're keen to get more booked bathroom reno jobs and agreed to a discovery call tomorrow to go through how it'd work.";
-    const generated = await generateCallFollowupEmail(fakeLead as Lead, callNotes, { includesVideo: true });
-    if (generated) {
+    // Email 1/4 — Lucky's exact copy for the video-intro email: greeting,
+    // meet link, a recap line, then the video + pre-call-research pitch.
+    {
       const base = process.env.APP_URL || "https://app.lsgrowth.agency";
       const videoUrl = `${base}/videos/lucky-intro.mp4`;
       const thumbUrl = `${base}/videos/lucky-intro-thumb.jpg`;
-      const videoBody =
-        generated.bodyHtml +
-        `<p><a href="${videoUrl}"><img src="${thumbUrl}" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`;
+      const recapLine =
+        "we'll have a look at getting Build It Well more booked bathroom renovation jobs in Nelson";
+      const videoBody = [
+        `<p>Hi Lucky,</p>`,
+        `<p>Looking forward to our chat tomorrow at ${clockTime}.</p>`,
+        `<p>Here's the link to join:</p>`,
+        `<p><a href="${booking.hangoutLink}">${booking.hangoutLink}</a></p>`,
+        `<p>Just as a quick recap, ${recapLine}.</p>`,
+        `<p>Before the call, I also wanted to give you a quick look at what we actually do.</p>`,
+        `<p><a href="${videoUrl}"><img src="${thumbUrl}" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`,
+        `<p>It's a short video showing some real campaigns and results we've generated for businesses similar to yours.</p>`,
+        `<p>I'll also spend some time before the call looking through your current setup, competitors and where I think there could be opportunities to bring in more work.</p>`,
+        `<p>I'll bring what I find to the call and walk you through it.</p>`,
+        `<p>The whole thing should only take around 10–15 minutes. Even if we decide there's nothing worth doing together, you'll have a few things you can take away from the conversation.</p>`,
+        `<p>If anything comes up and you need to shift the time, just flick me a text.</p>`,
+        `<p>Looking forward to it.</p>`,
+      ].join("\n");
       await sendGmailFollowup(
         fakeLead as Lead,
-        `[TEST 1/4 - Video intro] ${generated.subject}`,
+        `[TEST 1/4 - Video intro] Looking forward to our chat tomorrow`,
         videoBody,
         "test_sequence_1_video",
       );
       results.email1 = "sent";
-    } else {
-      results.email1 = "generateCallFollowupEmail returned null (ANTHROPIC_API_KEY missing?)";
     }
 
     // Email 2/4 — separate calendar-link email, the real invite with no
