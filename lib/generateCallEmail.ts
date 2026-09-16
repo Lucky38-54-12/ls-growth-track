@@ -105,3 +105,85 @@ Respond ONLY with valid JSON, no markdown:
   // reaches a send.
   return { subject: stripDashes(parsed.subject || ""), bodyHtml: stripDashes(parsed.bodyHtml || "") };
 }
+
+// Lucky's fixed template for the video-intro email sent to Builder-trade
+// leads once a meeting's booked on the call — separate from the calendar
+// invite email (see followup route), so this one carries no .ics and just a
+// plain meet-link mention. Everything but the one-sentence recap is fixed;
+// only that sentence needs to reflect the actual call, so it's the only
+// part asked of the AI (a full free-form email isn't what's wanted here).
+export async function generateVideoIntroEmail(
+  lead: Lead,
+  callNotes: string,
+  meetingTime: string,
+  hangoutLink: string
+): Promise<{ subject: string; bodyHtml: string }> {
+  const contactName = lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : "";
+  const fallbackRecap = `we'll have a look at getting ${lead.company} more booked jobs`;
+
+  let recapLine = fallbackRecap;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (apiKey) {
+    try {
+      const prompt = await withWritingStyle(`Write ONE short sentence recapping what a call tomorrow with a lead will cover, to slot into this template after "Just as a quick recap, ":
+
+"Just as a quick recap, {SENTENCE}."
+
+LEAD:
+Company: ${lead.company}
+Trade: ${lead.trade || "unknown"}
+Location: ${lead.location || "unknown"}
+
+CALL NOTES:
+${callNotes}
+
+Rules:
+- Start lowercase, no leading capital, no trailing period (added by the template)
+- Reflect what was actually discussed on the call, not generic filler
+- One sentence only, no more than 20 words
+- Never describe the mechanism or process, just the outcome/topic
+
+Respond ONLY with valid JSON, no markdown:
+{"recapLine": ""}`);
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 200, messages: [{ role: "user", content: prompt }] }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const text: string = data.content?.[0]?.text || "";
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          if (parsed.recapLine) recapLine = stripDashes(parsed.recapLine);
+        }
+      }
+    } catch {
+      // fall back to the generic recap line
+    }
+  }
+
+  const base = process.env.APP_URL || "https://app.lsgrowth.agency";
+  const videoUrl = `${base}/videos/lucky-intro.mp4`;
+  const thumbUrl = `${base}/videos/lucky-intro-thumb.jpg`;
+
+  const bodyHtml = [
+    `<p>Hi${contactName ? ` ${contactName}` : ""},</p>`,
+    `<p>Looking forward to our chat tomorrow at ${meetingTime}.</p>`,
+    `<p>Here's the link to join:</p>`,
+    `<p><a href="${hangoutLink}">${hangoutLink}</a></p>`,
+    `<p>Just as a quick recap, ${recapLine}.</p>`,
+    `<p>Before the call, I also wanted to give you a quick look at what we actually do.</p>`,
+    `<p><a href="${videoUrl}"><img src="${thumbUrl}" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`,
+    `<p>It's a short video showing some real campaigns and results we've generated for businesses similar to yours.</p>`,
+    `<p>I'll also spend some time before the call looking through your current setup, competitors and where I think there could be opportunities to bring in more work.</p>`,
+    `<p>I'll bring what I find to the call and walk you through it.</p>`,
+    `<p>The whole thing should only take around 10 to 15 minutes. Even if we decide there's nothing worth doing together, you'll have a few things you can take away from the conversation.</p>`,
+    `<p>If anything comes up and you need to shift the time, just flick me a text.</p>`,
+    `<p>Looking forward to it.</p>`,
+  ].join("\n");
+
+  return { subject: "Looking forward to our chat tomorrow", bodyHtml };
+}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createBooking, fillMeetingLink, formatMeetingClockTime } from "@/lib/calendar";
-import { buildMeetingIcs } from "@/lib/ics";
 import { sendGmailFollowup } from "@/lib/email";
+import { generateVideoIntroEmail } from "@/lib/generateCallEmail";
 import { generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from "@/lib/ai";
 import { getBookingGoogleAuthedClient } from "@/lib/bookingCalendarAuth";
 import { google } from "googleapis";
@@ -10,12 +10,13 @@ import { Lead } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 // Temporary route: creates a REAL calendar event (same createBooking call the
-// real cold-call flow uses) so the Yes/No/Maybe RSVP actually round-trips to
-// a real Google Calendar event. action=create books it + sends the
-// confirmation email; action=sequence sends the full real lead journey
-// (confirmation w/ video+invite, day-before reminder, day-of reminder);
-// action=delete removes the real event afterward. Delete this whole route
-// once done.
+// real cold-call flow uses), using the actual production email functions so
+// this is a true preview, not a copy. action=create books it + sends a
+// single generic confirmation; action=sequence sends the real 3-email
+// Builder-lead journey (video intro, day-before reminder, day-of reminder —
+// the calendar RSVP itself comes from Google's own native invite, not
+// anything built here); action=delete removes the real event afterward.
+// Delete this whole route once done.
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
   if (!process.env.TMP_PREVIEW_SECRET || secret !== process.env.TMP_PREVIEW_SECRET) {
@@ -60,118 +61,47 @@ export async function GET(req: NextRequest) {
 
     const clockTime = formatMeetingClockTime(booking.startISO);
     const results: Record<string, unknown> = { eventId: booking.eventId };
+    const callNotes =
+      "Had a great chat with Lucky at Build It Well, a bathroom renovation company in Nelson. They're keen to get more booked bathroom reno jobs and agreed to a discovery call tomorrow.";
 
-    // Email 1/4 — Lucky's exact copy for the video-intro email: greeting,
-    // meet link, a recap line, then the video + pre-call-research pitch.
-    {
-      const base = process.env.APP_URL || "https://app.lsgrowth.agency";
-      const videoUrl = `${base}/videos/lucky-intro.mp4`;
-      const thumbUrl = `${base}/videos/lucky-intro-thumb.jpg`;
-      const recapLine =
-        "we'll have a look at getting Build It Well more booked bathroom renovation jobs in Nelson";
-      const videoBody = [
-        `<p>Hi Lucky,</p>`,
-        `<p>Looking forward to our chat tomorrow at ${clockTime}.</p>`,
-        `<p>Here's the link to join:</p>`,
-        `<p><a href="${booking.hangoutLink}">${booking.hangoutLink}</a></p>`,
-        `<p>Just as a quick recap, ${recapLine}.</p>`,
-        `<p>Before the call, I also wanted to give you a quick look at what we actually do.</p>`,
-        `<p><a href="${videoUrl}"><img src="${thumbUrl}" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`,
-        `<p>It's a short video showing some real campaigns and results we've generated for businesses similar to yours.</p>`,
-        `<p>I'll also spend some time before the call looking through your current setup, competitors and where I think there could be opportunities to bring in more work.</p>`,
-        `<p>I'll bring what I find to the call and walk you through it.</p>`,
-        `<p>The whole thing should only take around 10–15 minutes. Even if we decide there's nothing worth doing together, you'll have a few things you can take away from the conversation.</p>`,
-        `<p>If anything comes up and you need to shift the time, just flick me a text.</p>`,
-        `<p>Looking forward to it.</p>`,
-      ].join("\n");
-      await sendGmailFollowup(
-        fakeLead as Lead,
-        `[TEST 1/4 - Video intro] Looking forward to our chat tomorrow`,
-        videoBody,
-        "test_sequence_1_video",
-      );
-      results.email1 = "sent";
-    }
-
-    // Email 2/4 — separate calendar-link email, the real invite with no
-    // video attached.
-    const confirmIcs = buildMeetingIcs({
-      eventId: booking.eventId,
-      icalUid: booking.icalUid,
-      startISO: booking.startISO,
-      endISO: booking.endISO,
-      summary: "Meet with Build It Well (TEST SEQUENCE - delete me)",
-      location: booking.hangoutLink || undefined,
-      organizerEmail: process.env.GMAIL_USER!,
-      attendeeEmail: to,
-      attendeeName: "Lucky",
-    });
-    const calendarBody = [
-      `<p>Hey Lucky,</p>`,
-      `<p>Locking in our chat — here's the calendar invite for tomorrow at ${clockTime}.</p>`,
-      `<p>You can join here: <a href="${booking.hangoutLink}">${booking.hangoutLink}</a></p>`,
-    ].join("\n");
+    // Email 1/3 — video intro (real production template + generator).
+    const videoEmail = await generateVideoIntroEmail(fakeLead as Lead, callNotes, clockTime, booking.hangoutLink);
     await sendGmailFollowup(
       fakeLead as Lead,
-      "[TEST 2/4 - Calendar invite]",
-      calendarBody,
-      "test_sequence_2_calendar",
-      confirmIcs
+      `[TEST 1/3 - Video intro] ${videoEmail.subject}`,
+      videoEmail.bodyHtml,
+      "test_sequence_1_video"
     );
-    results.email2 = "sent";
+    results.email1 = "sent";
 
-    // Email 3/4 — day-before reminder, same generator + real invite the
-    // production calendar sync uses.
+    // Email 2/3 — day-before reminder (real production generator, no .ics —
+    // Google's own native invite from createBooking above is the real RSVP).
     const dayBefore = await generateDayBeforeReminderEmail({
       company: "Build It Well",
       contactName: "Lucky",
       meetingTime: clockTime,
     });
-    const dayBeforeIcs = buildMeetingIcs({
-      eventId: booking.eventId,
-      icalUid: booking.icalUid,
-      startISO: booking.startISO,
-      endISO: booking.endISO,
-      summary: "Meet with Build It Well (TEST SEQUENCE - delete me)",
-      location: booking.hangoutLink || undefined,
-      organizerEmail: process.env.GMAIL_USER!,
-      attendeeEmail: to,
-      attendeeName: "Lucky",
-    });
     await sendGmailFollowup(
       fakeLead as Lead,
-      `[TEST 3/4 - Day-before reminder] ${dayBefore.subject}`,
+      `[TEST 2/3 - Day-before reminder] ${dayBefore.subject}`,
       fillMeetingLink(dayBefore.bodyHtml, booking.hangoutLink),
-      "test_sequence_3_day_before",
-      dayBeforeIcs
+      "test_sequence_2_day_before"
     );
-    results.email3 = "sent";
+    results.email2 = "sent";
 
-    // Email 4/4 — day-of reminder.
+    // Email 3/3 — day-of reminder.
     const dayOf = await generateMeetingDayReminderEmail({
       company: "Build It Well",
       contactName: "Lucky",
       meetingTime: clockTime,
     });
-    const dayOfIcs = buildMeetingIcs({
-      eventId: booking.eventId,
-      icalUid: booking.icalUid,
-      startISO: booking.startISO,
-      endISO: booking.endISO,
-      summary: "Meet with Build It Well (TEST SEQUENCE - delete me)",
-      location: booking.hangoutLink || undefined,
-      organizerEmail: process.env.GMAIL_USER!,
-      attendeeEmail: to,
-      attendeeName: "Lucky",
-    });
     await sendGmailFollowup(
       fakeLead as Lead,
-      `[TEST 4/4 - Day-of reminder] ${dayOf.subject}`,
+      `[TEST 3/3 - Day-of reminder] ${dayOf.subject}`,
       fillMeetingLink(dayOf.bodyHtml, booking.hangoutLink),
-      "test_sequence_4_day_of",
-      dayOfIcs
+      "test_sequence_3_day_of"
     );
-    results.email4 = "sent";
+    results.email3 = "sent";
 
     return NextResponse.json({ ok: true, sentTo: to, ...results });
   }
@@ -186,18 +116,6 @@ export async function GET(req: NextRequest) {
     startISO: start.toISOString(),
   });
 
-  const icsInvite = buildMeetingIcs({
-    eventId: booking.eventId,
-    icalUid: booking.icalUid,
-    startISO: booking.startISO,
-    endISO: booking.endISO,
-    summary: "Meet with Test Co (REAL PREVIEW - delete me)",
-    location: booking.hangoutLink || undefined,
-    organizerEmail: process.env.GMAIL_USER!,
-    attendeeEmail: to,
-    attendeeName: "Lucky",
-  });
-
   const fakeLead: Partial<Lead> = {
     lead_id: "test-preview-lead",
     company: "Test Co",
@@ -209,11 +127,11 @@ export async function GET(req: NextRequest) {
   const subject = "[PREVIEW-REAL] Great chatting today, Lucky";
   const bodyHtml = [
     `<p>Hey Lucky,</p>`,
-    `<p>This is the real version — a genuine Google Calendar event backs this invite, so clicking Yes/No actually RSVPs.</p>`,
+    `<p>This is the real version — a genuine Google Calendar event backs this, so clicking Yes/No on Google's own invite actually RSVPs.</p>`,
     `<p>You can join here: <a href="${booking.hangoutLink}">${booking.hangoutLink}</a></p>`,
   ].join("\n");
 
-  await sendGmailFollowup(fakeLead as Lead, subject, bodyHtml, "preview_test_real", icsInvite);
+  await sendGmailFollowup(fakeLead as Lead, subject, bodyHtml, "preview_test_real");
 
   return NextResponse.json({ ok: true, sentTo: to, eventId: booking.eventId });
 }

@@ -124,17 +124,16 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   // Now that we authenticate as the real lsgrowthagency.co@gmail.com account
   // (not a service account — see getAuth above), a real attendee + a real
   // per-meeting Meet conference both work exactly like they do when you add
-  // a guest by hand in the Calendar UI: Google shows them in "Guests" with a
-  // trackable RSVP status. sendUpdates is "none" — Google's own generic
-  // native invite email used to go out here as a second, separate email on
-  // top of our own personalized confirmation email (with its own .ics
-  // attached below), confusing/duplicating for the lead. The .ics we send
-  // ourselves (built with this event's real icalUid, not a made-up one) is
-  // now the only invite email that goes out, and Yes/No/Maybe replies to it
-  // still round-trip correctly to this same real event since the UID matches.
+  // a guest by hand in the Calendar UI: Google shows them in "Guests", sends
+  // its own native invite email with a working Yes/No/Maybe RSVP, and syncs
+  // responses back — no need to build/send our own .ics for this (that
+  // approach was tried and dropped: any first .ics from an unfamiliar
+  // sender triggers Gmail's "haven't interacted with this sender... Report
+  // spam" banner, which read as untrustworthy to a cold lead. Google's own
+  // native invite doesn't carry that banner).
   const res = await calendar.events.insert({
     calendarId,
-    sendUpdates: "none",
+    sendUpdates: "all",
     conferenceDataVersion: 1,
     requestBody: {
       summary: input.summary,

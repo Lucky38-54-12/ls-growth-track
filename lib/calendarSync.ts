@@ -9,7 +9,6 @@ import { generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from 
 import { sendGmailFollowup, sendPlainGmail, BOOKING_URL } from "./email";
 import { listUpcomingBookings, formatMeetingClockTime, fillMeetingLink, CalendarBooking } from "./calendar";
 import { notifySlack } from "./slackNotify";
-import { buildMeetingIcs } from "./ics";
 import { Lead } from "./types";
 
 export interface CalendarSyncResult {
@@ -267,26 +266,13 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
       const contactName = lead?.contact_name || row.attendee_name || "";
       const label = lead?.company || row.summary || row.attendee_email || "your meeting";
       const clockTime = formatMeetingClockTime(row.start_iso, timeZone);
-      const attendeeEmail = lead?.email || row.attendee_email || "";
-      // A real calendar invite attached to the reminder itself — Gmail/Outlook
-      // render a text/calendar;method=REQUEST part as an actual invitation
-      // (Yes/No/Maybe, add-to-calendar), which is far harder to miss than a
-      // plain-text reminder. Falls back to start+30min for bookings synced
-      // before end_iso was tracked (see supabase_migration_calendar_bookings_end_iso.sql).
-      const icsInvite =
-        attendeeEmail && process.env.GMAIL_USER
-          ? buildMeetingIcs({
-              eventId: row.event_id,
-              icalUid: row.ical_uid || undefined,
-              startISO: row.start_iso,
-              endISO: row.end_iso || new Date(start.getTime() + 30 * 60000).toISOString(),
-              summary: row.summary || label,
-              location: row.hangout_link || undefined,
-              organizerEmail: process.env.GMAIL_USER,
-              attendeeEmail,
-              attendeeName: contactName || undefined,
-            })
-          : undefined;
+      // No .ics attached to these reminders — Google's own native calendar
+      // invite (sent when the event was created, see createBooking) already
+      // carries the real RSVP. A self-built .ics from this address would be
+      // a second, separate invite and (if it's the lead's first .ics from
+      // us) trips Gmail's "haven't interacted with this sender... Report
+      // spam" banner, which reads as untrustworthy — plain reminder text is
+      // safer here even though it's easier to skim past.
 
       if (isDayBeforeDue) {
         if (lead || row.attendee_email) {
@@ -297,9 +283,9 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           });
           const finalBody = fillMeetingLink(bodyHtml, row.hangout_link || "");
           if (lead) {
-            await sendGmailFollowup(lead, subject, finalBody, "meeting_day_before_reminder", icsInvite);
+            await sendGmailFollowup(lead, subject, finalBody, "meeting_day_before_reminder");
           } else if (row.attendee_email) {
-            await sendPlainGmail(row.attendee_email, subject, finalBody.replace(/\{\{CTA_LINK\}\}/g, BOOKING_URL), icsInvite);
+            await sendPlainGmail(row.attendee_email, subject, finalBody.replace(/\{\{CTA_LINK\}\}/g, BOOKING_URL));
           }
         }
         await notifySlack(`📅 Reminder sent: *${label}* is tomorrow at ${clockTime}.`);
@@ -314,9 +300,9 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           });
           const finalBody = fillMeetingLink(bodyHtml, row.hangout_link || "");
           if (lead) {
-            await sendGmailFollowup(lead, subject, finalBody, "meeting_day_reminder", icsInvite);
+            await sendGmailFollowup(lead, subject, finalBody, "meeting_day_reminder");
           } else if (row.attendee_email) {
-            await sendPlainGmail(row.attendee_email, subject, finalBody, icsInvite);
+            await sendPlainGmail(row.attendee_email, subject, finalBody);
           }
         }
         await notifySlack(`📅 Heads up: *${label}* is in ~3 hours (${clockTime})${row.hangout_link ? ` — ${row.hangout_link}` : ""}.`);
