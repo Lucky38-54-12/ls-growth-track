@@ -62,13 +62,32 @@ export async function GET(req: NextRequest) {
     const clockTime = formatMeetingClockTime(booking.startISO);
     const results: Record<string, unknown> = { eventId: booking.eventId };
 
-    // Email 1/3 — post-call confirmation, generated the same way the real
-    // followup route does: AI copy told a video's coming so it writes a
-    // natural lead-in, then the video thumbnail + real calendar invite
-    // (with the real iCalUID) both get appended after.
+    // Email 1/4 — simple video intro, no calendar invite attached. Just the
+    // "hey it's Lucky" video, same as the AI-written recap would lead into,
+    // but kept plain here since this one's just the face/video on its own.
     const callNotes =
       "Had a great chat with Lucky at Build It Well, a bathroom renovation company in Nelson. They're keen to get more booked bathroom reno jobs and agreed to a discovery call tomorrow to go through how it'd work.";
     const generated = await generateCallFollowupEmail(fakeLead as Lead, callNotes, { includesVideo: true });
+    if (generated) {
+      const base = process.env.APP_URL || "https://app.lsgrowth.agency";
+      const videoUrl = `${base}/videos/lucky-intro.mp4`;
+      const thumbUrl = `${base}/videos/lucky-intro-thumb.jpg`;
+      const videoBody =
+        generated.bodyHtml +
+        `<p><a href="${videoUrl}"><img src="${thumbUrl}" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`;
+      await sendGmailFollowup(
+        fakeLead as Lead,
+        `[TEST 1/4 - Video intro] ${generated.subject}`,
+        videoBody,
+        "test_sequence_1_video",
+      );
+      results.email1 = "sent";
+    } else {
+      results.email1 = "generateCallFollowupEmail returned null (ANTHROPIC_API_KEY missing?)";
+    }
+
+    // Email 2/4 — separate calendar-link email, the real invite with no
+    // video attached.
     const confirmIcs = buildMeetingIcs({
       eventId: booking.eventId,
       icalUid: booking.icalUid,
@@ -80,25 +99,21 @@ export async function GET(req: NextRequest) {
       attendeeEmail: to,
       attendeeName: "Lucky",
     });
-    if (generated) {
-      const base = process.env.APP_URL || "https://app.lsgrowth.agency";
-      const videoUrl = `${base}/videos/lucky-intro.mp4`;
-      const thumbUrl = `${base}/videos/lucky-intro-thumb.jpg`;
-      let finalBody = fillMeetingLink(generated.bodyHtml, booking.hangoutLink);
-      finalBody += `<p><a href="${videoUrl}"><img src="${thumbUrl}" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`;
-      await sendGmailFollowup(
-        fakeLead as Lead,
-        `[TEST 1/3 - Booking confirmation w/ video + calendar invite] ${generated.subject}`,
-        finalBody,
-        "test_sequence_1_confirmation",
-        confirmIcs
-      );
-      results.email1 = "sent";
-    } else {
-      results.email1 = "generateCallFollowupEmail returned null (ANTHROPIC_API_KEY missing?)";
-    }
+    const calendarBody = [
+      `<p>Hey Lucky,</p>`,
+      `<p>Locking in our chat — here's the calendar invite for tomorrow at ${clockTime}.</p>`,
+      `<p>You can join here: <a href="${booking.hangoutLink}">${booking.hangoutLink}</a></p>`,
+    ].join("\n");
+    await sendGmailFollowup(
+      fakeLead as Lead,
+      "[TEST 2/4 - Calendar invite]",
+      calendarBody,
+      "test_sequence_2_calendar",
+      confirmIcs
+    );
+    results.email2 = "sent";
 
-    // Email 2/3 — day-before reminder, same generator + real invite the
+    // Email 3/4 — day-before reminder, same generator + real invite the
     // production calendar sync uses.
     const dayBefore = await generateDayBeforeReminderEmail({
       company: "Build It Well",
@@ -118,14 +133,14 @@ export async function GET(req: NextRequest) {
     });
     await sendGmailFollowup(
       fakeLead as Lead,
-      `[TEST 2/3 - Day-before reminder] ${dayBefore.subject}`,
+      `[TEST 3/4 - Day-before reminder] ${dayBefore.subject}`,
       fillMeetingLink(dayBefore.bodyHtml, booking.hangoutLink),
-      "test_sequence_2_day_before",
+      "test_sequence_3_day_before",
       dayBeforeIcs
     );
-    results.email2 = "sent";
+    results.email3 = "sent";
 
-    // Email 3/3 — day-of reminder.
+    // Email 4/4 — day-of reminder.
     const dayOf = await generateMeetingDayReminderEmail({
       company: "Build It Well",
       contactName: "Lucky",
@@ -144,12 +159,12 @@ export async function GET(req: NextRequest) {
     });
     await sendGmailFollowup(
       fakeLead as Lead,
-      `[TEST 3/3 - Day-of reminder] ${dayOf.subject}`,
+      `[TEST 4/4 - Day-of reminder] ${dayOf.subject}`,
       fillMeetingLink(dayOf.bodyHtml, booking.hangoutLink),
-      "test_sequence_3_day_of",
+      "test_sequence_4_day_of",
       dayOfIcs
     );
-    results.email3 = "sent";
+    results.email4 = "sent";
 
     return NextResponse.json({ ok: true, sentTo: to, ...results });
   }
