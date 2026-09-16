@@ -15,6 +15,12 @@ function toIcsUtc(iso: string): string {
 
 export interface MeetingIcsInput {
   eventId: string;
+  // The real Google Calendar event's iCalUID. Without this, a lead's
+  // Yes/No/Maybe reply looks like it works (Gmail renders the buttons fine)
+  // but never actually writes an RSVP back to the real event, since Gmail's
+  // reply routing matches by UID — falls back to a made-up one only for
+  // callers that genuinely have no real backing event (e.g. a preview).
+  icalUid?: string;
   startISO: string;
   endISO: string;
   summary: string;
@@ -26,7 +32,7 @@ export interface MeetingIcsInput {
 }
 
 export function buildMeetingIcs(input: MeetingIcsInput): string {
-  const uid = `${input.eventId}@lsgrowth.agency`;
+  const uid = input.icalUid || `${input.eventId}@lsgrowth.agency`;
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",

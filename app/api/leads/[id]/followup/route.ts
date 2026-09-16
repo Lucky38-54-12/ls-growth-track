@@ -50,11 +50,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       meetingBooked = true;
       // Same real invite treatment as the day-before/day-of reminders (see
       // calendarSync.ts) — Gmail renders this as an actual Yes/No/Maybe
-      // invite card, not just a plain link, right on the confirmation email
-      // itself rather than only on Google's separate native invite.
+      // invite card right on the confirmation email itself. createBooking
+      // now suppresses Google's own separate native invite email
+      // (sendUpdates: "none"), so this is the only invite email the lead
+      // gets — icalUid is the real event's UID so a Yes/No/Maybe reply here
+      // still round-trips to the real calendar event.
       if (lead.email && process.env.GMAIL_USER) {
         meetingIcsInvite = buildMeetingIcs({
           eventId: booking.eventId,
+          icalUid: booking.icalUid,
           startISO: booking.startISO,
           endISO: booking.endISO,
           summary,

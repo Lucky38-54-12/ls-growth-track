@@ -19,6 +19,7 @@ export interface CalendarBooking {
   attendeeEmail: string;
   attendeeName: string;
   hangoutLink: string;
+  icalUid: string;
 }
 
 // Lists upcoming events with an external attendee (i.e. booked appointments),
@@ -62,6 +63,7 @@ export async function listUpcomingBookings(): Promise<CalendarBooking[]> {
       // (confirmed live 2026-09-16 — every reminder for those silently
       // dropped the link) — fall back to it for those older bookings.
       hangoutLink: ev.hangoutLink || ev.location || "",
+      icalUid: ev.iCalUID || `${ev.id}@google.com`,
     });
   }
 
@@ -82,6 +84,7 @@ export interface CreatedBooking {
   hangoutLink: string;
   startISO: string;
   endISO: string;
+  icalUid: string;
 }
 
 // Returns the UTC offset (in minutes) of timeZone at the given instant,
@@ -121,11 +124,17 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   // Now that we authenticate as the real lsgrowthagency.co@gmail.com account
   // (not a service account — see getAuth above), a real attendee + a real
   // per-meeting Meet conference both work exactly like they do when you add
-  // a guest by hand in the Calendar UI: Google shows them in "Guests", sends
-  // its own native invite email with RSVP, and syncs responses back.
+  // a guest by hand in the Calendar UI: Google shows them in "Guests" with a
+  // trackable RSVP status. sendUpdates is "none" — Google's own generic
+  // native invite email used to go out here as a second, separate email on
+  // top of our own personalized confirmation email (with its own .ics
+  // attached below), confusing/duplicating for the lead. The .ics we send
+  // ourselves (built with this event's real icalUid, not a made-up one) is
+  // now the only invite email that goes out, and Yes/No/Maybe replies to it
+  // still round-trip correctly to this same real event since the UID matches.
   const res = await calendar.events.insert({
     calendarId,
-    sendUpdates: "all",
+    sendUpdates: "none",
     conferenceDataVersion: 1,
     requestBody: {
       summary: input.summary,
@@ -151,6 +160,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
     hangoutLink: ev.hangoutLink || process.env.GOOGLE_MEET_LINK || "",
     startISO: ev.start?.dateTime || start.toISOString(),
     endISO: ev.end?.dateTime || end.toISOString(),
+    icalUid: ev.iCalUID || `${ev.id}@google.com`,
   };
 }
 

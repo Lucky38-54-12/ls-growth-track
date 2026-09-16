@@ -87,7 +87,7 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
   for (const booking of bookings) {
     const { data: already } = await sb
       .from("calendar_bookings")
-      .select("event_id, attendee_email, hangout_link")
+      .select("event_id, attendee_email, hangout_link, ical_uid")
       .eq("event_id", booking.eventId)
       .maybeSingle();
     if (already) {
@@ -105,6 +105,13 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
       // meeting link.
       if (!already.hangout_link && booking.hangoutLink) {
         await sb.from("calendar_bookings").update({ hangout_link: booking.hangoutLink }).eq("event_id", booking.eventId);
+      }
+      // Backfills ical_uid onto rows synced before it was tracked — without
+      // it, buildMeetingIcs falls back to a made-up UID that doesn't match
+      // the real event, so a lead's Yes/No/Maybe reply to our own reminder
+      // email never actually wrote the RSVP back to the real calendar event.
+      if (!already.ical_uid && booking.icalUid) {
+        await sb.from("calendar_bookings").update({ ical_uid: booking.icalUid }).eq("event_id", booking.eventId);
       }
       skipped++;
       continue;
@@ -138,7 +145,7 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
         // invite (and Slack-ping Lucky) even without a lead record.
         await sb.from("calendar_bookings").insert({
           event_id: booking.eventId, lead_id: null, start_iso: booking.startISO, end_iso: booking.endISO, hangout_link: booking.hangoutLink,
-          attendee_email: booking.attendeeEmail, attendee_name: booking.attendeeName, summary: booking.summary,
+          attendee_email: booking.attendeeEmail, attendee_name: booking.attendeeName, summary: booking.summary, ical_uid: booking.icalUid,
         });
         skipped++;
         continue;
@@ -155,6 +162,7 @@ export async function syncCalendarBookings(): Promise<CalendarSyncResult> {
         attendee_email: booking.attendeeEmail,
         attendee_name: booking.attendeeName,
         summary: booking.summary,
+        ical_uid: booking.icalUid,
       });
       sent++;
     } catch (err) {
@@ -174,6 +182,7 @@ interface TrackedBooking {
   attendee_email: string | null;
   attendee_name: string | null;
   summary: string | null;
+  ical_uid: string | null;
   day_before_email_sent_at: string | null;
   reminder_email_sent_at: string | null;
 }
@@ -268,6 +277,7 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
         attendeeEmail && process.env.GMAIL_USER
           ? buildMeetingIcs({
               eventId: row.event_id,
+              icalUid: row.ical_uid || undefined,
               startISO: row.start_iso,
               endISO: row.end_iso || new Date(start.getTime() + 30 * 60000).toISOString(),
               summary: row.summary || label,

@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
 
   const icsInvite = buildMeetingIcs({
     eventId: booking.eventId,
+    icalUid: booking.icalUid,
     startISO: booking.startISO,
     endISO: booking.endISO,
     summary: "Meet with Test Co (REAL PREVIEW - delete me)",
