@@ -4,6 +4,7 @@ import { sendGmailFollowup } from "@/lib/email";
 import { generateVideoIntroEmail } from "@/lib/generateCallEmail";
 import { generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from "@/lib/ai";
 import { getBookingGoogleAuthedClient } from "@/lib/bookingCalendarAuth";
+import { createSupabaseClient } from "@/lib/supabase";
 import { google } from "googleapis";
 import { Lead } from "@/lib/types";
 
@@ -37,6 +38,46 @@ export async function GET(req: NextRequest) {
       sendUpdates: "all",
     });
     return NextResponse.json({ ok: true, deleted: eventId });
+  }
+
+  if (action === "send-dayof-video-real") {
+    // One-off real send: Andrew/King Projects, meeting today at 12pm.
+    // Day-of reminder copy (not the "tomorrow" video-intro template, since
+    // his meeting is today) with the video added as the last touchpoint
+    // before the call. No new calendar event created — uses his existing
+    // booking's real meet link.
+    const leadId = req.nextUrl.searchParams.get("leadId");
+    if (!leadId) return NextResponse.json({ error: "leadId required" }, { status: 400 });
+
+    const sb = createSupabaseClient();
+    const { data: lead, error } = await sb.from("leads").select("*").eq("lead_id", leadId).single();
+    if (error || !lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+
+    const { data: bookingRow } = await sb
+      .from("calendar_bookings")
+      .select("start_iso, hangout_link")
+      .eq("lead_id", leadId)
+      .order("start_iso", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!bookingRow) return NextResponse.json({ error: "No calendar_bookings row for this lead" }, { status: 404 });
+
+    const meetingTime = formatMeetingClockTime(bookingRow.start_iso);
+    const contactName = lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : "";
+    const base = process.env.APP_URL || "https://app.lsgrowth.agency";
+    const videoUrl = `${base}/videos/lucky-intro.mp4`;
+    const thumbUrl = `${base}/videos/lucky-intro-thumb.jpg`;
+    const bodyHtml = [
+      `<p>Hey${contactName ? ` ${contactName}` : ""},</p>`,
+      `<p>Just a reminder we have our meeting today at ${meetingTime}. Looking forward to chatting!</p>`,
+      `<p>You can join here: <a href="${bookingRow.hangout_link}">${bookingRow.hangout_link}</a></p>`,
+      `<p>If something's come up and you can't make it, text or call me on 021 028 20190 and I'll find another time, no problem either way.</p>`,
+      `<p>Before we jump on, here's a quick video from me.</p>`,
+      `<p><a href="${videoUrl}"><img src="${thumbUrl}" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`,
+    ].join("\n");
+    await sendGmailFollowup(lead as Lead, "Have a look at this before we jump on", bodyHtml, "meeting_day_reminder_video");
+
+    return NextResponse.json({ ok: true, sentTo: lead.email, meetingTime, hangoutLink: bookingRow.hangout_link });
   }
 
   if (action === "sequence") {
