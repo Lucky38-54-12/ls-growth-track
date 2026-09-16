@@ -25,11 +25,11 @@ export async function GET(req: NextRequest) {
     if (emails.length > 0) {
       const { data: leads } = await supabase
         .from("leads")
-        .select("email, company, contact_name")
+        .select("lead_id, email, company, contact_name")
         .in("email", emails);
 
       if (leads && leads.length > 0) {
-        const leadMap = new Map<string, { company: string; contact_name: string }>();
+        const leadMap = new Map<string, { lead_id: string; company: string; contact_name: string }>();
         for (const lead of leads) {
           if (lead.email) leadMap.set(lead.email.toLowerCase(), lead);
         }
@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
           if (match) {
             ev.leadCompany = match.company || "";
             ev.leadContactName = match.contact_name || "";
+            ev.leadId = match.lead_id || "";
           }
         }
       }

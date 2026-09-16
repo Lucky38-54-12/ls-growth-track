@@ -18,6 +18,7 @@ interface CalendarEvent {
   location: string;
   leadCompany: string;
   leadContactName: string;
+  leadId: string;
   showStatus: "showed" | "no_show" | "rescheduled" | null;
 }
 
@@ -90,13 +91,24 @@ export default function CalendarPage() {
 
   const selectedEvents = eventsByDay[selected] || [];
 
-  function markOutcome(eventId: string, showStatus: "showed" | "no_show" | "rescheduled") {
+  function markOutcome(eventId: string, showStatus: "showed" | "no_show" | "rescheduled", leadId: string) {
     setEvents((prev) => prev.map((ev) => (ev.eventId === eventId ? { ...ev, showStatus } : ev)));
     fetch("/api/calendar/outcome", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ eventId, showStatus }),
     }).catch(() => {});
+
+    // Flip the matched lead's real status too, so a no-show shows up on the
+    // dashboard's No-Show list like any other manually-set status — this
+    // marker otherwise only lives in the standalone outcomes log.
+    if (showStatus === "no_show" && leadId) {
+      fetch(`/api/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "no_show" }),
+      }).catch(() => {});
+    }
   }
 
   function shiftMonth(delta: number) {
@@ -251,7 +263,7 @@ export default function CalendarPage() {
                         (["showed", "no_show", "rescheduled"] as const).map((s) => (
                           <button
                             key={s}
-                            onClick={() => markOutcome(ev.eventId, s)}
+                            onClick={() => markOutcome(ev.eventId, s, ev.leadId)}
                             className="pill-hover"
                             style={{ padding: "3px 8px", fontSize: 10.5, fontWeight: 700, border: `1px solid ${L.border}`, background: L.surface, color: L.muted, cursor: "pointer" }}
                           >{OUTCOME_LABELS[s]}</button>

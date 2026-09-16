@@ -275,6 +275,7 @@ export interface CalendarEvent {
   description: string;
   leadCompany: string;
   leadContactName: string;
+  leadId: string;
   showStatus: "showed" | "no_show" | "rescheduled" | null;
 }
 
@@ -317,6 +318,7 @@ export async function listCalendarEvents(timeMinISO: string, timeMaxISO: string)
       description: ev.description || "",
       leadCompany: "",
       leadContactName: "",
+      leadId: "",
       showStatus: null,
     });
   }
