@@ -64,9 +64,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
   }
 
+  // Builder-trade leads get a "hey it's Lucky" video intro dropped into the
+  // post-call follow-up — matches the messy free-text trade values seen on
+  // cold-call leads (e.g. "builder", "Builders", "home builder / renovation",
+  // "construction / renovations"), not just an exact "Builders" match.
+  const isBuilderTrade = /build|renovat|construction/i.test(lead.trade || "");
+
   if (resolvedSubject && resolvedBody) {
     try {
-      const finalBody = fillMeetingLink(resolvedBody, meetingLink);
+      let finalBody = fillMeetingLink(resolvedBody, meetingLink);
+      if (isBuilderTrade) {
+        const videoUrl = `${process.env.APP_URL || "https://app.lsgrowth.agency"}/videos/lucky-intro.mp4`;
+        finalBody += `<p>Quick video from me if you haven't seen it: <a href="${videoUrl}">watch here</a> (30 seconds).</p>`;
+      }
       await sendGmailFollowup(lead as Lead, resolvedSubject, finalBody);
       sent = true;
       updates.last_followup = today;
