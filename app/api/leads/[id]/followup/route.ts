@@ -10,13 +10,14 @@ import { statusTimestampUpdates } from "@/lib/leads";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json();
-  const { callNotes, subject, bodyHtml, status, meetingDateTime, followUpAt } = body as {
+  const { callNotes, subject, bodyHtml, status, meetingDateTime, followUpAt, includeVideo } = body as {
     callNotes?: string;
     subject?: string;
     bodyHtml?: string;
     status?: string;
     meetingDateTime?: string;
     followUpAt?: string;
+    includeVideo?: boolean;
   };
 
   const sb = createSupabaseClient();
@@ -60,16 +61,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let sent = false;
   let sendError: string | null = null;
 
-  // Builder-trade leads get a "hey it's Lucky" video intro dropped into the
-  // email that goes out once a meeting's actually booked on the call — not
-  // every post-call follow-up, only the "great, let's jump on a call" one.
-  // Trade match covers the messy free-text values seen on cold-call leads
-  // (e.g. "builder", "Builders", "home builder / renovation", "construction
-  // / renovations"), not just an exact "Builders" match.
-  // Off by default (VIDEO_FOLLOWUP_ENABLED unset) — Lucky wants to review the
-  // surrounding email copy before this can fire on a real call unreviewed.
-  const isBuilderVideoLead =
-    process.env.VIDEO_FOLLOWUP_ENABLED === "true" && meetingBooked && /build|renovat|construction/i.test(lead.trade || "");
+  // Builder-trade leads can get Lucky's video intro dropped into the email
+  // that goes out once a meeting's actually booked on the call — now an
+  // explicit per-call choice from CallForm's checkbox (only shown there for
+  // Builder-trade leads) rather than automatic, so Lucky decides case by
+  // case instead of it firing on every matching call.
+  const isBuilderVideoLead = Boolean(includeVideo) && meetingBooked;
 
   if (isBuilderVideoLead && lead.email) {
     // Builder-trade leads get Lucky's fixed video-intro template once a

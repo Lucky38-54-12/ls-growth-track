@@ -16,6 +16,8 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "sequence_complete", label: "Sequence complete" },
 ];
 
+const BUILDER_TRADE_PATTERN = /build|renovat|construction/i;
+
 export default function CallForm({ lead, events, sends, sourceSheetUrl }: { lead: Lead; events: EmailEvent[]; sends: EmailSend[]; sourceSheetUrl: string | null }) {
   const router = useRouter();
   const [callNotes, setCallNotes] = useState("");
@@ -24,8 +26,10 @@ export default function CallForm({ lead, events, sends, sourceSheetUrl }: { lead
   const [bodyHtml, setBodyHtml] = useState("");
   const [status, setStatus] = useState("");
   const [followUpAt, setFollowUpAt] = useState(lead.follow_up_at || "");
+  const [includeVideo, setIncludeVideo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const isBuilderTrade = BUILDER_TRADE_PATTERN.test(lead.trade || "");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,6 +48,7 @@ export default function CallForm({ lead, events, sends, sourceSheetUrl }: { lead
         callNotes, subject, bodyHtml, status,
         meetingDateTime: meetingDateTime || undefined,
         followUpAt: followUpChanged ? followUpAt : undefined,
+        includeVideo: isBuilderTrade && includeVideo,
       }),
     });
     const data = await res.json();
@@ -91,6 +96,13 @@ export default function CallForm({ lead, events, sends, sourceSheetUrl }: { lead
               If they agreed to a time on the call, set it here — this adds it to the calendar with a Google Meet link and invites {lead.email}. Use <code>{"{{MEETING_LINK}}"}</code> as the href in the email below to drop in the link.
             </p>
             <input type="datetime-local" value={meetingDateTime} onChange={(e) => setMeetingDateTime(e.target.value)} style={{ maxWidth: 280 }} />
+
+            {isBuilderTrade && (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13, color: L.text, cursor: "pointer" }}>
+                <input type="checkbox" checked={includeVideo} onChange={(e) => setIncludeVideo(e.target.checked)} />
+                Add Lucky's video intro to the confirmation email (this lead's a Builder)
+              </label>
+            )}
           </div>
 
           <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 0, padding: 24, marginBottom: 20 }}>
