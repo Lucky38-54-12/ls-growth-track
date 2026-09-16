@@ -74,8 +74,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     try {
       let finalBody = fillMeetingLink(resolvedBody, meetingLink);
       if (isBuilderTrade) {
-        const videoUrl = `${process.env.APP_URL || "https://app.lsgrowth.agency"}/videos/lucky-intro.mp4`;
-        finalBody += `<p>Quick video from me if you haven't seen it: <a href="${videoUrl}">watch here</a> (30 seconds).</p>`;
+        const base = process.env.APP_URL || "https://app.lsgrowth.agency";
+        const videoUrl = `${base}/videos/lucky-intro.mp4`;
+        const thumbUrl = `${base}/videos/lucky-intro-thumb.jpg`;
+        // Email clients don't render <video> inline (Gmail/Outlook strip it),
+        // so this is a thumbnail with a play button baked in that links out
+        // to the real file — same pattern every video-email tool (Loom,
+        // BombBomb) actually uses under the hood.
+        finalBody += `<p><a href="${videoUrl}"><img src="${thumbUrl}" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`;
       }
       await sendGmailFollowup(lead as Lead, resolvedSubject, finalBody);
       sent = true;
