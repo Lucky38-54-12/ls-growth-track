@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { coldEmailDraft } from "@/lib/templates";
+import { coldEmailDraft, buildingEmailDraft } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
 import { Lead } from "@/lib/types";
 import Link from "next/link";
@@ -11,6 +11,8 @@ import { pushNoteToPipeline } from "@/lib/quickNote";
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
 const PLACEHOLDER_HTML = "<p><em>Paste your notes and generate an email to preview it here.</em></p>";
+
+const BUILDER_TRADE_PATTERN = /build|renovat|construction/i;
 
 const LANDING_PAGES = [
   { key: "standard", label: "Standard", url: "https://lsgrowth.agency" },
@@ -31,6 +33,7 @@ export default function ColdCallPage() {
 
   const [callNotes, setCallNotes] = useState("");
   const [meetingDateTime, setMeetingDateTime] = useState("");
+  const [includeVideo, setIncludeVideo] = useState(false);
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -73,12 +76,26 @@ export default function ColdCallPage() {
   }
 
   function swapLandingPage(key: string) {
-    setSelectedPage(key);
-    const from = LANDING_PAGES.find(p => p.key !== key)?.url || "";
+    const from = LANDING_PAGES.find(p => p.key === selectedPage)?.url || "";
     const to = LANDING_PAGES.find(p => p.key === key)?.url || "";
-    if (!from || !to || !bodyRef.current) return;
+    setSelectedPage(key);
+    if (!from || !to || from === to || !bodyRef.current) return;
     bodyRef.current.innerHTML = bodyRef.current.innerHTML.split(from).join(to);
     setBodyHtml(bodyRef.current.innerHTML);
+  }
+
+  function selectBuildingTemplate() {
+    setSelectedPage("building");
+    const draft = buildingEmailDraft({
+      company: company || "[company]",
+      contact_name: contactName || "there",
+      trade: trade || "[trade]",
+      location: location || "[location]",
+    });
+    setSubject(draft.subject);
+    setBodyHtml(draft.bodyHtml);
+    setGenerated(true);
+    setPreviewVersion((v) => v + 1);
   }
 
   async function handleGenerate() {
@@ -157,7 +174,7 @@ export default function ColdCallPage() {
     const sendRes = await fetch(`/api/leads/${leadData.lead.lead_id}/followup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ callNotes, subject, bodyHtml: finalBodyHtml, meetingDateTime: meetingDateTime || undefined }),
+      body: JSON.stringify({ callNotes, subject, bodyHtml: finalBodyHtml, meetingDateTime: meetingDateTime || undefined, includeVideo: BUILDER_TRADE_PATTERN.test(trade) && includeVideo }),
     });
     const sendData = await sendRes.json();
     setLoading(false);
@@ -279,6 +296,13 @@ export default function ColdCallPage() {
                     Pulled from your notes if a time was agreed — check it's right. On send, this adds it to the calendar with a Google Meet link and invites {email || "their email"}, and fills any <code>[MEETING LINK]</code> placeholder in the email above. Leave blank if no meeting was booked.
                   </p>
                   <input type="datetime-local" value={meetingDateTime} onChange={(e) => setMeetingDateTime(e.target.value)} style={{ maxWidth: 280 }} />
+
+                  {BUILDER_TRADE_PATTERN.test(trade) && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13, color: L.text, cursor: "pointer" }}>
+                      <input type="checkbox" checked={includeVideo} onChange={(e) => setIncludeVideo(e.target.checked)} />
+                      Add Lucky's video intro to the confirmation email (this lead's a Builder)
+                    </label>
+                  )}
                 </div>
 
                 <div style={{ display: "flex", gap: 12 }}>
@@ -360,6 +384,15 @@ export default function ColdCallPage() {
                     }}
                   >{p.label}</button>
                 ))}
+                <button
+                  type="button"
+                  onClick={selectBuildingTemplate}
+                  style={{
+                    padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none", borderRadius: 0,
+                    background: selectedPage === "building" ? "var(--accent)" : "#f1f5f9",
+                    color: selectedPage === "building" ? "#fff" : L.muted,
+                  }}
+                >Building</button>
               </div>
             </div>
 

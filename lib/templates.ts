@@ -339,6 +339,50 @@ export function renderTemplate(
   return { subject, html, text };
 }
 
+// Fixed cold-outreach template for Builder-trade leads on the Cold Call
+// page's Link picker — separate from INDUSTRY_TEMPLATES/renderTemplate
+// (which drive the automated bulk sequence) so picking this option here
+// never affects the scheduled email-scheduler.ts sequence for other leads.
+// Carries Lucky's intro video thumbnail and always points the CTA at the
+// normal site (no dedicated /building landing page exists).
+const BUILDING_TEMPLATE: StepTemplate = {
+  subject: `A faster way for {{company}} to turn enquiries into booked jobs`,
+  html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+  <p>Hey {{contact_name}},</p>
+  <p>Quick one. Most {{trade}} businesses lose 70%+ of new enquiries simply because nobody gets back to them within the first hour, and by then they've already called someone else.</p>
+  <p>We run a lead gen + fast-follow-up system for trade businesses across NZ and Australia: new leads get a response in under 60 seconds, then the follow up sequence runs automatically.</p>
+  <p>{{personalization}}</p>
+  <p>Here's a quick video from me showing some real campaigns and results we've generated for businesses similar to yours.</p>
+  <p><a href="https://app.lsgrowth.agency/videos/lucky-intro.mp4"><img src="https://app.lsgrowth.agency/videos/lucky-intro-thumb.jpg" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>
+  <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
+  {{pixel}}
+</div>`,
+};
+
+export function buildingEmailDraft(data: {
+  company: string;
+  contact_name: string;
+  trade: string;
+  location: string;
+}): { subject: string; bodyHtml: string } {
+  const filled = BUILDING_TEMPLATE.html
+    .replace(/\{\{company\}\}/g, data.company)
+    .replace(/\{\{contact_name\}\}/g, data.contact_name)
+    .replace(/\{\{trade\}\}/g, data.trade)
+    .replace(/\{\{location\}\}/g, data.location)
+    .replace(/\{\{cta_link\}\}/g, "https://lsgrowth.agency/book")
+    .replace(/\{\{personalization\}\}/g, genericPersonalizationFallback(data));
+
+  const bodyHtml = filled
+    .replace(/^<div[^>]*>\n?/, "")
+    .replace(/<\/div>\s*\{\{pixel\}\}\s*$/, "")
+    .trim();
+
+  const subject = BUILDING_TEMPLATE.subject.replace(/\{\{company\}\}/g, data.company);
+  return { subject, bodyHtml };
+}
+
 export function coldEmailDraft(data: {
   company: string;
   contact_name: string;
