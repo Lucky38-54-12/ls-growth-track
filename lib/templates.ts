@@ -339,48 +339,42 @@ export function renderTemplate(
   return { subject, html, text };
 }
 
-// Fixed cold-outreach template for Builder-trade leads on the Cold Call
-// page's Link picker — separate from INDUSTRY_TEMPLATES/renderTemplate
-// (which drive the automated bulk sequence) so picking this option here
-// never affects the scheduled email-scheduler.ts sequence for other leads.
-// Carries Lucky's intro video thumbnail and always points the CTA at the
-// normal site (no dedicated /building landing page exists).
-const BUILDING_TEMPLATE: StepTemplate = {
-  subject: `A faster way for {{company}} to turn enquiries into booked jobs`,
-  html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
-  <p>Hey {{contact_name}},</p>
-  <p>Quick one. Most {{trade}} businesses lose 70%+ of new enquiries simply because nobody gets back to them within the first hour, and by then they've already called someone else.</p>
-  <p>We run a lead gen + fast-follow-up system for trade businesses across NZ and Australia: new leads get a response in under 60 seconds, then the follow up sequence runs automatically.</p>
-  <p>{{personalization}}</p>
-  <p>Here's a quick video from me showing some real campaigns and results we've generated for businesses similar to yours.</p>
-  <p><a href="https://app.lsgrowth.agency/videos/lucky-intro.mp4"><img src="https://app.lsgrowth.agency/videos/lucky-intro-thumb.jpg" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>
-  <p>Worth a <a href="{{cta_link}}">quick 15 min chat</a> to see if it'd be a fit for {{company}}?</p>
-  <p>Cheers,<br>Lucky<br>LS Growth</p>
-  {{pixel}}
-</div>`,
-};
-
+// Fixed meeting-confirmation-with-video template for Builder-trade leads,
+// used as a manual preview/insert on the Cold Call page's Link picker.
+// Mirrors generateCallEmail.ts's generateVideoIntroEmail word-for-word (that
+// function is what actually sends once a meeting's booked and the video
+// checkbox is ticked) — this is just a client-side, placeholder-filled
+// version of the same copy for previewing before a meeting exists yet.
+// sendGmailFollowup appends the "Cheers, Lucky, Founder, LS Growth..."
+// sign-off automatically, so it's deliberately left off here too.
 export function buildingEmailDraft(data: {
-  company: string;
   contact_name: string;
-  trade: string;
-  location: string;
+  meetingTime?: string;
+  meetingLink?: string;
+  recapLine?: string;
 }): { subject: string; bodyHtml: string } {
-  const filled = BUILDING_TEMPLATE.html
-    .replace(/\{\{company\}\}/g, data.company)
-    .replace(/\{\{contact_name\}\}/g, data.contact_name)
-    .replace(/\{\{trade\}\}/g, data.trade)
-    .replace(/\{\{location\}\}/g, data.location)
-    .replace(/\{\{cta_link\}\}/g, "https://lsgrowth.agency/book")
-    .replace(/\{\{personalization\}\}/g, genericPersonalizationFallback(data));
+  const contactName = data.contact_name && data.contact_name !== "there" ? data.contact_name : "";
+  const meetingTime = data.meetingTime || "[time]";
+  const meetingLink = data.meetingLink || "[Google Meet link]";
+  const recapLine = data.recapLine || "[what you discussed on the cold call / their current situation]";
 
-  const bodyHtml = filled
-    .replace(/^<div[^>]*>\n?/, "")
-    .replace(/<\/div>\s*\{\{pixel\}\}\s*$/, "")
-    .trim();
+  const bodyHtml = [
+    `<p>Hi${contactName ? ` ${contactName}` : ""},</p>`,
+    `<p>Looking forward to our chat tomorrow at ${meetingTime}.</p>`,
+    `<p>Here's the link to join:</p>`,
+    `<p><a href="${meetingLink}">${meetingLink}</a></p>`,
+    `<p>Just as a quick recap, ${recapLine}.</p>`,
+    `<p>Before the call, I also wanted to give you a quick look at what we actually do.</p>`,
+    `<p><a href="https://app.lsgrowth.agency/videos/lucky-intro.mp4"><img src="https://app.lsgrowth.agency/videos/lucky-intro-thumb.jpg" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`,
+    `<p>It's a short video showing some real campaigns and results we've generated for businesses similar to yours.</p>`,
+    `<p>I'll also spend some time before the call looking through your current setup, competitors and where I think there could be opportunities to bring in more work.</p>`,
+    `<p>I'll bring what I find to the call and walk you through it.</p>`,
+    `<p>The whole thing should only take around 10 to 15 minutes. Even if we decide there's nothing worth doing together, you'll have a few things you can take away from the conversation.</p>`,
+    `<p>If anything comes up and you need to shift the time, just flick me a text.</p>`,
+    `<p>Looking forward to it.</p>`,
+  ].join("\n");
 
-  const subject = BUILDING_TEMPLATE.subject.replace(/\{\{company\}\}/g, data.company);
-  return { subject, bodyHtml };
+  return { subject: "Looking forward to our chat tomorrow", bodyHtml };
 }
 
 export function coldEmailDraft(data: {

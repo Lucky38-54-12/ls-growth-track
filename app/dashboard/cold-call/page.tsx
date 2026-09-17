@@ -86,11 +86,20 @@ export default function ColdCallPage() {
 
   function selectBuildingTemplate() {
     setSelectedPage("building");
+    let meetingTime = "";
+    if (meetingDateTime) {
+      try {
+        meetingTime = new Intl.DateTimeFormat("en-NZ", { timeZone: "Pacific/Auckland", hour: "numeric", minute: "2-digit", hour12: true })
+          .format(new Date(meetingDateTime))
+          .replace(" ", "")
+          .toLowerCase();
+      } catch {
+        meetingTime = "";
+      }
+    }
     const draft = buildingEmailDraft({
-      company: company || "[company]",
       contact_name: contactName || "there",
-      trade: trade || "[trade]",
-      location: location || "[location]",
+      meetingTime: meetingTime || undefined,
     });
     setSubject(draft.subject);
     setBodyHtml(draft.bodyHtml);
