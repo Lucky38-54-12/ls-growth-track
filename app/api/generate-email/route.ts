@@ -22,6 +22,24 @@ function formatClockTime(meetingDatetime: string): string {
   return minute === "00" ? `${hour}${suffix}` : `${hour}:${minute}${suffix}`;
 }
 
+// "today" / "tomorrow" / weekday name — computed from the date part only
+// (both sides are naive NZ-local "YYYY-MM-DD" strings, so comparing them as
+// UTC-midnight dates avoids any timezone conversion bugs).
+function formatDayLabel(meetingDatetime: string): string {
+  const match = meetingDatetime.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return "";
+  const meetingDate = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+
+  const todayNZ = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland" }).format(new Date());
+  const [ty, tm, td] = todayNZ.split("-").map(Number);
+  const todayDate = Date.UTC(ty, tm - 1, td);
+
+  const dayDiff = Math.round((meetingDate - todayDate) / 86400000);
+  if (dayDiff === 0) return "today";
+  if (dayDiff === 1) return "tomorrow";
+  return new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", weekday: "long" }).format(meetingDate);
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { callNotes } = body;
@@ -230,11 +248,12 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     if (videoIntro) {
       const contactName = parsed.contact_name && parsed.contact_name !== "there" ? parsed.contact_name : "";
       const clockTime = formatClockTime(parsed.meeting_datetime) || "[time]";
+      const dayLabel = formatDayLabel(parsed.meeting_datetime) || "[day]";
       const recapLine = stripDashes(parsed.video_recap_line || "") || `we'll have a look at getting ${parsed.company || "your business"} more booked jobs`;
-      finalSubject = "Looking forward to our chat tomorrow";
+      finalSubject = `Looking forward to our chat ${dayLabel}`;
       finalBodyHtml = [
         `<p>Hi${contactName ? ` ${contactName}` : ""},</p>`,
-        `<p>Looking forward to our chat tomorrow at ${clockTime}.</p>`,
+        `<p>Looking forward to our chat ${dayLabel} at ${clockTime}.</p>`,
         `<p>Here's the link to join:</p>`,
         `<p>[MEETING LINK]</p>`,
         `<p>Just as a quick recap, ${recapLine}.</p>`,

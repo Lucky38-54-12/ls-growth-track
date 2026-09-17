@@ -2,6 +2,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 import { searchInboxByFrom, fetchMessageDetail } from "@/lib/gmail";
 import { Lead } from "@/lib/types";
 import { stripDashes, withWritingStyle } from "@/lib/ai";
+import { describeMeetingTime } from "@/lib/calendar";
 
 export async function generateCallFollowupEmail(
   lead: Lead,
@@ -115,17 +116,23 @@ Respond ONLY with valid JSON, no markdown:
 export async function generateVideoIntroEmail(
   lead: Lead,
   callNotes: string,
-  meetingTime: string,
+  meetingStartISO: string,
   hangoutLink: string
 ): Promise<{ subject: string; bodyHtml: string }> {
   const contactName = lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : "";
   const fallbackRecap = `we'll have a look at getting ${lead.company} more booked jobs`;
 
+  // e.g. "today at 3:30pm", "tomorrow at 10am", "Wednesday at 3:30pm" — the
+  // same day+time phrasing the rest of the app uses, instead of a hardcoded
+  // "tomorrow" that's wrong whenever the meeting isn't literally the next day.
+  const meetingLabel = describeMeetingTime(meetingStartISO);
+  const dayLabel = meetingLabel.split(" at ")[0];
+
   let recapLine = fallbackRecap;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (apiKey) {
     try {
-      const prompt = await withWritingStyle(`Write ONE short sentence recapping what a call tomorrow with a lead will cover, to slot into this template after "Just as a quick recap, ":
+      const prompt = await withWritingStyle(`Write ONE short sentence recapping what an upcoming call with a lead will cover, to slot into this template after "Just as a quick recap, ":
 
 "Just as a quick recap, {SENTENCE}."
 
@@ -172,7 +179,7 @@ Respond ONLY with valid JSON, no markdown:
 
   const bodyHtml = [
     `<p>Hi${contactName ? ` ${contactName}` : ""},</p>`,
-    `<p>Looking forward to our chat tomorrow at ${meetingTime}.</p>`,
+    `<p>Looking forward to our chat ${meetingLabel}.</p>`,
     `<p>Here's the link to join:</p>`,
     `<p><a href="${hangoutLink}">${hangoutLink}</a></p>`,
     `<p>Just as a quick recap, ${recapLine}.</p>`,
@@ -186,5 +193,5 @@ Respond ONLY with valid JSON, no markdown:
     `<p>Looking forward to it.</p>`,
   ].join("\n");
 
-  return { subject: "Looking forward to our chat tomorrow", bodyHtml };
+  return { subject: `Looking forward to our chat ${dayLabel}`, bodyHtml };
 }

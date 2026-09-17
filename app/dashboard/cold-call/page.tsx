@@ -87,18 +87,28 @@ export default function ColdCallPage() {
   function selectBuildingTemplate() {
     setSelectedPage("building");
     let meetingTime = "";
+    let dayLabel = "";
     if (meetingDateTime) {
       try {
+        const meetingDate = new Date(meetingDateTime);
         meetingTime = new Intl.DateTimeFormat("en-NZ", { timeZone: "Pacific/Auckland", hour: "numeric", minute: "2-digit", hour12: true })
-          .format(new Date(meetingDateTime))
+          .format(meetingDate)
           .replace(" ", "")
           .toLowerCase();
+
+        const dayKeyFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland" });
+        const dayDiff = Math.round((new Date(dayKeyFmt.format(meetingDate)).getTime() - new Date(dayKeyFmt.format(new Date())).getTime()) / 86400000);
+        if (dayDiff === 0) dayLabel = "today";
+        else if (dayDiff === 1) dayLabel = "tomorrow";
+        else dayLabel = new Intl.DateTimeFormat("en-NZ", { timeZone: "Pacific/Auckland", weekday: "long" }).format(meetingDate);
       } catch {
         meetingTime = "";
+        dayLabel = "";
       }
     }
     const draft = buildingEmailDraft({
       contact_name: contactName || "there",
+      dayLabel: dayLabel || undefined,
       meetingTime: meetingTime || undefined,
     });
     setSubject(draft.subject);

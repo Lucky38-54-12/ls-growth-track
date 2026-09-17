@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { createSupabaseClient } from "@/lib/supabase";
 import { sendGmailFollowup } from "@/lib/email";
-import { createBooking, fillMeetingLink, formatMeetingClockTime } from "@/lib/calendar";
+import { createBooking, fillMeetingLink } from "@/lib/calendar";
 import { Lead } from "@/lib/types";
 import { generateCallFollowupEmail, generateVideoIntroEmail } from "@/lib/generateCallEmail";
 import { statusTimestampUpdates } from "@/lib/leads";
@@ -75,8 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // invite email (sendUpdates: "all" in createBooking above), not
     // anything built/sent here.
     try {
-      const meetingTime = formatMeetingClockTime(meetingStartISO);
-      const videoEmail = await generateVideoIntroEmail(lead as Lead, callNotes || "", meetingTime, meetingLink);
+      const videoEmail = await generateVideoIntroEmail(lead as Lead, callNotes || "", meetingStartISO, meetingLink);
       await sendGmailFollowup(lead as Lead, videoEmail.subject, videoEmail.bodyHtml, "meeting_booked_video_intro");
       sent = true;
       updates.last_followup = today;

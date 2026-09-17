@@ -349,18 +349,20 @@ export function renderTemplate(
 // sign-off automatically, so it's deliberately left off here too.
 export function buildingEmailDraft(data: {
   contact_name: string;
+  dayLabel?: string;
   meetingTime?: string;
   meetingLink?: string;
   recapLine?: string;
 }): { subject: string; bodyHtml: string } {
   const contactName = data.contact_name && data.contact_name !== "there" ? data.contact_name : "";
+  const dayLabel = data.dayLabel || "[day]";
   const meetingTime = data.meetingTime || "[time]";
   const meetingLink = data.meetingLink || "[Google Meet link]";
   const recapLine = data.recapLine || "[what you discussed on the cold call / their current situation]";
 
   const bodyHtml = [
     `<p>Hi${contactName ? ` ${contactName}` : ""},</p>`,
-    `<p>Looking forward to our chat tomorrow at ${meetingTime}.</p>`,
+    `<p>Looking forward to our chat ${dayLabel} at ${meetingTime}.</p>`,
     `<p>Here's the link to join:</p>`,
     `<p><a href="${meetingLink}">${meetingLink}</a></p>`,
     `<p>Just as a quick recap, ${recapLine}.</p>`,
@@ -374,7 +376,7 @@ export function buildingEmailDraft(data: {
     `<p>Looking forward to it.</p>`,
   ].join("\n");
 
-  return { subject: "Looking forward to our chat tomorrow", bodyHtml };
+  return { subject: `Looking forward to our chat ${dayLabel}`, bodyHtml };
 }
 
 export function coldEmailDraft(data: {
