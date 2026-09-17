@@ -5,6 +5,23 @@ import { stripDashes } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
+// Kept in sync with the client-side pattern in app/dashboard/cold-call/page.tsx
+// and CallForm.tsx's isBuilderTrade check.
+const BUILDER_TRADE_PATTERN = /build|renovat|construction/i;
+
+// meeting_datetime comes back as "YYYY-MM-DDTHH:MM" already in NZ local time
+// (per the extraction prompt below), so this just reads the clock digits
+// directly rather than doing any timezone conversion.
+function formatClockTime(meetingDatetime: string): string {
+  const match = meetingDatetime.match(/T(\d{2}):(\d{2})/);
+  if (!match) return "";
+  let hour = parseInt(match[1], 10);
+  const minute = match[2];
+  const suffix = hour >= 12 ? "pm" : "am";
+  hour = hour % 12 || 12;
+  return minute === "00" ? `${hour}${suffix}` : `${hour}:${minute}${suffix}`;
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { callNotes } = body;
@@ -72,6 +89,7 @@ From the notes, extract:
 - phone: phone number if mentioned
 - date_called: date of the call if mentioned
 - meeting_datetime: if they agreed to a specific call/meeting day and time, work out the actual date (relative to today's date above) and return it as "YYYY-MM-DDTHH:MM" in 24-hour NZ local time (e.g. "2026-06-18T15:30"). Otherwise "".
+- video_recap_line: only if meeting_datetime was found, one short sentence (lowercase start, no trailing period, no more than 20 words) recapping what the upcoming call will cover, to slot into "Just as a quick recap, {SENTENCE}." Reflect what was actually discussed, not generic filler. Otherwise "".
 
 Use empty string "" if not found.
 
@@ -154,7 +172,7 @@ OUTPUT FORMAT
 
 Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks. Exactly this shape:
 
-{"company": "", "contact_name": "", "email": "", "trade": "", "location": "", "phone": "", "date_called": "", "meeting_datetime": "", "call_type": "MEETING_BOOKED | WANTS_INFO | NOT_READY_YET | GENERAL_FOLLOWUP", "subject": "", "bodyHtml": ""}`;
+{"company": "", "contact_name": "", "email": "", "trade": "", "location": "", "phone": "", "date_called": "", "meeting_datetime": "", "video_recap_line": "", "call_type": "MEETING_BOOKED | WANTS_INFO | NOT_READY_YET | GENERAL_FOLLOWUP", "subject": "", "bodyHtml": ""}`;
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -199,7 +217,37 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     const bodyHtml = stripDashes(parsed.bodyHtml);
 
     const caseStudyBlock = `<p>If you want to see some case studies, here's a link to our website:</p><p><a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>`;
-    const finalBodyHtml = parsed.call_type === "WANTS_INFO" ? bodyHtml + caseStudyBlock : bodyHtml;
+    let finalBodyHtml = parsed.call_type === "WANTS_INFO" ? bodyHtml + caseStudyBlock : bodyHtml;
+    let finalSubject = subject;
+
+    // Builder-trade leads with a meeting booked get Lucky's video-intro copy
+    // instead of the generic meeting-confirmation email — this only sets the
+    // default preview + auto-ticks the video checkbox client-side; the actual
+    // send (once a meeting's really booked) regenerates this fresh in
+    // generateVideoIntroEmail, so this just keeps the preview honest about
+    // what will go out.
+    const videoIntro = BUILDER_TRADE_PATTERN.test(parsed.trade || "") && parsed.call_type === "MEETING_BOOKED" && Boolean(parsed.meeting_datetime);
+    if (videoIntro) {
+      const contactName = parsed.contact_name && parsed.contact_name !== "there" ? parsed.contact_name : "";
+      const clockTime = formatClockTime(parsed.meeting_datetime) || "[time]";
+      const recapLine = stripDashes(parsed.video_recap_line || "") || `we'll have a look at getting ${parsed.company || "your business"} more booked jobs`;
+      finalSubject = "Looking forward to our chat tomorrow";
+      finalBodyHtml = [
+        `<p>Hi${contactName ? ` ${contactName}` : ""},</p>`,
+        `<p>Looking forward to our chat tomorrow at ${clockTime}.</p>`,
+        `<p>Here's the link to join:</p>`,
+        `<p>[MEETING LINK]</p>`,
+        `<p>Just as a quick recap, ${recapLine}.</p>`,
+        `<p>Before the call, I also wanted to give you a quick look at what we actually do.</p>`,
+        `<p><a href="https://app.lsgrowth.agency/videos/lucky-intro.mp4"><img src="https://app.lsgrowth.agency/videos/lucky-intro-thumb.jpg" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`,
+        `<p>It's a short video showing some real campaigns and results we've generated for businesses similar to yours.</p>`,
+        `<p>I'll also spend some time before the call looking through your current setup, competitors and where I think there could be opportunities to bring in more work.</p>`,
+        `<p>I'll bring what I find to the call and walk you through it.</p>`,
+        `<p>The whole thing should only take around 10 to 15 minutes. Even if we decide there's nothing worth doing together, you'll have a few things you can take away from the conversation.</p>`,
+        `<p>If anything comes up and you need to shift the time, just flick me a text.</p>`,
+        `<p>Looking forward to it.</p>`,
+      ].join("\n");
+    }
 
     return NextResponse.json({
       company: parsed.company || "",
@@ -209,7 +257,8 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       location: parsed.location || "",
       phone: parsed.phone || "",
       meetingDateTime: parsed.meeting_datetime || "",
-      subject,
+      videoIntro,
+      subject: finalSubject,
       bodyHtml: finalBodyHtml,
     });
   } catch (err: unknown) {

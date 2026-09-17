@@ -134,6 +134,7 @@ export default function ColdCallPage() {
       setMeetingDateTime(result.meetingDateTime || "");
       setSubject(result.subject);
       setBodyHtml(result.bodyHtml);
+      setIncludeVideo(Boolean(result.videoIntro));
       setGenerated(true);
       setPreviewVersion((v) => v + 1);
     } catch {
