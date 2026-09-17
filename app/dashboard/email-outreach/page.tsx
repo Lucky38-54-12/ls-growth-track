@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { Lead, Campaign, EmailSend, EmailEvent, EmailCheck, EngagementSummary } from "@/lib/types";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, labelForUrl } from "@/lib/format";
 import { stillHeld, nextStepFor, groupBySegment, segmentKey, segmentLabel } from "@/lib/leads";
 import { stripTrackingForDisplay } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
@@ -50,23 +50,6 @@ const EMAIL_COLUMNS: EmailColumn[] = [
   { key: "booked", label: "Booked" },
   { key: "lost", label: "Lost" },
 ];
-
-// /api/click stores the real destination on every click event (see
-// app/api/click/route.ts), so which specific link someone clicked has
-// always been recoverable — it just never surfaced anywhere. Distinguishing
-// "clicked to read case studies" from "clicked to book a time" is a real
-// intent signal worth showing separately, not collapsing into one generic
-// "clicked" count.
-function labelForUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    if (u.pathname.replace(/\/$/, "").endsWith("/book")) return "Book a time";
-    if (u.hostname.replace(/^www\./, "") === "lsgrowth.agency" && (u.pathname === "/" || u.pathname === "")) return "Case studies (lsgrowth.agency)";
-    return url.length > 60 ? url.slice(0, 57) + "…" : url;
-  } catch {
-    return url;
-  }
-}
 
 interface SendRow extends EmailSend {
   company: string;

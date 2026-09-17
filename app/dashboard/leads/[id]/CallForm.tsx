@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { EmailEvent, EmailSend, Lead } from "@/lib/types";
-import { deviceFromUserAgent, formatDateTime } from "@/lib/format";
+import { deviceFromUserAgent, formatDateTime, labelForUrl } from "@/lib/format";
 import { stripTrackingForDisplay } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
 
@@ -222,7 +222,7 @@ export default function CallForm({ lead, events, sends, sourceSheetUrl }: { lead
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 13, color: L.text }}>
-                        {isOpen ? "Opened email" : "Clicked link"}
+                        {isOpen ? "Opened email" : ev.url ? labelForUrl(ev.url) : "Clicked link"}
                       </div>
                       <div style={{ fontSize: 12, color: L.muted, marginTop: 1 }}>{formatDateTime(ev.created_at)}</div>
                       {!isOpen && ev.url && (

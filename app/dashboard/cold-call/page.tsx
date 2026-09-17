@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { coldEmailDraft, buildingEmailDraft } from "@/lib/templates";
+import { coldEmailDraft, insertVideoIntro } from "@/lib/templates";
 import Topbar from "@/components/Topbar";
 import { Lead } from "@/lib/types";
 import Link from "next/link";
@@ -84,36 +84,21 @@ export default function ColdCallPage() {
     setBodyHtml(bodyRef.current.innerHTML);
   }
 
+  // "Building" no longer swaps in a separate generic template — it keeps
+  // whatever email is already in the preview (the standard, notes-driven
+  // email from Generate) and just drops Lucky's video in near the end, so
+  // the personalized content from the actual call never gets thrown away.
   function selectBuildingTemplate() {
     setSelectedPage("building");
-    let meetingTime = "";
-    let dayLabel = "";
-    if (meetingDateTime) {
-      try {
-        const meetingDate = new Date(meetingDateTime);
-        meetingTime = new Intl.DateTimeFormat("en-NZ", { timeZone: "Pacific/Auckland", hour: "numeric", minute: "2-digit", hour12: true })
-          .format(meetingDate)
-          .replace(" ", "")
-          .toLowerCase();
-
-        const dayKeyFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland" });
-        const dayDiff = Math.round((new Date(dayKeyFmt.format(meetingDate)).getTime() - new Date(dayKeyFmt.format(new Date())).getTime()) / 86400000);
-        if (dayDiff === 0) dayLabel = "today";
-        else if (dayDiff === 1) dayLabel = "tomorrow";
-        else dayLabel = new Intl.DateTimeFormat("en-NZ", { timeZone: "Pacific/Auckland", weekday: "long" }).format(meetingDate);
-      } catch {
-        meetingTime = "";
-        dayLabel = "";
-      }
+    syncBodyFromPreview();
+    const current = bodyRef.current?.innerHTML || bodyHtml;
+    if (!current.trim() || !generated) {
+      setError("Generate the email from your call notes first, then click Building to add the video.");
+      return;
     }
-    const draft = buildingEmailDraft({
-      contact_name: contactName || "there",
-      dayLabel: dayLabel || undefined,
-      meetingTime: meetingTime || undefined,
-    });
-    setSubject(draft.subject);
-    setBodyHtml(draft.bodyHtml);
-    setGenerated(true);
+    setError("");
+    setBodyHtml(insertVideoIntro(current));
+    setIncludeVideo(true);
     setPreviewVersion((v) => v + 1);
   }
 

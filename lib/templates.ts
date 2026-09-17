@@ -339,44 +339,27 @@ export function renderTemplate(
   return { subject, html, text };
 }
 
-// Fixed meeting-confirmation-with-video template for Builder-trade leads,
-// used as a manual preview/insert on the Cold Call page's Link picker.
-// Mirrors generateCallEmail.ts's generateVideoIntroEmail word-for-word (that
-// function is what actually sends once a meeting's booked and the video
-// checkbox is ticked) — this is just a client-side, placeholder-filled
-// version of the same copy for previewing before a meeting exists yet.
-// sendGmailFollowup appends the "Cheers, Lucky, Founder, LS Growth..."
-// sign-off automatically, so it's deliberately left off here too.
-export function buildingEmailDraft(data: {
-  contact_name: string;
-  dayLabel?: string;
-  meetingTime?: string;
-  meetingLink?: string;
-  recapLine?: string;
-}): { subject: string; bodyHtml: string } {
-  const contactName = data.contact_name && data.contact_name !== "there" ? data.contact_name : "";
-  const dayLabel = data.dayLabel || "[day]";
-  const meetingTime = data.meetingTime || "[time]";
-  const meetingLink = data.meetingLink || "[Google Meet link]";
-  const recapLine = data.recapLine || "[what you discussed on the cold call / their current situation]";
+// The Lucky-intro video block, spliced into an already-generated email
+// rather than replacing it — see insertVideoIntro below. Keeping this as the
+// single source of the video HTML so the Cold Call page's "Building" button,
+// the /api/generate-email preview, and the real send in generateCallEmail.ts
+// all attach the exact same clip.
+export const VIDEO_INTRO_BLOCK = [
+  `<p>Before the call, I also wanted to give you a quick look at what we actually do.</p>`,
+  `<p><a href="https://app.lsgrowth.agency/videos/lucky-intro.mp4"><img src="https://app.lsgrowth.agency/videos/lucky-intro-thumb.jpg" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`,
+  `<p>It's a short video showing some real campaigns and results we've generated for businesses similar to yours.</p>`,
+].join("\n");
 
-  const bodyHtml = [
-    `<p>Hi${contactName ? ` ${contactName}` : ""},</p>`,
-    `<p>Looking forward to our chat ${dayLabel} at ${meetingTime}.</p>`,
-    `<p>Here's the link to join:</p>`,
-    `<p><a href="${meetingLink}">${meetingLink}</a></p>`,
-    `<p>Just as a quick recap, ${recapLine}.</p>`,
-    `<p>Before the call, I also wanted to give you a quick look at what we actually do.</p>`,
-    `<p><a href="https://app.lsgrowth.agency/videos/lucky-intro.mp4"><img src="https://app.lsgrowth.agency/videos/lucky-intro-thumb.jpg" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`,
-    `<p>It's a short video showing some real campaigns and results we've generated for businesses similar to yours.</p>`,
-    `<p>I'll also spend some time before the call looking through your current setup, competitors and where I think there could be opportunities to bring in more work.</p>`,
-    `<p>I'll bring what I find to the call and walk you through it.</p>`,
-    `<p>The whole thing should only take around 10 to 15 minutes. Even if we decide there's nothing worth doing together, you'll have a few things you can take away from the conversation.</p>`,
-    `<p>If anything comes up and you need to shift the time, just flick me a text.</p>`,
-    `<p>Looking forward to it.</p>`,
-  ].join("\n");
-
-  return { subject: `Looking forward to our chat ${dayLabel}`, bodyHtml };
+// Drops the video block in right before the email's last <p> (its closing
+// line) instead of overwriting the email — the previous "Building" template
+// replaced the whole personalized, notes-based body with a rigid generic
+// one, discarding whatever was actually said on the call. This way the
+// video rides along on top of whatever email already exists.
+export function insertVideoIntro(bodyHtml: string): string {
+  if (bodyHtml.includes("lucky-intro.mp4")) return bodyHtml;
+  const idx = bodyHtml.lastIndexOf("<p>");
+  if (idx === -1) return bodyHtml + VIDEO_INTRO_BLOCK;
+  return bodyHtml.slice(0, idx) + VIDEO_INTRO_BLOCK + bodyHtml.slice(idx);
 }
 
 export function coldEmailDraft(data: {

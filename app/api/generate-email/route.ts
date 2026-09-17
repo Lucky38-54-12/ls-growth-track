@@ -2,43 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { fetchWebsiteSnippet } from "@/lib/website";
 import { stripDashes } from "@/lib/ai";
+import { insertVideoIntro } from "@/lib/templates";
 
 export const dynamic = "force-dynamic";
 
 // Kept in sync with the client-side pattern in app/dashboard/cold-call/page.tsx
 // and CallForm.tsx's isBuilderTrade check.
 const BUILDER_TRADE_PATTERN = /build|renovat|construction/i;
-
-// meeting_datetime comes back as "YYYY-MM-DDTHH:MM" already in NZ local time
-// (per the extraction prompt below), so this just reads the clock digits
-// directly rather than doing any timezone conversion.
-function formatClockTime(meetingDatetime: string): string {
-  const match = meetingDatetime.match(/T(\d{2}):(\d{2})/);
-  if (!match) return "";
-  let hour = parseInt(match[1], 10);
-  const minute = match[2];
-  const suffix = hour >= 12 ? "pm" : "am";
-  hour = hour % 12 || 12;
-  return minute === "00" ? `${hour}${suffix}` : `${hour}:${minute}${suffix}`;
-}
-
-// "today" / "tomorrow" / weekday name — computed from the date part only
-// (both sides are naive NZ-local "YYYY-MM-DD" strings, so comparing them as
-// UTC-midnight dates avoids any timezone conversion bugs).
-function formatDayLabel(meetingDatetime: string): string {
-  const match = meetingDatetime.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!match) return "";
-  const meetingDate = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-
-  const todayNZ = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Auckland" }).format(new Date());
-  const [ty, tm, td] = todayNZ.split("-").map(Number);
-  const todayDate = Date.UTC(ty, tm - 1, td);
-
-  const dayDiff = Math.round((meetingDate - todayDate) / 86400000);
-  if (dayDiff === 0) return "today";
-  if (dayDiff === 1) return "tomorrow";
-  return new Intl.DateTimeFormat("en-NZ", { timeZone: "UTC", weekday: "long" }).format(meetingDate);
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -238,34 +208,16 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     let finalBodyHtml = parsed.call_type === "WANTS_INFO" ? bodyHtml + caseStudyBlock : bodyHtml;
     let finalSubject = subject;
 
-    // Builder-trade leads with a meeting booked get Lucky's video-intro copy
-    // instead of the generic meeting-confirmation email — this only sets the
-    // default preview + auto-ticks the video checkbox client-side; the actual
-    // send (once a meeting's really booked) regenerates this fresh in
+    // Builder-trade leads with a meeting booked get Lucky's video dropped
+    // into the standard MEETING_BOOKED email (case A above) rather than that
+    // email being thrown away for a generic fixed template — this only sets
+    // the default preview + auto-ticks the video checkbox client-side; the
+    // actual send (once a meeting's really booked) regenerates this fresh in
     // generateVideoIntroEmail, so this just keeps the preview honest about
     // what will go out.
     const videoIntro = BUILDER_TRADE_PATTERN.test(parsed.trade || "") && parsed.call_type === "MEETING_BOOKED" && Boolean(parsed.meeting_datetime);
     if (videoIntro) {
-      const contactName = parsed.contact_name && parsed.contact_name !== "there" ? parsed.contact_name : "";
-      const clockTime = formatClockTime(parsed.meeting_datetime) || "[time]";
-      const dayLabel = formatDayLabel(parsed.meeting_datetime) || "[day]";
-      const recapLine = stripDashes(parsed.video_recap_line || "") || `we'll have a look at getting ${parsed.company || "your business"} more booked jobs`;
-      finalSubject = `Looking forward to our chat ${dayLabel}`;
-      finalBodyHtml = [
-        `<p>Hi${contactName ? ` ${contactName}` : ""},</p>`,
-        `<p>Looking forward to our chat ${dayLabel} at ${clockTime}.</p>`,
-        `<p>Here's the link to join:</p>`,
-        `<p>[MEETING LINK]</p>`,
-        `<p>Just as a quick recap, ${recapLine}.</p>`,
-        `<p>Before the call, I also wanted to give you a quick look at what we actually do.</p>`,
-        `<p><a href="https://app.lsgrowth.agency/videos/lucky-intro.mp4"><img src="https://app.lsgrowth.agency/videos/lucky-intro-thumb.jpg" alt="A quick message from Lucky — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`,
-        `<p>It's a short video showing some real campaigns and results we've generated for businesses similar to yours.</p>`,
-        `<p>I'll also spend some time before the call looking through your current setup, competitors and where I think there could be opportunities to bring in more work.</p>`,
-        `<p>I'll bring what I find to the call and walk you through it.</p>`,
-        `<p>The whole thing should only take around 10 to 15 minutes. Even if we decide there's nothing worth doing together, you'll have a few things you can take away from the conversation.</p>`,
-        `<p>If anything comes up and you need to shift the time, just flick me a text.</p>`,
-        `<p>Looking forward to it.</p>`,
-      ].join("\n");
+      finalBodyHtml = insertVideoIntro(finalBodyHtml);
     }
 
     return NextResponse.json({
