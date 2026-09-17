@@ -142,6 +142,7 @@ Rules:
 - Reflect what was actually discussed on the call, not generic filler
 - One sentence only, no more than 20 words
 - Never describe the mechanism or process, just the outcome/topic
+- When referring to the business getting more work/jobs, refer to it as "you"/"your business" or by the company name (${lead.company}) — never by the contact person's first name. The contact is a person; the work goes to the company, not to them personally (e.g. "getting you more renovation work", not "getting [Name] more renovation work")
 
 Respond ONLY with valid JSON, no markdown:
 {"recapLine": ""}`);

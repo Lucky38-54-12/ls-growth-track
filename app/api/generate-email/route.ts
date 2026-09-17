@@ -89,7 +89,7 @@ From the notes, extract:
 - phone: phone number if mentioned
 - date_called: date of the call if mentioned
 - meeting_datetime: if they agreed to a specific call/meeting day and time, work out the actual date (relative to today's date above) and return it as "YYYY-MM-DDTHH:MM" in 24-hour NZ local time (e.g. "2026-06-18T15:30"). Otherwise "".
-- video_recap_line: only if meeting_datetime was found, one short sentence (lowercase start, no trailing period, no more than 20 words) recapping what the upcoming call will cover, to slot into "Just as a quick recap, {SENTENCE}." Reflect what was actually discussed, not generic filler. Otherwise "".
+- video_recap_line: only if meeting_datetime was found, one short sentence (lowercase start, no trailing period, no more than 20 words) recapping what the upcoming call will cover, to slot into "Just as a quick recap, {SENTENCE}." Reflect what was actually discussed, not generic filler. When referring to the business getting more work/jobs, refer to it as "you"/"your business" or by the company name — never by the contact person's first name (the work goes to the company, not the contact personally). Otherwise "".
 
 Use empty string "" if not found.
 
