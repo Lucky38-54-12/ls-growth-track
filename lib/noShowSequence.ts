@@ -1,5 +1,5 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
-import { sendGmailFollowup } from "./email";
+import { sendResendFollowup } from "./email";
 import { generateCallFollowupEmail } from "./generateCallEmail";
 import { checkEmailQuality } from "./ai";
 import { notifySlack } from "./slackNotify";
@@ -70,7 +70,7 @@ async function sendStep(sb: ReturnType<typeof createSupabaseClient>, lead: Lead,
     return false;
   }
 
-  await sendGmailFollowup(lead, generated.subject, generated.bodyHtml, "no_show_followup");
+  await sendResendFollowup(lead, generated.subject, generated.bodyHtml, "no_show_followup");
 
   await sb.from("leads").update({
     no_show_sequence_step: stepIndex + 1,

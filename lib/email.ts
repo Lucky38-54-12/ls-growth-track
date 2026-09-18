@@ -156,6 +156,34 @@ ${filledBody}
   await logSend(lead.lead_id, step, subject, html);
 }
 
+// Automated, cold, first-contact sequences (cold-call nudges, no-show
+// follow-ups, proposal follow-ups, the video-intro/meeting-confirmation
+// email) used to go through sendGmailFollowup below — but that's a scripted
+// send, via SMTP app-password, to strangers, on a cron, with a tracking
+// pixel and every link rewritten through a redirect domain. That exact
+// pattern is what got the original bulk campaign system moved off Gmail to
+// Resend in the first place (see BULK_FROM comment above); it just never
+// got applied to these other automated flows, and they started landing in
+// spam for the same underlying reason — Gmail's abuse detection reading a
+// personal account as running a mail blast. Same body/signature/tracking as
+// sendGmailFollowup, just sent through the authenticated outreach domain
+// instead of Lucky's personal inbox. Reserve sendGmailFollowup for sends
+// that are genuinely manual or to a lead who's already engaged (meeting
+// reminders, inbox replies, Brain drafts Lucky approves one at a time).
+export async function sendResendFollowup(lead: Lead, subject: string, bodyHtml: string, step: string = "custom") {
+  const { pixel, ctaLink } = buildLinks(lead.lead_id, step);
+  const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+${filledBody}
+  <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
+  <p><a href="https://lsgrowth.agency"><img src="${LOGO_URL}" alt="LS Growth" style="max-width:160px;height:auto;border:0;" /></a></p>
+  ${pixel}
+</div>`;
+  const text = htmlToText(filledBody);
+  await sendBulkMail({ to: lead.email, subject, html, text });
+  await logSend(lead.lead_id, step, subject, html);
+}
+
 // Same personal-Gmail send as sendGmailFollowup, minus the lead-tracking
 // pixel/CTA rewriting/logSend — for meeting attendees who booked directly on
 // the calendar and were never turned into a lead record (e.g. a title that

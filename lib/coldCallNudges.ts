@@ -1,5 +1,5 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
-import { sendGmailFollowup } from "./email";
+import { sendResendFollowup } from "./email";
 import { generateCallFollowupEmail } from "./generateCallEmail";
 import { checkEmailQuality } from "./ai";
 import { notifySlack } from "./slackNotify";
@@ -65,7 +65,7 @@ async function sendNudge(
     return false;
   }
 
-  await sendGmailFollowup(lead, generated.subject, generated.bodyHtml);
+  await sendResendFollowup(lead, generated.subject, generated.bodyHtml);
 
   const today = new Date().toISOString().split("T")[0];
   await sb.from("leads").update({
