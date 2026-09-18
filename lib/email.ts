@@ -56,7 +56,7 @@ function getZohoTransport() {
   });
 }
 
-async function sendBulkMail(opts: { to: string; subject: string; html: string; text: string }) {
+async function sendBulkMail(opts: { to: string; subject: string; html: string; text: string; bcc?: string }) {
   const { error } = await getResend().emails.send({
     from: BULK_FROM,
     to: opts.to,
@@ -64,6 +64,7 @@ async function sendBulkMail(opts: { to: string; subject: string; html: string; t
     html: opts.html,
     text: opts.text,
     reply_to: process.env.ZOHO_EMAIL_USER,
+    ...(opts.bcc ? { bcc: opts.bcc } : {}),
   });
   if (error) throw new Error(error.message);
 }
@@ -180,7 +181,11 @@ ${filledBody}
   ${pixel}
 </div>`;
   const text = htmlToText(filledBody);
-  await sendBulkMail({ to: lead.email, subject, html, text });
+  // Bcc Lucky's own Gmail so these per-lead cold-call/follow-up sends still
+  // show up in his inbox the way they did before moving off Gmail SMTP —
+  // he was checking his Sent folder for leads he'd just called and finding
+  // nothing there once these switched to Resend.
+  await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER });
   await logSend(lead.lead_id, step, subject, html);
 }
 
