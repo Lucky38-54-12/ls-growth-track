@@ -177,13 +177,17 @@ ${filledBody}
 // that are genuinely manual or to a lead who's already engaged (meeting
 // reminders, inbox replies, Brain drafts Lucky approves one at a time).
 export async function sendResendFollowup(lead: Lead, subject: string, bodyHtml: string, step: string = "custom") {
-  const { pixel, ctaLink } = buildLinks(lead.lead_id, step);
+  const { ctaLink } = buildLinks(lead.lead_id, step);
   const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
+  // No tracking pixel or logo <img> here (unlike the bulk campaign sender in
+  // sendBulkMail's other callers) — an embedded open-tracking pixel plus a
+  // logo image are exactly the signals Gmail's classifier reads as "this is
+  // a marketing email" and routes to Promotions regardless of from-name.
+  // Testing plain, image-free HTML for these one-to-one cold-call/follow-up
+  // sends specifically; open tracking is lost here as a result.
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
   <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
-  <p><a href="https://lsgrowth.agency"><img src="${LOGO_URL}" alt="LS Growth" style="max-width:160px;height:auto;border:0;" /></a></p>
-  ${pixel}
 </div>`;
   const text = htmlToText(filledBody);
   // Bcc Lucky's own Gmail so these per-lead cold-call/follow-up sends still
