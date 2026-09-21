@@ -328,7 +328,7 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           }
           await sendReminderSms(
             lead?.phone,
-            `Hey${contactName ? ` ${contactName}` : ""}, our meeting is in about 3 hours (${clockTime}).${row.hangout_link ? ` ${row.hangout_link}` : ""} — Lucky, LS Growth`
+            `Hey${contactName ? ` ${contactName}` : ""}, our meeting is in about 3 hours (${clockTime}).${row.hangout_link ? ` ${row.hangout_link}` : ""} - Lucky, LS Growth`
           );
         }
         await notifySlack(

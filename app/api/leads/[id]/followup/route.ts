@@ -84,7 +84,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const contactName = lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : "";
       await sendReminderSms(
         lead.phone,
-        `Hey${contactName ? ` ${contactName}` : ""}, it's Lucky from LS Growth — confirming our meeting on ${formatMeetingClockTime(meetingStartISO)}.${meetingLink ? ` ${meetingLink}` : ""}`
+        `Hey${contactName ? ` ${contactName}` : ""}, it's Lucky from LS Growth - confirming our meeting on ${formatMeetingClockTime(meetingStartISO)}.${meetingLink ? ` ${meetingLink}` : ""}`
       );
     } catch (e) {
       sendError = e instanceof Error ? e.message : "Send failed";
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           const contactName = lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : "";
           await sendReminderSms(
             lead.phone,
-            `Hey${contactName ? ` ${contactName}` : ""}, it's Lucky from LS Growth — confirming our meeting on ${formatMeetingClockTime(meetingStartISO)}.${meetingLink ? ` ${meetingLink}` : ""}`
+            `Hey${contactName ? ` ${contactName}` : ""}, it's Lucky from LS Growth - confirming our meeting on ${formatMeetingClockTime(meetingStartISO)}.${meetingLink ? ` ${meetingLink}` : ""}`
           );
         }
       } catch (e) {
