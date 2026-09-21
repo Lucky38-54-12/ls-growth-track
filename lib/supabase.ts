@@ -1,5 +1,28 @@
 import { createClient, PostgrestError } from "@supabase/supabase-js";
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// On a cold serverless invocation, env vars have occasionally not finished
+// injecting yet by the time this runs, throwing "supabaseUrl is required"
+// and aborting whatever route called it (daily-maintenance crashing before
+// any of its sub-jobs run, in particular). Retrying with a short backoff
+// covers that transient case without masking a genuinely missing env var —
+// it still throws after 3 tries.
+export async function createSupabaseClientAsync() {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return createSupabaseClient();
+    } catch (err) {
+      lastErr = err;
+      await sleep(250 * (attempt + 1));
+    }
+  }
+  throw lastErr;
+}
+
 export function createSupabaseClient() {
   return createClient(
     process.env.SUPABASE_URL!,

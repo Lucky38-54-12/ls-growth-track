@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase";
+import { createSupabaseClientAsync } from "@/lib/supabase";
 import { checkForReplies } from "@/lib/campaignReplies";
 import { syncAllTrackedSheets } from "@/lib/sheetSync";
 import { getHealthSnapshot } from "@/lib/leads";
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sb = createSupabaseClient();
+  const sb = await createSupabaseClientAsync();
 
   // The GitHub Actions trigger window is intentionally wide (see cron.yml)
   // to survive scheduling jitter, so this is what actually stops a second
