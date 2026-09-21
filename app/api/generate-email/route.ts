@@ -2,13 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { fetchWebsiteSnippet } from "@/lib/website";
 import { stripDashes } from "@/lib/ai";
-import { insertVideoIntro } from "@/lib/templates";
 
 export const dynamic = "force-dynamic";
-
-// Kept in sync with the client-side pattern in app/dashboard/cold-call/page.tsx
-// and CallForm.tsx's isBuilderTrade check.
-const BUILDER_TRADE_PATTERN = /build|renovat|construction/i;
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -205,21 +200,13 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     const bodyHtml = stripDashes(parsed.bodyHtml);
 
     const caseStudyBlock = `<p>If you want to see some case studies, here's a link to our website:</p><p><a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>`;
-    let finalBodyHtml = parsed.call_type === "WANTS_INFO" ? bodyHtml + caseStudyBlock : bodyHtml;
-    let finalSubject = subject;
+    const finalBodyHtml = parsed.call_type === "WANTS_INFO" ? bodyHtml + caseStudyBlock : bodyHtml;
+    const finalSubject = subject;
 
-    // Builder-trade leads with a meeting booked get Lucky's video dropped
-    // into the standard MEETING_BOOKED email (case A above) rather than that
-    // email being thrown away for a generic fixed template — this only sets
-    // the default preview + auto-ticks the video checkbox client-side; the
-    // actual send (once a meeting's really booked) regenerates this fresh in
-    // generateVideoIntroEmail, so this just keeps the preview honest about
-    // what will go out.
-    const videoIntro = BUILDER_TRADE_PATTERN.test(parsed.trade || "") && parsed.call_type === "MEETING_BOOKED" && Boolean(parsed.meeting_datetime);
-    if (videoIntro) {
-      finalBodyHtml = insertVideoIntro(finalBodyHtml);
-    }
-
+    // Video intro is opt-in only, via Lucky clicking "Building" — never
+    // auto-added here. It used to auto-tick for Builder-trade leads with a
+    // meeting booked, which was inserting the video into standard emails
+    // Lucky never asked for it on.
     return NextResponse.json({
       company: parsed.company || "",
       contact_name: parsed.contact_name || "",
@@ -228,7 +215,7 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
       location: parsed.location || "",
       phone: parsed.phone || "",
       meetingDateTime: parsed.meeting_datetime || "",
-      videoIntro,
+      videoIntro: false,
       subject: finalSubject,
       bodyHtml: finalBodyHtml,
     });
