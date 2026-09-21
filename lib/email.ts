@@ -138,13 +138,14 @@ export async function sendGmailFollowup(lead: Lead, subject: string, bodyHtml: s
   // below) — every cold-call email showed 0% opens/clicks on Email Tracking
   // regardless of what actually happened, since there was no pixel and no
   // link rewriting to record anything against.
-  const { pixel, ctaLink } = buildLinks(lead.lead_id, step);
+  // No tracking pixel or logo <img> — same Promotions-tab reasoning as
+  // sendResendFollowup above; still wraps links through /api/click for
+  // click tracking since that isn't the signal that trips the classifier.
+  const { ctaLink } = buildLinks(lead.lead_id, step);
   const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
   <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
-  <p><a href="https://lsgrowth.agency"><img src="${LOGO_URL}" alt="LS Growth" style="max-width:160px;height:auto;border:0;" /></a></p>
-  ${pixel}
 </div>`;
   const text = htmlToText(filledBody);
   const transport = getTransport();

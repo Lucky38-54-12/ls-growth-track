@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 import { createSupabaseClient } from "@/lib/supabase";
-import { sendResendFollowup } from "@/lib/email";
+import { sendGmailFollowup } from "@/lib/email";
 import { createBooking, fillMeetingLink } from "@/lib/calendar";
 import { Lead } from "@/lib/types";
 import { generateCallFollowupEmail, generateVideoIntroEmail } from "@/lib/generateCallEmail";
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // anything built/sent here.
     try {
       const videoEmail = await generateVideoIntroEmail(lead as Lead, callNotes || "", meetingStartISO, meetingLink);
-      await sendResendFollowup(lead as Lead, videoEmail.subject, videoEmail.bodyHtml, "meeting_booked_video_intro");
+      await sendGmailFollowup(lead as Lead, videoEmail.subject, videoEmail.bodyHtml, "meeting_booked_video_intro");
       sent = true;
       updates.last_followup = today;
       updates.followup_count = (lead.followup_count || 0) + 1;
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (resolvedSubject && resolvedBody) {
       try {
         const finalBody = fillMeetingLink(resolvedBody, meetingLink);
-        await sendResendFollowup(lead as Lead, resolvedSubject, finalBody, "meeting_booked_confirmation");
+        await sendGmailFollowup(lead as Lead, resolvedSubject, finalBody, "meeting_booked_confirmation");
         sent = true;
         updates.last_followup = today;
         updates.followup_count = (lead.followup_count || 0) + 1;
