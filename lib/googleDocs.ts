@@ -29,7 +29,16 @@ function buildFormattingRequests(markedText: string, insertAt: number, tabId?: s
   const lines = markedText.split("\n");
   let plainText = "";
   const titleRanges: { start: number; end: number; fontSize: number }[] = [];
-  const headingRanges: { start: number; end: number }[] = [];
+  // Every "## "-marked line collapses to the same single heading style (see
+  // below), but a top-level numbered section ("2) Fees (NZD)") that opens
+  // straight into numbered sub-points ("2.1 Trial Period...") with no intro
+  // sentence of its own then renders as two identical-looking bold lines
+  // back to back — reading as an empty section. Splitting top-level "N) "
+  // headings into their own slightly larger/underlined style fixes that by
+  // making the parent visually distinct from its sub-points, without adding
+  // a second real heading style.
+  const sectionHeadingRanges: { start: number; end: number }[] = [];
+  const subHeadingRanges: { start: number; end: number }[] = [];
 
   for (const rawLine of lines) {
     const isTitle = rawLine.startsWith("# ") && !rawLine.startsWith("## ");
@@ -45,7 +54,10 @@ function buildFormattingRequests(markedText: string, insertAt: number, tabId?: s
     plainText += line + "\n";
     const end = plainText.length - 1;
     if (isTitle) titleRanges.push({ start, end, fontSize: 20 });
-    else if (isHeading) headingRanges.push({ start, end });
+    else if (isHeading) {
+      const isTopLevelSection = /^\d+\)\s/.test(line);
+      (isTopLevelSection ? sectionHeadingRanges : subHeadingRanges).push({ start, end });
+    }
   }
 
   return [
@@ -67,14 +79,28 @@ function buildFormattingRequests(markedText: string, insertAt: number, tabId?: s
         fields: "spaceAbove,spaceBelow",
       },
     })),
-    ...headingRanges.map((r) => ({
+    ...sectionHeadingRanges.map((r) => ({
+      updateTextStyle: {
+        range: range(insertAt + r.start, insertAt + r.end, tabId),
+        textStyle: { bold: true, underline: true, fontSize: { magnitude: 13, unit: "PT" } },
+        fields: "bold,underline,fontSize",
+      },
+    })),
+    ...sectionHeadingRanges.map((r) => ({
+      updateParagraphStyle: {
+        range: range(insertAt + r.start, insertAt + r.end, tabId),
+        paragraphStyle: { spaceAbove: { magnitude: 18, unit: "PT" }, spaceBelow: { magnitude: 6, unit: "PT" } },
+        fields: "spaceAbove,spaceBelow",
+      },
+    })),
+    ...subHeadingRanges.map((r) => ({
       updateTextStyle: {
         range: range(insertAt + r.start, insertAt + r.end, tabId),
         textStyle: { bold: true },
         fields: "bold",
       },
     })),
-    ...headingRanges.map((r) => ({
+    ...subHeadingRanges.map((r) => ({
       updateParagraphStyle: {
         range: range(insertAt + r.start, insertAt + r.end, tabId),
         paragraphStyle: { spaceAbove: { magnitude: 14, unit: "PT" }, spaceBelow: { magnitude: 4, unit: "PT" } },
