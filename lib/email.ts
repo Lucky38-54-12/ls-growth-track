@@ -22,7 +22,12 @@ const LOGO_URL = `${APP_URL}/logo.png`;
 // the signals Gmail's classifier weighs when deciding Primary vs Promotions.
 // A plain personal name costs nothing (the from address and domain, which
 // are what actually carry SPF/DKIM auth, are unchanged) and is a safer bet.
-const BULK_FROM = "Lucky <outreach@lsgrowth.agency>";
+// Switched the local-part from outreach@ to lucky@ on 2026-09-21 after a real
+// send from outreach@ landed in Promotions — "outreach" reads as a mailing
+// list/broadcast address to Gmail's classifier even with a personal display
+// name attached. Still Resend on the verified domain, not personal Gmail
+// SMTP, so this doesn't reintroduce the account-suspension risk above.
+const BULK_FROM = "Lucky <lucky@lsgrowth.agency>";
 // Constructed lazily, not at module scope — this file gets imported (and
 // therefore evaluated) by every route that touches it during Next's build-time
 // "collecting page data" pass, including ones that never send bulk email. A
