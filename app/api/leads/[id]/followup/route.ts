@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { createSupabaseClient } from "@/lib/supabase";
 import { sendResendFollowup } from "@/lib/email";
-import { createBooking, fillMeetingLink } from "@/lib/calendar";
+import { sendReminderSms } from "@/lib/sms";
+import { createBooking, fillMeetingLink, formatMeetingClockTime } from "@/lib/calendar";
 import { Lead } from "@/lib/types";
 import { generateCallFollowupEmail, generateVideoIntroEmail } from "@/lib/generateCallEmail";
 import { statusTimestampUpdates } from "@/lib/leads";
@@ -80,6 +81,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       sent = true;
       updates.last_followup = today;
       updates.followup_count = (lead.followup_count || 0) + 1;
+      const contactName = lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : "";
+      await sendReminderSms(
+        lead.phone,
+        `Hey${contactName ? ` ${contactName}` : ""}, it's Lucky from LS Growth — confirming our meeting on ${formatMeetingClockTime(meetingStartISO)}.${meetingLink ? ` ${meetingLink}` : ""}`
+      );
     } catch (e) {
       sendError = e instanceof Error ? e.message : "Send failed";
     }
@@ -102,6 +108,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         sent = true;
         updates.last_followup = today;
         updates.followup_count = (lead.followup_count || 0) + 1;
+        if (meetingBooked) {
+          const contactName = lead.contact_name && lead.contact_name !== "there" ? lead.contact_name : "";
+          await sendReminderSms(
+            lead.phone,
+            `Hey${contactName ? ` ${contactName}` : ""}, it's Lucky from LS Growth — confirming our meeting on ${formatMeetingClockTime(meetingStartISO)}.${meetingLink ? ` ${meetingLink}` : ""}`
+          );
+        }
       } catch (e) {
         sendError = e instanceof Error ? e.message : "Send failed";
       }

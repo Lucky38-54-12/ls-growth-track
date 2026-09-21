@@ -302,10 +302,9 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           } else if (row.attendee_email) {
             await sendPlainBookings(row.attendee_email, subject, finalBody.replace(/\{\{CTA_LINK\}\}/g, BOOKING_URL));
           }
-          await sendReminderSms(
-            lead?.phone,
-            `Hey${contactName ? ` ${contactName}` : ""}, reminder from Lucky (LS Growth) — our meeting is tomorrow at ${clockTime}.${row.hangout_link ? ` ${row.hangout_link}` : ""}`
-          );
+          // No SMS here — texts only go out when Lucky sends the initial
+          // confirmation email (see the followup route) and again 3 hours
+          // before the meeting below, not on this day-before touch.
         }
         await notifySlack(
           skipRecentSend
