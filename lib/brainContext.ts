@@ -667,7 +667,7 @@ export async function buildBrainContext(userQuestion: string, recentUserMessages
     withTimeout(summarizeSalesCalls(sb).catch(() => "Sales call data unavailable."), "Sales call data unavailable."),
     withTimeout(summarizeCampaignsAndRevenue(sb).catch(() => "Campaign/revenue data unavailable."), "Campaign/revenue data unavailable."),
     withTimeout(summarizeLearnings(sb), ""),
-    withTimeout(agreementTemplateSummary(sb, userQuestion).catch(() => ""), ""),
+    withTimeout(agreementTemplateSummary(sb, matchContext).catch(() => ""), ""),
     withTimeout(campaignBriefSummary(sb, matchContext).catch(() => ""), ""),
     withTimeout(adLearningsSummary(sb, matchContext).catch(() => ""), ""),
   ]);
