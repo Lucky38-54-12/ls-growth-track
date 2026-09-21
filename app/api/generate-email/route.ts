@@ -128,7 +128,7 @@ A) MEETING_BOOKED:
 
 B) WANTS_INFO:
 - Open by referencing exactly what they asked for
-- Give them what they need or point them to it. If what they asked for was case studies, proof, or examples of results specifically, say so plainly (e.g. "You asked about seeing some case studies") — a case-studies link is appended after your text automatically, so your job is just to acknowledge that's what they wanted, never skip past their actual request into something generic
+- Give them what they need or point them to it directly in the email — never say a case-studies link or anything else is "appended automatically" or coming separately, nothing gets added after your text
 - One soft CTA link to https://lsgrowth.agency/book
 - Don't push hard
 
@@ -199,9 +199,6 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     const subject = stripDashes(parsed.subject);
     const bodyHtml = stripDashes(parsed.bodyHtml);
 
-    // No case-study block appended here anymore — every send now gets a
-    // "check out our case studies" link in its signature (see lib/email.ts),
-    // so adding one here too for WANTS_INFO leads would duplicate it.
     const finalBodyHtml = bodyHtml;
     const finalSubject = subject;
 

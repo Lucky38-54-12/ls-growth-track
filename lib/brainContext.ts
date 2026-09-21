@@ -3,6 +3,7 @@ import { getHealthSnapshot, computeSegmentSaturation } from "./leads";
 import { searchDriveDocs, readGoogleDocText } from "./googleDocs";
 import { listCalendarEvents, getDayRangeUTC } from "./calendar";
 import { readLeadSheet, getSheetTitle, hasCallInfo } from "./sheets";
+import { htmlToText } from "./templates";
 import { searchInboxByKeyword } from "./gmail";
 import { getCampaignInsights } from "./metaAds";
 import { findWorkingAds } from "./adResearch";
@@ -82,9 +83,9 @@ function significantWords(text: string): string[] {
 // matching contact_name too is what actually resolves a name to a lead.
 // Uses word-boundary regex (imatch), not ilike substring — "gav" must match
 // a whole word, not silently substring-match some unrelated longer word.
-async function matchingLeads(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string): Promise<string> {
+async function matchingLeads(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string, extraEmails: string[] = []): Promise<string> {
   const words = significantWords(userQuestion);
-  if (words.length === 0) return "";
+  if (words.length === 0 && extraEmails.length === 0) return "";
 
   const seen = new Map<string, { lead_id: string; company: string; contact_name: string; email: string; status: string; notes: string | null; text_notes: string | null }>();
   for (const word of words.slice(0, 6)) {
@@ -97,14 +98,52 @@ async function matchingLeads(sb: ReturnType<typeof createSupabaseClient>, userQu
     for (const row of data || []) seen.set(row.lead_id, row);
     if (seen.size >= 8) break;
   }
+
+  // Word matching alone misses a lead whenever the question only uses a
+  // pronoun ("notes from last time I talked to him") or misspells the name
+  // ("jonathon" vs "Jonathan") — but if today's calendar already resolved a
+  // real attendee email for that meeting, match on it directly so notes
+  // still surface even though the name-matching above found nothing.
+  if (extraEmails.length > 0 && seen.size < 8) {
+    const { data } = await sb
+      .from("leads")
+      .select("lead_id, company, contact_name, email, status, notes, text_notes")
+      .in("email", extraEmails)
+      .limit(8);
+    for (const row of data || []) seen.set(row.lead_id, row);
+  }
+
   if (seen.size === 0) return "";
+
+  // Notes capture what was SAID on the call, but a discovery-call script or
+  // a "what have we already sent this lead" question also needs what was
+  // actually EMAILED — that content only lives in email_sends (lib/email.ts
+  // inserts a row there on every real send), never on the lead record
+  // itself, so without this a matched lead would show notes but the Brain
+  // would have no idea a follow-up already went out or what it said.
+  const leadIds = Array.from(seen.keys());
+  const emailsByLead = new Map<string, { lead_id: string; step: string; subject: string; body_html: string; sent_at: string }[]>();
+  const { data: sends } = await sb
+    .from("email_sends")
+    .select("lead_id, step, subject, body_html, sent_at")
+    .in("lead_id", leadIds)
+    .order("sent_at", { ascending: false })
+    .limit(40);
+  for (const row of sends || []) {
+    if (!emailsByLead.has(row.lead_id)) emailsByLead.set(row.lead_id, []);
+    emailsByLead.get(row.lead_id)!.push(row);
+  }
 
   return Array.from(seen.values())
     .map((l) => {
       const base = `lead_id: ${l.lead_id} | company: ${l.company} | contact: ${l.contact_name || "unknown"} | email: ${l.email} | status: ${l.status}`;
       const callNotes = l.notes?.trim() ? `\n  Call notes: ${l.notes.trim()}` : "";
       const textNotes = l.text_notes?.trim() ? `\n  Text/WhatsApp notes: ${l.text_notes.trim()}` : "";
-      return `${base}${callNotes}${textNotes}`;
+      const pastEmails = (emailsByLead.get(l.lead_id) || []).slice(0, 5)
+        .map((e) => `    - [${e.sent_at.slice(0, 10)}, ${e.step}] "${e.subject}": ${htmlToText(e.body_html || "").slice(0, 300).replace(/\n+/g, " ")}`)
+        .join("\n");
+      const emailHistory = pastEmails ? `\n  Emails already sent to this lead:\n${pastEmails}` : "";
+      return `${base}${callNotes}${textNotes}${emailHistory}`;
     })
     .join("\n");
 }
@@ -280,7 +319,13 @@ function questionWords(userQuestion: string): string[] {
 // met them. Past events are just as useful context as upcoming ones for
 // "who is X" / "what did we agree" questions. 30 days comfortably covers
 // "last week" asks without the context block growing unbounded.
-async function upcomingCalendarSummary(): Promise<string> {
+// Returns both the formatted summary text AND the raw attendee emails, so a
+// lead's notes can be found even when the current question never repeats
+// their name (a bare pronoun follow-up like "him", or a misspelled name that
+// fails matchingLeads()'s word-boundary match) — the meeting already told us
+// who "him" is, so use that email to look the lead up directly rather than
+// relying on the question's wording alone.
+async function upcomingCalendarSummary(): Promise<{ summary: string; attendeeEmails: string[] }> {
   try {
     const timeZone = "Pacific/Auckland";
     const now = new Date();
@@ -289,8 +334,8 @@ async function upcomingCalendarSummary(): Promise<string> {
     const rangeStart = new Date(new Date(todayStartISO).getTime() - 30 * 24 * 60 * 60 * 1000);
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const events = await listCalendarEvents(rangeStart.toISOString(), in7Days.toISOString());
-    if (events.length === 0) return "Nothing on the calendar from the last 30 days through the next 7.";
-    return events
+    if (events.length === 0) return { summary: "Nothing on the calendar from the last 30 days through the next 7.", attendeeEmails: [] };
+    const summary = events
       .map((e) => {
         const when = e.allDay
           ? e.startISO.slice(0, 10)
@@ -304,9 +349,11 @@ async function upcomingCalendarSummary(): Promise<string> {
         return `${when}${past}: ${e.summary}${who}`;
       })
       .join("\n");
+    const attendeeEmails = Array.from(new Set(events.map((e) => e.attendeeEmail).filter((e): e is string => !!e)));
+    return { summary, attendeeEmails };
   } catch {
     // Calendar auth/quota issues should never block the rest of the answer.
-    return "";
+    return { summary: "", attendeeEmails: [] };
   }
 }
 
@@ -604,13 +651,15 @@ export async function buildBrainContext(userQuestion: string, recentUserMessages
   const sb = createSupabaseClient();
   const matchContext = [...recentUserMessages.slice(-4), userQuestion].join(" ");
 
-  const [leadsSummary, matchedLeads, clientsSummary, automationsSummary, driveDocs, calendarSummary, sheetsSummary, inboxSummary, adsSummary, adResearch, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate, campaignBrief, adLearnings] = await Promise.all([
+  const calendarPromise = withTimeout(upcomingCalendarSummary(), { summary: "", attendeeEmails: [] as string[] });
+
+  const [leadsSummary, matchedLeads, clientsSummary, automationsSummary, driveDocs, calendarResult, sheetsSummary, inboxSummary, adsSummary, adResearch, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate, campaignBrief, adLearnings] = await Promise.all([
     withTimeout(summarizeLeads(sb).catch(() => "Lead data unavailable."), "Lead data unavailable."),
-    withTimeout(matchingLeads(sb, matchContext).catch(() => ""), ""),
+    calendarPromise.then((c) => withTimeout(matchingLeads(sb, matchContext, c.attendeeEmails).catch(() => ""), "")),
     withTimeout(summarizeClients(sb).catch(() => "Client data unavailable."), "Client data unavailable."),
     withTimeout(summarizeAutomations(sb).catch(() => "Automation data unavailable."), "Automation data unavailable."),
     withTimeout(relevantDriveDocs(userQuestion), ""),
-    withTimeout(upcomingCalendarSummary(), ""),
+    calendarPromise,
     withTimeout(matchingSheets(sb, matchContext), ""),
     withTimeout(inboxSearchSummary(userQuestion), ""),
     withTimeout(metaAdsSummary(sb, matchContext), ""),
@@ -637,7 +686,7 @@ export async function buildBrainContext(userQuestion: string, recentUserMessages
     `ONBOARDED CLIENTS (use the exact client_id here when setting up a campaign brief, never invent one):\n${clientsSummary}`,
     `AUTOMATIONS STATUS:\n${automationsSummary}`,
     driveDocs ? `RELEVANT GOOGLE DOCS (found via live Drive search, may not be exhaustive):\n${driveDocs}` : "",
-    calendarSummary ? `CALENDAR (last 30 days through next 7, "(past)" marks ones already happened):\n${calendarSummary}` : "",
+    calendarResult.summary ? `CALENDAR (last 30 days through next 7, "(past)" marks ones already happened):\n${calendarResult.summary}` : "",
     sheetsSummary ? `COLD-CALL SHEETS:\n${sheetsSummary}` : "",
     inboxSummary ? `INBOX SEARCH RESULTS (subject match, may not be exhaustive):\n${inboxSummary}` : "",
     adsSummary ? `META ADS (last 30 days):\n${adsSummary}` : "",

@@ -152,7 +152,6 @@ export async function sendGmailFollowup(lead: Lead, subject: string, bodyHtml: s
   const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
-  <p>In the meantime, if you want to look at some case studies, here you go: <a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>
   <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
 </div>`;
   const text = htmlToText(filledBody);
@@ -196,7 +195,6 @@ export async function sendResendFollowup(lead: Lead, subject: string, bodyHtml: 
   // sends specifically; open tracking is lost here as a result.
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
-  <p>In the meantime, if you want to look at some case studies, here you go: <a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>
   <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
 </div>`;
   const text = htmlToText(filledBody);
