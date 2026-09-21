@@ -1,12 +1,12 @@
 import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { generateLeadId } from "./leads";
 import { generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from "./ai";
-// Meeting logistics (confirmation, day-before reminder, 2-hours-before
-// reminder) go through Lucky's personal Gmail, not outreach@lsgrowth.agency —
-// these are one-to-one conversations with someone who already booked a real
-// call, not cold outreach, and mixing them into the same Resend/outreach
-// mailbox as the campaign sequence would make that inbox messy for no reason.
-import { sendGmailFollowup, sendPlainGmail, BOOKING_URL } from "./email";
+// Meeting reminders (day-before, 3-hours-before) go through
+// bookings@lsgrowth.agency via Resend — a dedicated identity separate from
+// both the cold-outreach and cold-call-follow-up addresses (see BOOKINGS_FROM
+// comment in lib/email.ts), since this is transactional logistics mail to
+// someone who already booked a real call, not cold outreach.
+import { sendBookingsFollowup, sendPlainBookings, BOOKING_URL } from "./email";
 import { listUpcomingBookings, formatMeetingClockTime, fillMeetingLink, CalendarBooking } from "./calendar";
 import { notifySlack } from "./slackNotify";
 import { Lead } from "./types";
@@ -205,6 +205,18 @@ const DAY_BEFORE_HOUR = 19; // 7pm local, the evening before the meeting
 const DAY_BEFORE_CUTOFF_HOUR = 21; // 9pm local — stop trying after this
 const SAME_DAY_LEAD_MINUTES = 180; // 3 hours before the meeting
 const SAME_DAY_WINDOW_MINUTES = 15; // pads the 180min mark so a run isn't required to land exactly on it; isSameDayDue below also catches up late if a run lands after it
+// If Lucky already sent this lead something (a manual call-logged
+// confirmation, most often) within this window, skip the reminder touch
+// rather than pepper them with a second email hours later for the same
+// meeting — the *_email_sent_at column still gets marked so it doesn't
+// retry every 15 minutes for the rest of the window.
+const RECENT_SEND_SKIP_HOURS = 12;
+
+async function hasRecentSend(sb: ReturnType<typeof createSupabaseClient>, leadId: string, hours: number): Promise<boolean> {
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  const { data } = await sb.from("email_sends").select("id").eq("lead_id", leadId).gt("sent_at", since).limit(1);
+  return Boolean(data && data.length);
+}
 
 // Sends the two reminder emails around a booked meeting: a simple heads-up
 // at 7pm the evening before, and a simple heads-up 3 hours before the
@@ -259,7 +271,7 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
       // Lead is optional now — bookings that never matched the "meet/call
       // with X" pattern (see findOrCreateLead) still have an attendee_email
       // from the calendar invite and still get reminded, they just don't
-      // go through the lead-tracking pixel/CTA rewriting sendGmailFollowup
+      // go through the lead-tracking CTA rewriting sendBookingsFollowup
       // does. Lucky gets a Slack ping either way so nothing on his calendar
       // is silently unreminded, lead or not.
       const lead = row.lead_id ? await sb.from("leads").select("*").eq("lead_id", row.lead_id).maybeSingle().then((r) => r.data as Lead | null) : null;
@@ -274,8 +286,10 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
       // spam" banner, which reads as untrustworthy — plain reminder text is
       // safer here even though it's easier to skim past.
 
+      const skipRecentSend = lead ? await hasRecentSend(sb, lead.lead_id, RECENT_SEND_SKIP_HOURS) : false;
+
       if (isDayBeforeDue) {
-        if (lead || row.attendee_email) {
+        if (!skipRecentSend && (lead || row.attendee_email)) {
           const { subject, bodyHtml } = await generateDayBeforeReminderEmail({
             company: lead?.company || label,
             contactName,
@@ -283,16 +297,20 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           });
           const finalBody = fillMeetingLink(bodyHtml, row.hangout_link || "");
           if (lead) {
-            await sendGmailFollowup(lead, subject, finalBody, "meeting_day_before_reminder");
+            await sendBookingsFollowup(lead, subject, finalBody, "meeting_day_before_reminder");
           } else if (row.attendee_email) {
-            await sendPlainGmail(row.attendee_email, subject, finalBody.replace(/\{\{CTA_LINK\}\}/g, BOOKING_URL));
+            await sendPlainBookings(row.attendee_email, subject, finalBody.replace(/\{\{CTA_LINK\}\}/g, BOOKING_URL));
           }
         }
-        await notifySlack(`📅 Reminder sent: *${label}* is tomorrow at ${clockTime}.`);
+        await notifySlack(
+          skipRecentSend
+            ? `📅 Skipped day-before reminder for *${label}* (tomorrow at ${clockTime}) — already emailed them within the last ${RECENT_SEND_SKIP_HOURS}h.`
+            : `📅 Reminder sent: *${label}* is tomorrow at ${clockTime}.`
+        );
         await sb.from("calendar_bookings").update({ day_before_email_sent_at: new Date().toISOString() }).eq("event_id", row.event_id);
         dayBeforeSent++;
       } else {
-        if (lead || row.attendee_email) {
+        if (!skipRecentSend && (lead || row.attendee_email)) {
           const { subject, bodyHtml } = await generateMeetingDayReminderEmail({
             company: lead?.company || label,
             contactName,
@@ -300,12 +318,16 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           });
           const finalBody = fillMeetingLink(bodyHtml, row.hangout_link || "");
           if (lead) {
-            await sendGmailFollowup(lead, subject, finalBody, "meeting_day_reminder");
+            await sendBookingsFollowup(lead, subject, finalBody, "meeting_day_reminder");
           } else if (row.attendee_email) {
-            await sendPlainGmail(row.attendee_email, subject, finalBody);
+            await sendPlainBookings(row.attendee_email, subject, finalBody);
           }
         }
-        await notifySlack(`📅 Heads up: *${label}* is in ~3 hours (${clockTime})${row.hangout_link ? ` — ${row.hangout_link}` : ""}.`);
+        await notifySlack(
+          skipRecentSend
+            ? `📅 Skipped same-day reminder for *${label}* (in ~3 hours) — already emailed them within the last ${RECENT_SEND_SKIP_HOURS}h.`
+            : `📅 Heads up: *${label}* is in ~3 hours (${clockTime})${row.hangout_link ? ` — ${row.hangout_link}` : ""}.`
+        );
         await sb.from("calendar_bookings").update({ reminder_email_sent_at: new Date().toISOString() }).eq("event_id", row.event_id);
         reminderSent++;
       }

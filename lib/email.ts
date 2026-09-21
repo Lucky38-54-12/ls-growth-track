@@ -28,6 +28,13 @@ const LOGO_URL = `${APP_URL}/logo.png`;
 // name attached. Still Resend on the verified domain, not personal Gmail
 // SMTP, so this doesn't reintroduce the account-suspension risk above.
 const BULK_FROM = "Lucky <lucky@lsgrowth.agency>";
+// Meeting reminders (day-before, day-of) get their own identity, separate
+// from both outreach@ (bulk sequences) and lucky@ (one-to-one cold-call
+// follow-ups) — these are transactional/logistics mail to someone who
+// already booked, a different content pattern than cold outreach, and
+// mixing it into either of those sender histories would drag its
+// reputation down with whatever the other one is doing.
+const BOOKINGS_FROM = "Lucky <bookings@lsgrowth.agency>";
 // Constructed lazily, not at module scope — this file gets imported (and
 // therefore evaluated) by every route that touches it during Next's build-time
 // "collecting page data" pass, including ones that never send bulk email. A
@@ -61,9 +68,9 @@ function getZohoTransport() {
   });
 }
 
-async function sendBulkMail(opts: { to: string; subject: string; html: string; text: string; bcc?: string }) {
+async function sendBulkMail(opts: { to: string; subject: string; html: string; text: string; bcc?: string; from?: string }) {
   const { error } = await getResend().emails.send({
-    from: BULK_FROM,
+    from: opts.from || BULK_FROM,
     to: opts.to,
     subject: opts.subject,
     html: opts.html,
@@ -197,6 +204,35 @@ ${filledBody}
   // nothing there once these switched to Resend.
   await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER });
   await logSend(lead.lead_id, step, subject, html);
+}
+
+// Meeting reminders (day-before, day-of) — bookings@lsgrowth.agency via
+// Resend, kept separate from sendResendFollowup's lucky@ address (see
+// BOOKINGS_FROM comment). No pixel/logo for the same Promotions-tab reason
+// as the other Resend senders; still click-tracked.
+export async function sendBookingsFollowup(lead: Lead, subject: string, bodyHtml: string, step: string = "booking") {
+  const { ctaLink } = buildLinks(lead.lead_id, step);
+  const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+${filledBody}
+  <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
+</div>`;
+  const text = htmlToText(filledBody);
+  await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER, from: BOOKINGS_FROM });
+  await logSend(lead.lead_id, step, subject, html);
+}
+
+// Same as sendBookingsFollowup, minus lead-tracking pixel/CTA rewriting/
+// logSend — for meeting attendees who booked directly on the calendar and
+// were never turned into a lead record, so there's no lead_id to tag the
+// send against.
+export async function sendPlainBookings(to: string, subject: string, bodyHtml: string) {
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
+${bodyHtml}
+  <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
+</div>`;
+  const text = htmlToText(bodyHtml);
+  await sendBulkMail({ to, subject, html, text, from: BOOKINGS_FROM });
 }
 
 // Same personal-Gmail send as sendGmailFollowup, minus the lead-tracking
