@@ -199,8 +199,10 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     const subject = stripDashes(parsed.subject);
     const bodyHtml = stripDashes(parsed.bodyHtml);
 
-    const caseStudyBlock = `<p>If you want to see some case studies, here's a link to our website:</p><p><a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>`;
-    const finalBodyHtml = parsed.call_type === "WANTS_INFO" ? bodyHtml + caseStudyBlock : bodyHtml;
+    // No case-study block appended here anymore — every send now gets a
+    // "check out our case studies" link in its signature (see lib/email.ts),
+    // so adding one here too for WANTS_INFO leads would duplicate it.
+    const finalBodyHtml = bodyHtml;
     const finalSubject = subject;
 
     // Video intro is opt-in only, via Lucky clicking "Building" — never

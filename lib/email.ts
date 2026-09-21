@@ -153,6 +153,7 @@ export async function sendGmailFollowup(lead: Lead, subject: string, bodyHtml: s
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
   <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
+  <p>If you want to check out some case studies, here's a link to our website: <a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>
 </div>`;
   const text = htmlToText(filledBody);
   const transport = getTransport();
@@ -196,6 +197,7 @@ export async function sendResendFollowup(lead: Lead, subject: string, bodyHtml: 
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
   <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
+  <p>If you want to check out some case studies, here's a link to our website: <a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>
 </div>`;
   const text = htmlToText(filledBody);
   // Bcc Lucky's own Gmail so these per-lead cold-call/follow-up sends still
