@@ -7,6 +7,7 @@ import { generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from 
 // comment in lib/email.ts), since this is transactional logistics mail to
 // someone who already booked a real call, not cold outreach.
 import { sendBookingsFollowup, sendPlainBookings, BOOKING_URL } from "./email";
+import { sendReminderSms } from "./sms";
 import { listUpcomingBookings, formatMeetingClockTime, fillMeetingLink, CalendarBooking } from "./calendar";
 import { notifySlack } from "./slackNotify";
 import { Lead } from "./types";
@@ -301,6 +302,10 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           } else if (row.attendee_email) {
             await sendPlainBookings(row.attendee_email, subject, finalBody.replace(/\{\{CTA_LINK\}\}/g, BOOKING_URL));
           }
+          await sendReminderSms(
+            lead?.phone,
+            `Hey${contactName ? ` ${contactName}` : ""}, reminder from Lucky (LS Growth) — our meeting is tomorrow at ${clockTime}.${row.hangout_link ? ` ${row.hangout_link}` : ""}`
+          );
         }
         await notifySlack(
           skipRecentSend
@@ -322,6 +327,10 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
           } else if (row.attendee_email) {
             await sendPlainBookings(row.attendee_email, subject, finalBody);
           }
+          await sendReminderSms(
+            lead?.phone,
+            `Hey${contactName ? ` ${contactName}` : ""}, our meeting is in about 3 hours (${clockTime}).${row.hangout_link ? ` ${row.hangout_link}` : ""} — Lucky, LS Growth`
+          );
         }
         await notifySlack(
           skipRecentSend
