@@ -432,7 +432,7 @@ export default function ColdCallPage() {
             />
             <div style={{ fontFamily: "Arial,Helvetica,sans-serif", fontSize: 15, color: "#1a1a1a", lineHeight: 1.5, padding: "0 16px" }}>
               <p>Cheers,<br />Lucky<br />Founder, LS Growth<br />021 028 20190 | lsgrowth.agency</p>
-              <p>If you want to check out some case studies, here's a link to our website: <a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>
+              <p>In the meantime, if you want to look at some case studies, here you go: <a href="https://lsgrowth.agency">https://lsgrowth.agency</a></p>
             </div>
           </div>
         </div>
