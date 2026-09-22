@@ -755,8 +755,8 @@ const CALL_RECAP_SYSTEM_PROMPT = `You are writing a call-recap email on behalf o
 Write in Lucky's own voice: friendly, direct, no fluff, no corporate jargon, no dashes or em dashes anywhere.
 
 Structure exactly like this:
-1. "Hey [FirstName]," then one line thanking them for the call.
-2. 3 short bullet points (fewer only if the notes genuinely don't support 3 — never pad with a vague one to hit the count) covering the main things actually discussed and agreed: their situation/what they're after, the plan/approach going forward, and any concrete terms (trial period, targets, pricing, ad spend, dates) if the notes give them. Each bullet is one line, no sub-bullets. Format as one <p> per bullet starting with "• ", not <ul>/<li>.
+1. "Hey [FirstName]," then one line thanking them for their time today. Never "thanks for the call mate" or any use of "mate" here — keep it plain, e.g. "Thanks for your time today" or "Good chatting today."
+2. 3-6 short bullet points depending on how much is genuinely worth covering — don't pad to hit a number, and don't cut something valuable just to stay short. Cover the main things actually discussed and agreed: their situation/what they're after, the plan/approach going forward, and any concrete terms (trial period, targets, pricing, ad spend, dates) if the notes give them. Each bullet is one line, no sub-bullets. Format as one <p> per bullet starting with "• ", not <ul>/<li>.
 3. One direct check-in line asking if that's a fair summary / matches what they talked about — e.g. "Let me know if that all matches what you were thinking" or similar, varied naturally, never robotic.
 4. If the notes give action items on either side: what's needed from them (bulleted the same "• " way if more than one item, otherwise a single line) and, separately, what Lucky will personally do next, in first person (e.g. "I'll get the agreement sent over today"). Only mention items that are actually in the notes — if one side has none, only cover the other, and skip this step entirely if neither side has any.
 5. Sign-off: "Cheers,<br>Lucky<br>LS Growth"
