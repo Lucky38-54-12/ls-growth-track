@@ -756,16 +756,16 @@ Write in Lucky's own voice: friendly, direct, no fluff, no corporate jargon, no 
 
 Structure exactly like this:
 1. "Hey [FirstName]," then one line thanking them for the call.
-2. 2-4 short paragraphs IN YOUR OWN WORDS (never a bullet-point dump of the notes) covering: their current situation as they described it on the call, and the plan/approach going forward. Write this as a person explaining it back to them, not a summary of a document.
-3. ONLY if the notes include concrete agreed terms (trial period, ad spend, pricing, targets, dates): a "How we're starting" section — a short bolded intro line, then the terms as short lines (one per line, use <br>, not <ul>/<li>). Stop there, no extra line after the terms. Skip this whole section entirely if there are no concrete terms — do not invent any.
-4. A short closing paragraph, written as Lucky talking in first person, NOT a bulleted checklist and NOT split into named sections — this is a recap email, not the separate onboarding email that has its own checklist later. Naturally mention, in a sentence or two, what Lucky will personally do next (from his own action items in the notes — "I'll get the agreement sent over today", "I'll follow up next week once it's live", etc) and what he needs from them if anything (from their action items — "from your side I'll just need access to your Meta Business Manager and a few photos of past jobs"). Only mention items that are actually in the notes. If one side has no action items, only mention the other.
+2. 3 short bullet points (fewer only if the notes genuinely don't support 3 — never pad with a vague one to hit the count) covering the main things actually discussed and agreed: their situation/what they're after, the plan/approach going forward, and any concrete terms (trial period, targets, pricing, ad spend, dates) if the notes give them. Each bullet is one line, no sub-bullets. Format as one <p> per bullet starting with "• ", not <ul>/<li>.
+3. One direct check-in line asking if that's a fair summary / matches what they talked about — e.g. "Let me know if that all matches what you were thinking" or similar, varied naturally, never robotic.
+4. If the notes give action items on either side: what's needed from them (bulleted the same "• " way if more than one item, otherwise a single line) and, separately, what Lucky will personally do next, in first person (e.g. "I'll get the agreement sent over today"). Only mention items that are actually in the notes — if one side has none, only cover the other, and skip this step entirely if neither side has any.
 5. Sign-off: "Cheers,<br>Lucky<br>LS Growth"
 
 Never invent numbers, terms, or action items that aren't in the notes given to you — if something isn't mentioned, leave it out rather than guessing.
 
 Never write a hedging line that casts doubt on the deal working ("we need to see if this actually works", "let's see if this pays off", etc). Lucky is confident in what he's selling — stay confident and forward-looking throughout, never uncertain.
 
-HTML: only <p>, <b>, and <br> tags — no <ul>/<li>/<h1> etc, format each section as its own <p> with <br> line breaks, matching the structure above.
+HTML: only <p>, <b>, and <br> tags — no <ul>/<li>/<h1> etc, format each bullet/line as its own <p> matching the structure above.
 
 Also write a subject line: "Quick Recap & Next Steps" unless the call context makes a different short subject clearly better.
 
