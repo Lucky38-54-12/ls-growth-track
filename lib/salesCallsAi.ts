@@ -325,15 +325,23 @@ Walk through: leads generated, cost per lead, what a lead looks like when it lan
 ## Ad angle (drop in naturally)
 "And honestly you're in a better spot than most builders we talk to, you've already got good photos, the video on your site, and Jess on the design side. People buy from people, especially on jobs this size. We'd build the ads around your actual work and your faces, not stock images."
 
-## 5. The guarantee (2 min)
+## 5. Value & proof (2 min)
+Recap what we'd actually do for him, tied back to the gap:
+"So what we'd be doing for you is running the ads, handling the two-step qualification I just walked you through, and getting vetted reno and extension leads landing straight in your calendar, so the pipeline stops depending on referrals alone."
+## Proof it works
+"I'll give you an idea of what this looks like elsewhere. We run this exact system for an electrical business in Christchurch, different trade, but the same setup, over 40 qualified heat pump leads off about $450 a month in ad spend, more than $80k of jobs out of it. The trade's different but the system's identical, ads that pull enquiries, then me qualifying every one before it reaches them."
+
+## 6. The guarantee (2 min)
 Only once he's warm:
 "Here's how we take the risk out of it. We guarantee you qualified quote requests in the first three weeks, people I've personally vetted for these bigger jobs, or you don't pay us anything. So worst case, it costs you nothing to find out."
 "And do the maths on it, you told me a full reno's worth [his number]. One job covers us many times over."
 
-## 6. Close (2 min)
+## 7. Close (2 min)
 "So based on what you've told me, pipeline drying up in a couple weeks, and you want the bigger work, I reckon this is exactly what we should be doing, and there's zero risk on you to try it. Want to get started?"
 ## Yes
-Onboarding, name the concrete first steps for this business (services to lead with, Ads Manager access, ad budget, creatives).
+1. "I'll get the agreement and proposal over to you today so you can see exactly how we're defining a qualified lead."
+2. "From your side I'll need some of your best project photos or videos, and access to your Meta Business Manager so we can get the ads live."
+3. "Once I've got that, we can have the campaign running within a few days."
 ## Hesitant
 "No worries, what's the bit that's still sitting with you?" Handle it, then book a specific follow-up: "How about I flick you a proposal today and we do a quick 10 minutes Thursday to go through it?"
 Never leave without a date.
@@ -393,12 +401,14 @@ If research is thin on a topic, the question can be more open, but at least half
 ## 4. Process — screen-share (5 min): Open in your own words, not copied from any example, walking through sharing a live/curated ad account view as proof, without naming the client. Then, under its own "## " sub-heading naming the qualification process, explain the lead journey end to end as two clearly separate, explicitly labeled steps, this is the part Lucky most often rushes or skips on real calls, so the sheet has to make it impossible to skip:
 Step one, the instant response: the moment they fill out the form they get a reply within minutes with qualifying questions straight away, project, ownership, budget, timeline.
 Step two, the personal call: Lucky personally rings anyone who stacks up from step one to confirm they're genuine before anything reaches the prospect's calendar. Say explicitly that this is the step that filters out the tyre-kickers, the ones just browsing or filling in a form on a whim never make it past this call.
-Only leads that pass both steps get booked in, with notes attached, so the prospect just shows up to quote. Include a short line for if they ask whether step one is a bot, sell the outcome not the tech. Fold in the ad creative angle naturally here, under its own "## " sub-heading, using whatever real content or assets they already have (photos, video, socials), not as a separate numbered section. Reference the single most relevant client story from this library only if it genuinely strengthens the point being made, don't force it in:
+Only leads that pass both steps get booked in, with notes attached, so the prospect just shows up to quote. Include a short line for if they ask whether step one is a bot, sell the outcome not the tech. Fold in the ad creative angle naturally here, under its own "## " sub-heading, using whatever real content or assets they already have (photos, video, socials), not as a separate numbered section.
+
+## 5. Value & proof (2 min): Two parts. First, in your own words, recap plainly what LS Growth will actually do for this specific business, tying it back to the pain/gap named in Discovery and section 3, not a generic list of services. Second, under its own "## " sub-heading, build trust with real proof: the single most relevant story from the client library below, matched by industry/trade or situation if possible, stating what was actually achieved (numbers, timeframe) exactly as written, never invent or round up a figure. If nothing in the library genuinely fits, say so plainly in the instructions and skip the story rather than forcing a weak match:
 ${CLIENT_STORY_LIBRARY}
 
-## 5. The guarantee (2 min): Only once the call is warm. The trial or guarantee framed as removing risk, worst case it costs them nothing to find out. Include a line that plugs in their own job value number from Discovery to do the ROI math out loud. If asked price directly, never name a number on this call, the proposal covers it with their numbers plugged in.
+## 6. The guarantee (2 min): Only once the call is warm. The trial or guarantee framed as removing risk, worst case it costs them nothing to find out. Include a line that plugs in their own job value number from Discovery to do the ROI math out loud. If asked price directly, never name a number on this call, the proposal covers it with their numbers plugged in.
 
-## 6. Close (2 min): A direct close line that summarises back what they told you and asks straight out if they want to get started. "## Yes" sub-heading: a spoken "next steps" walkthrough the salesperson actually says out loud, laid out as its own short numbered list (1, 2, 3, not "• "), not a vague instruction to improvise on the spot — the prospect should hang up knowing exactly what happens and when. Cover, in this order: (1) what Lucky does next and by when, e.g. "I'll get the agreement and proposal over to you today so you can see exactly how we're defining a qualified lead" (2) what's needed from them before setup can start, e.g. their best project photos/videos and access to their Meta Business Manager, adapted to what's actually relevant for this business (3) the rough timeline to get the campaign live once that's in hand. Only include specifics the notes/research actually support, never invent a number or date that wasn't discussed. "## Hesitant" sub-heading: ask what's still sitting with them, handle it, then lock a specific dated follow-up. If Discovery revealed another decision maker, the close must get them invited to that follow-up. End the section with the plain line: "Never leave without a date."
+## 7. Close (2 min): A direct close line that summarises back what they told you and asks straight out if they want to get started. "## Yes" sub-heading: a spoken "next steps" walkthrough the salesperson actually says out loud, laid out as its own short numbered list (1, 2, 3, not "• "), not a vague instruction to improvise on the spot — the prospect should hang up knowing exactly what happens and when. Cover, in this order: (1) what Lucky does next and by when, e.g. "I'll get the agreement and proposal over to you today so you can see exactly how we're defining a qualified lead" (2) what's needed from them before setup can start, e.g. their best project photos/videos and access to their Meta Business Manager, adapted to what's actually relevant for this business (3) the rough timeline to get the campaign live once that's in hand. Only include specifics the notes/research actually support, never invent a number or date that wasn't discussed. "## Hesitant" sub-heading: ask what's still sitting with them, handle it, then lock a specific dated follow-up. If Discovery revealed another decision maker, the close must get them invited to that follow-up. End the section with the plain line: "Never leave without a date."
 
 ## Objection cheat sheet: 4 to 6 objections predicted from the research (existing provider, tried ads before, seasonal slowdown, need to check with someone if authority in Discovery suggested it, send me some info, what's it cost), each objection itself as a "## " sub-heading (the exact words a prospect would say) followed by a plain 1 to 3 sentence spoken response. Responses must reference their specifics, not templates. The tyre-kicker objection's response must reference the two-step process by name.
 
