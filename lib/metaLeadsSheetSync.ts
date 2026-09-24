@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { getLuckyGoogleAuthedClient } from "./luckyGoogleAuth";
+import { sendFreeformEmail } from "./email";
 
 // Generic version of the Build It All sync — works for ANY client's Meta
 // Lead Ads spreadsheet, not just one. Each ad form's native integration
@@ -19,7 +20,7 @@ import { getLuckyGoogleAuthedClient } from "./luckyGoogleAuth";
 
 export const TARGET_HEADER = [
   "Date", "Name", "Phone", "Email", "City", "Details", "Source Tab", "Lead Status",
-  "Lead ID", "Called?", "Outcome", "Notes",
+  "Lead ID", "Called?", "Outcome", "Notes", "Booked Date/Time", "Client Notified",
 ];
 
 // Internal Meta plumbing fields — never shown to Lucky, not folded into
@@ -167,6 +168,8 @@ export async function syncMetaLeadsSheet(spreadsheetId: string, targetTab: strin
         false, // Called?
         "",    // Outcome
         "",    // Notes
+        "",    // Booked Date/Time
+        false, // Client Notified
       ]);
       existingIds.add(id);
       count++;
@@ -349,4 +352,75 @@ export function extractSpreadsheetId(input: string): string | null {
   if (fromUrl) return fromUrl[1];
   if (/^[a-zA-Z0-9_-]{20,}$/.test(trimmed)) return trimmed;
   return null;
+}
+
+export interface BookingNotifyResult {
+  notified: number;
+}
+
+// Fired right after each sync (see /api/cron/sync-lead-sheets) — scans for
+// rows Lucky has marked Outcome "Booked" with a Booked Date/Time filled in
+// that haven't been emailed to the client yet (Client Notified still
+// false), batches them into one digest email per run rather than one email
+// per lead, then flags those exact rows as notified so they're never
+// re-sent on the next sync.
+export async function notifyBookedLeads(
+  spreadsheetId: string,
+  targetTab: string,
+  clientEmail: string,
+  clientName: string
+): Promise<BookingNotifyResult> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const sheets = google.sheets({ version: "v4", auth });
+
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${targetTab}'!A2:N` });
+  const rows = res.data.values || [];
+
+  const outcomeIdx = TARGET_HEADER.indexOf("Outcome");
+  const bookedIdx = TARGET_HEADER.indexOf("Booked Date/Time");
+  const notifiedIdx = TARGET_HEADER.indexOf("Client Notified");
+
+  const toNotify: { rowIndex: number; name: string; phone: string; city: string; details: string; booked: string }[] = [];
+  rows.forEach((row, i) => {
+    const outcome = row[outcomeIdx];
+    const booked = row[bookedIdx];
+    const notified = row[notifiedIdx];
+    if (outcome === "Booked" && booked && notified !== "TRUE" && notified !== true) {
+      toNotify.push({ rowIndex: i + 2, name: row[1] || "", phone: row[2] || "", city: row[4] || "", details: row[5] || "", booked });
+    }
+  });
+
+  if (toNotify.length === 0) return { notified: 0 };
+
+  const subject = toNotify.length === 1 ? `New booking: ${toNotify[0].name}` : `${toNotify.length} new bookings`;
+  const rowsHtml = toNotify
+    .map(
+      (b) =>
+        `<tr><td style="padding:6px 12px 6px 0"><strong>${b.name}</strong></td><td style="padding:6px 12px 6px 0">${b.phone}</td><td style="padding:6px 12px 6px 0">${b.city}</td><td style="padding:6px 12px 6px 0"><strong>${b.booked}</strong></td><td style="padding:6px 0">${b.details}</td></tr>`
+    )
+    .join("");
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.6;">
+  <p style="margin:0 0 12px">Hey ${clientName},</p>
+  <p style="margin:0 0 16px">${toNotify.length === 1 ? "A new appointment's been booked" : `${toNotify.length} new appointments have been booked`} from your leads:</p>
+  <table style="border-collapse:collapse;font-size:14px;">
+    <tr style="text-align:left;color:#64748b;font-size:12px;text-transform:uppercase;"><th style="padding:0 12px 6px 0">Name</th><th style="padding:0 12px 6px 0">Phone</th><th style="padding:0 12px 6px 0">City</th><th style="padding:0 12px 6px 0">Booked for</th><th style="padding:0 0 6px 0">Details</th></tr>
+    ${rowsHtml}
+  </table>
+  <p style="margin:16px 0 0">Cheers,<br>Lucky<br>LS Growth</p>
+</div>`;
+
+  await sendFreeformEmail(clientEmail, subject, html);
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      valueInputOption: "USER_ENTERED",
+      data: toNotify.map((b) => ({
+        range: `'${targetTab}'!${String.fromCharCode(65 + notifiedIdx)}${b.rowIndex}`,
+        values: [[true]],
+      })),
+    },
+  });
+
+  return { notified: toNotify.length };
 }

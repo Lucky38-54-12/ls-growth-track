@@ -19,6 +19,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const clientName = (body.clientName || "").trim();
+  const clientEmail = (body.clientEmail || "").trim() || null;
   const spreadsheetId = extractSpreadsheetId(body.spreadsheetUrl || "");
   const targetTab = (body.targetTab || "All Leads").trim();
 
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
       .from("lead_sheet_syncs")
       .insert({
         client_name: clientName,
+        client_email: clientEmail,
         spreadsheet_id: spreadsheetId,
         target_tab: targetTab,
         last_synced_at: new Date().toISOString(),

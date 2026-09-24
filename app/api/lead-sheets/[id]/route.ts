@@ -26,6 +26,19 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const body = await req.json();
+  const sb = createSupabaseClient();
+  const { data, error } = await sb
+    .from("lead_sheet_syncs")
+    .update({ client_email: (body.clientEmail || "").trim() || null })
+    .eq("id", params.id)
+    .select()
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ sync: data });
+}
+
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const sb = createSupabaseClient();
   const { error } = await sb.from("lead_sheet_syncs").delete().eq("id", params.id);

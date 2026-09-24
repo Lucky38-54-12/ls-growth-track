@@ -7,10 +7,13 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadSheetSync[] }) {
   const [syncs, setSyncs] = useState(initialSyncs);
   const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
+  const [editEmailValue, setEditEmailValue] = useState("");
 
   async function addSheet() {
     setAdding(true);
@@ -19,7 +22,7 @@ export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadS
       const res = await fetch("/api/lead-sheets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientName, spreadsheetUrl }),
+        body: JSON.stringify({ clientName, clientEmail, spreadsheetUrl }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -28,6 +31,7 @@ export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadS
       }
       setSyncs((s) => [data.sync, ...s]);
       setClientName("");
+      setClientEmail("");
       setSpreadsheetUrl("");
     } catch {
       setAddError("Couldn't set that up.");
@@ -47,6 +51,17 @@ export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadS
     }
   }
 
+  async function saveEmail(id: string) {
+    const res = await fetch(`/api/lead-sheets/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientEmail: editEmailValue }),
+    });
+    const data = await res.json();
+    if (res.ok) setSyncs((s) => s.map((row) => (row.id === id ? data.sync : row)));
+    setEditingEmailId(null);
+  }
+
   async function remove(id: string) {
     if (!confirm("Stop syncing this client's leads?")) return;
     setBusyId(id);
@@ -60,7 +75,7 @@ export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadS
       <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: "20px 24px" }}>
         <h3 style={{ fontSize: 13, fontWeight: 700, color: L.text, marginBottom: 4 }}>Add a client</h3>
         <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 14 }}>
-          Paste the client's Meta Lead Ads spreadsheet — this creates an "All Leads" call-tracking tab (Called?/Outcome/Notes) without touching the raw ad-form tabs, and syncs new leads into it every 15 minutes from then on.
+          Paste the client's Meta Lead Ads spreadsheet — this creates an "All Leads" call-tracking tab (Called?/Outcome/Notes/Booked Date/Time) without touching the raw ad-form tabs, and syncs new leads into it every 15 minutes. Client email is optional — if set, they get a digest email whenever you mark a lead "Booked" with a date/time filled in.
         </p>
         {addError && (
           <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7, padding: "10px 14px", marginBottom: 12, fontSize: 13, color: "#991b1b" }}>
@@ -72,6 +87,12 @@ export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadS
             value={clientName}
             onChange={(e) => setClientName(e.target.value)}
             placeholder="Client name"
+            style={{ flex: "1 1 160px", border: `1px solid ${L.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13 }}
+          />
+          <input
+            value={clientEmail}
+            onChange={(e) => setClientEmail(e.target.value)}
+            placeholder="Client email (optional)"
             style={{ flex: "1 1 200px", border: `1px solid ${L.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13 }}
           />
           <input
@@ -97,7 +118,7 @@ export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadS
         ) : (
           syncs.map((s) => (
             <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
-              <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+              <div style={{ flex: "1 1 220px", minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: L.text }}>{s.client_name}</div>
                 <a
                   href={`https://docs.google.com/spreadsheets/d/${s.spreadsheet_id}/edit`}
@@ -107,6 +128,37 @@ export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadS
                 >
                   {s.target_tab} →
                 </a>
+              </div>
+              <div style={{ flex: "1 1 200px", minWidth: 0, fontSize: 12 }}>
+                {editingEmailId === s.id ? (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      value={editEmailValue}
+                      onChange={(e) => setEditEmailValue(e.target.value)}
+                      placeholder="client@email.com"
+                      autoFocus
+                      style={{ flex: 1, border: `1px solid ${L.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => saveEmail(s.id)}
+                      style={{ padding: "5px 10px", background: "var(--accent)", border: "none", borderRadius: 6, color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingEmailId(s.id);
+                      setEditEmailValue(s.client_email || "");
+                    }}
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: s.client_email ? L.text : L.muted, textDecoration: "underline", fontSize: 12 }}
+                  >
+                    {s.client_email || "Add booking-notify email"}
+                  </button>
+                )}
               </div>
               <div style={{ flexShrink: 0, fontSize: 12, color: s.last_sync_error ? "#991b1b" : L.muted, minWidth: 160, textAlign: "right" }}>
                 {s.last_sync_error

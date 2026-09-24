@@ -7,6 +7,7 @@ export const revalidate = 0;
 export interface LeadSheetSync {
   id: string;
   client_name: string;
+  client_email: string | null;
   spreadsheet_id: string;
   target_tab: string;
   last_synced_at: string | null;

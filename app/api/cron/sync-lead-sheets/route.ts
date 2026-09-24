@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClientAsync, fetchAllRows } from "@/lib/supabase";
-import { syncMetaLeadsSheet } from "@/lib/metaLeadsSheetSync";
+import { notifyBookedLeads, syncMetaLeadsSheet } from "@/lib/metaLeadsSheetSync";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +9,7 @@ interface LeadSheetSync {
   client_name: string;
   spreadsheet_id: string;
   target_tab: string;
+  client_email: string | null;
 }
 
 // Loops every client in lead_sheet_syncs — new Meta leads should get called
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
 
   const sb = await createSupabaseClientAsync();
   const syncs = await fetchAllRows<LeadSheetSync>((from, to) =>
-    sb.from("lead_sheet_syncs").select("id, client_name, spreadsheet_id, target_tab").range(from, to)
+    sb.from("lead_sheet_syncs").select("id, client_name, spreadsheet_id, target_tab, client_email").range(from, to)
   );
 
   const results: Record<string, unknown>[] = [];
@@ -36,7 +37,19 @@ export async function GET(req: NextRequest) {
         .from("lead_sheet_syncs")
         .update({ last_synced_at: new Date().toISOString(), last_sync_added: result.added, last_sync_error: null })
         .eq("id", s.id);
-      results.push({ client: s.client_name, ...result });
+
+      // Best-effort — a booking notification email failing should never
+      // block the sync itself from being recorded as successful.
+      let notified = 0;
+      if (s.client_email) {
+        try {
+          notified = (await notifyBookedLeads(s.spreadsheet_id, s.target_tab, s.client_email, s.client_name)).notified;
+        } catch (e) {
+          console.error("notifyBookedLeads failed for", s.client_name, e);
+        }
+      }
+
+      results.push({ client: s.client_name, ...result, notified });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Sync failed";
       console.error("sync-lead-sheets failed for", s.client_name, e);
