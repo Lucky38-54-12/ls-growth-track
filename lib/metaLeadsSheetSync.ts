@@ -93,6 +93,24 @@ function buildDetails(row: string[], cols: DetectedColumns): string {
     .join(", ");
 }
 
+// Meta's created_time comes through as a raw ISO timestamp in whatever
+// offset that particular ad form happens to report (some +12:00, some
+// -05:00, inconsistently) — not something Lucky should have to read at a
+// glance. Reformat to NZ local time in plain hours.
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-NZ", {
+    timeZone: "Pacific/Auckland",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(d);
+}
+
 export interface SyncResult {
   added: number;
   perSource: Record<string, number>;
@@ -137,7 +155,7 @@ export async function syncMetaLeadsSheet(spreadsheetId: string, targetTab: strin
       if (!id || existingIds.has(id)) continue;
 
       newRows.push([
-        cols.dateIdx >= 0 ? row[cols.dateIdx] || "" : "",
+        cols.dateIdx >= 0 && row[cols.dateIdx] ? formatDate(row[cols.dateIdx]) : "",
         row[cols.nameIdx] || "",
         row[cols.phoneIdx] || "",
         cols.emailIdx >= 0 ? row[cols.emailIdx] || "" : "",
