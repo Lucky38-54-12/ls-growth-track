@@ -18,9 +18,16 @@ import { sendFreeformEmail } from "./email";
 // in the Lead ID column), so existing Called?/Outcome/Notes entries are
 // never disturbed.
 
+// Lucky's working columns (Called?/Outcome/Intent/Notes) sit right after the
+// contact info, up front — the reference/meta columns (Details, Source Tab,
+// Lead Status, Lead ID) come after, since those are look-up-if-needed, not
+// something he's editing while on the phone. Every column reference
+// elsewhere in this file goes through TARGET_HEADER.indexOf(...), never a
+// hardcoded letter/array position, specifically so this order can change
+// without silently breaking anything.
 export const TARGET_HEADER = [
-  "Date", "Name", "Phone", "Email", "City", "Details", "Source Tab", "Lead Status",
-  "Lead ID", "Called?", "Outcome", "Intent", "Notes", "Booked Date/Time", "Client Notified",
+  "Date", "Name", "Phone", "Email", "City", "Called?", "Outcome", "Intent", "Notes",
+  "Details", "Source Tab", "Lead Status", "Lead ID", "Booked Date/Time", "Client Notified",
 ];
 
 // Internal Meta plumbing fields — never shown to Lucky, not folded into
@@ -42,6 +49,14 @@ const FIELD_ALIASES: Record<string, string[]> = {
 
 function normalizeHeader(h: string): string {
   return h.trim().toLowerCase();
+}
+
+// A1-notation column letter for a TARGET_HEADER field name (only valid for
+// the first 26 columns, which covers this sheet's full width).
+function colLetter(fieldName: string): string {
+  const idx = TARGET_HEADER.indexOf(fieldName);
+  if (idx === -1) throw new Error(`Unknown TARGET_HEADER field "${fieldName}"`);
+  return String.fromCharCode(65 + idx);
 }
 
 interface DetectedColumns {
@@ -133,7 +148,8 @@ export async function syncMetaLeadsSheet(spreadsheetId: string, targetTab: strin
 
   const tabTitles = (meta.data.sheets || []).map((s) => s.properties?.title).filter((t): t is string => !!t && t !== targetTab);
 
-  const existingRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${targetTab}'!I2:I` }).catch(() => ({ data: { values: [] } }));
+  const leadIdCol = colLetter("Lead ID");
+  const existingRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${targetTab}'!${leadIdCol}2:${leadIdCol}` }).catch(() => ({ data: { values: [] } }));
   const existingIds = new Set((existingRes.data.values || []).map((r) => r[0]).filter(Boolean));
   const existingRowCount = (existingRes.data.values || []).length;
 
@@ -155,23 +171,24 @@ export async function syncMetaLeadsSheet(spreadsheetId: string, targetTab: strin
       const id = row[cols.idIdx];
       if (!id || existingIds.has(id)) continue;
 
-      newRows.push([
-        cols.dateIdx >= 0 && row[cols.dateIdx] ? formatDate(row[cols.dateIdx]) : "",
-        row[cols.nameIdx] || "",
-        row[cols.phoneIdx] || "",
-        cols.emailIdx >= 0 ? row[cols.emailIdx] || "" : "",
-        cols.cityIdx >= 0 ? row[cols.cityIdx] || "" : "",
-        buildDetails(row, cols),
-        tab,
-        cols.statusIdx >= 0 ? row[cols.statusIdx] || "" : "",
-        id,
-        false, // Called?
-        "",    // Outcome
-        "",    // Intent
-        "",    // Notes
-        "",    // Booked Date/Time
-        false, // Client Notified
-      ]);
+      const byName: Record<string, string | boolean> = {
+        Date: cols.dateIdx >= 0 && row[cols.dateIdx] ? formatDate(row[cols.dateIdx]) : "",
+        Name: row[cols.nameIdx] || "",
+        Phone: row[cols.phoneIdx] || "",
+        Email: cols.emailIdx >= 0 ? row[cols.emailIdx] || "" : "",
+        City: cols.cityIdx >= 0 ? row[cols.cityIdx] || "" : "",
+        "Called?": false,
+        Outcome: "",
+        Intent: "",
+        Notes: "",
+        Details: buildDetails(row, cols),
+        "Source Tab": tab,
+        "Lead Status": cols.statusIdx >= 0 ? row[cols.statusIdx] || "" : "",
+        "Lead ID": id,
+        "Booked Date/Time": "",
+        "Client Notified": false,
+      };
+      newRows.push(TARGET_HEADER.map((h) => byName[h]));
       existingIds.add(id);
       count++;
     }
@@ -395,9 +412,14 @@ export async function notifyBookedLeads(
   const auth = await getLuckyGoogleAuthedClient();
   const sheets = google.sheets({ version: "v4", auth });
 
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${targetTab}'!A2:N` });
+  const lastCol = String.fromCharCode(65 + TARGET_HEADER.length - 1);
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${targetTab}'!A2:${lastCol}` });
   const rows = res.data.values || [];
 
+  const nameIdx = TARGET_HEADER.indexOf("Name");
+  const phoneIdx = TARGET_HEADER.indexOf("Phone");
+  const cityIdx = TARGET_HEADER.indexOf("City");
+  const detailsIdx = TARGET_HEADER.indexOf("Details");
   const outcomeIdx = TARGET_HEADER.indexOf("Outcome");
   const bookedIdx = TARGET_HEADER.indexOf("Booked Date/Time");
   const notifiedIdx = TARGET_HEADER.indexOf("Client Notified");
@@ -408,7 +430,7 @@ export async function notifyBookedLeads(
     const booked = row[bookedIdx];
     const notified = row[notifiedIdx];
     if (outcome === "Booked" && booked && notified !== "TRUE" && notified !== true) {
-      toNotify.push({ rowIndex: i + 2, name: row[1] || "", phone: row[2] || "", city: row[4] || "", details: row[5] || "", booked });
+      toNotify.push({ rowIndex: i + 2, name: row[nameIdx] || "", phone: row[phoneIdx] || "", city: row[cityIdx] || "", details: row[detailsIdx] || "", booked });
     }
   });
 
