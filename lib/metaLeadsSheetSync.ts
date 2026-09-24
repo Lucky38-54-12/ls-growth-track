@@ -20,7 +20,7 @@ import { sendFreeformEmail } from "./email";
 
 export const TARGET_HEADER = [
   "Date", "Name", "Phone", "Email", "City", "Details", "Source Tab", "Lead Status",
-  "Lead ID", "Called?", "Outcome", "Notes", "Booked Date/Time", "Client Notified",
+  "Lead ID", "Called?", "Outcome", "Intent", "Notes", "Booked Date/Time", "Client Notified",
 ];
 
 // Internal Meta plumbing fields — never shown to Lucky, not folded into
@@ -167,6 +167,7 @@ export async function syncMetaLeadsSheet(spreadsheetId: string, targetTab: strin
         id,
         false, // Called?
         "",    // Outcome
+        "",    // Intent
         "",    // Notes
         "",    // Booked Date/Time
         false, // Client Notified
@@ -264,6 +265,7 @@ async function applyTrackingValidation(
   if (endRowIndex <= startRowIndex) return;
   const calledColIdx = TARGET_HEADER.indexOf("Called?");
   const outcomeColIdx = TARGET_HEADER.indexOf("Outcome");
+  const intentColIdx = TARGET_HEADER.indexOf("Intent");
 
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
@@ -276,18 +278,38 @@ async function applyTrackingValidation(
           },
         },
         {
+          // What happened on the call — separate from how good the lead
+          // actually is (Intent, below). A lead can be "No answer" three
+          // times before you ever get to judge intent, or picked up and
+          // turn out to be a tire kicker despite answering right away.
           setDataValidation: {
             range: { sheetId, startRowIndex, endRowIndex, startColumnIndex: outcomeColIdx, endColumnIndex: outcomeColIdx + 1 },
             rule: {
               condition: {
                 type: "ONE_OF_LIST",
                 values: [
-                  { userEnteredValue: "Warm" },
-                  { userEnteredValue: "Hot" },
                   { userEnteredValue: "Booked" },
                   { userEnteredValue: "Not interested" },
                   { userEnteredValue: "No answer" },
                   { userEnteredValue: "Callback later" },
+                ],
+              },
+              strict: true,
+              showCustomUi: true,
+            },
+          },
+        },
+        {
+          setDataValidation: {
+            range: { sheetId, startRowIndex, endRowIndex, startColumnIndex: intentColIdx, endColumnIndex: intentColIdx + 1 },
+            rule: {
+              condition: {
+                type: "ONE_OF_LIST",
+                values: [
+                  { userEnteredValue: "Tire kicker" },
+                  { userEnteredValue: "Cold" },
+                  { userEnteredValue: "Warm" },
+                  { userEnteredValue: "Hot" },
                 ],
               },
               strict: true,
