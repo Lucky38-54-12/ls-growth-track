@@ -77,11 +77,20 @@ function detectColumns(header: string[]): DetectedColumns | null {
   return { idIdx, dateIdx, nameIdx, phoneIdx, emailIdx, cityIdx, statusIdx, detailCols };
 }
 
+// Meta's answer values already carry the meaning on their own (e.g.
+// "fencing", "within_1–3_months") — repeating the full question text as a
+// label in front of each one ("what are you looking to have done: fencing")
+// was way more than a quick scan needs. Just the cleaned-up values, joined.
+function cleanValue(v: string): string {
+  const cleaned = v.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
 function buildDetails(row: string[], cols: DetectedColumns): string {
   return cols.detailCols
-    .map(({ idx, label }) => (row[idx] ? `${label.replace(/[?_]/g, (m) => (m === "_" ? " " : "")).trim()}: ${row[idx]}` : null))
+    .map(({ idx }) => (row[idx] ? cleanValue(row[idx]) : null))
     .filter(Boolean)
-    .join(" | ");
+    .join(", ");
 }
 
 export interface SyncResult {

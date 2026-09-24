@@ -16,8 +16,10 @@ interface LeadSheetSync {
 // — GitHub Actions leaves multi-hour dead spots on sub-hourly schedules,
 // same reason calendar-sync and the lead-qual reminders live there instead).
 export async function GET(req: NextRequest) {
+  // Own dedicated secret rather than the shared CRON_SECRET every other
+  // cron route depends on — rotating/setting this one can't break those.
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
-  if (secret !== process.env.CRON_SECRET) {
+  if (secret !== process.env.LEAD_SHEETS_CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
