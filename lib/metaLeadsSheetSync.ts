@@ -106,11 +106,17 @@ export async function syncMetaLeadsSheet(spreadsheetId: string, targetTab: strin
   const auth = await getLuckyGoogleAuthedClient();
   const sheets = google.sheets({ version: "v4", auth });
 
-  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties" });
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties,sheets.tables" });
+  const targetSheet = meta.data.sheets?.find((s) => s.properties?.title === targetTab);
+  const sheetId = targetSheet?.properties?.sheetId;
+  if (sheetId === undefined || sheetId === null) throw new Error(`Target tab "${targetTab}" not found`);
+  const existingTable = targetSheet?.tables?.[0];
+
   const tabTitles = (meta.data.sheets || []).map((s) => s.properties?.title).filter((t): t is string => !!t && t !== targetTab);
 
   const existingRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${targetTab}'!I2:I` }).catch(() => ({ data: { values: [] } }));
   const existingIds = new Set((existingRes.data.values || []).map((r) => r[0]).filter(Boolean));
+  const existingRowCount = (existingRes.data.values || []).length;
 
   const newRows: (string | boolean)[][] = [];
   const perSource: Record<string, number> = {};
@@ -151,33 +157,77 @@ export async function syncMetaLeadsSheet(spreadsheetId: string, targetTab: strin
   }
 
   if (newRows.length > 0) {
-    // Writes to an explicit row (existing Lead ID count + 2) instead of
-    // using values.append's own "find the last row" heuristic — that
-    // heuristic treats checkbox-validated cells in the Called? column as
-    // "data present" even when they hold no real value (an empty checkbox
-    // cell reads back as FALSE), which pushed writes thousands of rows past
-    // the real data the first time this ran. Lead ID (col I) is never
-    // checkbox-formatted, so counting rows there gives the true next row.
-    const nextRow = 2 + (existingRes.data.values || []).length;
+    // New leads land right under the header, not at the bottom — Lucky
+    // scans top-down, so the newest leads should be the first thing he
+    // sees. Blank rows are inserted first (inheriting the formatting of the
+    // row after the insertion point, i.e. the existing first data row, not
+    // the header) so this doesn't disturb any existing Called?/Outcome/Notes
+    // entries below.
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            insertDimension: {
+              range: { sheetId, dimension: "ROWS", startIndex: 1, endIndex: 1 + newRows.length },
+              inheritFromBefore: false,
+            },
+          },
+        ],
+      },
+    });
+
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `'${targetTab}'!A${nextRow}`,
+      range: `'${targetTab}'!A2`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: newRows },
     });
 
     // Extend the Called?/Outcome checkbox+dropdown only over the rows that
     // just landed — not pre-allocated headroom below the real data, which is
-    // what caused empty rows to render as a stray "FALSE" before. Grows by
-    // exactly newRows.length each sync, never further ahead than that.
-    const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties" });
-    const sheetId = meta.data.sheets?.find((s) => s.properties?.title === targetTab)?.properties?.sheetId;
-    if (sheetId !== undefined && sheetId !== null) {
-      await applyTrackingValidation(sheets, spreadsheetId, sheetId, nextRow - 1, nextRow - 1 + newRows.length);
-    }
+    // what caused empty rows to render as a stray "FALSE" before.
+    await applyTrackingValidation(sheets, spreadsheetId, sheetId, 1, 1 + newRows.length);
   }
 
+  await ensureLeadsTable(sheets, spreadsheetId, sheetId, targetTab, existingTable, existingRowCount + newRows.length);
+
   return { added: newRows.length, perSource, sourceTabsFound };
+}
+
+// Creates (or, on later syncs, resizes) a native Sheets Table over the
+// header + every data row — gives Lucky sorting/filtering and banded rows
+// for free without us hand-maintaining alternating colors. Table range is
+// always set explicitly from the row counts we already tracked rather than
+// relying on the table's own auto-expand, since that's UI-edit-triggered
+// and not guaranteed to fire for API writes.
+async function ensureLeadsTable(
+  sheets: ReturnType<typeof google.sheets>,
+  spreadsheetId: string,
+  sheetId: number,
+  targetTab: string,
+  existingTable: { tableId?: string | null } | undefined,
+  totalDataRows: number
+): Promise<void> {
+  const range = {
+    sheetId,
+    startRowIndex: 0,
+    endRowIndex: 1 + totalDataRows,
+    startColumnIndex: 0,
+    endColumnIndex: TARGET_HEADER.length,
+  };
+
+  if (existingTable?.tableId) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: { requests: [{ updateTable: { table: { tableId: existingTable.tableId, range }, fields: "range" } }] },
+    });
+  } else {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: { requests: [{ addTable: { table: { name: `${targetTab} Table`, range } } }] },
+    });
+  }
 }
 
 // Called?/Outcome checkbox+dropdown for exactly [startRowIndex, endRowIndex)
@@ -271,6 +321,8 @@ export async function provisionLeadsTab(spreadsheetId: string, targetTab: string
       ],
     },
   });
+
+  await ensureLeadsTable(sheets, spreadsheetId, sheetId, targetTab, undefined, 0);
 }
 
 export function extractSpreadsheetId(input: string): string | null {
