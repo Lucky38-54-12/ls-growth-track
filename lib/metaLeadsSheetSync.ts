@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 import { getLuckyGoogleAuthedClient } from "./luckyGoogleAuth";
-import { sendFreeformEmail } from "./email";
+import { sendClientEmail } from "./email";
 
 // Generic version of the Build It All sync — works for ANY client's Meta
 // Lead Ads spreadsheet, not just one. Each ad form's native integration
@@ -436,7 +436,7 @@ export async function notifyBookedLeads(
   <p style="margin:16px 0 0">Cheers,<br>Lucky<br>LS Growth</p>
 </div>`;
 
-  await sendFreeformEmail(clientEmail, subject, html);
+  await sendClientEmail(clientEmail, subject, html);
 
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId,

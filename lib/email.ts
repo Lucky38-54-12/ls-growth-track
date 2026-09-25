@@ -35,6 +35,12 @@ const BULK_FROM = "Lucky <lucky@lsgrowth.agency>";
 // mixing it into either of those sender histories would drag its
 // reputation down with whatever the other one is doing.
 const BOOKINGS_FROM = "Lucky <bookings@lsgrowth.agency>";
+// Emails TO LS Growth's own clients (e.g. "you've got a new booking" from
+// notifyBookedLeads) — separate identity from bookings@ (which goes to
+// their leads/prospects) and from personal Gmail, which these used to send
+// through via sendFreeformEmail's Gmail default. Moved off Gmail so this
+// keeps working at any volume and doesn't ride on Lucky's personal account.
+const CLIENTS_FROM = "Lucky <clients@lsgrowth.agency>";
 // Constructed lazily, not at module scope — this file gets imported (and
 // therefore evaluated) by every route that touches it during Next's build-time
 // "collecting page data" pass, including ones that never send bulk email. A
@@ -282,4 +288,18 @@ export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtm
   const { html, text } = buildFinalEmailHtml(lead, bodyHtml, step);
   await sendBulkMail({ to: lead.email, subject, html, text });
   await logSend(lead.lead_id, step, subject, html);
+}
+
+// Transactional mail to an LS Growth client (not a lead/prospect) — e.g.
+// "you've got a new booking" from notifyBookedLeads. Via Resend on
+// clients@lsgrowth.agency instead of Lucky's personal Gmail. Callers pass
+// already-wrapped HTML (their own <div style=...> container), same
+// contract as sendFreeformEmail.
+export async function sendClientEmail(to: string, subject: string, bodyHtml: string) {
+  const isHtml = /<[a-z][\s\S]*>/i.test(bodyHtml);
+  const html = isHtml
+    ? bodyHtml
+    : `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.65;white-space:pre-wrap">${bodyHtml}</div>`;
+  const text = isHtml ? bodyHtml.replace(/<[^>]+>/g, "") : bodyHtml;
+  await sendBulkMail({ to, subject, html, text, from: CLIENTS_FROM });
 }
