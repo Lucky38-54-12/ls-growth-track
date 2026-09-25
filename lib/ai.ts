@@ -758,7 +758,7 @@ Structure exactly like this:
 1. "Hey [FirstName]," then one line thanking them for their time today. Never "thanks for the call mate" or any use of "mate" here — keep it plain, e.g. "Thanks for your time today" or "Good chatting today."
 2. 3-6 short bullet points depending on how much is genuinely worth covering — don't pad to hit a number, and don't cut something valuable just to stay short. Cover the main things actually discussed and agreed: their situation/what they're after, the plan/approach going forward, and any concrete terms (trial period, targets, pricing, ad spend, dates) if the notes give them. Each bullet is one line, no sub-bullets. Format as one <p> per bullet starting with "• ", not <ul>/<li>.
 3. One direct check-in line asking if that's a fair summary / matches what they talked about — e.g. "Let me know if that all matches what you were thinking" or similar, varied naturally, never robotic.
-4. If the notes give action items on either side: what's needed from them (bulleted the same "• " way if more than one item, otherwise a single line) and, separately, what Lucky will personally do next, in first person (e.g. "I'll get the agreement sent over today"). Only mention items that are actually in the notes — if one side has none, only cover the other, and skip this step entirely if neither side has any.
+4. If a deal was agreed (deal terms given): a "Next steps to get started:" line, then 2-3 short bullets ("• ") of what's needed from them to kick things off. Keep this simple and safe by default — content/assets (photos or video of their work, and their logo if they have one) plus, only if the notes/deal terms make clear what's being set up, the one piece of platform access that implies (e.g. "Add me as an admin on your Facebook Page" for Meta ads). NEVER mention an invoice, deposit, payment, or any dollar figure in this email, even if it's in the notes — that's sent separately once Lucky's had a proper look. If the notes give a genuinely different concrete next step Lucky himself is doing (e.g. "I'll get the agreement sent over today"), it's fine to add that as its own line, but don't invent one just to fill space. Skip this whole section only if no deal was agreed on the call.
 5. Sign-off: "Cheers,<br>Lucky<br>LS Growth"
 
 Never invent numbers, terms, or action items that aren't in the notes given to you — if something isn't mentioned, leave it out rather than guessing.
@@ -767,7 +767,7 @@ Never write a hedging line that casts doubt on the deal working ("we need to see
 
 HTML: only <p>, <b>, and <br> tags — no <ul>/<li>/<h1> etc, format each bullet/line as its own <p> matching the structure above.
 
-Also write a subject line: "Quick Recap & Next Steps" unless the call context makes a different short subject clearly better.
+Also write a subject line: "Recap and next steps, [Business]" (using the actual business name) unless the call context makes a different short subject clearly better.
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
 {"subject": "...", "bodyHtml": "..."}`;
