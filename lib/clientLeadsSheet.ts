@@ -1,19 +1,26 @@
 import { google } from "googleapis";
 import { getLuckyGoogleAuthedClient } from "./luckyGoogleAuth";
+import { provisionLeadsTab } from "./metaLeadsSheetSync";
 
 // Organizational parent folder only — same one every other Drive/Docs helper
 // in this app files things under (see lib/googleDocs.ts, lib/salesCallsDrive.ts).
 const DEFAULT_FOLDER_ID = "1_2E0ugCHU8POB7O3abgksA0OKGMlVOeR";
 
-const HEADER = ["Date", "Lead Name", "Phone", "Email", "Called?", "Status", "Notes"];
+export const CLIENT_LEADS_TARGET_TAB = "All leads done";
 
-// Meta lead ads for this client feed into this sheet (set up separately by
-// Lucky on Meta's side — no automation here yet). Lucky scans it daily as
-// the appointment setter and marks each lead Called + a status (warm/hot/
-// etc) by hand — deliberately NOT wired to Google Calendar yet.
-export async function createClientLeadsSheet(company: string, parentId?: string): Promise<string> {
+// Creates a brand-new client leads spreadsheet with the exact same "All
+// leads done" tab setup as every other client's Meta leads sheet (native
+// Sheets Table, frozen header, auto-resized columns, Called?/Outcome
+// checkbox+dropdown) — see provisionLeadsTab() in metaLeadsSheetSync.ts,
+// the same function every sync run re-applies. Meta's native lead-ad
+// integration (set up separately by Lucky on Meta's side) writes raw leads
+// into its own tab (Sheet1, Sheet2, ...) alongside this one; the caller is
+// responsible for registering the returned spreadsheetId in
+// lead_sheet_syncs so the existing 15-min cron (sync-lead-sheets) picks it
+// up and keeps "All leads done" in sync + fires booking notifications,
+// exactly like Build It All.
+export async function createClientLeadsSheet(company: string, parentId?: string): Promise<{ url: string; spreadsheetId: string }> {
   const auth = await getLuckyGoogleAuthedClient();
-  const sheets = google.sheets({ version: "v4", auth });
   const drive = google.drive({ version: "v3", auth });
 
   const folderId = parentId || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
@@ -25,12 +32,7 @@ export async function createClientLeadsSheet(company: string, parentId?: string)
   const spreadsheetId = created.data.id;
   if (!spreadsheetId) throw new Error("Failed to create client leads spreadsheet — no ID returned.");
 
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: "Sheet1!A1",
-    valueInputOption: "RAW",
-    requestBody: { values: [HEADER] },
-  });
+  await provisionLeadsTab(spreadsheetId, CLIENT_LEADS_TARGET_TAB);
 
-  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+  return { url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, spreadsheetId };
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { generateHandoverDoc } from "@/lib/handoverDoc";
 import { createClientFolder, extractDriveFileId } from "@/lib/googleDocs";
-import { createClientLeadsSheet } from "@/lib/clientLeadsSheet";
+import { createClientLeadsSheet, CLIENT_LEADS_TARGET_TAB } from "@/lib/clientLeadsSheet";
 import { OnboardingClient, SalesCall } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -78,12 +78,35 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  let leadsSheetUrl: string | null = null;
-  try {
-    leadsSheetUrl = await createClientLeadsSheet(row.company, clientFolderId || undefined);
-  } catch (e) {
-    console.error("handover: leads sheet creation failed", params.id, e);
-    errors.push("leads sheet");
+  // Reused across re-runs like the client folder above — otherwise a
+  // re-run would create a second spreadsheet and a duplicate
+  // lead_sheet_syncs row (double-syncing, double-emailing the client).
+  let leadsSheetUrl: string | null = row.leads_sheet_url || null;
+  if (!leadsSheetUrl) {
+    try {
+      const sheet = await createClientLeadsSheet(row.company, clientFolderId || undefined);
+      leadsSheetUrl = sheet.url;
+
+      // Wires this client into the same 15-min sync-lead-sheets cron every
+      // other client's leads sheet runs on — syncMetaLeadsSheet() picks up
+      // whatever raw tab(s) Lucky's Meta lead-ad integration writes into
+      // once he connects it on Meta's side, and notifyBookedLeads() emails
+      // row.email whenever a Booked Date/Time gets filled in.
+      const { error: syncInsertError } = await sb.from("lead_sheet_syncs").insert({
+        client_name: row.company,
+        spreadsheet_id: sheet.spreadsheetId,
+        target_tab: CLIENT_LEADS_TARGET_TAB,
+        client_email: row.email,
+        onboarding_client_id: params.id,
+      });
+      if (syncInsertError) {
+        console.error("handover: lead_sheet_syncs insert failed", params.id, syncInsertError);
+        errors.push("leads sheet sync registration");
+      }
+    } catch (e) {
+      console.error("handover: leads sheet creation failed", params.id, e);
+      errors.push("leads sheet");
+    }
   }
 
   // "failed" only when nothing at all came out of this — any partial
