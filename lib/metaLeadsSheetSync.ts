@@ -18,16 +18,16 @@ import { sendFreeformEmail } from "./email";
 // in the Lead ID column), so existing Called?/Outcome/Notes entries are
 // never disturbed.
 
-// Lucky's working columns (Called?/Outcome/Intent/Notes) sit right after the
-// contact info, up front — the reference/meta columns (Details, Source Tab,
-// Lead Status, Lead ID) come after, since those are look-up-if-needed, not
-// something he's editing while on the phone. Every column reference
-// elsewhere in this file goes through TARGET_HEADER.indexOf(...), never a
-// hardcoded letter/array position, specifically so this order can change
-// without silently breaking anything.
+// Lucky's on-call columns (Called?/Outcome/Intent) sit right after the
+// contact info, up front. Notes sits after Lead ID instead of right next to
+// them — grouping all four together read too cluttered next to the
+// call-tracking columns. Every column reference elsewhere in this file goes
+// through TARGET_HEADER.indexOf(...), never a hardcoded letter/array
+// position, specifically so this order can change without silently breaking
+// anything.
 export const TARGET_HEADER = [
-  "Date", "Name", "Phone", "Email", "City", "Called?", "Outcome", "Intent", "Notes",
-  "Details", "Source Tab", "Lead Status", "Lead ID", "Booked Date/Time", "Client Notified",
+  "Date", "Name", "Phone", "Email", "City", "Called?", "Outcome", "Intent",
+  "Details", "Source Tab", "Lead Status", "Lead ID", "Notes", "Booked Date/Time", "Client Notified",
 ];
 
 // Internal Meta plumbing fields — never shown to Lucky, not folded into
