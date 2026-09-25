@@ -767,7 +767,7 @@ Never write a hedging line that casts doubt on the deal working ("we need to see
 
 HTML: only <p>, <b>, and <br> tags — no <ul>/<li>/<h1> etc, format each bullet/line as its own <p> matching the structure above.
 
-Also write a subject line: "Recap and next steps, [Business]" (using the actual business name) unless the call context makes a different short subject clearly better.
+Also write a subject line: "Recap and next steps, [Business]" (using the actual business name, exactly as given, with normal sentence capitalization — "Recap and next steps", never all-lowercase) unless the call context makes a different short subject clearly better.
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
 {"subject": "...", "bodyHtml": "..."}`;
