@@ -639,7 +639,7 @@ export interface MeetingConfirmationInput {
   meetingTime: string;
 }
 
-const MEETING_SYSTEM_PROMPT = `You are writing a short meeting confirmation email on behalf of Lucky from LS Growth Agency, which runs Meta ad campaigns for trade businesses (cleaners, builders, plumbers, etc) to generate leads.
+const MEETING_SYSTEM_PROMPT = `You are writing a short meeting confirmation email on behalf of Lucky from LS Growth Agency, which runs Meta ad campaigns, website builds, and organic content for trade businesses (cleaners, builders, plumbers, etc) to generate leads.
 
 A lead just booked a quick call with Lucky through his booking page. There is NO prior conversation — Lucky has never spoken to this person before. Do NOT invent any prior context, price figures, objections, or anything discussed previously. There is nothing to reference.
 
@@ -750,7 +750,7 @@ export interface CallRecapInput {
   rawTranscript?: string;
 }
 
-const CALL_RECAP_SYSTEM_PROMPT = `You are writing a call-recap email on behalf of Lucky from LS Growth Agency (runs Meta ad campaigns for trade businesses — cleaners, builders, painters, etc — to generate leads), sent right after a sales call to summarize what was discussed and agreed.
+const CALL_RECAP_SYSTEM_PROMPT = `You are writing a call-recap email on behalf of Lucky from LS Growth Agency (runs Meta ad campaigns, website builds, and organic content for trade businesses — cleaners, builders, painters, etc — to generate leads), sent right after a sales call to summarize what was discussed and agreed.
 
 Write in Lucky's own voice: friendly, direct, no fluff, no corporate jargon, no dashes or em dashes anywhere.
 
@@ -767,7 +767,7 @@ Never write a hedging line that casts doubt on the deal working ("we need to see
 
 HTML: only <p>, <b>, and <br> tags — no <ul>/<li>/<h1> etc, format each bullet/line as its own <p> matching the structure above.
 
-Also write a subject line: "Recap and next steps, [Business]" (using the actual business name, exactly as given, with normal sentence capitalization — "Recap and next steps", never all-lowercase) unless the call context makes a different short subject clearly better.
+Also write a subject line, always with normal sentence capitalization (never all-lowercase): "Recap and next steps, [Business]" if a business name was given (using it exactly as given), otherwise just "Recap and next steps" — unless the call context makes a different short subject clearly better.
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
 {"subject": "...", "bodyHtml": "..."}`;
