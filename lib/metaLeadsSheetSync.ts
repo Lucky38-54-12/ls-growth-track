@@ -282,8 +282,9 @@ async function applyTrackingValidation(
   if (endRowIndex <= startRowIndex) return;
   const calledColIdx = TARGET_HEADER.indexOf("Called?");
   const outcomeColIdx = TARGET_HEADER.indexOf("Outcome");
-  const intentColIdx = TARGET_HEADER.indexOf("Intent");
 
+  // Intent is deliberately plain free text (Lucky types "tire kicker"/
+  // "warm"/"hot" himself), not a dropdown — no validation applied to it.
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
@@ -309,24 +310,6 @@ async function applyTrackingValidation(
                   { userEnteredValue: "Not interested" },
                   { userEnteredValue: "No answer" },
                   { userEnteredValue: "Callback later" },
-                ],
-              },
-              strict: true,
-              showCustomUi: true,
-            },
-          },
-        },
-        {
-          setDataValidation: {
-            range: { sheetId, startRowIndex, endRowIndex, startColumnIndex: intentColIdx, endColumnIndex: intentColIdx + 1 },
-            rule: {
-              condition: {
-                type: "ONE_OF_LIST",
-                values: [
-                  { userEnteredValue: "Tire kicker" },
-                  { userEnteredValue: "Cold" },
-                  { userEnteredValue: "Warm" },
-                  { userEnteredValue: "Hot" },
                 ],
               },
               strict: true,
