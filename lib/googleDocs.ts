@@ -116,8 +116,8 @@ function buildFormattingRequests(markedText: string, insertAt: number, tabId?: s
 // whatever was actually agreed) while still getting consistent bold
 // title/heading formatting, instead of hardcoding a fixed set of heading
 // strings to search for as the old fixed-template version did.
-export async function createDocFromMarkedText(title: string, markedText: string): Promise<string> {
-  const { url } = await createDocWithId(title, markedText);
+export async function createDocFromMarkedText(title: string, markedText: string, parentId?: string): Promise<string> {
+  const { url } = await createDocWithId(title, markedText, parentId);
   return url;
 }
 
@@ -132,6 +132,35 @@ export function extractDriveFolderId(input: string): string | null {
   if (fromUrl) return fromUrl[1];
   if (/^[a-zA-Z0-9_-]{10,}$/.test(trimmed)) return trimmed;
   return null;
+}
+
+// Pulls a Drive/Docs/Sheets file id out of any of their URL shapes
+// (/document/d/ID/, /spreadsheets/d/ID/, /folders/ID) — a bare id also
+// passes through unchanged.
+export function extractDriveFileId(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const fromUrl = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/) || trimmed.match(/folders\/([a-zA-Z0-9_-]+)/);
+  if (fromUrl) return fromUrl[1];
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+// Gives a specific person edit access to a Doc/Sheet/folder Lucky's account
+// owns — used to add Harris (marketing) straight onto the handover doc
+// rather than relying only on him following the emailed link.
+export async function shareWithEmail(fileUrlOrId: string, email: string, role: "writer" | "commenter" | "reader" = "writer"): Promise<void> {
+  const fileId = extractDriveFileId(fileUrlOrId);
+  if (!fileId) throw new Error(`Could not extract a Drive file id from "${fileUrlOrId}"`);
+
+  const auth = await getLuckyGoogleAuthedClient();
+  const drive = google.drive({ version: "v3", auth });
+  await drive.permissions.create({
+    fileId,
+    requestBody: { role, type: "user", emailAddress: email },
+    sendNotificationEmail: false,
+    supportsAllDrives: true,
+  });
 }
 
 export interface DriveImage {
@@ -165,6 +194,26 @@ export async function createSharedUploadFolder(name: string): Promise<string> {
   });
 
   return `https://drive.google.com/drive/folders/${newFolderId}`;
+}
+
+// Same idea as createSharedUploadFolder but without the "anyone with the
+// link can edit" permission — used for the post-signature client folder
+// (photos/videos land here once shooting starts), which for now Lucky wants
+// created but NOT shared with the client yet, unlike the onboarding photos
+// folder above.
+export async function createClientFolder(name: string, parentId?: string): Promise<{ id: string; url: string }> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const drive = google.drive({ version: "v3", auth });
+
+  const folderId = parentId || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+  const created = await drive.files.create({
+    requestBody: { name, mimeType: "application/vnd.google-apps.folder", parents: [folderId] },
+    fields: "id",
+    supportsAllDrives: true,
+  });
+
+  const id = created.data.id!;
+  return { id, url: `https://drive.google.com/drive/folders/${id}` };
 }
 
 export async function listAndShareImagesInFolder(folderId: string, limit: number = 12): Promise<DriveImage[]> {
@@ -356,12 +405,12 @@ export async function createDocFromMarkedTextWithPhotos(
   return url;
 }
 
-export async function createDocWithId(title: string, markedText: string): Promise<{ docId: string; url: string }> {
+export async function createDocWithId(title: string, markedText: string, parentId?: string): Promise<{ docId: string; url: string }> {
   const auth = await getLuckyGoogleAuthedClient();
   const docs = google.docs({ version: "v1", auth });
   const drive = google.drive({ version: "v3", auth });
 
-  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+  const folderId = parentId || process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
   let step = "files.create";
   let docId: string;
   try {

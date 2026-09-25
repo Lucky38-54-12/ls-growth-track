@@ -308,6 +308,14 @@ export interface OnboardingClient {
   kickoff_email_subject: string | null;
   kickoff_email_html: string | null;
   kickoff_email_sent_at: string | null;
+  handover_status: "none" | "sent" | "failed";
+  handover_doc_url: string | null;
+  handover_sent_at: string | null;
+  client_drive_folder_url: string | null;
+  leads_sheet_url: string | null;
+  handover_checklist_steps: string[];
+  client_folder_url: string | null;
+  marketing_notified_at: string | null;
 }
 
 export interface OnboardingNote {

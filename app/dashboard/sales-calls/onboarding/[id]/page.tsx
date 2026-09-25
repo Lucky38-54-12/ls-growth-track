@@ -6,6 +6,7 @@ import OnboardingChecklist from "@/components/salesCalls/OnboardingChecklist";
 import { SalesCall, OnboardingClient } from "@/lib/types";
 import ClientCallPanel from "@/components/salesCalls/ClientCallPanel";
 import KickoffEmailCard from "@/components/salesCalls/KickoffEmailCard";
+import HandoverPanel from "@/components/onboarding/HandoverPanel";
 
 export const revalidate = 0;
 
@@ -32,6 +33,7 @@ export default async function OnboardingDetailPage({ params }: { params: { id: s
             <ClientCallPanel call={call as SalesCall} />
           </div>
         )}
+        <HandoverPanel client={client as OnboardingClient} />
         <KickoffEmailCard client={client as OnboardingClient} />
         <OnboardingChecklist client={client} steps={ONBOARDING_STEPS} />
       </div>
