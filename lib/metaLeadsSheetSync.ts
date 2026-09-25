@@ -381,11 +381,13 @@ export interface BookingNotifyResult {
 }
 
 // Fired right after each sync (see /api/cron/sync-lead-sheets) — scans for
-// rows Lucky has marked Outcome "Booked" with a Booked Date/Time filled in
-// that haven't been emailed to the client yet (Client Notified still
-// false), batches them into one digest email per run rather than one email
-// per lead, then flags those exact rows as notified so they're never
-// re-sent on the next sync.
+// rows with a Booked Date/Time filled in that haven't been emailed to the
+// client yet (Client Notified still false), batches them into one digest
+// email per run rather than one email per lead, then flags those exact rows
+// as notified so they're never re-sent on the next sync. Trigger is the
+// date/time field alone (not the Outcome dropdown) — Lucky just fills in
+// Booked Date/Time and the next cron run (every 15 min via cron-job.org)
+// picks it up.
 export async function notifyBookedLeads(
   spreadsheetId: string,
   targetTab: string,
@@ -403,16 +405,14 @@ export async function notifyBookedLeads(
   const phoneIdx = TARGET_HEADER.indexOf("Phone");
   const cityIdx = TARGET_HEADER.indexOf("City");
   const detailsIdx = TARGET_HEADER.indexOf("Details");
-  const outcomeIdx = TARGET_HEADER.indexOf("Outcome");
   const bookedIdx = TARGET_HEADER.indexOf("Booked Date/Time");
   const notifiedIdx = TARGET_HEADER.indexOf("Client Notified");
 
   const toNotify: { rowIndex: number; name: string; phone: string; city: string; details: string; booked: string }[] = [];
   rows.forEach((row, i) => {
-    const outcome = row[outcomeIdx];
     const booked = row[bookedIdx];
     const notified = row[notifiedIdx];
-    if (outcome === "Booked" && booked && notified !== "TRUE" && notified !== true) {
+    if (booked && notified !== "TRUE" && notified !== true) {
       toNotify.push({ rowIndex: i + 2, name: row[nameIdx] || "", phone: row[phoneIdx] || "", city: row[cityIdx] || "", details: row[detailsIdx] || "", booked });
     }
   });
