@@ -138,6 +138,16 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
     requestBody: {
       summary: input.summary,
       description: `${input.attendeeName || ""} <${input.attendeeEmail}>`.trim(),
+      // Without this, events inherit the calendar's default visibility
+      // (private on this account), which makes Google strip attendees/
+      // summary/description for any non-owner reader — including the
+      // lead-scraper's read-only service account. That silently broke its
+      // "skip sheets with a pending meeting" check (always saw 0 events
+      // with details, see lead-scraper/morning_gap_check.py
+      // get_pending_meeting_companies). "public" here only means "visible
+      // to readers who already have access to this calendar," not
+      // internet-public. Confirmed broken 2026-10-01.
+      visibility: "public",
       attendees: [{ email: input.attendeeEmail, displayName: input.attendeeName }],
       conferenceData: {
         createRequest: {
