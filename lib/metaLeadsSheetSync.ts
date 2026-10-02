@@ -285,41 +285,55 @@ async function applyTrackingValidation(
 
   // Intent is deliberately plain free text (Lucky types "tire kicker"/
   // "warm"/"hot" himself), not a dropdown — no validation applied to it.
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId,
-    requestBody: {
-      requests: [
-        {
-          setDataValidation: {
-            range: { sheetId, startRowIndex, endRowIndex, startColumnIndex: calledColIdx, endColumnIndex: calledColIdx + 1 },
-            rule: { condition: { type: "BOOLEAN" }, strict: true },
-          },
-        },
-        {
-          // What happened on the call — separate from how good the lead
-          // actually is (Intent, below). A lead can be "No answer" three
-          // times before you ever get to judge intent, or picked up and
-          // turn out to be a tire kicker despite answering right away.
-          setDataValidation: {
-            range: { sheetId, startRowIndex, endRowIndex, startColumnIndex: outcomeColIdx, endColumnIndex: outcomeColIdx + 1 },
-            rule: {
-              condition: {
-                type: "ONE_OF_LIST",
-                values: [
-                  { userEnteredValue: "Booked" },
-                  { userEnteredValue: "Not interested" },
-                  { userEnteredValue: "No answer" },
-                  { userEnteredValue: "Callback later" },
-                ],
-              },
-              strict: true,
-              showCustomUi: true,
+  //
+  // Best-effort: once a sheet's columns get wrapped in a native Sheets Table
+  // (ensureLeadsTable, below), Google treats those columns as "typed" and
+  // rejects a direct setDataValidation call against their cells ("This
+  // operation is not allowed on cells in typed columns") — the Table's own
+  // column typing already extends checkbox/dropdown formatting to new rows
+  // born inside its range, so this becomes redundant rather than broken. Not
+  // swallowing this error used to throw here and skip the ensureLeadsTable
+  // call below entirely, leaving the Table's range stale and the whole sync
+  // run marked as failed even though the lead rows themselves wrote fine.
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            setDataValidation: {
+              range: { sheetId, startRowIndex, endRowIndex, startColumnIndex: calledColIdx, endColumnIndex: calledColIdx + 1 },
+              rule: { condition: { type: "BOOLEAN" }, strict: true },
             },
           },
-        },
-      ],
-    },
-  });
+          {
+            // What happened on the call — separate from how good the lead
+            // actually is (Intent, below). A lead can be "No answer" three
+            // times before you ever get to judge intent, or picked up and
+            // turn out to be a tire kicker despite answering right away.
+            setDataValidation: {
+              range: { sheetId, startRowIndex, endRowIndex, startColumnIndex: outcomeColIdx, endColumnIndex: outcomeColIdx + 1 },
+              rule: {
+                condition: {
+                  type: "ONE_OF_LIST",
+                  values: [
+                    { userEnteredValue: "Booked" },
+                    { userEnteredValue: "Not interested" },
+                    { userEnteredValue: "No answer" },
+                    { userEnteredValue: "Callback later" },
+                  ],
+                },
+                strict: true,
+                showCustomUi: true,
+              },
+            },
+          },
+        ],
+      },
+    });
+  } catch (e) {
+    console.error("applyTrackingValidation skipped (likely a typed Table column):", e);
+  }
 }
 
 // One-time setup for a new client: creates the target tab (if missing) with
