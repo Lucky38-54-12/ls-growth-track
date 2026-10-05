@@ -325,7 +325,7 @@ function questionWords(userQuestion: string): string[] {
 // fails matchingLeads()'s word-boundary match) — the meeting already told us
 // who "him" is, so use that email to look the lead up directly rather than
 // relying on the question's wording alone.
-async function upcomingCalendarSummary(): Promise<{ summary: string; attendeeEmails: string[] }> {
+async function upcomingCalendarSummary(sb: ReturnType<typeof createSupabaseClient>): Promise<{ summary: string; attendeeEmails: string[] }> {
   try {
     const timeZone = "Pacific/Auckland";
     const now = new Date();
@@ -335,6 +335,17 @@ async function upcomingCalendarSummary(): Promise<{ summary: string; attendeeEma
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const events = await listCalendarEvents(rangeStart.toISOString(), in7Days.toISOString());
     if (events.length === 0) return { summary: "Nothing on the calendar from the last 30 days through the next 7.", attendeeEmails: [] };
+
+    // listCalendarEvents() never populates showStatus (always null) — the
+    // dashboard's own /api/calendar route joins meeting_outcomes itself
+    // rather than through this shared helper, so Brain never saw show/
+    // no-show/rescheduled marks without doing the same join here.
+    const { data: outcomes } = await sb
+      .from("meeting_outcomes")
+      .select("event_id, show_status")
+      .in("event_id", events.map((e) => e.eventId));
+    const outcomeByEvent = new Map((outcomes || []).map((o) => [o.event_id, o.show_status]));
+
     const summary = events
       .map((e) => {
         const when = e.allDay
@@ -346,7 +357,9 @@ async function upcomingCalendarSummary(): Promise<{ summary: string; attendeeEma
             ? ` with ${e.attendeeName || e.attendeeEmail}`
             : "";
         const past = new Date(e.startISO).getTime() < now.getTime() ? " (past)" : "";
-        return `${when}${past}: ${e.summary}${who}`;
+        const outcome = outcomeByEvent.get(e.eventId);
+        const outcomeLabel = outcome ? ` [${outcome.replace("_", " ")}]` : "";
+        return `${when}${past}: ${e.summary}${who}${outcomeLabel}`;
       })
       .join("\n");
     const attendeeEmails = Array.from(new Set(events.map((e) => e.attendeeEmail).filter((e): e is string => !!e)));
@@ -643,6 +656,170 @@ function adIntelligenceInstructions(userQuestion: string): string {
   return relevant ? AD_INTELLIGENCE_PROMPT : "";
 }
 
+// Client Brain / Strategic State / Hypotheses / Decisions — the Creative
+// Brain v2 memory layers (supabase_migration_creative_brain_v2_memory_layers.sql):
+// ground-truth business facts, the current one-line strategic read,
+// falsifiable hypotheses being tracked, and the decision journal behind
+// them. None of this reached the chat Brain before even though it's exactly
+// the "what do we already know about this client / what did we already
+// decide" data those other systems maintain specifically to avoid
+// re-litigating from scratch.
+async function clientStrategicMemorySummary(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string): Promise<string> {
+  const words = significantWords(userQuestion).map((w) => w.toLowerCase());
+  if (words.length === 0) return "";
+
+  const { data: clients } = await sb.from("lq_clients").select("id, name").eq("status", "active");
+  const matchedClient = (clients || []).find((c) =>
+    words.some((w) => c.name.toLowerCase().includes(w) || w.includes(c.name.toLowerCase()))
+  );
+  if (!matchedClient) return "";
+
+  const [{ data: brain }, { data: state }, { data: hypotheses }, { data: decisions }] = await Promise.all([
+    sb.from("client_brain").select("business, customer, offer, proof, market").eq("client_id", matchedClient.id).maybeSingle(),
+    sb.from("client_strategic_state").select("primary_bottleneck, strongest_proven_mechanism, strongest_current_concept, largest_portfolio_risk, largest_testing_gap, current_strategic_priority, recommended_action, confidence, what_would_change_the_decision").eq("client_id", matchedClient.id).maybeSingle(),
+    sb.from("creative_hypotheses").select("claim, variable_tested, current_confidence, status, next_test").eq("client_id", matchedClient.id).eq("status", "active").order("updated_at", { ascending: false }).limit(5),
+    sb.from("brain_decisions").select("decision, reasoning, outcome, lesson, created_at").eq("client_id", matchedClient.id).order("created_at", { ascending: false }).limit(5),
+  ]);
+
+  const parts: string[] = [];
+  const hasContent = (v: unknown) => v && typeof v === "object" && Object.keys(v as object).length > 0;
+  if (brain && (hasContent(brain.business) || hasContent(brain.customer) || hasContent(brain.offer) || hasContent(brain.proof) || hasContent(brain.market))) {
+    parts.push(
+      `Client Brain (ground-truth facts — authoritative, never invented):\nbusiness: ${JSON.stringify(brain.business)}\ncustomer: ${JSON.stringify(brain.customer)}\noffer: ${JSON.stringify(brain.offer)}\nproof: ${JSON.stringify(brain.proof)}\nmarket: ${JSON.stringify(brain.market)}`
+    );
+  }
+  if (state) {
+    parts.push(
+      `Current strategic read: priority: ${state.current_strategic_priority || "none set"} | bottleneck: ${state.primary_bottleneck || "none"} | recommended action: ${state.recommended_action || "none"} (confidence: ${state.confidence || "?"}) | strongest proven: ${state.strongest_proven_mechanism || "none"} | strongest current concept: ${state.strongest_current_concept || "none"} | largest risk: ${state.largest_portfolio_risk || "none"} | testing gap: ${state.largest_testing_gap || "none"}${state.what_would_change_the_decision ? ` | would change if: ${state.what_would_change_the_decision}` : ""}`
+    );
+  }
+  if (hypotheses && hypotheses.length) {
+    parts.push(`Active hypotheses being tracked:\n${hypotheses.map((h) => `- [${h.current_confidence}] (${h.variable_tested}) ${h.claim}${h.next_test ? ` | next test: ${h.next_test}` : ""}`).join("\n")}`);
+  }
+  if (decisions && decisions.length) {
+    parts.push(`Recent strategic decisions:\n${decisions.map((d) => `- ${d.created_at.slice(0, 10)}: ${d.decision}${d.reasoning ? ` | why: ${d.reasoning}` : ""}${d.outcome ? ` | outcome: ${d.outcome}` : ""}${d.lesson ? ` | lesson: ${d.lesson}` : ""}`).join("\n")}`);
+  }
+
+  return parts.length ? `Client: ${matchedClient.name}\n\n${parts.join("\n\n")}` : "";
+}
+
+// AI lead-qualification chatbot activity (Facebook/website leads) for
+// whichever client the question names — lq_conversations/lq_messages hold
+// the actual chat transcripts and lq_leads the qualify/book outcome, none of
+// which ever reached the chat Brain even though it's a direct parallel to
+// the sales-call notes problem: real conversation content sitting in a
+// table the context builder never read.
+async function leadQualActivitySummary(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string): Promise<string> {
+  const words = significantWords(userQuestion).map((w) => w.toLowerCase());
+  if (words.length === 0) return "";
+
+  const { data: clients } = await sb.from("lq_clients").select("id, name").eq("status", "active");
+  const matchedClient = (clients || []).find((c) =>
+    words.some((w) => c.name.toLowerCase().includes(w) || w.includes(c.name.toLowerCase()))
+  );
+  if (!matchedClient) return "";
+
+  const { data: conversations } = await sb
+    .from("lq_conversations")
+    .select("id, contact, status, extracted_fields, started_at")
+    .eq("client_id", matchedClient.id)
+    .order("started_at", { ascending: false })
+    .limit(5);
+  if (!conversations || conversations.length === 0) return "";
+
+  const convoIds = conversations.map((c) => c.id);
+  const [{ data: leads }, { data: messages }] = await Promise.all([
+    sb.from("lq_leads").select("conversation_id, outcome, score, booking_status").in("conversation_id", convoIds),
+    sb.from("lq_messages").select("conversation_id, role, content, created_at").in("conversation_id", convoIds).order("created_at", { ascending: true }),
+  ]);
+  const leadByConvo = new Map((leads || []).map((l) => [l.conversation_id, l]));
+  const messagesByConvo = new Map<string, { role: string; content: string }[]>();
+  for (const m of messages || []) {
+    if (!messagesByConvo.has(m.conversation_id)) messagesByConvo.set(m.conversation_id, []);
+    messagesByConvo.get(m.conversation_id)!.push(m);
+  }
+
+  const lines = conversations.map((c) => {
+    const lead = leadByConvo.get(c.id);
+    const contact = (c.contact || {}) as { name?: string; email?: string; phone?: string };
+    const who = contact.name || contact.email || contact.phone || "unknown contact";
+    const transcript = (messagesByConvo.get(c.id) || [])
+      .filter((m) => m.role !== "system")
+      .slice(-6)
+      .map((m) => `    ${m.role}: ${m.content.slice(0, 250)}`)
+      .join("\n");
+    return `- ${c.started_at.slice(0, 10)} | ${who} | status: ${c.status}${lead ? ` | outcome: ${lead.outcome} (score: ${lead.score ?? "?"}, booking: ${lead.booking_status})` : ""}\n  Extracted: ${JSON.stringify(c.extracted_fields)}${transcript ? `\n  Transcript (most recent messages):\n${transcript}` : ""}`;
+  });
+
+  return `Client: ${matchedClient.name} — AI lead-qualification chatbot activity:\n${lines.join("\n\n")}`;
+}
+
+// Onboarding notes (post-sale client setup) — onboarding_clients.notes is
+// per-client, onboarding_notes is a flat running log with no client FK (see
+// supabase_migration_onboarding_notes.sql). Both only ever surfaced on the
+// Onboarding dashboard page itself; neither reached chat Brain.
+async function onboardingSummary(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string): Promise<string> {
+  const words = questionWords(userQuestion).map((w) => w.toLowerCase());
+  const relevant = ["onboarding", "onboard", "onboarded", "setup", "handover"].some((k) => words.includes(k));
+  if (!relevant) return "";
+
+  const [{ data: clients }, { data: notes }] = await Promise.all([
+    sb.from("onboarding_clients").select("name, company, notes, completed_steps"),
+    sb.from("onboarding_notes").select("note, created_at").order("created_at", { ascending: false }).limit(10),
+  ]);
+
+  const clientLines = (clients || [])
+    .filter((c) => c.notes?.trim())
+    .map((c) => `- ${c.name} (${c.company}): ${c.notes.trim()} [steps done: ${(c.completed_steps || []).join(", ") || "none"}]`)
+    .join("\n");
+  const noteLines = (notes || []).map((n) => `- ${n.created_at.slice(0, 10)}: ${n.note}`).join("\n");
+
+  return [
+    clientLines ? `Per-client onboarding notes:\n${clientLines}` : "",
+    noteLines ? `General onboarding notes log:\n${noteLines}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
+// LinkedIn content calendar (Growth Hub) — small table, only worth pulling
+// when the question actually looks like it's about content/posts.
+async function contentIdeasSummary(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string): Promise<string> {
+  const words = questionWords(userQuestion).map((w) => w.toLowerCase());
+  const relevant = ["content", "linkedin", "post", "posts", "idea", "ideas"].some((k) => words.includes(k));
+  if (!relevant) return "";
+
+  const { data } = await sb.from("content_ideas").select("title, notes, post_date, status").order("post_date", { ascending: true, nullsFirst: false }).limit(20);
+  if (!data || data.length === 0) return "";
+  return data.map((c) => `- [${c.status}] ${c.title}${c.post_date ? ` (${c.post_date})` : ""}${c.notes ? `: ${c.notes}` : ""}`).join("\n");
+}
+
+// Drag-and-drop creative combo builder (supabase_migration_creative_builder.sql)
+// — Lucky's manually assembled offer/angle/hook/style briefs per client,
+// which he shoots/designs from himself. Only worth pulling for a matched
+// client when the question actually reads like it's about creative/ads.
+async function creativeBuilderSummary(sb: ReturnType<typeof createSupabaseClient>, userQuestion: string): Promise<string> {
+  const words = significantWords(userQuestion).map((w) => w.toLowerCase());
+  const relevant = AD_INTELLIGENCE_KEYWORDS.some((k) => words.includes(k)) || ["combo", "combos", "brief", "briefs"].some((k) => words.includes(k));
+  if (!relevant) return "";
+
+  const { data: clients } = await sb.from("lq_clients").select("id, name").eq("status", "active");
+  const matchedClient = (clients || []).find((c) =>
+    words.some((w) => c.name.toLowerCase().includes(w) || w.includes(c.name.toLowerCase()))
+  );
+  if (!matchedClient) return "";
+
+  const { data } = await sb
+    .from("creative_builder_combos")
+    .select("service, offer, customer_reason, hypothesis, angle, hook, style, notes, status")
+    .eq("client_id", matchedClient.id)
+    .order("created_at", { ascending: false })
+    .limit(15);
+  if (!data || data.length === 0) return "";
+
+  return `Client: ${matchedClient.name} — creative combo builder:\n${data
+    .map((c) => `- [${c.status}] ${c.service || "?"} | offer: ${c.offer || "?"} | angle: ${c.angle || "?"} | hook: ${c.hook || "?"} | style: ${c.style || "?"}${c.customer_reason ? ` | why: ${c.customer_reason}` : ""}${c.hypothesis ? ` | hypothesis: ${c.hypothesis}` : ""}${c.notes ? ` | notes: ${c.notes}` : ""}`)
+    .join("\n")}`;
+}
+
 // Bounds any one context section to SECTION_TIMEOUT_MS so a single slow/hung
 // external API (Gmail, Drive, Sheets, Calendar and Meta Ads have all been
 // slow at points) can't drag the whole /api/brain/chat request past the
@@ -666,9 +843,13 @@ export async function buildBrainContext(userQuestion: string, recentUserMessages
   const sb = createSupabaseClient();
   const matchContext = [...recentUserMessages.slice(-4), userQuestion].join(" ");
 
-  const calendarPromise = withTimeout(upcomingCalendarSummary(), { summary: "", attendeeEmails: [] as string[] });
+  const calendarPromise = withTimeout(upcomingCalendarSummary(sb), { summary: "", attendeeEmails: [] as string[] });
 
-  const [leadsSummary, matchedLeads, clientsSummary, automationsSummary, driveDocs, calendarResult, sheetsSummary, inboxSummary, adsSummary, adResearch, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate, campaignBrief, adLearnings] = await Promise.all([
+  const [
+    leadsSummary, matchedLeads, clientsSummary, automationsSummary, driveDocs, calendarResult, sheetsSummary,
+    inboxSummary, adsSummary, adResearch, salesCallsSummary, campaignsSummary, learningsSummary, agreementTemplate,
+    campaignBrief, adLearnings, clientStrategicMemory, leadQualActivity, onboarding, contentIdeas, creativeBuilder,
+  ] = await Promise.all([
     withTimeout(summarizeLeads(sb).catch(() => "Lead data unavailable."), "Lead data unavailable."),
     calendarPromise.then((c) => withTimeout(matchingLeads(sb, matchContext, c.attendeeEmails).catch(() => ""), "")),
     withTimeout(summarizeClients(sb).catch(() => "Client data unavailable."), "Client data unavailable."),
@@ -685,6 +866,11 @@ export async function buildBrainContext(userQuestion: string, recentUserMessages
     withTimeout(agreementTemplateSummary(sb, matchContext).catch(() => ""), ""),
     withTimeout(campaignBriefSummary(sb, matchContext).catch(() => ""), ""),
     withTimeout(adLearningsSummary(sb, matchContext).catch(() => ""), ""),
+    withTimeout(clientStrategicMemorySummary(sb, matchContext).catch(() => ""), ""),
+    withTimeout(leadQualActivitySummary(sb, matchContext).catch(() => ""), ""),
+    withTimeout(onboardingSummary(sb, matchContext).catch(() => ""), ""),
+    withTimeout(contentIdeasSummary(sb, matchContext).catch(() => ""), ""),
+    withTimeout(creativeBuilderSummary(sb, matchContext).catch(() => ""), ""),
   ]);
 
   const todayLabel = new Intl.DateTimeFormat("en-NZ", {
@@ -712,6 +898,11 @@ export async function buildBrainContext(userQuestion: string, recentUserMessages
     agreementTemplate ? `AGREEMENT TEMPLATE (the real example of what an LS Growth client agreement looks like — use its structure and wording as the pattern when drafting a new one, filling in this specific deal's details):\n${agreementTemplate}` : "",
     campaignBrief ? `CAMPAIGN BRIEF / AD CONCEPTS (real content from the client's actual campaign brief doc — you CAN read this, never claim you can't see the doc):\n${campaignBrief}` : "",
     adLearnings ? `AD LEARNINGS (durable patterns already banked for this client, each already approved by Lucky — treat as trusted prior evidence, check before recommending a test as if starting from zero):\n${adLearnings}` : "",
+    clientStrategicMemory ? `CLIENT STRATEGIC MEMORY (ground-truth facts, current strategic read, active hypotheses, and past decisions — you CAN see this, never claim you can't):\n${clientStrategicMemory}` : "",
+    leadQualActivity ? `AI LEAD-QUALIFICATION CHATBOT ACTIVITY (real conversations/outcomes from the Facebook/website qualification bot):\n${leadQualActivity}` : "",
+    onboarding ? `ONBOARDING NOTES:\n${onboarding}` : "",
+    contentIdeas ? `CONTENT CALENDAR (LinkedIn):\n${contentIdeas}` : "",
+    creativeBuilder ? `CREATIVE COMBO BUILDER:\n${creativeBuilder}` : "",
   ].filter(Boolean);
 
   return sections.join("\n\n---\n\n");
