@@ -10,6 +10,7 @@ export default function ImportPage() {
   const [loadingSheets, setLoadingSheets] = useState(true);
 
   const [sheetId, setSheetId] = useState("");
+  const [sheetTab, setSheetTab] = useState("");
   const [sheetTrade, setSheetTrade] = useState("");
   const [sheetLocation, setSheetLocation] = useState("");
   const [adding, setAdding] = useState(false);
@@ -38,6 +39,7 @@ export default function ImportPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sheetId: sheetId.trim(),
+        tab: sheetTab.trim(),
         tradeDefault: sheetTrade,
         locationDefault: sheetLocation,
       }),
@@ -47,7 +49,7 @@ export default function ImportPage() {
 
     if (data.error) { setError(data.error); return; }
 
-    setSheetId(""); setSheetTrade(""); setSheetLocation("");
+    setSheetId(""); setSheetTab(""); setSheetTrade(""); setSheetLocation("");
     const imported = data.firstSync?.imported;
     setFlash(imported !== undefined ? `Sheet added. Imported ${imported} lead(s) right away — it'll keep syncing daily.` : "Sheet added. It'll sync daily from now on.");
     loadSheets();
@@ -94,6 +96,7 @@ export default function ImportPage() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>
                       {[s.trade_default, s.location_default].filter(Boolean).join(" / ") || "Untitled sheet"}
+                      {s.tab ? ` (tab: ${s.tab})` : ""}
                     </div>
                     <div style={{ fontSize: 12, color: L.dimmed, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis" }}>{s.sheet_id}</div>
                     <div style={{ fontSize: 12, color: L.muted, marginTop: 2 }}>
@@ -120,7 +123,8 @@ export default function ImportPage() {
           <p style={{ fontSize: 13, color: L.muted, marginBottom: 20 }}>
             Paste the Sheet ID from your scraper sheet (the long ID in the sheet&apos;s URL). Trade and location
             are detected automatically from the sheet&apos;s name (e.g. &quot;Wellington Builders&quot;) — the fields
-            below are only a fallback if nothing is detected.
+            below are only a fallback if nothing is detected. If the spreadsheet has several tabs (e.g. one
+            per city), name the tab so this row only syncs that tab — leave it blank for a plain single-tab sheet.
           </p>
 
           <form onSubmit={handleAdd} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -132,6 +136,11 @@ export default function ImportPage() {
                 placeholder="1uro5nSHDGrrHUuyQ0HqvZAQ1jn6A-SBR2zOuFl7a02o"
                 style={{ fontFamily: "monospace", fontSize: 13, marginTop: 5 }}
               />
+            </div>
+
+            <div>
+              <label>Tab name <span style={{ fontWeight: 400, color: L.dimmed }}>(only if the sheet has multiple tabs)</span></label>
+              <input value={sheetTab} onChange={(e) => setSheetTab(e.target.value)} placeholder="e.g. Auckland" />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>

@@ -144,6 +144,7 @@ export interface EmailCheck {
 export interface TrackedSheet {
   id: string;
   sheet_id: string;
+  tab: string | null;
   trade_default: string | null;
   location_default: string | null;
   active: boolean;

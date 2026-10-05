@@ -236,12 +236,16 @@ function getAuth() {
   return new google.auth.GoogleAuth({ credentials, scopes: SCOPES });
 }
 
-export async function readLeadSheet(sheetId: string): Promise<SheetRow[]> {
+// `tab` targets one sheet/tab inside a workbook that has several (e.g. a
+// multi-city sheet with one tab per city) — omit it for a single-tab sheet,
+// where the bare "A2:I" range already resolves to the only (first) tab.
+export async function readLeadSheet(sheetId: string, tab?: string): Promise<SheetRow[]> {
   const auth = getAuth();
   const sheets = google.sheets({ version: "v4", auth });
+  const range = tab ? `'${tab.replace(/'/g, "''")}'!A2:I` : "A2:I";
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
-    range: "A2:I",
+    range,
   });
 
   const rows = res.data.values || [];

@@ -13,8 +13,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { sheetId, tradeDefault, locationDefault } = body as {
+  const { sheetId, tab, tradeDefault, locationDefault } = body as {
     sheetId: string;
+    tab?: string;
     tradeDefault?: string;
     locationDefault?: string;
   };
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
     .from("tracked_sheets")
     .insert({
       sheet_id: sheetId.trim(),
+      tab: tab?.trim() || null,
       trade_default: tradeDefault || null,
       location_default: locationDefault || null,
     })
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
-    const message = error.code === "23505" ? "That sheet is already being auto-synced." : error.message;
+    const message = error.code === "23505" ? "That sheet (and tab) is already being auto-synced." : error.message;
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
@@ -45,6 +47,7 @@ export async function POST(req: NextRequest) {
   try {
     firstSync = await syncLeadsFromSheet({
       sheetId: row.sheet_id,
+      tab: row.tab || undefined,
       tradeDefault: row.trade_default || "",
       locationDefault: row.location_default || "",
     });

@@ -5,8 +5,9 @@ import { syncLeadsFromSheet } from "@/lib/sheetSync";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { sheetId, tradeDefault, locationDefault } = body as {
+  const { sheetId, tab, tradeDefault, locationDefault } = body as {
     sheetId: string;
+    tab?: string;
     tradeDefault: string;
     locationDefault: string;
   };
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await syncLeadsFromSheet({ sheetId, tradeDefault, locationDefault });
+    const result = await syncLeadsFromSheet({ sheetId, tab, tradeDefault, locationDefault });
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Could not sync sheet" }, { status: 400 });

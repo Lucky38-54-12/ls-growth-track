@@ -27,28 +27,36 @@ export async function syncLeadsFromSheet(opts: {
   sheetId: string;
   tradeDefault: string;
   locationDefault: string;
+  // Targets one tab inside a workbook that has several (e.g. a single
+  // "Cleaning" spreadsheet with one tab per city) — omit for a plain
+  // single-tab sheet.
+  tab?: string;
   // Shared across every sheet synced in the same run (passed down by
   // syncAllTrackedSheets/bulk-sheet-sync) so the cap is on the whole run's
   // total AI calls, not per-sheet. A direct caller that omits this (e.g. the
   // single-sheet add-a-lead-sheet route) gets its own fresh budget.
   hookBudget?: HookBudget;
 }): Promise<SheetSyncResult> {
-  const { sheetId, tradeDefault, locationDefault } = opts;
+  const { sheetId, tradeDefault, locationDefault, tab } = opts;
   const hookBudget = opts.hookBudget || { remaining: MAX_HOOK_CALLS_PER_SYNC_RUN };
 
-  const rows = await readLeadSheet(sheetId.trim());
+  const rows = await readLeadSheet(sheetId.trim(), tab);
   if (!rows.length) {
     throw new Error("No rows with a name or email found in that sheet.");
   }
 
-  // Guess trade/location from the sheet's title (e.g. "Wellington Builders"). The
-  // scraper page sends the raw search query (e.g. "electrical companies christchurch")
-  // as tradeDefault, so also parse that for a city before falling back to locationDefault.
+  // Guess trade/location from the sheet's title (e.g. "Wellington Builders") and,
+  // if given, the tab name — a tab like "Auckland" in a multi-city workbook is a
+  // more reliable location signal than the workbook title, which may just name
+  // the trade (e.g. "Cleaning"). The scraper page sends the raw search query
+  // (e.g. "electrical companies christchurch") as tradeDefault, so also parse
+  // that for a city before falling back to locationDefault.
   const title = await getSheetTitle(sheetId.trim()).catch(() => "");
+  const detectedFromTab = tab ? parseCampaignFromTitle(tab) : {};
   const detected = parseCampaignFromTitle(title);
   const detectedFromQuery = parseCampaignFromTitle(tradeDefault);
   const trade = detected.trade || detectedFromQuery.trade || tradeDefault;
-  const location = detected.location || detectedFromQuery.location || locationDefault;
+  const location = detectedFromTab.location || detected.location || detectedFromQuery.location || locationDefault;
 
   const sb = createSupabaseClient();
   const existingLeads = await fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").range(from, to));
@@ -194,6 +202,7 @@ export async function syncAllTrackedSheets(
         sheetId: sheet.sheet_id,
         tradeDefault: sheet.trade_default || "",
         locationDefault: sheet.location_default || "",
+        tab: sheet.tab || undefined,
         hookBudget,
       });
       await sb.from("tracked_sheets").update({
