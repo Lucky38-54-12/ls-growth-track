@@ -394,7 +394,15 @@ async function matchingSheets(sb: ReturnType<typeof createSupabaseClient>, userQ
           try {
             const [title, rows] = await Promise.all([getSheetTitle(s.sheet_id), readLeadSheet(s.sheet_id)]);
             const called = rows.filter(hasCallInfo).length;
-            return `${title || s.sheet_id} (sheet_id: ${s.sheet_id}, ${s.trade_default}/${s.location_default}): ${called} of ${rows.length} called`;
+            // The count alone ("X of Y called") told the Brain nothing about
+            // what was actually said on those calls — surface the real notes
+            // for rows that have them so a question about a specific company
+            // on this sheet can actually be answered.
+            const withNotes = rows.filter((r) => r.notes?.trim()).slice(0, 15);
+            const notesLines = withNotes
+              .map((r) => `  - ${r.company || "?"} (${r.phone || "no phone"}): ${r.notes.trim()}`)
+              .join("\n");
+            return `${title || s.sheet_id} (sheet_id: ${s.sheet_id}, ${s.trade_default}/${s.location_default}): ${called} of ${rows.length} called${notesLines ? `\n  Notes from this sheet:\n${notesLines}` : ""}`;
           } catch {
             return "";
           }
@@ -433,13 +441,20 @@ async function inboxSearchSummary(userQuestion: string): Promise<string> {
 // script" had nothing to work from and no way to actually propose a change.
 async function summarizeSalesCalls(sb: ReturnType<typeof createSupabaseClient>): Promise<string> {
   const [{ data: calls }, { data: currentVersion }, { data: patterns }] = await Promise.all([
-    sb.from("sales_calls").select("id, call_date, prospect_name, business_name, outcome, main_objection, next_step_booked, next_step_detail, went_well, work_ons").order("call_date", { ascending: false }).limit(20),
+    sb.from("sales_calls").select("id, call_date, prospect_name, business_name, outcome, main_objection, next_step_booked, next_step_detail, went_well, work_ons, raw_summary").order("call_date", { ascending: false }).limit(20),
     sb.from("sales_script_versions").select("version, content, changelog").eq("is_current", true).maybeSingle(),
     sb.from("sales_pattern_tracker").select("id, pattern_summary, status, cost, occurrences, fix_applied_at, fix_landing_status").eq("status", "open").order("occurrences", { ascending: false }),
   ]);
 
+  // raw_summary is the actual call notes (what was said), separate from the
+  // structured outcome/objection/next-step fields above — without this the
+  // Brain could recite call metadata but had no way to answer anything that
+  // only lived in the notes themselves.
   const recentCalls = (calls || [])
-    .map((c) => `id: ${c.id} | ${c.call_date} | ${c.prospect_name || "?"} (${c.business_name || "?"}) | outcome: ${c.outcome}${c.main_objection ? ` | objection: ${c.main_objection}` : ""}${c.next_step_booked ? ` | next step: ${c.next_step_detail}` : ""}${c.went_well ? ` | went well: ${c.went_well}` : ""}${c.work_ons ? ` | work on: ${c.work_ons}` : ""}`)
+    .map((c) => {
+      const notes = c.raw_summary?.trim() ? `\n  Notes: ${c.raw_summary.trim().slice(0, 1500)}` : "";
+      return `id: ${c.id} | ${c.call_date} | ${c.prospect_name || "?"} (${c.business_name || "?"}) | outcome: ${c.outcome}${c.main_objection ? ` | objection: ${c.main_objection}` : ""}${c.next_step_booked ? ` | next step: ${c.next_step_detail}` : ""}${c.went_well ? ` | went well: ${c.went_well}` : ""}${c.work_ons ? ` | work on: ${c.work_ons}` : ""}${notes}`;
+    })
     .join("\n");
 
   const openPatterns = (patterns || [])
