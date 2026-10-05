@@ -26,7 +26,13 @@ export async function logSalesCall(
   yourTake: string,
   firefliesMeetingId?: string,
   clientEmail?: string,
-  lead?: Lead | null
+  lead?: Lead | null,
+  // The Fireflies webhook sets this for calls it's only just now finding out
+  // about (e.g. a backlog flushed after the webhook registration broke and
+  // got fixed) — the call still needs to land in sales_calls for the record,
+  // but agreement docs / onboarding client / kickoff email are all
+  // client-facing and must never fire days or weeks after the actual call.
+  skipAutomations = false
 ): Promise<LogSalesCallResult> {
   const parsed = await parseCallSummary(rawSummary);
 
@@ -64,7 +70,8 @@ export async function logSalesCall(
   // agreement doc right away so it's ready for Lucky to check over, rather
   // than waiting on him to notice and trigger it by hand. Best-effort: a
   // logged, closed deal must never be lost because doc generation failed.
-  if (parsed.deal_agreed && parsed.deal_terms) {
+  // Skipped entirely for a backlog call — see skipAutomations above.
+  if (!skipAutomations && parsed.deal_agreed && parsed.deal_terms) {
     let agreementUrl: string | null = null;
     try {
       agreementUrl = await generateAgreementDoc({

@@ -69,7 +69,30 @@ export async function POST(request: NextRequest) {
     const lead = await findLeadForCall(sb, transcript);
     const recipients = pickRecapRecipients(transcript);
     const recapEmail = recipients[0] || lead?.email || null;
-    const { call, proposal } = await logSalesCall(sb, transcript.text, "", meetingId, recapEmail || undefined, lead);
+
+    // The Fireflies webhook registration silently broke (Sept 21 – Oct 5
+    // 2026, tied to an API-key rotation) and may now flush a backlog of
+    // calls from that entire window in one burst once re-saved. A call from
+    // before this fix shipped must still land in sales_calls (so the
+    // dashboard history isn't missing a chunk) but must NOT trigger
+    // client-facing automations days or weeks after the actual call — a
+    // missing/unparseable date is treated as backlog too, to fail safe.
+    const AUTOMATION_RESUMED_AT = Date.parse("2026-10-05T05:34:19Z");
+    const isBacklogCall = !transcript.dateMs || transcript.dateMs < AUTOMATION_RESUMED_AT;
+
+    const { call, proposal } = await logSalesCall(
+      sb,
+      transcript.text,
+      "",
+      meetingId,
+      recapEmail || undefined,
+      lead,
+      isBacklogCall
+    );
+
+    if (isBacklogCall) {
+      return NextResponse.json({ ok: true, call_id: call.id, proposal_id: proposal?.id || null, backlog: true });
+    }
 
     // Recap is drafted and sent automatically for every call regardless of
     // outcome (Lucky's explicit call — this used to hold pending for manual
