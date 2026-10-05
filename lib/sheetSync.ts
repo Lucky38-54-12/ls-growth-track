@@ -2,7 +2,17 @@ import { createSupabaseClient, fetchAllRows } from "./supabase";
 import { generateLeadId } from "./leads";
 import { generatePersonalizationHook } from "./ai";
 import { readLeadSheet, hasCallInfo, formatCallNotes, getSheetTitle, parseCampaignFromTitle } from "./sheets";
+import { isOutreachSpendOverCap } from "./spendGuard";
 import { Lead } from "./types";
+
+// Shared budget for how many personalization-hook AI calls one sync run is
+// allowed to make. Added 2026-10-04 after an uncapped version of this loop
+// was identified as the main driver of a past spend spike — bulk-importing
+// a big new funnel sheet used to mean one AI call (Haiku + 1 web search) per
+// new row with no ceiling. Beyond the budget, new leads just get the
+// generic template line instead (same fallback as any other hook failure).
+export const MAX_HOOK_CALLS_PER_SYNC_RUN = 50;
+export interface HookBudget { remaining: number }
 
 export interface SheetSyncResult {
   imported: number;
@@ -17,8 +27,14 @@ export async function syncLeadsFromSheet(opts: {
   sheetId: string;
   tradeDefault: string;
   locationDefault: string;
+  // Shared across every sheet synced in the same run (passed down by
+  // syncAllTrackedSheets/bulk-sheet-sync) so the cap is on the whole run's
+  // total AI calls, not per-sheet. A direct caller that omits this (e.g. the
+  // single-sheet add-a-lead-sheet route) gets its own fresh budget.
+  hookBudget?: HookBudget;
 }): Promise<SheetSyncResult> {
   const { sheetId, tradeDefault, locationDefault } = opts;
+  const hookBudget = opts.hookBudget || { remaining: MAX_HOOK_CALLS_PER_SYNC_RUN };
 
   const rows = await readLeadSheet(sheetId.trim());
   if (!rows.length) {
@@ -103,6 +119,9 @@ export async function syncLeadsFromSheet(opts: {
       // paused, quietly burning tokens on hooks nothing would ever use.
       try {
         if (process.env.COLD_OUTREACH_PAUSED === "true") throw new Error("cold outreach paused");
+        if (hookBudget.remaining <= 0) throw new Error("per-run hook budget exhausted, falling back to generic line");
+        if (await isOutreachSpendOverCap()) throw new Error("daily outreach spend cap reached, falling back to generic line");
+        hookBudget.remaining--;
         const { hook, contactName } = await generatePersonalizationHook({
           company: lead.company,
           trade: lead.trade,
@@ -168,12 +187,14 @@ export async function syncAllTrackedSheets(
   if (error) throw new Error(error.message);
 
   const results: TrackedSheetSyncResult[] = [];
+  const hookBudget: HookBudget = { remaining: MAX_HOOK_CALLS_PER_SYNC_RUN };
   for (const sheet of sheets || []) {
     try {
       const result = await syncLeadsFromSheet({
         sheetId: sheet.sheet_id,
         tradeDefault: sheet.trade_default || "",
         locationDefault: sheet.location_default || "",
+        hookBudget,
       });
       await sb.from("tracked_sheets").update({
         last_synced_at: new Date().toISOString(),

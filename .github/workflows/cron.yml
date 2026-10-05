@@ -22,17 +22,51 @@ on:
     - cron: "0 21 * * *"  # 9am NZT — daily maintenance (replies, stale-reply pings, etc.)
     - cron: "0 18 * * *"  # 6am NZT — lead-qual daily sync (catch any Lead Ad forms the webhook missed)
     - cron: "0 0 * * *"  # 12pm NZT — lead-qual sync, second daily pass so a missed form doesn't sit until the next morning
-  workflow_dispatch: {}    # lets you trigger a run manually from the Actions tab
+  workflow_dispatch:       # lets you trigger a run manually from the Actions tab
+    inputs:
+      batch_target:
+        description: "Campaign-send only: how many emails to send in this batch"
+        required: false
+        default: "50"
 
 jobs:
   campaign-send:
+    # Manual-trigger only, still — campaign sends stay paused on a schedule
+    # until Lucky says otherwise (see COLD_OUTREACH_PAUSED). This just makes
+    # a manual run actually push a real batch: /api/cron is capped at 60s by
+    # Vercel (Hobby plan), so one call can only get partway through a batch
+    # of 50 even with the route's own internal concurrency (2026-10-04) — this
+    # loop re-calls it, passing down how many sends are still needed, until
+    # the batch target is hit or there's nothing left due. Each call is its
+    # own independent 60s-capped request, so the loop itself has no duration
+    # limit worth worrying about (GitHub Actions jobs default to 6 hours).
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - name: Call /api/cron
+      - name: Send a batch (default 50), looping /api/cron until done
+        env:
+          BATCH_TARGET: ${{ github.event.inputs.batch_target || '50' }}
         run: |
-          curl -sf -X GET "https://app.lsgrowth.agency/api/cron" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          total_sent=0
+          for i in $(seq 1 15); do
+            remaining=$((BATCH_TARGET - total_sent))
+            resp=$(curl -sf -X GET "https://app.lsgrowth.agency/api/cron?target=${remaining}" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+            echo "Round $i: $resp"
+            sent=$(echo "$resp" | jq -r '.sent // 0')
+            processed=$(echo "$resp" | jq -r '.processed // 0')
+            total_sent=$((total_sent + sent))
+            echo "Round $i sent=$sent, running total=$total_sent/$BATCH_TARGET, processed=$processed due leads"
+            if [ "$total_sent" -ge "$BATCH_TARGET" ]; then
+              echo "Batch target reached."
+              break
+            fi
+            if [ "$processed" -eq 0 ]; then
+              echo "No due leads left — stopping early."
+              break
+            fi
+            sleep 3
+          done
 
   morning-brief:
     # Not gated on github.event.schedule: when this workflow had multiple

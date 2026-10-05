@@ -23,6 +23,7 @@ import {
   buildPerlLine,
 } from "./proofPoints";
 import { notifySlack } from "./slackNotify";
+import { isOutreachSpendOverCap } from "./spendGuard";
 import { Lead } from "./types";
 
 type SupabaseClient = ReturnType<typeof createSupabaseClient>;
@@ -174,6 +175,13 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   // write, so a paused campaign genuinely cannot spend anything. Flip
   // COLD_OUTREACH_PAUSED off in Vercel env vars to resume.
   if (process.env.COLD_OUTREACH_PAUSED === "true") return { sent: false };
+
+  // Daily automated circuit breaker (2026-10-04) — if today's real Anthropic
+  // spend on the outreach key has already hit the cap, skip sending
+  // entirely rather than firing another extractLeadSlots call on top of it.
+  // The next cron run re-checks the real cost API, so this clears itself
+  // once the cap resets, with no manual flag to remember to flip back.
+  if (await isOutreachSpendOverCap()) return { sent: false };
 
   if (!lead.campaign_id) return { sent: false };
 

@@ -20,8 +20,14 @@ export async function GET(request: NextRequest) {
 interface MessengerEvent {
   sender: { id: string };
   recipient: { id: string };
-  message?: { mid: string; text?: string; is_echo?: boolean; app_id?: number; attachments?: { type: string }[] };
+  message?: { mid: string; text?: string; is_echo?: boolean; app_id?: number; attachments?: { type: string; payload?: { sticker_id?: number } }[] };
 }
+
+// The Messenger "thumbs up" quick-reply button arrives as an attachment with
+// type "image" and this specific sticker_id, not a real photo — without
+// excluding it, tapping the like button gets misread as the lead sending a
+// photo. https://developers.facebook.com/docs/messenger-platform/reference/webhook-events/messages
+const LIKE_STICKER_ID = 369239263222822;
 
 // A lead sending just a photo (no caption) arrives with no message.text at
 // all — only message.attachments. Without this, the webhook silently dropped
@@ -33,6 +39,8 @@ interface MessengerEvent {
 function textForEvent(event: MessengerEvent): string | undefined {
   if (event.message?.text) return event.message.text;
   if (event.message?.attachments?.length) {
+    const isLikeSticker = event.message.attachments.some((a) => a.payload?.sticker_id === LIKE_STICKER_ID);
+    if (isLikeSticker) return "[Sent a thumbs up]";
     const isImage = event.message.attachments.some((a) => a.type === "image");
     return isImage ? "[Photo attached]" : "[Attachment sent]";
   }

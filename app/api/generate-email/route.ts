@@ -145,17 +145,11 @@ D) GENERAL_FOLLOWUP:
 
 ---
 
-STEP 4: WRITE THE SUBJECT LINE
-
-Short, 4-7 words. No clickbait. No "Following up". Should feel like something a real person would write to someone they just spoke to. Reference the specific context if possible.
-
----
-
 OUTPUT FORMAT
 
 Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks. Exactly this shape:
 
-{"company": "", "contact_name": "", "email": "", "trade": "", "location": "", "phone": "", "date_called": "", "meeting_datetime": "", "video_recap_line": "", "call_type": "MEETING_BOOKED | WANTS_INFO | NOT_READY_YET | GENERAL_FOLLOWUP", "subject": "", "bodyHtml": ""}`;
+{"company": "", "contact_name": "", "email": "", "trade": "", "location": "", "phone": "", "date_called": "", "meeting_datetime": "", "video_recap_line": "", "call_type": "MEETING_BOOKED | WANTS_INFO | NOT_READY_YET | GENERAL_FOLLOWUP", "bodyHtml": ""}`;
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -189,14 +183,18 @@ Respond ONLY with a valid JSON object. No explanation, no markdown, no backticks
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
-    if (!parsed.subject || !parsed.bodyHtml) {
+    if (!parsed.bodyHtml) {
       return NextResponse.json({ error: "Unexpected response shape." }, { status: 502 });
     }
+
+    // Subject is a fixed template, not model-written — the model kept producing
+    // a bespoke one-line summary of the call ("Friday 3pm and a bit of prep")
+    // instead of a consistent subject, so it's built deterministically here.
+    const subject = `Quick chat, ${parsed.contact_name || parsed.company || "there"}`;
 
     // The model reliably slips an em/en dash into this copy no matter how the
     // "no dashes" rule is worded in the prompt above (same issue documented in
     // lib/ai.ts) — strip deterministically rather than relying on compliance.
-    const subject = stripDashes(parsed.subject);
     const bodyHtml = stripDashes(parsed.bodyHtml);
 
     const finalBodyHtml = bodyHtml;

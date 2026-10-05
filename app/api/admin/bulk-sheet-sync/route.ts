@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
-import { syncLeadsFromSheet } from "@/lib/sheetSync";
+import { syncLeadsFromSheet, MAX_HOOK_CALLS_PER_SYNC_RUN, HookBudget } from "@/lib/sheetSync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
   const batch = files.slice(offset, offset + limit);
 
   const results = [];
+  const hookBudget: HookBudget = { remaining: MAX_HOOK_CALLS_PER_SYNC_RUN };
   for (const file of batch) {
     if (!file.id) continue;
     try {
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest) {
         sheetId: file.id,
         tradeDefault: "",
         locationDefault: "",
+        hookBudget,
       });
       results.push({ name: file.name, id: file.id, ...result });
     } catch (e) {
