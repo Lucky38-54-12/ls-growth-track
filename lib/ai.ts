@@ -273,6 +273,88 @@ ${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` 
   return { jobType, matchedJobTypes, isSolarDominant, confirmedFirstName };
 }
 
+// Cleaning-companies variant of extractLeadSlots (added 2026-10-06 for the
+// Auckland cleaning test batch). No solar/matched-job-type-whitelist concept
+// here — the cleaning sequence always uses one fixed proof line (Queenstown
+// Cleaning, see lib/proofPoints.ts) regardless of job type, so job_type only
+// flavours the subject line and isn't used to pick between proof variants.
+export type ExtractCleaningLeadSlotsResult =
+  | { notAFit: true; reason: string }
+  | { notAFit?: false; jobType: string; confirmedFirstName: string | null };
+
+const CLEANING_SLOT_EXTRACTION_SYSTEM_PROMPT = `You research a cleaning business for Lucky at LS Growth before he sends a fixed, pre-written cold email to them. You do not write any email copy — every email is already written and locked. Your only job is to research this one business and fill in a couple of slot values from what you actually find.
+
+SOURCES, in order of trust:
+1. Notes on file, if given below — these are Lucky's own shorthand from a prior cold call to this exact business (casual, sometimes blunt or abbreviated, written for himself not for publication). Always read these first and weigh them over anything found by searching: they're first-party and more current than a website. Use them for the not_a_fit call below (e.g. a note saying the business has pivoted to a different industry, is a one-off side project, or is clearly not taking on new cleaning work) and for anything else they confirm.
+2. Real text scraped from their website, if given below.
+3. If the website is thin, missing, or gave nothing useful AND the notes don't already answer what you need, you get exactly ONE web_search call. Search for the business name plus location (add "cleaning" if the name is ambiguous) and use whichever real source turns up first in the results — Facebook page, Google Business/Maps listing, or anything else legitimate. You will not get a second search, so do not search again for a different source if the first result set isn't perfect — extract whatever real, confirmed information is there.
+
+ONLY use services the business explicitly states it offers, in its own words, in one of those three sources. Never infer a service from a photo, from a customer review, or from "they're a cleaning company so they probably do X". A generic listing like "residential and commercial cleaning" is NOT a confirmed specific service — treat that as nothing confirmed.
+
+YOUR JOB, in order:
+
+1. EXTRACT confirmed services — the specific things this business explicitly says it does (e.g. "end of tenancy cleans", "office cleaning", "airbnb turnover cleans", "carpet cleaning", "post-construction cleans"). If genuinely nothing specific is confirmed anywhere, confirmed services is empty.
+
+2. FILL job_type — their single most prominent confirmed service, phrased the way a business owner would say it out loud, all lowercase, no punctuation, no hyphens (e.g. "end of tenancy cleans", "office cleaning", "airbnb cleans"). If confirmed services is empty, job_type is exactly "cleaning work".
+
+3. CONFIRM a first name — ONLY from an explicit statement naming a real person as the owner, founder, director, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a staff/about page naming them, or the notes naming who Lucky actually spoke to). A name mentioned only in a customer testimonial or review (not an explicit "this is the owner/founder" statement) does NOT count. Do NOT guess a name from the business name itself (e.g. "Sarah's Cleaning" does not confirm a person named Sarah unless a source also explicitly says so) and do NOT guess from an email address. If nothing explicitly confirms a real person's name, confirmed_first_name is null.
+
+4. FLAG not_a_fit instead of the above if the business is clearly:
+   - A national chain, franchise head office, or corporate parent, not an individual local branch
+   - A tender-only or facilities-management contractor with no day-to-day residential/small-commercial booking work
+   - Confirmed NOT to be a cleaning business at all (including the notes saying the owner has moved on to a different business entirely)
+   - The notes show the owner explicitly said they're not interested, to not contact them again, or gave a clear no — this is still an ICP/willingness judgment call, not a guess, but a clear refusal on file means this isn't a fit to re-approach cold
+   When in doubt and it's an ordinary local cleaning business with no clear refusal on file, do not flag it — this is only for clear, obvious cases.
+
+Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
+{"not_a_fit": true, "reason": "..."}
+or
+{"job_type": "...", "confirmed_first_name": "John" or null}`;
+
+export async function extractCleaningLeadSlots(input: ExtractLeadSlotsInput): Promise<ExtractCleaningLeadSlotsResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+
+  const client = new Anthropic({ apiKey });
+
+  const websiteSnippet = input.website?.trim() ? await fetchWebsiteSnippet(input.website.trim()) : "";
+
+  const userPrompt = `Business: ${input.company}
+Trade: ${input.trade || "unknown"}
+Location: ${input.location || "unknown"}
+Website: ${input.website || "none found"}
+Facebook: ${input.facebook || "none found"}
+Notes on file: ${input.notes || "none"}
+${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` : "\nNo website text available — use your one web_search call per the source order above."}`;
+
+  const msg = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    system: [{ type: "text", text: CLEANING_SLOT_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+    messages: [{ role: "user", content: userPrompt }],
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 1 } as const],
+  });
+
+  const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  if (!text) throw new Error("Unexpected response from AI");
+
+  const parsed = parseJsonResponse<{
+    not_a_fit?: boolean;
+    reason?: string;
+    job_type?: string;
+    confirmed_first_name?: string | null;
+  }>(text);
+
+  if (parsed.not_a_fit) {
+    return { notAFit: true, reason: parsed.reason || "AI judged this business not a fit for LS Growth's ICP." };
+  }
+
+  const jobType = (parsed.job_type || "cleaning work").trim().toLowerCase().replace(/[-‐‑‒–—−]/g, " ");
+  const confirmedFirstName = parsed.confirmed_first_name?.trim() || null;
+
+  return { jobType, confirmedFirstName };
+}
+
 export interface EmailQualityInput {
   subject: string;
   bodyHtml: string;
@@ -314,7 +396,7 @@ Check the email against every item below. Be strict: this email will go out with
 
 The ONLY case studies, client names, dollar figures, or numeric result claims allowed anywhere in the email are these exact sentences (a proof point may be split across a sentence boundary but every number/name in it must come from one of these):
 {{ALLOWED_PROOF_SENTENCES}}
-The only business/client names ever allowed to appear are: {{ALLOWED_CASE_STUDY_NAMES}}. Any other named business, or any dollar figure, percentage, or count of jobs/leads that isn't part of one of the sentences above (this includes an old, retired case study you might recall called "Cooper Electrical" or a "$300,000" or "Queenstown Cleaning" claim — those are NOT allowed here anymore, treat any appearance of them as invented) is always a fail, no exceptions.
+The only business/client names ever allowed to appear are: {{ALLOWED_CASE_STUDY_NAMES}}. Any other named business, or any dollar figure, percentage, or count of jobs/leads that isn't part of one of the sentences above (this includes an old, retired case study you might recall called "Cooper Electrical" or a "$300,000" claim — those are NOT allowed here anymore, treat any appearance of them as invented) is always a fail, no exceptions.
 Check 13 (nothing invented) is about facts specific to THIS lead's business — a made-up detail about them, their team, their location, something they supposedly said. It is NOT about the proof sentences above, which are always fair game to cite verbatim — BUT any narrative flourish added on top of one of them (a "before" state, a location, an explanation of how/why it happened) that isn't literally part of the given sentence IS a check 13 fail, same as an invented detail about the lead's own business.
 
 MECHANICAL CHECKS (objective, no judgment call):

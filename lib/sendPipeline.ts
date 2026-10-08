@@ -1,7 +1,7 @@
 import { createSupabaseClient } from "./supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "./leads";
 import { sendPersonalizedEmail } from "./email";
-import { extractLeadSlots } from "./ai";
+import { extractLeadSlots, extractCleaningLeadSlots } from "./ai";
 import {
   renderInitialEmail,
   renderFollowup1Email,
@@ -9,6 +9,10 @@ import {
   renderFollowup3Email,
   renderFollowup4Email,
   renderCheckinEmail,
+  renderCleaningInitialEmail,
+  renderCleaningFollowup1Email,
+  renderCleaningFollowup2Email,
+  renderCleaningFollowup3Email,
 } from "./emailTemplates";
 import {
   ALLOWED_CASE_STUDY_NAMES,
@@ -20,6 +24,7 @@ import {
   PERL_WHITELIST,
   PerlJobType,
   SSP_LINE,
+  QUEENSTOWN_LINE,
   buildPerlLine,
 } from "./proofPoints";
 import { notifySlack } from "./slackNotify";
@@ -34,6 +39,10 @@ type SupabaseClient = ReturnType<typeof createSupabaseClient>;
 // ("Cooper Electrical") got baked into the old generation prompt and sent to
 // real Wellington leads.
 const CASE_STUDIES_URL = "https://lsgrowth.agency";
+// Cleaning leads get pointed at the actual cleaning-vertical landing page
+// (where the Queenstown Cleaning case study this sequence quotes actually
+// lives), not the generic homepage.
+const CLEANING_CASE_STUDIES_URL = "https://lsgrowth.agency/cleaning";
 
 // lead.location is stored as e.g. "Auckland NZ" — the subject line reads
 // better as just the city.
@@ -73,11 +82,12 @@ function deterministicSafetyCheck(subject: string, bodyHtml: string, businessNam
 }
 
 // The only named businesses that should ever appear in a sent email are the
-// two allowed case studies — this looks for "Word Word Electrical" shaped
-// phrases (the shape both allowed names share) so an unapproved case study
-// slipped in some other way (a bad merge, a manual edit) still gets caught.
+// allowed case studies — this looks for "Word <TradeSuffix>" shaped phrases
+// (the shape every allowed name shares, one per trade this sequence covers)
+// so an unapproved case study slipped in some other way (a bad merge, a
+// manual edit) still gets caught.
 function extractQuotedLikeNames(text: string): string[] {
-  const matches = text.match(/\b[A-Z][a-zA-Z]+ Electrical\b/g) || [];
+  const matches = text.match(/\b[A-Z][a-zA-Z]+ (?:Electrical|Cleaning)\b/g) || [];
   return [...new Set(matches)];
 }
 
@@ -191,10 +201,14 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   const { data: campaign } = await sb.from("campaigns").select("status").eq("id", lead.campaign_id).maybeSingle();
   if (!campaign || campaign.status !== "active") return { sent: false };
 
-  // Manual hold on cleaning-trade leads per Lucky's explicit instruction
-  // (2026-07-10) after Wellington cleaning companies got emailed by mistake
-  // — remove this block once he says it's OK to resume.
-  if (lead.trade?.toLowerCase().includes("clean")) return { sent: false };
+  // Cleaning-trade leads got hard-blocked here 2026-07-10 after Wellington
+  // cleaning companies were emailed by mistake via the old duplicate app.
+  // Re-enabled 2026-10-06 for the Auckland cleaning test batch, routed to
+  // its own templates/proof point (Queenstown Cleaning, see
+  // lib/emailTemplates.ts and lib/proofPoints.ts) instead of the sparkies
+  // copy below — a cleaning lead must never fall through to the electrical
+  // wording just because the branch below is keyed off the same predicate.
+  const isCleaning = lead.trade?.toLowerCase().includes("clean") ?? false;
 
   const step = nextStepFor(lead);
   if (!step) return { sent: false };
@@ -205,51 +219,85 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   let expectedProofLine: string | undefined;
 
   if (step === "initial") {
-    const extraction = await extractLeadSlots({
-      company: lead.company,
-      contactName: lead.contact_name,
-      trade: lead.trade,
-      location: lead.location,
-      notes: lead.notes,
-      website: lead.website,
-      facebook: lead.facebook,
-    });
-
     // The AI's only way to refuse a lead it judges is a bad ICP fit (a
-    // national utility, a franchise head office, a tender-based contractor).
-    // A refusal here is permanent, not a daily retry: retrying would just
-    // get the same verdict again tomorrow, burning an AI call for nothing.
-    if (extraction.notAFit) {
+    // national utility/chain, a franchise head office, a tender-based
+    // contractor). A refusal here is permanent, not a daily retry: retrying
+    // would just get the same verdict again tomorrow, burning an AI call for
+    // nothing. Shared between both extraction paths below.
+    const notAFit = async (reason: string) => {
       await sb.from("leads").update({
         status: "not_interested",
-        notes: `${lead.notes ? lead.notes + "\n" : ""}[${new Date().toISOString().split("T")[0]}] Auto-excluded from campaign, AI judged not a fit: ${extraction.reason}`,
+        notes: `${lead.notes ? lead.notes + "\n" : ""}[${new Date().toISOString().split("T")[0]}] Auto-excluded from campaign, AI judged not a fit: ${reason}`,
       }).eq("lead_id", lead.lead_id);
       await notifySlack(
         `🚫 Auto-excluded *${lead.company}* from campaign, not a fit for LS Growth's ICP.\n` +
-        `Reason: ${extraction.reason}\n` +
+        `Reason: ${reason}\n` +
         `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${lead.lead_id}`
       );
-      return { sent: false, notAFit: true };
-    }
-
-    ({ subject, bodyHtml } = renderInitialEmail({
-      firstName: extraction.confirmedFirstName,
-      jobType: extraction.jobType,
-      city: cityFromLocation(lead.location),
-      matchedJobTypes: extraction.matchedJobTypes,
-      isSolarDominant: extraction.isSolarDominant,
-    }));
-    slots = {
-      jobType: extraction.jobType,
-      matchedJobTypes: extraction.matchedJobTypes,
-      confirmedFirstName: extraction.confirmedFirstName,
     };
-    // The exact proof sentence this specific render used — solar-dominant
-    // leads always use SSP_LINE (already in ALLOWED_PROOF_SENTENCES), every
-    // other lead uses buildPerlLine, which legitimately produces a 1-or-2
-    // service subset that isn't literally the fixed all-three-services form
-    // the static whitelist alone recognises.
-    expectedProofLine = extraction.isSolarDominant ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes);
+
+    if (isCleaning) {
+      const extraction = await extractCleaningLeadSlots({
+        company: lead.company,
+        contactName: lead.contact_name,
+        trade: lead.trade,
+        location: lead.location,
+        notes: lead.notes,
+        website: lead.website,
+        facebook: lead.facebook,
+      });
+      if (extraction.notAFit) {
+        await notAFit(extraction.reason);
+        return { sent: false, notAFit: true };
+      }
+      ({ subject, bodyHtml } = renderCleaningInitialEmail({
+        firstName: extraction.confirmedFirstName,
+        jobType: extraction.jobType,
+        city: cityFromLocation(lead.location),
+        // Lead sheet imports stamp a "[Sheet] Date called: ..." line into
+        // notes whenever this lead already got a cold call — that history
+        // shouldn't read as if this is the first-ever contact.
+        calledBefore: (lead.notes || "").includes("[Sheet] Date called"),
+      }));
+      // No matched-job-type whitelist for the cleaning sequence (see
+      // extractCleaningLeadSlots) — pass an empty array so the gate's
+      // badJobTypes check trivially passes rather than validating against
+      // the electrician-only PERL_WHITELIST.
+      slots = { jobType: extraction.jobType, matchedJobTypes: [], confirmedFirstName: extraction.confirmedFirstName };
+      expectedProofLine = QUEENSTOWN_LINE;
+    } else {
+      const extraction = await extractLeadSlots({
+        company: lead.company,
+        contactName: lead.contact_name,
+        trade: lead.trade,
+        location: lead.location,
+        notes: lead.notes,
+        website: lead.website,
+        facebook: lead.facebook,
+      });
+      if (extraction.notAFit) {
+        await notAFit(extraction.reason);
+        return { sent: false, notAFit: true };
+      }
+      ({ subject, bodyHtml } = renderInitialEmail({
+        firstName: extraction.confirmedFirstName,
+        jobType: extraction.jobType,
+        city: cityFromLocation(lead.location),
+        matchedJobTypes: extraction.matchedJobTypes,
+        isSolarDominant: extraction.isSolarDominant,
+      }));
+      slots = {
+        jobType: extraction.jobType,
+        matchedJobTypes: extraction.matchedJobTypes,
+        confirmedFirstName: extraction.confirmedFirstName,
+      };
+      // The exact proof sentence this specific render used — solar-dominant
+      // leads always use SSP_LINE (already in ALLOWED_PROOF_SENTENCES), every
+      // other lead uses buildPerlLine, which legitimately produces a 1-or-2
+      // service subset that isn't literally the fixed all-three-services form
+      // the static whitelist alone recognises.
+      expectedProofLine = extraction.isSolarDominant ? SSP_LINE : buildPerlLine(extraction.matchedJobTypes);
+    }
   } else if (step === "followup1") {
     // "re: {initial subject}" needs the exact subject actually sent, not a
     // recomputed guess — the initial's jobType/city aren't stored anywhere
@@ -262,26 +310,37 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
       .order("sent_at", { ascending: true })
       .limit(1)
       .maybeSingle();
-    ({ subject, bodyHtml } = renderFollowup1Email(initialSend?.subject || "electrical work sitting on the table"));
+    const fallbackSubject = isCleaning ? "cleaning work sitting on the table" : "electrical work sitting on the table";
+    ({ subject, bodyHtml } = isCleaning
+      ? renderCleaningFollowup1Email(initialSend?.subject || fallbackSubject)
+      : renderFollowup1Email(initialSend?.subject || fallbackSubject));
   } else if (step === "followup2") {
-    ({ subject, bodyHtml } = renderFollowup2Email());
+    ({ subject, bodyHtml } = isCleaning ? renderCleaningFollowup2Email() : renderFollowup2Email());
   } else if (step === "followup3") {
-    // followup3 always cites the OTHER client to whichever proof line the
-    // initial actually used — re-derived from the initial's own sent body
-    // rather than re-running extraction, since a lead's solar-dominance read
-    // could change between the initial and followup3 sends and this has to
-    // reflect what was actually sent, not what would be decided today.
-    const { data: initialSend } = await sb
-      .from("email_sends")
-      .select("body_html")
-      .eq("lead_id", lead.lead_id)
-      .eq("step", "initial")
-      .order("sent_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    const initialUsedSolar = (initialSend?.body_html || "").includes(SSP_LINE);
-    ({ subject, bodyHtml } = renderFollowup3Email({ businessName: lead.company, caseStudiesLink: CASE_STUDIES_URL, initialUsedSolar }));
-    expectedProofLine = initialUsedSolar ? PERL_FALLBACK_LINE : SSP_LINE;
+    if (isCleaning) {
+      // Only one proof line for cleaning (no solar-equivalent variant to
+      // track), so followup3 always cites Queenstown Cleaning directly —
+      // no need to re-derive which line the initial used.
+      ({ subject, bodyHtml } = renderCleaningFollowup3Email({ businessName: lead.company, caseStudiesLink: CLEANING_CASE_STUDIES_URL }));
+      expectedProofLine = QUEENSTOWN_LINE;
+    } else {
+      // followup3 always cites the OTHER client to whichever proof line the
+      // initial actually used — re-derived from the initial's own sent body
+      // rather than re-running extraction, since a lead's solar-dominance read
+      // could change between the initial and followup3 sends and this has to
+      // reflect what was actually sent, not what would be decided today.
+      const { data: initialSend } = await sb
+        .from("email_sends")
+        .select("body_html")
+        .eq("lead_id", lead.lead_id)
+        .eq("step", "initial")
+        .order("sent_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const initialUsedSolar = (initialSend?.body_html || "").includes(SSP_LINE);
+      ({ subject, bodyHtml } = renderFollowup3Email({ businessName: lead.company, caseStudiesLink: CASE_STUDIES_URL, initialUsedSolar }));
+      expectedProofLine = initialUsedSolar ? PERL_FALLBACK_LINE : SSP_LINE;
+    }
   } else if (step === "followup4") {
     ({ subject, bodyHtml } = renderFollowup4Email());
   } else {

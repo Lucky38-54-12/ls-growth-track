@@ -87,14 +87,16 @@ async function sendBulkMail(opts: { to: string; subject: string; html: string; t
   if (error) throw new Error(error.message);
 }
 
-// step is threaded into both tracking URLs so an open/click can be joined
-// back to the exact email_sends row (lead_id, step) it came from, not just
-// the lead as a whole — see generateEmailLearnings in lib/emailLearning.ts.
+// step is threaded into the tracking URL so a click can be joined back to
+// the exact email_sends row (lead_id, step) it came from, not just the lead
+// as a whole — see generateEmailLearnings in lib/emailLearning.ts. No pixel
+// generated here any more (see buildFinalEmailHtml) — every sender already
+// relied on click tracking alone, so this just stopped returning the one
+// value nothing still used.
 function buildLinks(leadId: string, step: string) {
   const stepParam = `&step=${encodeURIComponent(step)}`;
-  const pixel = `<img src="${APP_URL}/api/open?id=${encodeURIComponent(leadId)}${stepParam}" width="1" height="1" alt="" style="display:block;border:0" />`;
   const ctaLink = `${APP_URL}/api/click?id=${encodeURIComponent(leadId)}${stepParam}&url=${encodeURIComponent(BOOKING_URL)}`;
-  return { pixel, ctaLink };
+  return { ctaLink };
 }
 
 // AI-generated email bodies (cold-call follow-ups, etc.) link straight to real
@@ -266,20 +268,28 @@ ${bodyHtml}
 
 // Turns the AI-written bodyHtml + deterministic CTA block into the exact
 // HTML that actually goes out — {{CTA_LINK}} filled in, links rewritten
-// through the click tracker, signature and pixel appended. Exported so
-// callers that need to evaluate the real final content (e.g. sendPipeline's
-// common-sense check) see the same thing the recipient will, not a draft
-// with an unresolved {{CTA_LINK}} placeholder still sitting in it — that
-// placeholder is normal at the AI/quality-check stage but reads as a broken
-// email to anything checking it after this point.
+// through the click tracker, signature appended. Exported so callers that
+// need to evaluate the real final content (e.g. sendPipeline's common-sense
+// check) see the same thing the recipient will, not a draft with an
+// unresolved {{CTA_LINK}} placeholder still sitting in it — that placeholder
+// is normal at the AI/quality-check stage but reads as a broken email to
+// anything checking it after this point.
+//
+// Dropped the tracking pixel and logo <img> 2026-10-07 (previously the only
+// thing distinguishing this sender from sendResendFollowup/
+// sendBookingsFollowup below, which already went image-free for the same
+// reason): an invisible open-tracking pixel plus a logo image is a known
+// spam-filter fingerprint, and it was buying unreliable data anyway — iOS
+// Mail and Gmail's own image proxy both pre-fetch remote images regardless
+// of whether a human actually opened the email, so "opens" never meant what
+// it looked like it meant. Click tracking (wrapLinksForTracking below) is
+// untouched: a real click is a real click, no image load required.
 export function buildFinalEmailHtml(lead: Lead, bodyHtml: string, step: string): { html: string; text: string } {
-  const { pixel, ctaLink } = buildLinks(lead.lead_id, step);
+  const { ctaLink } = buildLinks(lead.lead_id, step);
   const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
   <p>Cheers,<br>Lucky<br>LS Growth</p>
-  <p><a href="https://lsgrowth.agency"><img src="${LOGO_URL}" alt="LS Growth" style="max-width:160px;height:auto;border:0;" /></a></p>
-  ${pixel}
 </div>`;
   return { html, text: htmlToText(filledBody) };
 }

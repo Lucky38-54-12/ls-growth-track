@@ -46,10 +46,24 @@ export const GUARANTEE_LINE = "if I don't get you at least 15 enquiries that tur
 export const GUARANTEE_LINE_INITIAL = "we run a 3 week free trial, if I can't get you work, you don't pay a cent";
 export const GUARANTEE_LINE_FOLLOWUP1 = "the first 3 weeks are a free trial, if I can't get you any work you don't pay a cent and walk away";
 
+// Cleaning-companies campaign (added 2026-10-06) — real, verified result from
+// the LS Growth marketing site's cleaning landing page
+// (Desktop\lsgrowth\app\cleaning\page.tsx): Queenstown Cleaning, 57 tracked
+// leads turned into 30 real booked jobs in one month, at $7-11 cost per lead.
+// This was a real case study used in the outreach system before (see git
+// history on lib/ai.ts pre-2026-07-15) and only dropped from the allowed list
+// when the sparkies-only relaunch narrowed proof points to Perl/SSP
+// Electrical — it was never found to be fabricated, unlike "Cooper
+// Electrical". Stated here as "30 booked jobs in the first month" (no cost-
+// per-lead figure, to keep one clean fixed sentence per slot the same way
+// Perl/SSP do).
+export const QUEENSTOWN_LINE = "I did this for Queenstown Cleaning and got them 30 booked jobs in the first month.";
+export const QUEENSTOWN_FOLLOWUP_LINE = "same setup that got Queenstown Cleaning 30 booked jobs in a month";
+
 // Every business/client name allowed to appear anywhere in a sent email.
 // checkEmailQuality rejects any other named business as an invented case
 // study (see lib/ai.ts).
-export const ALLOWED_CASE_STUDY_NAMES = ["Perl Electrical", "SSP Electrical"] as const;
+export const ALLOWED_CASE_STUDY_NAMES = ["Perl Electrical", "SSP Electrical", "Queenstown Cleaning"] as const;
 
 // checkEmailQuality rejects any dollar figure, percentage, or numeric result
 // claim that isn't a substring of one of these sentences.
@@ -58,6 +72,8 @@ export const ALLOWED_PROOF_SENTENCES = [
   PERL_FALLBACK_LINE,
   PERL_FOLLOWUP_LINE,
   SSP_LINE,
+  QUEENSTOWN_LINE,
+  QUEENSTOWN_FOLLOWUP_LINE,
   GUARANTEE_LINE,
   GUARANTEE_LINE_INITIAL,
   GUARANTEE_LINE_FOLLOWUP1,
