@@ -43,7 +43,7 @@ All amounts are exclusive of GST (if applicable).
 
 3) Payment Terms & Performance Guarantee
 This Agreement begins with a 3-week free trial. No management fees are charged during this period.
-If the Campaign generates at least 10 qualified quote requests for HRC Electrical during the 3-week trial, the Client agrees to pay the NZD $2,000 monthly management fee from that point forward.
+If the Campaign generates at least 10 qualified quote requests for HRC Electrical during the 3-week trial, the NZD $2,000 monthly management fee begins immediately from the day the 10th qualified quote request is confirmed — pro-rated for the remainder of that month — and continues in full each month thereafter. The Client does not wait until the following month to start being billed.
 If 10 qualified quote requests are not generated within the trial period, the Client owes nothing and may walk away from this Agreement at no cost.
 A "qualified quote request" means a genuine enquiry received through the Campaign's lead form or landing page, screened and confirmed as a fit by the Provider.
 The Client must promptly notify the Provider of any confirmed quote requests so performance can be tracked.

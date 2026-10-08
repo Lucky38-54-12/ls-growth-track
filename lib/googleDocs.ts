@@ -196,6 +196,40 @@ export async function createSharedUploadFolder(name: string): Promise<string> {
   return `https://drive.google.com/drive/folders/${newFolderId}`;
 }
 
+// Per-client onboarding has two layers: a private "{company} — onboarding"
+// folder Lucky owns and never shares, with a "Social" subfolder inside it
+// that IS shared "anyone with the link can edit" — that's the only link
+// that goes to the client. Keeps the kickoff email from ever handing out a
+// link to the parent folder (which can end up holding other internal
+// onboarding material alongside the client-facing uploads).
+export async function createOnboardingSocialFolder(company: string): Promise<string> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const drive = google.drive({ version: "v3", auth });
+
+  const parentId = process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_FOLDER_ID;
+  const onboardingFolder = await drive.files.create({
+    requestBody: { name: `${company} — onboarding`, mimeType: "application/vnd.google-apps.folder", parents: [parentId] },
+    fields: "id",
+    supportsAllDrives: true,
+  });
+  const onboardingFolderId = onboardingFolder.data.id!;
+
+  const socialFolder = await drive.files.create({
+    requestBody: { name: "Social", mimeType: "application/vnd.google-apps.folder", parents: [onboardingFolderId] },
+    fields: "id",
+    supportsAllDrives: true,
+  });
+  const socialFolderId = socialFolder.data.id!;
+
+  await drive.permissions.create({
+    fileId: socialFolderId,
+    requestBody: { role: "writer", type: "anyone" },
+    supportsAllDrives: true,
+  });
+
+  return `https://drive.google.com/drive/folders/${socialFolderId}`;
+}
+
 // Same idea as createSharedUploadFolder but without the "anyone with the
 // link can edit" permission — used for the post-signature client folder
 // (photos/videos land here once shooting starts), which for now Lucky wants

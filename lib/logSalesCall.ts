@@ -4,7 +4,7 @@ import { parseCallSummary, runStandingScriptReview, StandingReviewCallRef } from
 import { applyStandingReview, approveScriptProposal, patternsForPrompt } from "./salesCallsPatterns";
 import { runSalesCallsBackup } from "./salesCallsBackupSync";
 import { generateAgreementDoc } from "./agreementMaker";
-import { createSharedUploadFolder } from "./googleDocs";
+import { createOnboardingSocialFolder } from "./googleDocs";
 import { buildKickoffEmail } from "./onboardingKickoffEmail";
 import { sendFreeformEmail } from "./email";
 import { Lead } from "./types";
@@ -114,7 +114,7 @@ export async function logSalesCall(
       if (agreementUrl && effectiveEmail) {
         try {
           const [photosFolderUrl, lqClientId] = await Promise.all([
-            createSharedUploadFolder(`${effectiveBusinessName || "Client"} — onboarding photos`),
+            createOnboardingSocialFolder(effectiveBusinessName || "Client"),
             findOrCreateLqClient(sb, effectiveBusinessName, effectiveEmail, lead?.phone || null),
           ]);
           const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
