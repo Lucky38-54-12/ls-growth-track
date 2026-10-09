@@ -81,11 +81,10 @@ async function sendStep(sb: ReturnType<typeof createSupabaseClient>, lead: Lead,
 }
 
 export async function sendDueNoShowFollowups(): Promise<{ sent: number; held: number }> {
-  // Hard kill switch (2026-08-14) — same flag as lib/sendPipeline.ts. This ran
-  // daily via daily-maintenance regardless of COLD_OUTREACH_PAUSED, generating
-  // and quality-checking emails that then just sat unsent, burning tokens for
-  // nothing.
-  if (process.env.COLD_OUTREACH_PAUSED === "true") return { sent: 0, held: 0 };
+  // Dedicated kill switch (2026-10-09) — split off from COLD_OUTREACH_PAUSED
+  // so pausing the no-show sequence doesn't also stop unrelated sends (e.g.
+  // the Auckland cleaning batch) sharing that flag, and vice versa.
+  if (process.env.NO_SHOW_SEQUENCE_PAUSED === "true") return { sent: 0, held: 0 };
 
   const sb = createSupabaseClient();
   let sent = 0;
