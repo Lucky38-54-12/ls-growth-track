@@ -74,7 +74,10 @@ function getZohoTransport() {
   });
 }
 
-async function sendBulkMail(opts: { to: string; subject: string; html: string; text: string; bcc?: string; from?: string }) {
+async function sendBulkMail(opts: {
+  to: string; subject: string; html: string; text: string; bcc?: string; from?: string;
+  attachments?: { filename: string; content: string }[];
+}) {
   const { error } = await getResend().emails.send({
     from: opts.from || BULK_FROM,
     to: opts.to,
@@ -83,6 +86,7 @@ async function sendBulkMail(opts: { to: string; subject: string; html: string; t
     text: opts.text,
     reply_to: process.env.ZOHO_EMAIL_USER,
     ...(opts.bcc ? { bcc: opts.bcc } : {}),
+    ...(opts.attachments ? { attachments: opts.attachments } : {}),
   });
   if (error) throw new Error(error.message);
 }
@@ -294,9 +298,15 @@ ${filledBody}
   return { html, text: htmlToText(filledBody) };
 }
 
-export async function sendPersonalizedEmail(lead: Lead, subject: string, bodyHtml: string, step: string = "custom") {
+export async function sendPersonalizedEmail(
+  lead: Lead,
+  subject: string,
+  bodyHtml: string,
+  step: string = "custom",
+  attachments?: { filename: string; content: string }[]
+) {
   const { html, text } = buildFinalEmailHtml(lead, bodyHtml, step);
-  await sendBulkMail({ to: lead.email, subject, html, text });
+  await sendBulkMail({ to: lead.email, subject, html, text, ...(attachments ? { attachments } : {}) });
   await logSend(lead.lead_id, step, subject, html);
 }
 

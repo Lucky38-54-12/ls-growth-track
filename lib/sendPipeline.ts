@@ -44,6 +44,29 @@ const CASE_STUDIES_URL = "https://lsgrowth.agency";
 // lives), not the generic homepage.
 const CLEANING_CASE_STUDIES_URL = "https://lsgrowth.agency/cleaning";
 
+// Real job photos for the cleaning sequence's initial email (2026-10-12) —
+// attached as actual files, not linked, per Lucky's request. Fetched from
+// this app's own deployed /public assets rather than read off disk, since
+// Vercel's serverless functions don't reliably have the project's `public`
+// directory on their filesystem at runtime (it's served by the CDN layer
+// instead). Base64-encoded once per cold start and cached — these files
+// never change mid-deployment, so there's no reason to refetch per send.
+const CLEAN_CASE_STUDY_FILES = ["IMG_3298.png", "IMG_3299.png", "IMG_3300.png", "IMG_3302.png", "unnamed.png"];
+let cachedCleanCaseStudyAttachments: { filename: string; content: string }[] | null = null;
+async function getCleanCaseStudyAttachments(): Promise<{ filename: string; content: string }[]> {
+  if (cachedCleanCaseStudyAttachments) return cachedCleanCaseStudyAttachments;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
+  const attachments = await Promise.all(
+    CLEAN_CASE_STUDY_FILES.map(async (filename) => {
+      const res = await fetch(`${appUrl}/email-assets/clean-case-study/${filename}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      return { filename, content: buf.toString("base64") };
+    })
+  );
+  cachedCleanCaseStudyAttachments = attachments;
+  return attachments;
+}
+
 // lead.location is stored as e.g. "Auckland NZ" — the subject line reads
 // better as just the city.
 function cityFromLocation(location: string): string {
@@ -387,7 +410,8 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     return { sent: false, held: true };
   }
 
-  await sendPersonalizedEmail(lead, subject, bodyHtml, step);
+  const attachments = isCleaning && step === "initial" ? await getCleanCaseStudyAttachments() : undefined;
+  await sendPersonalizedEmail(lead, subject, bodyHtml, step, attachments);
 
   const today = new Date().toISOString().split("T")[0];
   const update: Record<string, unknown> = { status: STEP_NEW_STATUS[step] };
