@@ -14,6 +14,14 @@ import { Lead } from "./types";
 export const MAX_HOOK_CALLS_PER_SYNC_RUN = 50;
 export interface HookBudget { remaining: number }
 
+// People paste the full Google Sheets URL, not the bare ID — extract it so
+// every caller (tracked-sheets, admin bulk-sync, the one-off sheet-sync
+// route) works either way instead of silently 400ing on the Sheets API call.
+export function extractSheetId(input: string): string {
+  const match = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : input;
+}
+
 export interface SheetSyncResult {
   imported: number;
   updated: number;
@@ -37,10 +45,11 @@ export async function syncLeadsFromSheet(opts: {
   // single-sheet add-a-lead-sheet route) gets its own fresh budget.
   hookBudget?: HookBudget;
 }): Promise<SheetSyncResult> {
-  const { sheetId, tradeDefault, locationDefault, tab } = opts;
+  const { tradeDefault, locationDefault, tab } = opts;
+  const sheetId = extractSheetId(opts.sheetId.trim());
   const hookBudget = opts.hookBudget || { remaining: MAX_HOOK_CALLS_PER_SYNC_RUN };
 
-  const rows = await readLeadSheet(sheetId.trim(), tab);
+  const rows = await readLeadSheet(sheetId, tab);
   if (!rows.length) {
     throw new Error("No rows with a name or email found in that sheet.");
   }
@@ -51,7 +60,7 @@ export async function syncLeadsFromSheet(opts: {
   // the trade (e.g. "Cleaning"). The scraper page sends the raw search query
   // (e.g. "electrical companies christchurch") as tradeDefault, so also parse
   // that for a city before falling back to locationDefault.
-  const title = await getSheetTitle(sheetId.trim()).catch(() => "");
+  const title = await getSheetTitle(sheetId).catch(() => "");
   const detectedFromTab = tab ? parseCampaignFromTitle(tab) : {};
   const detected = parseCampaignFromTitle(title);
   const detectedFromQuery = parseCampaignFromTitle(tradeDefault);

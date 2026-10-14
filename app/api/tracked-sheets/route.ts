@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
-import { syncLeadsFromSheet } from "@/lib/sheetSync";
+import { syncLeadsFromSheet, extractSheetId } from "@/lib/sheetSync";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const { data: row, error } = await sb
     .from("tracked_sheets")
     .insert({
-      sheet_id: sheetId.trim(),
+      sheet_id: extractSheetId(sheetId.trim()),
       tab: tab?.trim() || null,
       trade_default: tradeDefault || null,
       location_default: locationDefault || null,
@@ -56,7 +56,12 @@ export async function POST(req: NextRequest) {
       last_result: `Imported ${firstSync.imported}`,
     }).eq("id", row.id);
   } catch (e) {
-    firstSync = { error: e instanceof Error ? e.message : "First sync failed" };
+    const message = e instanceof Error ? e.message : "First sync failed";
+    firstSync = { error: message };
+    await sb.from("tracked_sheets").update({
+      last_synced_at: new Date().toISOString(),
+      last_result: `Error: ${message}`,
+    }).eq("id", row.id);
   }
 
   return NextResponse.json({ sheet: row, firstSync });
