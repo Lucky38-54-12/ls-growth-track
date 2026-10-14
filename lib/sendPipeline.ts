@@ -1,7 +1,7 @@
 import { createSupabaseClient } from "./supabase";
 import { nextStepFor, STEP_NEW_STATUS } from "./leads";
 import { sendPersonalizedEmail } from "./email";
-import { extractLeadSlots, extractCleaningLeadSlots } from "./ai";
+import { extractLeadSlots, extractCleaningLeadSlots, extractBuildingLeadSlots } from "./ai";
 import {
   renderInitialEmail,
   renderFollowup1Email,
@@ -13,6 +13,10 @@ import {
   renderCleaningFollowup1Email,
   renderCleaningFollowup2Email,
   renderCleaningFollowup3Email,
+  renderBuildingInitialEmail,
+  renderBuildingFollowup1Email,
+  renderBuildingFollowup2Email,
+  renderBuildingFollowup3Email,
 } from "./emailTemplates";
 import {
   ALLOWED_CASE_STUDY_NAMES,
@@ -25,6 +29,7 @@ import {
   PerlJobType,
   SSP_LINE,
   QUEENSTOWN_LINE,
+  BUILD_IT_ALL_LINE,
   buildPerlLine,
 } from "./proofPoints";
 import { notifySlack } from "./slackNotify";
@@ -43,6 +48,10 @@ const CASE_STUDIES_URL = "https://lsgrowth.agency";
 // (where the Queenstown Cleaning case study this sequence quotes actually
 // lives), not the generic homepage.
 const CLEANING_CASE_STUDIES_URL = "https://lsgrowth.agency/cleaning";
+// No building/renovation-vertical landing page exists yet (unlike
+// /cleaning) — falls back to the generic homepage, same as the sparkies
+// sequence's CASE_STUDIES_URL above, until one is built.
+const BUILDING_CASE_STUDIES_URL = CASE_STUDIES_URL;
 
 // Real job photos for the cleaning sequence's initial email (2026-10-12) —
 // attached as actual files, not linked, per Lucky's request. Fetched from
@@ -64,6 +73,28 @@ async function getCleanCaseStudyAttachments(): Promise<{ filename: string; conte
     })
   );
   cachedCleanCaseStudyAttachments = attachments;
+  return attachments;
+}
+
+// Same approach for the building sequence's initial email, 5 real job
+// photos per Lucky's copy. TODO before this campaign actually sends: drop
+// the 5 photo files into public/email-assets/build-case-study/ (same way
+// the cleaning ones live in public/email-assets/clean-case-study/) and list
+// their filenames here — left empty for now since no photos exist yet.
+const BUILD_CASE_STUDY_FILES: string[] = [];
+let cachedBuildCaseStudyAttachments: { filename: string; content: string }[] | null = null;
+async function getBuildCaseStudyAttachments(): Promise<{ filename: string; content: string }[]> {
+  if (cachedBuildCaseStudyAttachments) return cachedBuildCaseStudyAttachments;
+  if (BUILD_CASE_STUDY_FILES.length === 0) return [];
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
+  const attachments = await Promise.all(
+    BUILD_CASE_STUDY_FILES.map(async (filename) => {
+      const res = await fetch(`${appUrl}/email-assets/build-case-study/${filename}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      return { filename, content: buf.toString("base64") };
+    })
+  );
+  cachedBuildCaseStudyAttachments = attachments;
   return attachments;
 }
 
@@ -113,6 +144,11 @@ function extractQuotedLikeNames(text: string): string[] {
   const matches = text.match(/\b[A-Z][a-zA-Z]+ (?:Electrical|Cleaning)\b/g) || [];
   return [...new Set(matches)];
 }
+// "Build It All" doesn't follow the "Word <TradeSuffix>" shape above, so it
+// can't be caught by extractQuotedLikeNames — it's only ever introduced via
+// the fixed, locked BUILD_IT_ALL_LINE constant (lib/proofPoints.ts), never
+// AI-generated per lead, so there's no invented-name risk this regex exists
+// to catch for it.
 
 export interface FixedTemplateGateVerdict {
   verdict: "approved" | "rejected";
@@ -233,6 +269,11 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   // wording just because the branch below is keyed off the same predicate.
   const isCleaning = lead.trade?.toLowerCase().includes("clean") ?? false;
 
+  // Building-companies test batch, added 2026-10-13. Same /build|renovat|
+  // construction/i pattern already used in app/dashboard/cold-call/page.tsx
+  // to detect a builder lead, kept in sync here rather than invented fresh.
+  const isBuilding = /build|renovat|construction/i.test(lead.trade || "");
+
   const step = nextStepFor(lead);
   if (!step) return { sent: false };
 
@@ -288,6 +329,30 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
       // the electrician-only PERL_WHITELIST.
       slots = { jobType: extraction.jobType, matchedJobTypes: [], confirmedFirstName: extraction.confirmedFirstName };
       expectedProofLine = QUEENSTOWN_LINE;
+    } else if (isBuilding) {
+      const extraction = await extractBuildingLeadSlots({
+        company: lead.company,
+        contactName: lead.contact_name,
+        trade: lead.trade,
+        location: lead.location,
+        notes: lead.notes,
+        website: lead.website,
+        facebook: lead.facebook,
+      });
+      if (extraction.notAFit) {
+        await notAFit(extraction.reason);
+        return { sent: false, notAFit: true };
+      }
+      ({ subject, bodyHtml } = renderBuildingInitialEmail({
+        firstName: extraction.confirmedFirstName,
+        jobType: extraction.jobType,
+        city: cityFromLocation(lead.location),
+        calledBefore: (lead.notes || "").includes("[Sheet] Date called"),
+      }));
+      // No matched-job-type whitelist for the building sequence either — see
+      // the cleaning branch above for why an empty array is passed.
+      slots = { jobType: extraction.jobType, matchedJobTypes: [], confirmedFirstName: extraction.confirmedFirstName };
+      expectedProofLine = BUILD_IT_ALL_LINE;
     } else {
       const extraction = await extractLeadSlots({
         company: lead.company,
@@ -333,12 +398,14 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
       .order("sent_at", { ascending: true })
       .limit(1)
       .maybeSingle();
-    const fallbackSubject = isCleaning ? "cleaning work sitting on the table" : "electrical work sitting on the table";
+    const fallbackSubject = isCleaning ? "cleaning work sitting on the table" : isBuilding ? "renovation work sitting on the table" : "electrical work sitting on the table";
     ({ subject, bodyHtml } = isCleaning
       ? renderCleaningFollowup1Email(initialSend?.subject || fallbackSubject)
+      : isBuilding
+      ? renderBuildingFollowup1Email(initialSend?.subject || fallbackSubject)
       : renderFollowup1Email(initialSend?.subject || fallbackSubject));
   } else if (step === "followup2") {
-    ({ subject, bodyHtml } = isCleaning ? renderCleaningFollowup2Email() : renderFollowup2Email());
+    ({ subject, bodyHtml } = isCleaning ? renderCleaningFollowup2Email() : isBuilding ? renderBuildingFollowup2Email() : renderFollowup2Email());
   } else if (step === "followup3") {
     if (isCleaning) {
       // Only one proof line for cleaning (no solar-equivalent variant to
@@ -346,6 +413,11 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
       // no need to re-derive which line the initial used.
       ({ subject, bodyHtml } = renderCleaningFollowup3Email({ businessName: lead.company, caseStudiesLink: CLEANING_CASE_STUDIES_URL }));
       expectedProofLine = QUEENSTOWN_LINE;
+    } else if (isBuilding) {
+      // Same reasoning as cleaning — only one proof line for Build It All,
+      // no need to re-derive which line the initial used.
+      ({ subject, bodyHtml } = renderBuildingFollowup3Email({ businessName: lead.company, caseStudiesLink: BUILDING_CASE_STUDIES_URL }));
+      expectedProofLine = BUILD_IT_ALL_LINE;
     } else {
       // followup3 always cites the OTHER client to whichever proof line the
       // initial actually used — re-derived from the initial's own sent body
@@ -410,7 +482,11 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     return { sent: false, held: true };
   }
 
-  const attachments = isCleaning && step === "initial" ? await getCleanCaseStudyAttachments() : undefined;
+  const attachments = isCleaning && step === "initial"
+    ? await getCleanCaseStudyAttachments()
+    : isBuilding && step === "initial"
+    ? await getBuildCaseStudyAttachments()
+    : undefined;
   await sendPersonalizedEmail(lead, subject, bodyHtml, step, attachments);
 
   const today = new Date().toISOString().split("T")[0];

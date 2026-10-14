@@ -60,10 +60,19 @@ export const GUARANTEE_LINE_FOLLOWUP1 = "the first 3 weeks are a free trial, if 
 export const QUEENSTOWN_LINE = "I did this for Queenstown Cleaning and got them 30 booked jobs in the first month.";
 export const QUEENSTOWN_FOLLOWUP_LINE = "same setup that got Queenstown Cleaning 30 booked jobs in a month";
 
+// Building-companies campaign (added 2026-10-13, test batch) — Ray at Build
+// It All in Wellington, verified by Lucky 2026-10-13 as $100k of renovation
+// work booked in the first month. Only one figure confirmed (no separate
+// "30 booked jobs" number for this client, unlike Queenstown Cleaning) —
+// every step below restates this same $100k line rather than introducing a
+// second, unverified stat.
+export const BUILD_IT_ALL_LINE = "I did this for Ray at Build It All in Wellington and got him over $100k of renovation work in the first month.";
+export const BUILD_IT_ALL_FOLLOWUP_LINE = "same setup that got Build It All over $100k of renovation work in a month";
+
 // Every business/client name allowed to appear anywhere in a sent email.
 // checkEmailQuality rejects any other named business as an invented case
 // study (see lib/ai.ts).
-export const ALLOWED_CASE_STUDY_NAMES = ["Perl Electrical", "SSP Electrical", "Queenstown Cleaning"] as const;
+export const ALLOWED_CASE_STUDY_NAMES = ["Perl Electrical", "SSP Electrical", "Queenstown Cleaning", "Build It All"] as const;
 
 // checkEmailQuality rejects any dollar figure, percentage, or numeric result
 // claim that isn't a substring of one of these sentences.
@@ -74,6 +83,8 @@ export const ALLOWED_PROOF_SENTENCES = [
   SSP_LINE,
   QUEENSTOWN_LINE,
   QUEENSTOWN_FOLLOWUP_LINE,
+  BUILD_IT_ALL_LINE,
+  BUILD_IT_ALL_FOLLOWUP_LINE,
   GUARANTEE_LINE,
   GUARANTEE_LINE_INITIAL,
   GUARANTEE_LINE_FOLLOWUP1,

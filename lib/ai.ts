@@ -355,6 +355,87 @@ ${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` 
   return { jobType, confirmedFirstName };
 }
 
+// Building-companies variant of extractLeadSlots (added 2026-10-13, test
+// batch). Same shape as extractCleaningLeadSlots — one fixed proof line
+// (Build It All, see lib/proofPoints.ts) regardless of job type, so job_type
+// only flavours the subject line.
+export type ExtractBuildingLeadSlotsResult =
+  | { notAFit: true; reason: string }
+  | { notAFit?: false; jobType: string; confirmedFirstName: string | null };
+
+const BUILDING_SLOT_EXTRACTION_SYSTEM_PROMPT = `You research a building/renovation company for Lucky at LS Growth before he sends a fixed, pre-written cold email to them. You do not write any email copy — every email is already written and locked. Your only job is to research this one business and fill in a couple of slot values from what you actually find.
+
+SOURCES, in order of trust:
+1. Notes on file, if given below — these are Lucky's own shorthand from a prior cold call to this exact business (casual, sometimes blunt or abbreviated, written for himself not for publication). Always read these first and weigh them over anything found by searching: they're first-party and more current than a website. Use them for the not_a_fit call below (e.g. a note saying the business has pivoted to a different industry, is a one-off side project, or is clearly not taking on new building work) and for anything else they confirm.
+2. Real text scraped from their website, if given below.
+3. If the website is thin, missing, or gave nothing useful AND the notes don't already answer what you need, you get exactly ONE web_search call. Search for the business name plus location (add "builders" or "renovation" if the name is ambiguous) and use whichever real source turns up first in the results — Facebook page, Google Business/Maps listing, or anything else legitimate. You will not get a second search, so do not search again for a different source if the first result set isn't perfect — extract whatever real, confirmed information is there.
+
+ONLY use services the business explicitly states it offers, in its own words, in one of those three sources. Never infer a service from a photo, from a customer review, or from "they're a building company so they probably do X". A generic listing like "residential and commercial building" is NOT a confirmed specific service — treat that as nothing confirmed.
+
+YOUR JOB, in order:
+
+1. EXTRACT confirmed services — the specific things this business explicitly says it does (e.g. "home renovations", "kitchen renovations", "bathroom renovations", "home extensions", "new builds", "deck building"). If genuinely nothing specific is confirmed anywhere, confirmed services is empty.
+
+2. FILL job_type — their single most prominent confirmed service, phrased the way a builder would say it out loud, all lowercase, no punctuation, no hyphens (e.g. "home renovations", "kitchen renovations", "home extensions"). If confirmed services is empty, job_type is exactly "renovation work".
+
+3. CONFIRM a first name — ONLY from an explicit statement naming a real person as the owner, founder, director, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a staff/about page naming them, or the notes naming who Lucky actually spoke to). A name mentioned only in a customer testimonial or review (not an explicit "this is the owner/founder" statement) does NOT count. Do NOT guess a name from the business name itself (e.g. "Smith Builders" does not confirm a person named Smith unless a source also explicitly says so) and do NOT guess from an email address. If nothing explicitly confirms a real person's name, confirmed_first_name is null.
+
+4. FLAG not_a_fit instead of the above if the business is clearly:
+   - A national chain, franchise head office, or corporate parent, not an individual local branch
+   - A tender-only, developer-relationship, or commercial-only contractor with no day-to-day residential renovation/callout work
+   - Confirmed NOT to be a building/renovation business at all (including the notes saying the owner has moved on to a different business entirely)
+   - The notes show the owner explicitly said they're not interested, to not contact them again, or gave a clear no — this is still an ICP/willingness judgment call, not a guess, but a clear refusal on file means this isn't a fit to re-approach cold
+   When in doubt and it's an ordinary local building/renovation business with no clear refusal on file, do not flag it — this is only for clear, obvious cases.
+
+Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
+{"not_a_fit": true, "reason": "..."}
+or
+{"job_type": "...", "confirmed_first_name": "John" or null}`;
+
+export async function extractBuildingLeadSlots(input: ExtractLeadSlotsInput): Promise<ExtractBuildingLeadSlotsResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
+
+  const client = new Anthropic({ apiKey });
+
+  const websiteSnippet = input.website?.trim() ? await fetchWebsiteSnippet(input.website.trim()) : "";
+
+  const userPrompt = `Business: ${input.company}
+Trade: ${input.trade || "unknown"}
+Location: ${input.location || "unknown"}
+Website: ${input.website || "none found"}
+Facebook: ${input.facebook || "none found"}
+Notes on file: ${input.notes || "none"}
+${websiteSnippet ? `\nReal text scraped from their website:\n${websiteSnippet}` : "\nNo website text available — use your one web_search call per the source order above."}`;
+
+  const msg = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    system: [{ type: "text", text: BUILDING_SLOT_EXTRACTION_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+    messages: [{ role: "user", content: userPrompt }],
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 1 } as const],
+  });
+
+  const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  if (!text) throw new Error("Unexpected response from AI");
+
+  const parsed = parseJsonResponse<{
+    not_a_fit?: boolean;
+    reason?: string;
+    job_type?: string;
+    confirmed_first_name?: string | null;
+  }>(text);
+
+  if (parsed.not_a_fit) {
+    return { notAFit: true, reason: parsed.reason || "AI judged this business not a fit for LS Growth's ICP." };
+  }
+
+  const jobType = (parsed.job_type || "renovation work").trim().toLowerCase().replace(/[-‐‑‒–—−]/g, " ");
+  const confirmedFirstName = parsed.confirmed_first_name?.trim() || null;
+
+  return { jobType, confirmedFirstName };
+}
+
 export interface EmailQualityInput {
   subject: string;
   bodyHtml: string;
