@@ -81,11 +81,12 @@ async function getCleanCaseStudyAttachments(): Promise<{ filename: string; conte
 // instead, see BUILDING_FOLLOWUP1_VIDEO_URL below.
 
 // Followup1's "have a look at this video" line (Ray talking through a
-// current job) — no video exists yet, so this stays empty and
-// renderBuildingFollowup1Email omits the sentence entirely until a real
-// URL is set here. Do NOT fill with a placeholder/fake link — an empty
-// value is the safe default that just skips the line.
-const BUILDING_FOLLOWUP1_VIDEO_URL = "";
+// current job, supplied 2026-10-15) — served from this app's own /public
+// like lucky-intro.mp4/VIDEO_INTRO_BLOCK in templates.ts, same reasoning
+// (Vercel serverless functions don't reliably see the filesystem, but the
+// CDN serving /public does).
+const BUILDING_FOLLOWUP1_VIDEO_URL = `${process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency"}/videos/build-it-all-proof.mp4`;
+const BUILDING_FOLLOWUP1_VIDEO_THUMB_URL = `${process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency"}/videos/build-it-all-proof-thumb.jpg`;
 
 // lead.location is stored as e.g. "Auckland NZ" — the subject line reads
 // better as just the city.
@@ -391,7 +392,7 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     ({ subject, bodyHtml } = isCleaning
       ? renderCleaningFollowup1Email(initialSend?.subject || fallbackSubject)
       : isBuilding
-      ? renderBuildingFollowup1Email(initialSend?.subject || fallbackSubject, BUILDING_FOLLOWUP1_VIDEO_URL || null)
+      ? renderBuildingFollowup1Email(initialSend?.subject || fallbackSubject, { videoUrl: BUILDING_FOLLOWUP1_VIDEO_URL, thumbUrl: BUILDING_FOLLOWUP1_VIDEO_THUMB_URL })
       : renderFollowup1Email(initialSend?.subject || fallbackSubject));
   } else if (step === "followup2") {
     ({ subject, bodyHtml } = isCleaning ? renderCleaningFollowup2Email() : isBuilding ? renderBuildingFollowup2Email() : renderFollowup2Email());

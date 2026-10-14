@@ -165,13 +165,22 @@ export function renderBuildingInitialEmail(slots: BuildingInitialSlots): Rendere
   };
 }
 
-export function renderBuildingFollowup1Email(initialSubject: string, videoUrl?: string | null): RenderedEmail {
-  const videoSentence = videoUrl
-    ? ` Have a look at this video — Ray talks you through one of the jobs he's doing right now off the back of it: <a href="${videoUrl}">${videoUrl}</a>.`
+export interface BuildingFollowup1VideoSlot {
+  videoUrl: string;
+  thumbUrl: string;
+}
+
+export function renderBuildingFollowup1Email(initialSubject: string, video?: BuildingFollowup1VideoSlot | null): RenderedEmail {
+  // Same standalone-block pattern as VIDEO_INTRO_BLOCK (templates.ts, used
+  // on the Cold Call page's "Building" button) — its own <p> paragraphs
+  // sitting after the main copy, not spliced mid-sentence, with a real
+  // content thumbnail rather than an invisible tracking pixel.
+  const videoBlock = video
+    ? `\n<p>Have a look at this video — Ray talks you through one of the jobs he's doing right now off the back of it.</p>\n<p><a href="${video.videoUrl}"><img src="${video.thumbUrl}" alt="Ray talks through a current job — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`
     : "";
   return {
     subject: `re: ${initialSubject}`,
-    bodyHtml: `<p>Hey, you might've missed my last email or just not been bothered, which is fair enough. Short version, if work's been quiet or inconsistent, I help building companies get booked jobs, ${BUILD_IT_ALL_FOLLOWUP_LINE}.${videoSentence} And to make it a no brainer, ${GUARANTEE_LINE_FOLLOWUP1}. If it's worth a conversation, just reply and I'll send the details.</p>`,
+    bodyHtml: `<p>Hey, you might've missed my last email or just not been bothered, which is fair enough. Short version, if work's been quiet or inconsistent, I help building companies get booked jobs, ${BUILD_IT_ALL_FOLLOWUP_LINE} And to make it a no brainer, ${GUARANTEE_LINE_FOLLOWUP1}. If it's worth a conversation, just reply and I'll send the details.</p>${videoBlock}`,
   };
 }
 
