@@ -74,11 +74,14 @@ function getZohoTransport() {
   });
 }
 
+// Returns Resend's own id for the send so callers can stash it on the
+// email_sends row — the /api/webhooks/resend route matches a later
+// delivered/bounced/complained event back to that row by this id.
 async function sendBulkMail(opts: {
   to: string; subject: string; html: string; text: string; bcc?: string; from?: string;
   attachments?: { filename: string; content: string }[];
-}) {
-  const { error } = await getResend().emails.send({
+}): Promise<string | null> {
+  const { data, error } = await getResend().emails.send({
     from: opts.from || BULK_FROM,
     to: opts.to,
     subject: opts.subject,
@@ -89,6 +92,7 @@ async function sendBulkMail(opts: {
     ...(opts.attachments ? { attachments: opts.attachments } : {}),
   });
   if (error) throw new Error(error.message);
+  return data?.id || null;
 }
 
 // step is threaded into the tracking URL so a click can be joined back to
@@ -114,10 +118,10 @@ function wrapLinksForTracking(html: string, leadId: string, step: string): strin
   });
 }
 
-async function logSend(leadId: string, step: string, subject: string, bodyHtml: string) {
+async function logSend(leadId: string, step: string, subject: string, bodyHtml: string, resendId?: string | null) {
   try {
     const sb = createSupabaseClient();
-    await sb.from("email_sends").insert({ lead_id: leadId, step, subject, body_html: bodyHtml });
+    await sb.from("email_sends").insert({ lead_id: leadId, step, subject, body_html: bodyHtml, resend_id: resendId || null });
   } catch {}
 }
 
@@ -214,8 +218,8 @@ ${filledBody}
   // show up in his inbox the way they did before moving off Gmail SMTP —
   // he was checking his Sent folder for leads he'd just called and finding
   // nothing there once these switched to Resend.
-  await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER });
-  await logSend(lead.lead_id, step, subject, html);
+  const resendId = await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER });
+  await logSend(lead.lead_id, step, subject, html, resendId);
 }
 
 // Meeting reminders (day-before, day-of) — bookings@lsgrowth.agency via
@@ -230,8 +234,8 @@ ${filledBody}
   <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
 </div>`;
   const text = htmlToText(filledBody);
-  await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER, from: BOOKINGS_FROM });
-  await logSend(lead.lead_id, step, subject, html);
+  const resendId = await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER, from: BOOKINGS_FROM });
+  await logSend(lead.lead_id, step, subject, html, resendId);
 }
 
 // Same as sendBookingsFollowup, minus lead-tracking pixel/CTA rewriting/
@@ -306,8 +310,8 @@ export async function sendPersonalizedEmail(
   attachments?: { filename: string; content: string }[]
 ) {
   const { html, text } = buildFinalEmailHtml(lead, bodyHtml, step);
-  await sendBulkMail({ to: lead.email, subject, html, text, ...(attachments ? { attachments } : {}) });
-  await logSend(lead.lead_id, step, subject, html);
+  const resendId = await sendBulkMail({ to: lead.email, subject, html, text, ...(attachments ? { attachments } : {}) });
+  await logSend(lead.lead_id, step, subject, html, resendId);
 }
 
 // Transactional mail to an LS Growth client (not a lead/prospect) — e.g.

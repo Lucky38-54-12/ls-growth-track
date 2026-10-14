@@ -5,6 +5,7 @@ import { CLIENT_COOKIE_NAME, verifyClientSessionToken } from "@/lib/leadQual/cli
 const PUBLIC_PATHS = [
   "/login", "/api/login", "/api/click", "/api/open", "/api/ping", "/api/lead-qual/webhooks/meta",
   "/api/sales-calls/webhooks/fireflies",
+  "/api/webhooks/resend",
   // Client-facing self-serve connect flow — a client completes this in their
   // own browser, logged into their own Google/Facebook account, so it can't
   // sit behind our dashboard login (see /connect/[clientId]/page.tsx).
