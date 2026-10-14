@@ -165,10 +165,13 @@ export function renderBuildingInitialEmail(slots: BuildingInitialSlots): Rendere
   };
 }
 
-export function renderBuildingFollowup1Email(initialSubject: string): RenderedEmail {
+export function renderBuildingFollowup1Email(initialSubject: string, videoUrl?: string | null): RenderedEmail {
+  const videoSentence = videoUrl
+    ? ` Have a look at this video — Ray talks you through one of the jobs he's doing right now off the back of it: <a href="${videoUrl}">${videoUrl}</a>.`
+    : "";
   return {
     subject: `re: ${initialSubject}`,
-    bodyHtml: `<p>Hey, you might've missed my last email or just not been bothered, which is fair enough. Short version, if work's been quiet or inconsistent, I help building companies get booked jobs, ${BUILD_IT_ALL_FOLLOWUP_LINE}. And to make it a no brainer, ${GUARANTEE_LINE_FOLLOWUP1}. If it's worth a conversation, just reply and I'll send the details.</p>`,
+    bodyHtml: `<p>Hey, you might've missed my last email or just not been bothered, which is fair enough. Short version, if work's been quiet or inconsistent, I help building companies get booked jobs, ${BUILD_IT_ALL_FOLLOWUP_LINE}.${videoSentence} And to make it a no brainer, ${GUARANTEE_LINE_FOLLOWUP1}. If it's worth a conversation, just reply and I'll send the details.</p>`,
   };
 }
 

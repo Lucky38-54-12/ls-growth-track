@@ -76,27 +76,16 @@ async function getCleanCaseStudyAttachments(): Promise<{ filename: string; conte
   return attachments;
 }
 
-// Same approach for the building sequence's initial email, 5 real job
-// photos per Lucky's copy. TODO before this campaign actually sends: drop
-// the 5 photo files into public/email-assets/build-case-study/ (same way
-// the cleaning ones live in public/email-assets/clean-case-study/) and list
-// their filenames here — left empty for now since no photos exist yet.
-const BUILD_CASE_STUDY_FILES: string[] = [];
-let cachedBuildCaseStudyAttachments: { filename: string; content: string }[] | null = null;
-async function getBuildCaseStudyAttachments(): Promise<{ filename: string; content: string }[]> {
-  if (cachedBuildCaseStudyAttachments) return cachedBuildCaseStudyAttachments;
-  if (BUILD_CASE_STUDY_FILES.length === 0) return [];
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
-  const attachments = await Promise.all(
-    BUILD_CASE_STUDY_FILES.map(async (filename) => {
-      const res = await fetch(`${appUrl}/email-assets/build-case-study/${filename}`);
-      const buf = Buffer.from(await res.arrayBuffer());
-      return { filename, content: buf.toString("base64") };
-    })
-  );
-  cachedBuildCaseStudyAttachments = attachments;
-  return attachments;
-}
+// Building sequence's initial email deliberately sends no attachments
+// (Lucky's call, 2026-10-15) — the proof photos live in followup1's video
+// instead, see BUILDING_FOLLOWUP1_VIDEO_URL below.
+
+// Followup1's "have a look at this video" line (Ray talking through a
+// current job) — no video exists yet, so this stays empty and
+// renderBuildingFollowup1Email omits the sentence entirely until a real
+// URL is set here. Do NOT fill with a placeholder/fake link — an empty
+// value is the safe default that just skips the line.
+const BUILDING_FOLLOWUP1_VIDEO_URL = "";
 
 // lead.location is stored as e.g. "Auckland NZ" — the subject line reads
 // better as just the city.
@@ -402,7 +391,7 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     ({ subject, bodyHtml } = isCleaning
       ? renderCleaningFollowup1Email(initialSend?.subject || fallbackSubject)
       : isBuilding
-      ? renderBuildingFollowup1Email(initialSend?.subject || fallbackSubject)
+      ? renderBuildingFollowup1Email(initialSend?.subject || fallbackSubject, BUILDING_FOLLOWUP1_VIDEO_URL || null)
       : renderFollowup1Email(initialSend?.subject || fallbackSubject));
   } else if (step === "followup2") {
     ({ subject, bodyHtml } = isCleaning ? renderCleaningFollowup2Email() : isBuilding ? renderBuildingFollowup2Email() : renderFollowup2Email());
@@ -484,8 +473,6 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
 
   const attachments = isCleaning && step === "initial"
     ? await getCleanCaseStudyAttachments()
-    : isBuilding && step === "initial"
-    ? await getBuildCaseStudyAttachments()
     : undefined;
   await sendPersonalizedEmail(lead, subject, bodyHtml, step, attachments);
 
