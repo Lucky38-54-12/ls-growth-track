@@ -62,7 +62,10 @@ jobs:
           BATCH_TARGET: ${{ github.event.inputs.batch_target || '50' }}
         run: |
           total_sent=0
+          ran_out_of_rounds=false
+          rounds_run=0
           for i in $(seq 1 15); do
+            rounds_run=$i
             remaining=$((BATCH_TARGET - total_sent))
             resp=$(curl -sf -X GET "https://app.lsgrowth.agency/api/cron?target=${remaining}" \
               -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
@@ -79,8 +82,20 @@ jobs:
               echo "No due leads left — stopping early."
               break
             fi
+            if [ "$i" -eq 15 ]; then
+              ran_out_of_rounds=true
+            fi
             sleep 3
           done
+          # Each /api/cron round self-reports its own status, so the LAST
+          # round (often "0 sent" once the batch has drained) would otherwise
+          # be left as the final word on /dashboard/automations, masking the
+          # real total from earlier rounds. Post the true cumulative total
+          # as the authoritative status now that the loop's done.
+          curl -sf -X POST "https://app.lsgrowth.agency/api/cron/campaign-send-summary" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"sent\": ${total_sent}, \"rounds\": ${rounds_run}, \"ranOutOfRounds\": ${ran_out_of_rounds}}"
 
   morning-brief:
     # Not gated on github.event.schedule: when this workflow had multiple
