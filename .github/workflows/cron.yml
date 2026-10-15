@@ -6,8 +6,10 @@ name: Daily outreach cron
 # different, verifiable scheduler.
 on:
   schedule:
-    # Campaign sends are paused (2026-08-14) while the send pipeline is
-    # reviewed — see campaign-send below, now workflow_dispatch-only.
+    # Campaign-send was workflow_dispatch-only from 2026-08-14 (send pipeline
+    # under review) until 2026-10-15, when it went back on a daily schedule —
+    # COLD_OUTREACH_PAUSED is the actual kill switch now, this cron entry is
+    # just the trigger.
     #
     # check-personal-inbox, calendar-sync, and lead-qual-callback-reminders
     # used to run here hourly (and 15-min before that), but GitHub Actions
@@ -18,6 +20,7 @@ on:
     # driven by cron-job.org hitting the same bearer-protected routes every
     # 15 min instead — a real scheduler, not GitHub's best-effort one — so
     # they're gone from this workflow entirely rather than kept as a backup.
+    - cron: "0 20 * * *"  # 8am NZT — campaign-send (default batch of 50; COLD_OUTREACH_PAUSED still gates it)
     - cron: "0 19 * * *"  # 7am NZT — morning brief (today's meetings + due items, via Slack)
     - cron: "0 21 * * *"  # 9am NZT — daily maintenance (replies, stale-reply pings, etc.)
     - cron: "0 18 * * *"  # 6am NZT — lead-qual daily sync (catch any Lead Ad forms the webhook missed)
@@ -31,19 +34,30 @@ on:
 
 jobs:
   campaign-send:
-    # Manual-trigger only, still — campaign sends stay paused on a schedule
-    # until Lucky says otherwise (see COLD_OUTREACH_PAUSED). This just makes
-    # a manual run actually push a real batch: /api/cron is capped at 60s by
-    # Vercel (Hobby plan), so one call can only get partway through a batch
-    # of 50 even with the route's own internal concurrency (2026-10-04) — this
-    # loop re-calls it, passing down how many sends are still needed, until
-    # the batch target is hit or there's nothing left due. Each call is its
-    # own independent 60s-capped request, so the loop itself has no duration
-    # limit worth worrying about (GitHub Actions jobs default to 6 hours).
-    if: github.event_name == 'workflow_dispatch'
+    # Runs daily at 8am NZT, same wall-clock-window pattern as
+    # morning-brief/daily-maintenance below (GitHub Actions' scheduler lands
+    # runs late/jittery, so event.schedule alone isn't trustworthy) — also
+    # still triggerable manually any time via workflow_dispatch.
+    # /api/cron is capped at 60s by Vercel (Hobby plan), so one call can only
+    # get partway through a batch of 50 even with the route's own internal
+    # concurrency (2026-10-04) — this loop re-calls it, passing down how many
+    # sends are still needed, until the batch target is hit or there's
+    # nothing left due. Each call is its own independent 60s-capped request,
+    # so the loop itself has no duration limit worth worrying about (GitHub
+    # Actions jobs default to 6 hours).
     runs-on: ubuntu-latest
     steps:
+      - name: Check if it's the 8am NZT (20:00-21:59 UTC) window
+        id: check
+        run: |
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" = "20" ] || [ "$HOUR" = "21" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Send a batch (default 50), looping /api/cron until done
+        if: steps.check.outputs.run == 'true' || github.event_name == 'workflow_dispatch'
         env:
           BATCH_TARGET: ${{ github.event.inputs.batch_target || '50' }}
         run: |
