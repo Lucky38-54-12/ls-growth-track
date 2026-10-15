@@ -176,7 +176,7 @@ export function renderBuildingFollowup1Email(initialSubject: string, video?: Bui
   // sitting after the main copy, not spliced mid-sentence, with a real
   // content thumbnail rather than an invisible tracking pixel.
   const videoBlock = video
-    ? `\n<p>Have a look at this video — Ray talks you through one of the jobs he's doing right now off the back of it.</p>\n<p><a href="${video.videoUrl}"><img src="${video.thumbUrl}" alt="Ray talks through a current job — tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`
+    ? `\n<p>Have a look at this video, Ray talks you through one of the jobs he's doing right now off the back of it.</p>\n<p><a href="${video.videoUrl}"><img src="${video.thumbUrl}" alt="Ray talks through a current job, tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`
     : "";
   return {
     subject: `re: ${initialSubject}`,
