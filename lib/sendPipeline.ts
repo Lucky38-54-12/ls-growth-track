@@ -489,3 +489,46 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
 
   return { sent: true };
 }
+
+// Worker-pool batch runner shared by /api/cron (the daily scheduled sweep
+// over every active campaign) and /api/campaigns/[id]/activate (firing a
+// freshly-activated campaign's initial batch immediately instead of making
+// it wait for the next cron window, which used to mean Lucky had to manually
+// trigger the GitHub Action every time he wanted a new campaign to actually
+// start sending the same day). Concurrency bounded the same way in both
+// callers to stay under Anthropic's/Resend's per-minute rate limits, and
+// time-budgeted the same way to stay inside Vercel's 60s function ceiling.
+export async function runSendBatch(
+  leads: Lead[],
+  sb: SupabaseClient,
+  opts: { targetSent: number; timeBudgetMs?: number; concurrency?: number }
+): Promise<{ sent: number; held: number; notAFit: number; processed: number; errors: { lead_id: string; message: string }[]; ranOutOfTime: boolean }> {
+  const { targetSent, timeBudgetMs = 25_000, concurrency = 6 } = opts;
+  const startedAt = Date.now();
+  let sent = 0, held = 0, notAFit = 0, processed = 0;
+  const errors: { lead_id: string; message: string }[] = [];
+  let ranOutOfTime = false;
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      if (Date.now() - startedAt > timeBudgetMs) { ranOutOfTime = true; return; }
+      if (sent >= targetSent) return;
+      const i = nextIndex++;
+      if (i >= leads.length) return;
+      const lead = leads[i];
+      processed++;
+      try {
+        const result = await sendNextStepFor(lead, sb);
+        if (result.sent) sent++;
+        else if (result.held) held++;
+        else if (result.notAFit) notAFit++;
+      } catch (err) {
+        errors.push({ lead_id: lead.lead_id, message: err instanceof Error ? err.message : "unknown error" });
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  return { sent, held, notAFit, processed, errors, ranOutOfTime };
+}

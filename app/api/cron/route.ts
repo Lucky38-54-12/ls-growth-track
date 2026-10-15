@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
-import { sendNextStepFor } from "@/lib/sendPipeline";
+import { runSendBatch } from "@/lib/sendPipeline";
 import { reportAutomationStatus } from "@/lib/automationStatus";
 import { Lead } from "@/lib/types";
 
@@ -42,7 +42,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const startedAt = Date.now();
   const sb = createSupabaseClient();
 
   // Only leads attached to an active campaign can ever send (sendNextStepFor
@@ -70,41 +69,12 @@ export async function GET(req: NextRequest) {
 
   const today = new Date().toISOString().split("T")[0];
   const targetSent = Number(req.nextUrl.searchParams.get("target")) || DEFAULT_TARGET_SENT;
-  let sent = 0, held = 0, notAFit = 0, processed = 0;
-  const errors: { lead_id: string; message: string }[] = [];
-  let ranOutOfTime = false;
-  let nextIndex = 0;
 
-  // Simple worker-pool: CONCURRENCY workers pull the next lead off the
-  // shared queue as soon as they're free, instead of waiting in lockstep —
-  // this is what actually uses the 60s window efficiently (one slow lead
-  // with a web search doesn't stall the other 5). Safe with no locking:
-  // `nextIndex++` and the counter increments below all run as synchronous
-  // statements with no `await` in between, so JS's single-threaded event
-  // loop never interleaves two workers mid-statement.
-  async function worker() {
-    while (true) {
-      if (Date.now() - startedAt > TIME_BUDGET_MS) { ranOutOfTime = true; return; }
-      if (sent >= targetSent) return; // caller's batch target reached — let the rest of this run stop early
-      const i = nextIndex++;
-      if (i >= leads.length) return;
-      const lead = leads[i];
-      processed++;
-      try {
-        const result = await sendNextStepFor(lead, sb);
-        if (result.sent) sent++;
-        else if (result.held) held++;
-        else if (result.notAFit) notAFit++;
-      } catch (err) {
-        errors.push({
-          lead_id: lead.lead_id,
-          message: err instanceof Error ? err.message : "unknown error",
-        });
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+  const { sent, held, notAFit, processed, errors, ranOutOfTime } = await runSendBatch(leads, sb, {
+    targetSent,
+    timeBudgetMs: TIME_BUDGET_MS,
+    concurrency: CONCURRENCY,
+  });
 
   await reportAutomationStatus(
     sb,
