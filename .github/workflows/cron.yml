@@ -20,7 +20,7 @@ on:
     # driven by cron-job.org hitting the same bearer-protected routes every
     # 15 min instead — a real scheduler, not GitHub's best-effort one — so
     # they're gone from this workflow entirely rather than kept as a backup.
-    - cron: "0 20 * * *"  # 8am NZT — campaign-send (default batch of 50; COLD_OUTREACH_PAUSED still gates it)
+    - cron: "0 20 * * *"  # 8am NZT — campaign-send (sends every due lead, no daily cap; COLD_OUTREACH_PAUSED still gates it)
     - cron: "0 19 * * *"  # 7am NZT — morning brief (today's meetings + due items, via Slack)
     - cron: "0 21 * * *"  # 9am NZT — daily maintenance (replies, stale-reply pings, etc.)
     - cron: "0 18 * * *"  # 6am NZT — lead-qual daily sync (catch any Lead Ad forms the webhook missed)
@@ -30,7 +30,7 @@ on:
       batch_target:
         description: "Campaign-send only: how many emails to send in this batch"
         required: false
-        default: "50"
+        default: "1000"
 
 jobs:
   campaign-send:
@@ -39,12 +39,17 @@ jobs:
     # runs late/jittery, so event.schedule alone isn't trustworthy) — also
     # still triggerable manually any time via workflow_dispatch.
     # /api/cron is capped at 60s by Vercel (Hobby plan), so one call can only
-    # get partway through a batch of 50 even with the route's own internal
+    # get partway through a big batch even with the route's own internal
     # concurrency (2026-10-04) — this loop re-calls it, passing down how many
     # sends are still needed, until the batch target is hit or there's
     # nothing left due. Each call is its own independent 60s-capped request,
     # so the loop itself has no duration limit worth worrying about (GitHub
     # Actions jobs default to 6 hours).
+    # Daily cap removed 2026-10-15 (Lucky's confident in the pipeline now) —
+    # batch_target defaults to 1000, effectively "send everything due", and
+    # the round cap below is raised to match. The real ceiling that actually
+    # matters is the per-lead 3/7/14/21-day schedule in lib/leads.ts, not
+    # this number — most days there's nothing close to 1000 due anyway.
     runs-on: ubuntu-latest
     steps:
       - name: Check if it's the 8am NZT (20:00-21:59 UTC) window
@@ -56,15 +61,15 @@ jobs:
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Send a batch (default 50), looping /api/cron until done
+      - name: Send a batch (default 1000, i.e. everything due), looping /api/cron until done
         if: steps.check.outputs.run == 'true' || github.event_name == 'workflow_dispatch'
         env:
-          BATCH_TARGET: ${{ github.event.inputs.batch_target || '50' }}
+          BATCH_TARGET: ${{ github.event.inputs.batch_target || '1000' }}
         run: |
           total_sent=0
           ran_out_of_rounds=false
           rounds_run=0
-          for i in $(seq 1 15); do
+          for i in $(seq 1 200); do
             rounds_run=$i
             remaining=$((BATCH_TARGET - total_sent))
             resp=$(curl -sf -X GET "https://app.lsgrowth.agency/api/cron?target=${remaining}" \
@@ -82,7 +87,7 @@ jobs:
               echo "No due leads left — stopping early."
               break
             fi
-            if [ "$i" -eq 15 ]; then
+            if [ "$i" -eq 200 ]; then
               ran_out_of_rounds=true
             fi
             sleep 3
