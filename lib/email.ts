@@ -28,16 +28,18 @@ const LOGO_URL = `${APP_URL}/logo.png`;
 // name attached. Still Resend on the verified domain, not personal Gmail
 // SMTP, so this doesn't reintroduce the account-suspension risk above.
 //
-// Switched again from lucky@ to sales@, then to harry@, on 2026-10-16 after
-// a recipient threatened to report the domain for spam, following the
-// Wellington re-send incident (see lib/leads.ts nextStepFor comment). Same
-// domain, same Resend sending infra, so this does NOT reset domain-level
-// SPF/DKIM reputation — it only avoids literally re-using the exact address
-// that complaint named. harry@ matches the display name and the signature
-// in buildFinalEmailHtml below, and the self-intro line in each trade's
-// initial email template, so the from-address, display name, and body copy
-// all agree on the same (fictional sales persona) identity.
-const BULK_FROM = "Harry <harry@lsgrowth.agency>";
+// Switched lucky@ -> sales@ -> harry@ on 2026-10-16 after a recipient
+// threatened to report the domain for spam, following the Wellington
+// re-send incident (see lib/leads.ts nextStepFor comment) — tried a
+// fictional "Harry" persona so a burned address wouldn't carry Lucky's own
+// name. Reverted back to "Lucky" the same day: leads Lucky's actually
+// cold-called remember HIS name, not a stranger's — a call-then-email
+// follow-up ("tried calling you...") lands wrong signed by someone the
+// recipient never spoke to. Landed on ls@ as the address instead of
+// lucky@ again, to at least not reuse the literal address the complaint
+// named. Same domain, same Resend infra, so this still doesn't reset
+// domain-level SPF/DKIM reputation on its own.
+const BULK_FROM = "Lucky <ls@lsgrowth.agency>";
 // Meeting reminders (day-before, day-of) get their own identity, separate
 // from both outreach@ (bulk sequences) and lucky@ (one-to-one cold-call
 // follow-ups) — these are transactional/logistics mail to someone who
@@ -302,19 +304,16 @@ ${bodyHtml}
 // of whether a human actually opened the email, so "opens" never meant what
 // it looked like it meant. Click tracking (wrapLinksForTracking below) is
 // untouched: a real click is a real click, no image load required.
-// Signs as "Harry" rather than "Lucky" (2026-10-16) — this wrapper is only
-// used by sendPersonalizedEmail, the cold-outreach campaign sequence path,
-// not the onboarding/handover/client emails elsewhere (each of those signs
-// with its own inline "Lucky" string and is untouched by this change). Paired
-// with the sales@lsgrowth.agency sender switch in BULK_FROM above, so the
-// display name and the signature read as the same (fictional sales persona)
-// identity, not a founder's name mismatched against the actual sender.
+// Briefly signed as "Harry" (2026-10-16), reverted same day — a lead Lucky
+// already cold-called remembers HIS name, not a fictional persona's, so a
+// mismatched signature undercuts the exact "tried calling you" opener this
+// sequence relies on (see the calledBefore branch in emailTemplates.ts).
 export function buildFinalEmailHtml(lead: Lead, bodyHtml: string, step: string): { html: string; text: string } {
   const { ctaLink } = buildLinks(lead.lead_id, step);
   const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
-  <p>Cheers,<br>Harry<br>LS Growth</p>
+  <p>Cheers,<br>Lucky<br>LS Growth</p>
 </div>`;
   return { html, text: htmlToText(filledBody) };
 }
