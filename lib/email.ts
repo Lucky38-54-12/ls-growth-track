@@ -28,17 +28,16 @@ const LOGO_URL = `${APP_URL}/logo.png`;
 // name attached. Still Resend on the verified domain, not personal Gmail
 // SMTP, so this doesn't reintroduce the account-suspension risk above.
 //
-// Switched again from lucky@ to sales@ on 2026-10-16 after a recipient
-// threatened to report the domain for spam, following the Wellington
-// re-send incident (see lib/leads.ts nextStepFor comment). Same domain,
-// same Resend sending infra, so this does NOT reset domain-level SPF/DKIM
-// reputation — it only avoids literally re-using the exact address that
-// complaint named, and keeps the "generic broadcast name" trap (outreach@,
-// hello@, team@) from recurring. "sales@" is a common address real small
-// businesses send from, not a mailing-list signal like "outreach@" was.
-// Display name switched from "Lucky" to "Harry" the same day, paired with
-// buildFinalEmailHtml's signature below so the two always match.
-const BULK_FROM = "Harry <sales@lsgrowth.agency>";
+// Switched again from lucky@ to sales@, then to harry@, on 2026-10-16 after
+// a recipient threatened to report the domain for spam, following the
+// Wellington re-send incident (see lib/leads.ts nextStepFor comment). Same
+// domain, same Resend sending infra, so this does NOT reset domain-level
+// SPF/DKIM reputation — it only avoids literally re-using the exact address
+// that complaint named. harry@ matches the display name and the signature
+// in buildFinalEmailHtml below, and the self-intro line in each trade's
+// initial email template, so the from-address, display name, and body copy
+// all agree on the same (fictional sales persona) identity.
+const BULK_FROM = "Harry <harry@lsgrowth.agency>";
 // Meeting reminders (day-before, day-of) get their own identity, separate
 // from both outreach@ (bulk sequences) and lucky@ (one-to-one cold-call
 // follow-ups) — these are transactional/logistics mail to someone who
