@@ -40,7 +40,7 @@ export function renderInitialEmail(slots: InitialSlots): RenderedEmail {
   const proofLine = slots.isSolarDominant ? SSP_LINE : buildPerlLine(slots.matchedJobTypes);
   return {
     subject: `${slots.jobType} in ${slots.city}`,
-    bodyHtml: `<p>${greeting} look, I know you get a hundred of these promising the world, so I'll keep it short. I'm Lucky, I run a marketing agency out of Nelson and I get sparkies booked jobs, not leads. Every enquiry gets pre-qualified and I call them myself before they get near you, so you're only quoting people who are actually keen. ${proofLine} And ${GUARANTEE_LINE_INITIAL}. If work's been a bit quiet or up and down, this might be worth a conversation, just reply to this email & I will get back to you.</p>`,
+    bodyHtml: `<p>${greeting} look, I know you get a hundred of these promising the world, so I'll keep it short. I'm Harry, I run a marketing agency out of Nelson and I get sparkies booked jobs, not leads. Every enquiry gets pre-qualified and I call them myself before they get near you, so you're only quoting people who are actually keen. ${proofLine} And ${GUARANTEE_LINE_INITIAL}. If work's been a bit quiet or up and down, this might be worth a conversation, just reply to this email & I will get back to you.</p>`,
   };
 }
 
@@ -114,7 +114,7 @@ export function renderCleaningInitialEmail(slots: CleaningInitialSlots): Rendere
     // service label) so it reads as a real pitch rather than a vague
     // service listing, while staying lowercase/short per the voice rules.
     subject: `booked ${slots.jobType} in ${slots.city}`,
-    bodyHtml: `<p>${greeting} ${opener} I'm Lucky, I run a marketing agency out of Nelson and I get cleaning companies booked jobs, not leads. You might be thinking, yeah right, another lead gen guy whose leads go nowhere. That's why every enquiry goes through a 2 step qualification first. So by the time it reaches you, it's an actual fit and ready to move forward. ${QUEENSTOWN_LINE} And ${GUARANTEE_LINE_INITIAL}. If work's been a bit quiet or up and down, this might be worth a conversation, just reply to this email & I will get back to you.</p>`,
+    bodyHtml: `<p>${greeting} ${opener} I'm Harry, I run a marketing agency out of Nelson and I get cleaning companies booked jobs, not leads. You might be thinking, yeah right, another lead gen guy whose leads go nowhere. That's why every enquiry goes through a 2 step qualification first. So by the time it reaches you, it's an actual fit and ready to move forward. ${QUEENSTOWN_LINE} And ${GUARANTEE_LINE_INITIAL}. If work's been a bit quiet or up and down, this might be worth a conversation, just reply to this email & I will get back to you.</p>`,
   };
 }
 
@@ -161,7 +161,7 @@ export function renderBuildingInitialEmail(slots: BuildingInitialSlots): Rendere
     : "look, I know you get a hundred of these promising the world, so I'll keep it short.";
   return {
     subject: `booked ${slots.jobType} in ${slots.city}`,
-    bodyHtml: `<p>${greeting} ${opener} I'm Lucky, I run a marketing agency out of Nelson and I get building companies booked jobs, not leads. You might be thinking, yeah right, another lead gen guy whose leads go nowhere. That's why every enquiry goes through a 2 step qualification first. So by the time it reaches you, it's an actual fit and ready to move forward. ${BUILD_IT_ALL_LINE} And ${GUARANTEE_LINE_INITIAL}. If work's been a bit quiet or up and down, this might be worth a conversation, just reply to this email & I will get back to you.</p>`,
+    bodyHtml: `<p>${greeting} ${opener} I'm Harry, I run a marketing agency out of Nelson and I get building companies booked jobs, not leads. You might be thinking, yeah right, another lead gen guy whose leads go nowhere. That's why every enquiry goes through a 2 step qualification first. So by the time it reaches you, it's an actual fit and ready to move forward. ${BUILD_IT_ALL_LINE} And ${GUARANTEE_LINE_INITIAL}. If work's been a bit quiet or up and down, this might be worth a conversation, just reply to this email & I will get back to you.</p>`,
   };
 }
 

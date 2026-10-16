@@ -36,7 +36,9 @@ const LOGO_URL = `${APP_URL}/logo.png`;
 // complaint named, and keeps the "generic broadcast name" trap (outreach@,
 // hello@, team@) from recurring. "sales@" is a common address real small
 // businesses send from, not a mailing-list signal like "outreach@" was.
-const BULK_FROM = "Lucky <sales@lsgrowth.agency>";
+// Display name switched from "Lucky" to "Harry" the same day, paired with
+// buildFinalEmailHtml's signature below so the two always match.
+const BULK_FROM = "Harry <sales@lsgrowth.agency>";
 // Meeting reminders (day-before, day-of) get their own identity, separate
 // from both outreach@ (bulk sequences) and lucky@ (one-to-one cold-call
 // follow-ups) — these are transactional/logistics mail to someone who
@@ -301,12 +303,19 @@ ${bodyHtml}
 // of whether a human actually opened the email, so "opens" never meant what
 // it looked like it meant. Click tracking (wrapLinksForTracking below) is
 // untouched: a real click is a real click, no image load required.
+// Signs as "Harry" rather than "Lucky" (2026-10-16) — this wrapper is only
+// used by sendPersonalizedEmail, the cold-outreach campaign sequence path,
+// not the onboarding/handover/client emails elsewhere (each of those signs
+// with its own inline "Lucky" string and is untouched by this change). Paired
+// with the sales@lsgrowth.agency sender switch in BULK_FROM above, so the
+// display name and the signature read as the same (fictional sales persona)
+// identity, not a founder's name mismatched against the actual sender.
 export function buildFinalEmailHtml(lead: Lead, bodyHtml: string, step: string): { html: string; text: string } {
   const { ctaLink } = buildLinks(lead.lead_id, step);
   const filledBody = wrapLinksForTracking(bodyHtml.replace(/\{\{CTA_LINK\}\}/g, ctaLink), lead.lead_id, step);
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.5;max-width:560px;">
 ${filledBody}
-  <p>Cheers,<br>Lucky<br>LS Growth</p>
+  <p>Cheers,<br>Harry<br>LS Growth</p>
 </div>`;
   return { html, text: htmlToText(filledBody) };
 }
