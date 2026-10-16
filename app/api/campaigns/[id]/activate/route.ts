@@ -49,6 +49,36 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     activatedLeads = data || [];
   }
 
+  // Leads can come into a campaign already carrying history from an older,
+  // separate outreach run (the old non-campaign follow-up system, or a prior
+  // campaign) — e.g. "already went through the full sequence months ago with
+  // no reply". Resuming them mid-sequence under a new campaign is wrong on
+  // two counts: it sends whatever step they happen to be stuck on instead of
+  // a proper fresh intro, and because every step's due-date is anchored to
+  // the ORIGINAL date_contacted (see nextStepFor in lib/leads.ts), a lead
+  // that's months overdue has every remaining step due at once — confirmed in
+  // production 2026-10-16, when 49 dormant Wellington leads each got 3-4
+  // follow-ups inside 90 seconds after being folded into a new campaign this
+  // way. Leads genuinely done with this business (not_interested, bounced,
+  // closed, no_close, replied, booked, discovery_done) are deliberately left
+  // alone here, not reset — only the "still technically mid-sequence, just
+  // dormant" statuses get a clean restart.
+  const RESUMABLE_STATUSES = new Set(["contacted", "followup_1_sent", "followup_2_sent", "followup_3_sent", "sequence_complete"]);
+  const staleLeadIds = activatedLeads.filter((l) => RESUMABLE_STATUSES.has(l.status)).map((l) => l.lead_id);
+  if (staleLeadIds.length > 0) {
+    await sb.from("leads").update({
+      status: "not_contacted",
+      date_contacted: null,
+      last_followup: null,
+      followup_count: 0,
+    }).in("lead_id", staleLeadIds);
+    activatedLeads = activatedLeads.map((l) =>
+      staleLeadIds.includes(l.lead_id)
+        ? { ...l, status: "not_contacted" as const, date_contacted: null, last_followup: null, followup_count: 0 }
+        : l
+    );
+  }
+
   // Onboarding clients aren't linked to leads by ID (see the onboarding recap
   // sync in app/api/onboarding/route.ts, which matches the same way) — email
   // is the only bridge between the two systems, so auto-tick campaign_launched

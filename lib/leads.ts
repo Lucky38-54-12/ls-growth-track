@@ -77,14 +77,26 @@ export function nextStepFor(lead: Lead): EmailStep | null {
   // Not yet started
   if (status === "not_contacted" || !date_contacted) return "initial";
 
-  // All follow-ups are measured from date_contacted (the initial send date)
+  // All follow-ups are measured from date_contacted (the initial send date) —
+  // but that alone isn't enough: a lead that's months overdue has every
+  // threshold (day 3, 7, 14, 21) satisfied at once, so a loop that re-checks
+  // due leads every few seconds (the GitHub Actions campaign-send loop) would
+  // blow through its entire remaining sequence in under a minute instead of
+  // one step per day. Confirmed in production 2026-10-16: 49 dormant
+  // Wellington leads each got 3-4 follow-ups within ~90 seconds after being
+  // re-attached to a new campaign. MIN_DAYS_SINCE_LAST_SEND caps it to at
+  // most one step per lead per day, no matter how far behind schedule it is —
+  // a backlogged lead now catches up gradually instead of all at once.
+  const MIN_DAYS_SINCE_LAST_SEND = 1;
   const daysSinceContact = daysSince(date_contacted);
   if (daysSinceContact === null) return null;
+  const daysSinceLastSend = daysSince(last_followup || date_contacted);
+  const sendFloorMet = daysSinceLastSend === null || daysSinceLastSend >= MIN_DAYS_SINCE_LAST_SEND;
 
-  if (status === "contacted")      return daysSinceContact >= DAYS_FOLLOWUP_1 ? "followup1" : null;
-  if (status === "followup_1_sent") return daysSinceContact >= DAYS_FOLLOWUP_2 ? "followup2" : null;
-  if (status === "followup_2_sent") return daysSinceContact >= DAYS_FOLLOWUP_3 ? "followup3" : null;
-  if (status === "followup_3_sent") return daysSinceContact >= DAYS_FOLLOWUP_4 ? "followup4" : null;
+  if (status === "contacted")      return daysSinceContact >= DAYS_FOLLOWUP_1 && sendFloorMet ? "followup1" : null;
+  if (status === "followup_1_sent") return daysSinceContact >= DAYS_FOLLOWUP_2 && sendFloorMet ? "followup2" : null;
+  if (status === "followup_2_sent") return daysSinceContact >= DAYS_FOLLOWUP_3 && sendFloorMet ? "followup3" : null;
+  if (status === "followup_3_sent") return daysSinceContact >= DAYS_FOLLOWUP_4 && sendFloorMet ? "followup4" : null;
   // followup_4_sent → sequence_complete is set immediately after send (in the API), not here
 
   return null;
