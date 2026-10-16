@@ -27,7 +27,16 @@ const LOGO_URL = `${APP_URL}/logo.png`;
 // list/broadcast address to Gmail's classifier even with a personal display
 // name attached. Still Resend on the verified domain, not personal Gmail
 // SMTP, so this doesn't reintroduce the account-suspension risk above.
-const BULK_FROM = "Lucky <lucky@lsgrowth.agency>";
+//
+// Switched again from lucky@ to sales@ on 2026-10-16 after a recipient
+// threatened to report the domain for spam, following the Wellington
+// re-send incident (see lib/leads.ts nextStepFor comment). Same domain,
+// same Resend sending infra, so this does NOT reset domain-level SPF/DKIM
+// reputation — it only avoids literally re-using the exact address that
+// complaint named, and keeps the "generic broadcast name" trap (outreach@,
+// hello@, team@) from recurring. "sales@" is a common address real small
+// businesses send from, not a mailing-list signal like "outreach@" was.
+const BULK_FROM = "Lucky <sales@lsgrowth.agency>";
 // Meeting reminders (day-before, day-of) get their own identity, separate
 // from both outreach@ (bulk sequences) and lucky@ (one-to-one cold-call
 // follow-ups) — these are transactional/logistics mail to someone who
