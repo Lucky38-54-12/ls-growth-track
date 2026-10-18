@@ -361,12 +361,14 @@ export async function resubscribeAllMessengerChannels(): Promise<ResubscribeResu
   const sb = createSupabaseClient();
   const { data: channels } = await sb
     .from("lq_channels")
-    .select("external_page_id, credentials, lq_clients(name)")
+    .select("external_page_id, credentials, lq_clients(name, status)")
     .eq("type", "messenger");
 
   const results: ResubscribeResult[] = [];
   for (const channel of channels || []) {
-    const clientName = (channel.lq_clients as unknown as { name: string } | null)?.name || "unknown client";
+    const client = channel.lq_clients as unknown as { name: string; status?: string } | null;
+    if (client?.status === "paused") continue; // same reasoning as reconcileHumanTakeovers — don't spend a Graph API call maintaining a token for a client we're not actively working
+    const clientName = client?.name || "unknown client";
     try {
       const token = decryptSecret(channel.credentials as unknown as Buffer);
       await subscribeWebhookForPage(channel.external_page_id, token);
@@ -436,12 +438,14 @@ export async function checkMessengerChannelHealth(): Promise<DeadChannel[]> {
   const sb = createSupabaseClient();
   const { data: channels } = await sb
     .from("lq_channels")
-    .select("client_id, external_page_id, credentials, lq_clients(name)")
+    .select("client_id, external_page_id, credentials, lq_clients(name, status)")
     .eq("type", "messenger");
 
   const dead: DeadChannel[] = [];
   for (const channel of channels || []) {
-    const clientName = (channel.lq_clients as unknown as { name: string } | null)?.name || "unknown client";
+    const client = channel.lq_clients as unknown as { name: string; status?: string } | null;
+    if (client?.status === "paused") continue; // same reasoning as reconcileHumanTakeovers above — a paused client's dead token isn't worth a daily Slack alert
+    const clientName = client?.name || "unknown client";
     let token: string;
     try {
       token = decryptSecret(channel.credentials as unknown as Buffer);
