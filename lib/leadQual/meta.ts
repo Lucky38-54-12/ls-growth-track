@@ -146,7 +146,8 @@ export async function humanRepliedOnFacebook(
   pageId: string,
   psid: string,
   pageAccessToken: string,
-  knownAssistantTexts: string[]
+  knownAssistantTexts: string[],
+  sinceTimestampMs?: number
 ): Promise<{ humanReplied: boolean; message?: string }> {
   const convRes = await fetch(
     `https://graph.facebook.com/v20.0/${pageId}/conversations?fields=participants&limit=10&access_token=${encodeURIComponent(pageAccessToken)}`
@@ -171,15 +172,30 @@ export async function humanRepliedOnFacebook(
   // check's earlier version only looked at his own most recent message
   // before giving up, never seeing the staff quote sitting just below it.
   const msgRes = await fetch(
-    `https://graph.facebook.com/v20.0/${thread.id}/messages?fields=from,message&limit=25&access_token=${encodeURIComponent(pageAccessToken)}`
+    `https://graph.facebook.com/v20.0/${thread.id}/messages?fields=from,message,created_time&limit=25&access_token=${encodeURIComponent(pageAccessToken)}`
   );
   const msgBody = await msgRes.json();
   if (msgBody.error) throw new Error(`humanRepliedOnFacebook messages lookup failed: ${JSON.stringify(msgBody.error)}`);
 
   const normalized = knownAssistantTexts.map(normalizeMessageText);
-  const lastPageMessage = (msgBody.data || []).find(
-    (msg: { from?: { id?: string }; message?: string }) => msg.from?.id === pageId
-  );
+  type GraphMessage = { from?: { id?: string }; message?: string; created_time?: string };
+  // Facebook auto-posts Page-attributed entries the instant a lead's first
+  // message arrives — an "X replied to an ad." system log line, and
+  // whatever Instant Reply greeting is configured on the Page — both
+  // timestamped at or even *before* the lead's own message. Those aren't a
+  // human catching the conversation; a human can't have replied to a
+  // message that didn't exist yet. Coast Build's Page had Instant Reply
+  // turned on around 2026-10-18, and every brand-new lead's first message
+  // got silently swallowed by this check mistaking that greeting for a
+  // staff takeover. Only a Page message that landed after the lead's own
+  // triggering message counts as a possible human reply.
+  const lastPageMessage = (msgBody.data || []).find((msg: GraphMessage) => {
+    if (msg.from?.id !== pageId) return false;
+    if (sinceTimestampMs !== undefined && msg.created_time) {
+      if (new Date(msg.created_time).getTime() <= sinceTimestampMs) return false;
+    }
+    return true;
+  });
   if (lastPageMessage?.message && !normalized.includes(normalizeMessageText(lastPageMessage.message))) {
     return { humanReplied: true, message: lastPageMessage.message };
   }

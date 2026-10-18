@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 interface MessengerEvent {
   sender: { id: string };
   recipient: { id: string };
+  timestamp?: number;
   message?: { mid: string; text?: string; is_echo?: boolean; app_id?: number; attachments?: { type: string; payload?: { sticker_id?: number } }[] };
 }
 
@@ -217,7 +218,7 @@ export async function POST(request: NextRequest) {
                 .order("created_at", { ascending: false })
                 .limit(5);
               const knownTexts = (recentAssistantMsgs || []).map((m) => m.content);
-              const verify = await humanRepliedOnFacebook(event.recipient.id, event.sender.id, channel.pageAccessToken, knownTexts);
+              const verify = await humanRepliedOnFacebook(event.recipient.id, event.sender.id, channel.pageAccessToken, knownTexts, event.timestamp);
               if (verify.humanReplied) {
                 humanTookOver = true;
                 console.error("lead-qual: human reply detected on Facebook that never reached our webhook, staying silent", {
