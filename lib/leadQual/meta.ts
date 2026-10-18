@@ -204,13 +204,16 @@ export async function reconcileHumanTakeovers(): Promise<HumanTakeover[]> {
   const sb = createSupabaseClient();
   const { data: channels } = await sb
     .from("lq_channels")
-    .select("id, external_page_id, credentials, client_id, lq_clients(name)")
+    .select("id, external_page_id, credentials, client_id, lq_clients(name, status)")
     .eq("type", "messenger");
 
   const takeovers: HumanTakeover[] = [];
 
   for (const channel of channels || []) {
-    const clientName = (channel.lq_clients as unknown as { name: string } | null)?.name || "unknown client";
+    const client = channel.lq_clients as unknown as { name: string; status?: string } | null;
+    if (client?.status === "paused") continue; // not actively worked — don't spend a Graph API call checking a token we don't maintain
+
+    const clientName = client?.name || "unknown client";
     let token: string;
     try {
       token = decryptSecret(channel.credentials as unknown as Buffer);
