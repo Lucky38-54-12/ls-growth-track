@@ -214,12 +214,24 @@ export function pickNextRegion(existingLeads: { trade: string; location: string 
 // old rejections sitting in the table. Without this filter, every dashboard
 // "Needs Your Attention" / "Held For Review" view would keep showing a lead
 // as held forever, even after it was successfully emailed for that step.
+// coldCallNudges.ts and proposalFollowup.ts (until 2026-10-19) called
+// sendResendFollowup without its optional step argument, so every
+// successful send landed in email_sends as step "custom" instead of
+// matching the "cold_call_followup"/"proposal_followup" step its own
+// email_checks row used — meaning every one of those rejections stayed
+// "held" forever even after the lead was actually emailed. Both callers now
+// pass the real step through, but old rows already written as "custom"
+// can't be fixed retroactively, so a check also counts as resolved by any
+// "custom"-step send for that lead, not just an exact step match. Template
+// campaign steps (initial/followup1-4, logged by sendPersonalizedEmail with
+// their real step name) are unaffected — those still require an exact match.
 export function stillHeld<C extends { lead_id: string; step: string }>(
   checks: C[],
   sends: { lead_id: string; step: string }[]
 ): C[] {
   const sentStepKeys = new Set(sends.map((s) => `${s.lead_id}::${s.step}`));
-  return checks.filter((c) => !sentStepKeys.has(`${c.lead_id}::${c.step}`));
+  const customSendLeadIds = new Set(sends.filter((s) => s.step === "custom").map((s) => s.lead_id));
+  return checks.filter((c) => !sentStepKeys.has(`${c.lead_id}::${c.step}`) && !customSendLeadIds.has(c.lead_id));
 }
 
 export interface HealthSnapshot {

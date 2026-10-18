@@ -82,7 +82,9 @@ export async function sendDueProposalFollowups(): Promise<{ sent: number; held: 
         continue;
       }
 
-      await sendResendFollowup(lead, generated.subject, generated.bodyHtml);
+      // Explicit step, matching the email_checks row's step above — same
+      // stillHeld() matching gap as lib/coldCallNudges.ts, fixed the same way.
+      await sendResendFollowup(lead, generated.subject, generated.bodyHtml, "cold_call_followup");
 
       const today = new Date().toISOString().split("T")[0];
       await sb.from("leads").update({

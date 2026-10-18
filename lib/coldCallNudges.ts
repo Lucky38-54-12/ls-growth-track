@@ -65,7 +65,11 @@ async function sendNudge(
     return false;
   }
 
-  await sendResendFollowup(lead, generated.subject, generated.bodyHtml);
+  // Explicit step, matching the email_checks row inserted above — the
+  // generic "custom" default never matched "cold_call_followup" in
+  // getHealthSnapshot's stillHeld() check, so every successfully-sent nudge
+  // kept showing up as "stuck" forever even after it actually went out.
+  await sendResendFollowup(lead, generated.subject, generated.bodyHtml, "cold_call_followup");
 
   const today = new Date().toISOString().split("T")[0];
   await sb.from("leads").update({
