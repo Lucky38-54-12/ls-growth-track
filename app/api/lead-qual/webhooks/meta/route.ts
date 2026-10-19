@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
       // from scratch.
       const { data: existing } = await sb
         .from("lq_conversations")
-        .select("id")
+        .select("id, started_at")
         .eq("client_id", channel.clientId)
         .eq("channel_id", channel.channelId)
         .contains("contact", { psid: event.sender.id })
@@ -218,7 +218,13 @@ export async function POST(request: NextRequest) {
                 .order("created_at", { ascending: false })
                 .limit(5);
               const knownTexts = (recentAssistantMsgs || []).map((m) => m.content);
-              const verify = await humanRepliedOnFacebook(event.recipient.id, event.sender.id, channel.pageAccessToken, knownTexts, event.timestamp);
+              // Pinned to when this conversation started, not to the
+              // timestamp of whatever message just triggered this check —
+              // see humanRepliedOnFacebook's comment for why that distinction
+              // matters (a human's reply naturally predates the lead's next
+              // message, which is what triggers this very check).
+              const conversationStartedAtMs = existing?.started_at ? new Date(existing.started_at).getTime() : undefined;
+              const verify = await humanRepliedOnFacebook(event.recipient.id, event.sender.id, channel.pageAccessToken, knownTexts, conversationStartedAtMs);
               if (verify.humanReplied) {
                 humanTookOver = true;
                 console.error("lead-qual: human reply detected on Facebook that never reached our webhook, staying silent", {

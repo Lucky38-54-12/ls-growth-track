@@ -147,7 +147,7 @@ export async function humanRepliedOnFacebook(
   psid: string,
   pageAccessToken: string,
   knownAssistantTexts: string[],
-  sinceTimestampMs?: number
+  conversationStartedAtMs?: number
 ): Promise<{ humanReplied: boolean; message?: string }> {
   const convRes = await fetch(
     `https://graph.facebook.com/v20.0/${pageId}/conversations?fields=participants&limit=10&access_token=${encodeURIComponent(pageAccessToken)}`
@@ -182,17 +182,30 @@ export async function humanRepliedOnFacebook(
   // Facebook auto-posts Page-attributed entries the instant a lead's first
   // message arrives — an "X replied to an ad." system log line, and
   // whatever Instant Reply greeting is configured on the Page — both
-  // timestamped at or even *before* the lead's own message. Those aren't a
-  // human catching the conversation; a human can't have replied to a
-  // message that didn't exist yet. Coast Build's Page had Instant Reply
+  // timestamped at or even *before* the lead's own first message. Those
+  // aren't a human catching the conversation; a human can't have replied to
+  // a message that didn't exist yet. Coast Build's Page had Instant Reply
   // turned on around 2026-10-18, and every brand-new lead's first message
   // got silently swallowed by this check mistaking that greeting for a
-  // staff takeover. Only a Page message that landed after the lead's own
-  // triggering message counts as a possible human reply.
+  // staff takeover. Only a Page message that landed after the *conversation
+  // started* (its first lead message) counts as a possible human reply.
+  //
+  // This must be pinned to the conversation's start, not to whichever lead
+  // message is currently triggering the check — an earlier version compared
+  // against the triggering message's own timestamp, which backwards-filtered
+  // out exactly the normal case: a human answers the lead directly on
+  // Facebook, and only later does the lead type something back that
+  // actually runs this check. That human reply sits chronologically *before*
+  // the new triggering message, so comparing against the trigger excluded
+  // it outright. This is exactly what happened to Leanne Roberts (BG
+  // Builds, 2026-10-18): Ben answered her Waihi question by hand, she said
+  // thanks a few minutes later, and that "thanks" message's own timestamp
+  // was used as the floor — filtering Ben's already-sent reply out of
+  // consideration and letting the AI re-greet her from scratch.
   const lastPageMessage = (msgBody.data || []).find((msg: GraphMessage) => {
     if (msg.from?.id !== pageId) return false;
-    if (sinceTimestampMs !== undefined && msg.created_time) {
-      if (new Date(msg.created_time).getTime() <= sinceTimestampMs) return false;
+    if (conversationStartedAtMs !== undefined && msg.created_time) {
+      if (new Date(msg.created_time).getTime() <= conversationStartedAtMs) return false;
     }
     return true;
   });
@@ -239,7 +252,7 @@ export async function reconcileHumanTakeovers(): Promise<HumanTakeover[]> {
 
     const { data: convos } = await sb
       .from("lq_conversations")
-      .select("id, contact")
+      .select("id, contact, started_at")
       .eq("client_id", channel.client_id)
       .eq("channel_id", channel.id)
       .is("paused_at", null)
@@ -257,9 +270,10 @@ export async function reconcileHumanTakeovers(): Promise<HumanTakeover[]> {
         .order("created_at", { ascending: false })
         .limit(10);
       const knownTexts = (assistantMsgs || []).map((m) => m.content);
+      const conversationStartedAtMs = convo.started_at ? new Date(convo.started_at).getTime() : undefined;
 
       try {
-        const verify = await humanRepliedOnFacebook(channel.external_page_id, psid, token, knownTexts);
+        const verify = await humanRepliedOnFacebook(channel.external_page_id, psid, token, knownTexts, conversationStartedAtMs);
         if (verify.humanReplied) {
           await sb.from("lq_conversations").update({ paused_at: new Date().toISOString(), status: "needs_human" }).eq("id", convo.id);
           takeovers.push({ clientName, conversationId: convo.id, message: verify.message || "" });

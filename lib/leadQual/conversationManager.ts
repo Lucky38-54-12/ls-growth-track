@@ -6,6 +6,8 @@ import { enrollInNurture } from "./nurture";
 import { findExistingLeadByPhone, mergeFieldsIntoExistingLead } from "./dedupe";
 import { notifySlack } from "@/lib/slackNotify";
 import { sendReminderEmail } from "@/lib/email";
+import { humanRepliedOnFacebook } from "./meta";
+import { decryptSecret } from "./crypto";
 
 export interface RunTurnInput {
   clientId: string;
@@ -472,6 +474,35 @@ export async function retryStalledTurn(conversationId: string): Promise<RunTurnO
 
   const last = (priorMessages || [])[(priorMessages || []).length - 1];
   if (!last || last.role !== "user") throw new Error("Last message isn't from the lead — nothing unanswered to retry");
+
+  // A conversation can look "stalled" in our own data purely because the
+  // echo webhook that's supposed to log a staff reply and set paused_at
+  // never fired for a reply a human already sent directly in the Page
+  // inbox. The live webhook path guards against exactly this by checking
+  // Facebook's own thread directly before sending (see
+  // humanRepliedOnFacebook); this recovery path had skipped that check
+  // entirely. A conversation sitting unanswered long enough to need manual
+  // recovery is exactly the kind that had time for a human to step in on
+  // Facebook, so this check matters more here than anywhere else.
+  const psid = (conversation.contact as { psid?: string } | null)?.psid;
+  if (psid && conversation.channel_id) {
+    const { data: channel } = await sb
+      .from("lq_channels")
+      .select("external_page_id, credentials")
+      .eq("id", conversation.channel_id)
+      .eq("type", "messenger")
+      .maybeSingle();
+    if (channel?.credentials) {
+      const token = decryptSecret(channel.credentials as unknown as Buffer);
+      const knownTexts = (priorMessages || []).filter((m) => m.role === "assistant").map((m) => m.content);
+      const conversationStartedAtMs = conversation.started_at ? new Date(conversation.started_at).getTime() : undefined;
+      const verify = await humanRepliedOnFacebook(channel.external_page_id, psid, token, knownTexts, conversationStartedAtMs);
+      if (verify.humanReplied) {
+        await sb.from("lq_conversations").update({ paused_at: new Date().toISOString(), status: "needs_human" }).eq("id", conversationId);
+        throw new Error(`Human already replied on Facebook ("${verify.message}") — marked needs_human instead of retrying`);
+      }
+    }
+  }
 
   const MAX_HISTORY_MESSAGES = 30;
   const history: ConversationTurn[] = (priorMessages || [])
