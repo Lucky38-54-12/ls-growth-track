@@ -27,6 +27,17 @@ on:
     - cron: "0 0 * * *"  # 12pm NZT — lead-qual sync, second daily pass so a missed form doesn't sit until the next morning
   workflow_dispatch:       # lets you trigger a run manually from the Actions tab
     inputs:
+      job:
+        description: "Which job to run manually (the other three stay dormant)"
+        required: false
+        default: "campaign-send"
+        type: choice
+        options:
+          - campaign-send
+          - morning-brief
+          - daily-maintenance
+          - lead-qual-sync
+          - all
       batch_target:
         description: "Campaign-send only: how many emails to send in this batch"
         required: false
@@ -62,7 +73,7 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Send a batch (default 1000, i.e. everything due), looping /api/cron until done
-        if: steps.check.outputs.run == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.check.outputs.run == 'true' || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["campaign-send", "all"]'), github.event.inputs.job))
         env:
           BATCH_TARGET: ${{ github.event.inputs.batch_target || '1000' }}
         run: |
@@ -130,7 +141,7 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Call /api/cron/morning-brief
-        if: steps.check.outputs.run == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.check.outputs.run == 'true' || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["morning-brief", "all"]'), github.event.inputs.job))
         run: |
           curl -sf -X GET "https://app.lsgrowth.agency/api/cron/morning-brief" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
@@ -155,7 +166,7 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Call /api/cron/daily-maintenance
-        if: steps.check.outputs.run == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.check.outputs.run == 'true' || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["daily-maintenance", "all"]'), github.event.inputs.job))
         run: |
           curl -sf -X GET "https://app.lsgrowth.agency/api/cron/daily-maintenance" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
@@ -180,7 +191,7 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Call /api/cron/lead-qual-sync
-        if: steps.check.outputs.run == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.check.outputs.run == 'true' || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["lead-qual-sync", "all"]'), github.event.inputs.job))
         run: |
           curl -sf -X GET "https://app.lsgrowth.agency/api/cron/lead-qual-sync" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

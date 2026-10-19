@@ -4,20 +4,35 @@ import { createSupabaseClient } from "@/lib/supabase";
 // cron — see CLAUDE.md), so a gap this wide means a run was actually missed,
 // not just scheduler jitter. Checked from daily-maintenance since that's the
 // one routine confirmed to run reliably inside Vercel's own cron.
-const HEARTBEAT_SLUGS = ["calendar-sync", "lead-qual-callback-reminders", "check-personal-inbox"] as const;
+const FIFTEEN_MIN_SLUGS = ["calendar-sync", "lead-qual-callback-reminders", "check-personal-inbox"] as const;
 const STALE_AFTER_MINUTES = 30;
 
+// These run once a day via GitHub Actions' own scheduler (cron.yml), which
+// was confirmed 2026-10-20 to silently stop firing scheduled runs entirely
+// for over a day (workflow stayed "active", manual/push triggers were
+// unaffected — only the `schedule` event went quiet) with nothing surfacing
+// the gap until follow-up emails were found stuck. A ~30hr threshold gives
+// one full day's slack for GitHub's own scheduling jitter before flagging.
+const DAILY_GH_ACTIONS_SLUGS = ["campaign-send-pipeline", "morning-brief", "lead-qual-sync"] as const;
+const STALE_AFTER_MINUTES_DAILY = 30 * 60;
+
 // Flags a cron that's gone quiet — e.g. cron-job.org pausing the job after
-// repeated failures, or CRON_SECRET drifting out of sync — instead of
-// waiting for someone to notice a reminder email never went out.
+// repeated failures, CRON_SECRET drifting out of sync, or GitHub Actions'
+// scheduler itself stalling — instead of waiting for someone to notice a
+// reminder email or follow-up never went out.
 export async function checkCronHeartbeats(sb: ReturnType<typeof createSupabaseClient>): Promise<{ stale: string[] }> {
-  const { data } = await sb.from("automations").select("slug, last_run_at").in("slug", HEARTBEAT_SLUGS);
+  const allSlugs = [...FIFTEEN_MIN_SLUGS, ...DAILY_GH_ACTIONS_SLUGS];
+  const { data } = await sb.from("automations").select("slug, last_run_at").in("slug", allSlugs);
   const now = Date.now();
-  const stale = HEARTBEAT_SLUGS.filter((slug) => {
+  const checkStale = (slug: string, thresholdMinutes: number) => {
     const row = data?.find((r) => r.slug === slug);
     if (!row?.last_run_at) return true;
-    return (now - new Date(row.last_run_at).getTime()) / 60_000 > STALE_AFTER_MINUTES;
-  });
+    return (now - new Date(row.last_run_at).getTime()) / 60_000 > thresholdMinutes;
+  };
+  const stale = [
+    ...FIFTEEN_MIN_SLUGS.filter((slug) => checkStale(slug, STALE_AFTER_MINUTES)),
+    ...DAILY_GH_ACTIONS_SLUGS.filter((slug) => checkStale(slug, STALE_AFTER_MINUTES_DAILY)),
+  ];
   return { stale };
 }
 

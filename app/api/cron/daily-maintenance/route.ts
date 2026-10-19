@@ -175,7 +175,9 @@ export async function GET(req: NextRequest) {
     results.cronHeartbeats = { stale };
     if (stale.length > 0) {
       await notifySlack(
-        `🔴 Cron watchdog: ${stale.join(", ")} hasn't reported in over 30 min — reminder emails may be silently stalled. Check the cron-job.org job history and CRON_SECRET before assuming the app logic is broken.`
+        `🔴 Cron watchdog: ${stale.join(", ")} hasn't reported in on schedule — reminder emails or follow-ups may be silently stalled. ` +
+        `For calendar-sync/lead-qual-callback-reminders/check-personal-inbox, check the cron-job.org job history and CRON_SECRET. ` +
+        `For campaign-send-pipeline/morning-brief/lead-qual-sync, check the "Daily outreach cron" workflow's Actions run history on GitHub — its scheduled trigger has gone silent before while staying "active" and accepting manual runs fine.`
       );
     }
   } catch (e) {
