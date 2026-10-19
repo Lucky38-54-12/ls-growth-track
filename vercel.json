@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/daily-maintenance", "schedule": "0 21 * * *" }
+    { "path": "/api/cron/daily-maintenance", "schedule": "0 21 * * *" },
+    { "path": "/api/cron?target=200", "schedule": "50 19 * * *" }
   ]
 }
