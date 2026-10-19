@@ -304,6 +304,7 @@ YOUR JOB, in order:
    - A tender-only or facilities-management contractor with no day-to-day residential/small-commercial booking work
    - Confirmed NOT to be a cleaning business at all (including the notes saying the owner has moved on to a different business entirely)
    - The notes show the owner explicitly said they're not interested, to not contact them again, or gave a clear no — this is still an ICP/willingness judgment call, not a guess, but a clear refusal on file means this isn't a fit to re-approach cold
+   A guarded, annoyed, or even outright hostile tone on a prior cold call is NOT on its own a reason to flag not_a_fit — re-approach by email regardless of how that call went. Only an explicit refusal (told not to contact them again, or a clear no to the offer itself) counts, never tone alone.
    When in doubt and it's an ordinary local cleaning business with no clear refusal on file, do not flag it — this is only for clear, obvious cases.
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
@@ -384,8 +385,8 @@ YOUR JOB, in order:
    - A national chain, franchise head office, or corporate parent, not an individual local branch
    - A tender-only, developer-relationship, or commercial-only contractor with no day-to-day residential renovation/callout work
    - Confirmed NOT to be a building/renovation business at all (including the notes saying the owner has moved on to a different business entirely)
-   - The notes show the owner explicitly said they're not interested, to not contact them again, or gave a clear no — this is still an ICP/willingness judgment call, not a guess, but a clear refusal on file means this isn't a fit to re-approach cold
-   When in doubt and it's an ordinary local building/renovation business with no clear refusal on file, do not flag it — this is only for clear, obvious cases.
+   A guarded, annoyed, or even outright hostile tone on a prior cold call is NOT a reason to flag not_a_fit — re-approach by email regardless of how that call went. Only the business-type criteria above apply.
+   When in doubt and it's an ordinary local building/renovation business, do not flag it — this is only for clear, obvious cases.
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
 {"not_a_fit": true, "reason": "..."}
