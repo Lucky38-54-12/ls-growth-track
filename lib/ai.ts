@@ -188,6 +188,14 @@ export type ExtractLeadSlotsResult =
       confirmedFirstName: string | null;
     };
 
+// Lucky's explicit rule (2026-10-20): tone from a prior cold call is never
+// grounds to exclude a lead from the campaign, no matter how hostile. Every
+// trade's not_a_fit prompt below must splice this in — a new trade variant
+// added later should reuse this constant rather than retyping the rule (that
+// drift is exactly how the cleaning prompt ended up without it in the first
+// place, while the building one had it).
+const NOT_A_FIT_TONE_CARVEOUT = `A guarded, annoyed, or even outright hostile tone on a prior cold call is NOT on its own a reason to flag not_a_fit — re-approach by email regardless of how that call went. Only an explicit refusal (told not to contact them again, or a clear no to the offer itself) counts, never tone alone.`;
+
 const SLOT_EXTRACTION_SYSTEM_PROMPT = `You research an electrical business for Lucky at LS Growth before he sends a fixed, pre-written cold email to them. You do not write any email copy — every email is already written and locked. Your only job is to research this one business and fill in a few slot values from what you actually find.
 
 SOURCE ORDER:
@@ -213,6 +221,7 @@ YOUR JOB, in order:
    - A tender-only or developer-relationship contractor with no day-to-day residential/small-commercial callout work
    - A franchise head office / corporate parent, not an individual local branch
    - Confirmed NOT to be an electrical trade business at all
+   ${NOT_A_FIT_TONE_CARVEOUT}
    When in doubt and it's an ordinary local electrical business, do not flag it — this is only for clear, obvious cases. You only see this one business's own research, so don't try to judge whether it's a duplicate branch of a franchise contacted elsewhere in the same campaign — only flag a franchise HEAD OFFICE itself if this business clearly is one.
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
@@ -304,7 +313,7 @@ YOUR JOB, in order:
    - A tender-only or facilities-management contractor with no day-to-day residential/small-commercial booking work
    - Confirmed NOT to be a cleaning business at all (including the notes saying the owner has moved on to a different business entirely)
    - The notes show the owner explicitly said they're not interested, to not contact them again, or gave a clear no — this is still an ICP/willingness judgment call, not a guess, but a clear refusal on file means this isn't a fit to re-approach cold
-   A guarded, annoyed, or even outright hostile tone on a prior cold call is NOT on its own a reason to flag not_a_fit — re-approach by email regardless of how that call went. Only an explicit refusal (told not to contact them again, or a clear no to the offer itself) counts, never tone alone.
+   ${NOT_A_FIT_TONE_CARVEOUT}
    When in doubt and it's an ordinary local cleaning business with no clear refusal on file, do not flag it — this is only for clear, obvious cases.
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
@@ -385,7 +394,7 @@ YOUR JOB, in order:
    - A national chain, franchise head office, or corporate parent, not an individual local branch
    - A tender-only, developer-relationship, or commercial-only contractor with no day-to-day residential renovation/callout work
    - Confirmed NOT to be a building/renovation business at all (including the notes saying the owner has moved on to a different business entirely)
-   A guarded, annoyed, or even outright hostile tone on a prior cold call is NOT a reason to flag not_a_fit — re-approach by email regardless of how that call went. Only the business-type criteria above apply.
+   ${NOT_A_FIT_TONE_CARVEOUT}
    When in doubt and it's an ordinary local building/renovation business, do not flag it — this is only for clear, obvious cases.
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
