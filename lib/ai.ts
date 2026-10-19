@@ -866,7 +866,15 @@ export interface MeetingTouchpointInput {
   meetingTime: string;
 }
 
-async function runMeetingEmailPrompt(systemPrompt: string, userPrompt: string): Promise<PersonalizedEmail> {
+async function runMeetingEmailPrompt(
+  systemPrompt: string,
+  userPrompt: string,
+  // Only the call-recap prompt currently offers the model this escape hatch
+  // (see CALL_RECAP_SYSTEM_PROMPT) — a thin/garbled transcript should mean no
+  // email goes out at all, not a client-facing "didn't catch that" apology
+  // (shipped after that exact email went to a real prospect, 2026-10-19).
+  allowInsufficient = false
+): Promise<PersonalizedEmail> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY env var is not set");
 
@@ -885,11 +893,15 @@ async function runMeetingEmailPrompt(systemPrompt: string, userPrompt: string): 
   const jsonMatch = block.text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error(`Could not find JSON in AI response: ${block.text.slice(0, 200)}`);
 
-  let parsed: { subject?: string; bodyHtml?: string };
+  let parsed: { subject?: string; bodyHtml?: string; insufficient?: boolean };
   try {
     parsed = JSON.parse(jsonMatch[0]);
   } catch {
     throw new Error(`Could not parse AI response as JSON: ${block.text.slice(0, 200)}`);
+  }
+
+  if (allowInsufficient && parsed.insufficient) {
+    throw new Error("Not enough in the call notes/transcript to write a genuine recap");
   }
 
   if (!parsed.subject || !parsed.bodyHtml) {
@@ -926,6 +938,8 @@ Structure exactly like this:
 
 Never invent numbers, terms, or action items that aren't in the notes given to you — if something isn't mentioned, leave it out rather than guessing.
 
+If the notes/transcript given to you are empty, garbled, or too thin to genuinely summarize what was discussed (e.g. a silent/failed recording, a transcript that's just noise), do NOT write an email telling the client the recording didn't come through, asking them to resend what they talked about, or anything else exposing that something failed on Lucky's end. Instead respond with ONLY this exact JSON object and nothing else: {"insufficient": true}
+
 Never state a goal, target, or aspiration as if it's already true. The notes/transcript often describe where the client wants to get to ("goal is to get my six guys back and have two crews"), not their current situation — read for the difference and write it that way ("you're working towards running two crews", not "you're running two crews"). Getting this backwards puts false claims in front of a client.
 
 Never mention Fireflies, a call recorder, a transcript, or any notetaking/AI tool by name, or hint that notes/audio were captured by one — this reads as if Lucky remembers the call himself, not as a machine-generated summary. Also leave out anything personal or private that came up on the call but isn't actually relevant to the deal — family, relationships, health, or other sensitive personal details — even if it's sitting right there in the transcript. This is a professional email to a client, not a transcript dump.
@@ -956,7 +970,7 @@ Action items (Fireflies' own summary): ${input.actionItems || "none captured"}`;
 Business: ${input.businessName || "unknown"}
 ${notesSection}
 Agreed deal terms: ${input.dealTerms || "none — no deal was agreed on this call"}`;
-  return runMeetingEmailPrompt(CALL_RECAP_SYSTEM_PROMPT, userPrompt);
+  return runMeetingEmailPrompt(CALL_RECAP_SYSTEM_PROMPT, userPrompt, true);
 }
 
 // This used to be AI-generated (see git history) but a same-day reminder

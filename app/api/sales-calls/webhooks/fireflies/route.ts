@@ -35,6 +35,28 @@ async function alreadyLogged(sb: ReturnType<typeof createSupabaseClient>, meetin
   return !!data;
 }
 
+// Fireflies itself can occasionally mint two distinct meeting_ids for the
+// same real call (e.g. a reconnect, or two calendar entries pointing at the
+// same Meet link), each firing its own "transcribed" webhook minutes apart —
+// confirmed 2026-10-18 on CleanTech Wellington, where that sent George two
+// separate recap emails. alreadyLogged() can't catch this since the
+// meeting_id genuinely differs each time, so this checks for a very recent
+// sales_calls row against the same matched lead instead. Only covers calls
+// that matched a lead (the common case); an unmatched lead has no shared key
+// to dedupe on here.
+const DUPLICATE_CALL_WINDOW_MS = 30 * 60 * 1000;
+async function recentDuplicateForLead(sb: ReturnType<typeof createSupabaseClient>, leadId: string): Promise<boolean> {
+  const since = new Date(Date.now() - DUPLICATE_CALL_WINDOW_MS).toISOString();
+  const { data } = await sb
+    .from("sales_calls")
+    .select("id")
+    .eq("lead_id", leadId)
+    .gte("created_at", since)
+    .limit(1)
+    .maybeSingle();
+  return !!data;
+}
+
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   if (!verifySignature(rawBody, request.headers.get("x-hub-signature"))) {
@@ -67,6 +89,10 @@ export async function POST(request: NextRequest) {
     // already has on file still makes it onto the call, agreement, and
     // kickoff email even when Fireflies itself captured nothing.
     const lead = await findLeadForCall(sb, transcript);
+    if (lead?.lead_id && (await recentDuplicateForLead(sb, lead.lead_id))) {
+      return NextResponse.json({ ok: true, skipped: "duplicate meeting for same lead" });
+    }
+
     const recipients = pickRecapRecipients(transcript);
     const recapEmail = recipients[0] || lead?.email || null;
 
