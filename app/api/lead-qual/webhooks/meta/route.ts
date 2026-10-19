@@ -218,13 +218,17 @@ export async function POST(request: NextRequest) {
                 .order("created_at", { ascending: false })
                 .limit(5);
               const knownTexts = (recentAssistantMsgs || []).map((m) => m.content);
-              // Pinned to when this conversation started, not to the
-              // timestamp of whatever message just triggered this check —
-              // see humanRepliedOnFacebook's comment for why that distinction
-              // matters (a human's reply naturally predates the lead's next
-              // message, which is what triggers this very check).
+              // Floored to when this conversation started (not to this
+              // message's own timestamp — see humanRepliedOnFacebook's
+              // comment for why that distinction matters: a human's reply
+              // naturally predates the lead's next message, which is what
+              // triggers this very check). But also ceilinged to this
+              // message's own timestamp, so Facebook's Instant Reply/Away
+              // Message automation — which re-fires on this very message and
+              // lands at/after it — doesn't get mistaken for that human
+              // reply (see humanRepliedOnFacebook's comment on the ceiling).
               const conversationStartedAtMs = existing?.started_at ? new Date(existing.started_at).getTime() : undefined;
-              const verify = await humanRepliedOnFacebook(event.recipient.id, event.sender.id, channel.pageAccessToken, knownTexts, conversationStartedAtMs);
+              const verify = await humanRepliedOnFacebook(event.recipient.id, event.sender.id, channel.pageAccessToken, knownTexts, conversationStartedAtMs, event.timestamp);
               if (verify.humanReplied) {
                 humanTookOver = true;
                 console.error("lead-qual: human reply detected on Facebook that never reached our webhook, staying silent", {

@@ -468,7 +468,7 @@ export async function retryStalledTurn(conversationId: string): Promise<RunTurnO
 
   const { data: priorMessages } = await sb
     .from("lq_messages")
-    .select("role, content")
+    .select("role, content, created_at")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
 
@@ -496,7 +496,12 @@ export async function retryStalledTurn(conversationId: string): Promise<RunTurnO
       const token = decryptSecret(channel.credentials as unknown as Buffer);
       const knownTexts = (priorMessages || []).filter((m) => m.role === "assistant").map((m) => m.content);
       const conversationStartedAtMs = conversation.started_at ? new Date(conversation.started_at).getTime() : undefined;
-      const verify = await humanRepliedOnFacebook(channel.external_page_id, psid, token, knownTexts, conversationStartedAtMs);
+      // Ceilinged to the stalled lead message's own timestamp — see
+      // humanRepliedOnFacebook's comment: otherwise Facebook's Instant
+      // Reply/Away Message automation re-firing on that same message gets
+      // mistaken for the human reply this check exists to catch.
+      const beforeTimestampMs = new Date(last.created_at).getTime();
+      const verify = await humanRepliedOnFacebook(channel.external_page_id, psid, token, knownTexts, conversationStartedAtMs, beforeTimestampMs);
       if (verify.humanReplied) {
         await sb.from("lq_conversations").update({ paused_at: new Date().toISOString(), status: "needs_human" }).eq("id", conversationId);
         throw new Error(`Human already replied on Facebook ("${verify.message}") — marked needs_human instead of retrying`);

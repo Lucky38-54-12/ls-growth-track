@@ -147,7 +147,8 @@ export async function humanRepliedOnFacebook(
   psid: string,
   pageAccessToken: string,
   knownAssistantTexts: string[],
-  conversationStartedAtMs?: number
+  conversationStartedAtMs?: number,
+  beforeTimestampMs?: number
 ): Promise<{ humanReplied: boolean; message?: string }> {
   const convRes = await fetch(
     `https://graph.facebook.com/v20.0/${pageId}/conversations?fields=participants&limit=10&access_token=${encodeURIComponent(pageAccessToken)}`
@@ -190,23 +191,38 @@ export async function humanRepliedOnFacebook(
   // staff takeover. Only a Page message that landed after the *conversation
   // started* (its first lead message) counts as a possible human reply.
   //
-  // This must be pinned to the conversation's start, not to whichever lead
-  // message is currently triggering the check — an earlier version compared
-  // against the triggering message's own timestamp, which backwards-filtered
-  // out exactly the normal case: a human answers the lead directly on
-  // Facebook, and only later does the lead type something back that
-  // actually runs this check. That human reply sits chronologically *before*
-  // the new triggering message, so comparing against the trigger excluded
-  // it outright. This is exactly what happened to Leanne Roberts (BG
-  // Builds, 2026-10-18): Ben answered her Waihi question by hand, she said
-  // thanks a few minutes later, and that "thanks" message's own timestamp
-  // was used as the floor — filtering Ben's already-sent reply out of
-  // consideration and letting the AI re-greet her from scratch.
+  // This must be pinned to the conversation's start as the floor, not to
+  // whichever lead message is currently triggering the check — an earlier
+  // version compared against the triggering message's own timestamp as the
+  // *floor*, which backwards-filtered out exactly the normal case: a human
+  // answers the lead directly on Facebook, and only later does the lead type
+  // something back that actually runs this check. That human reply sits
+  // chronologically *before* the new triggering message, so comparing
+  // against the trigger as a floor excluded it outright. This is exactly
+  // what happened to Leanne Roberts (BG Builds, 2026-10-18): Ben answered her
+  // Waihi question by hand, she said thanks a few minutes later, and that
+  // "thanks" message's own timestamp was used as the floor — filtering Ben's
+  // already-sent reply out of consideration and letting the AI re-greet her
+  // from scratch.
+  //
+  // The triggering message's timestamp is still needed, but as a *ceiling*:
+  // a genuine human reply this check is meant to catch always predates the
+  // lead's next message (it's what the lead is replying to). A Page message
+  // timestamped at or after the current triggering message can't be that —
+  // it's Facebook's own Instant Reply / Away Message automation reacting to
+  // the message that just arrived, not a person who hasn't seen it yet. This
+  // is what broke Coast Build once Instant Reply/Away Message was switched
+  // on on its Page (2026-10-18): that auto-reply re-fires on every inbound
+  // message (not just the lead's very first one), always landing seconds
+  // after whatever message triggered it, so it kept getting mistaken for a
+  // staff takeover — permanently, since a conversation this blocks never
+  // gets a real AI reply sent to compare against going forward.
   const lastPageMessage = (msgBody.data || []).find((msg: GraphMessage) => {
     if (msg.from?.id !== pageId) return false;
-    if (conversationStartedAtMs !== undefined && msg.created_time) {
-      if (new Date(msg.created_time).getTime() <= conversationStartedAtMs) return false;
-    }
+    if (!msg.created_time) return true;
+    const createdMs = new Date(msg.created_time).getTime();
+    if (conversationStartedAtMs !== undefined && createdMs <= conversationStartedAtMs) return false;
+    if (beforeTimestampMs !== undefined && createdMs >= beforeTimestampMs) return false;
     return true;
   });
   if (lastPageMessage?.message && !normalized.includes(normalizeMessageText(lastPageMessage.message))) {
@@ -272,6 +288,15 @@ export async function reconcileHumanTakeovers(): Promise<HumanTakeover[]> {
       const knownTexts = (assistantMsgs || []).map((m) => m.content);
       const conversationStartedAtMs = convo.started_at ? new Date(convo.started_at).getTime() : undefined;
 
+      // No ceiling passed here (unlike the live webhook path) — this sweep's
+      // whole purpose is catching a human reply that landed with no new lead
+      // message since (see the comment on reconcileHumanTakeovers below), so
+      // there's no "triggering message" to bound against. That's safe
+      // against the Instant Reply/Away Message false-positive this file
+      // guards against elsewhere: that automation only fires in reaction to
+      // a new inbound lead message, and if one had arrived, the live webhook
+      // path (which does have a proper ceiling) would have been the one to
+      // run this check, not this periodic sweep.
       try {
         const verify = await humanRepliedOnFacebook(channel.external_page_id, psid, token, knownTexts, conversationStartedAtMs);
         if (verify.humanReplied) {
