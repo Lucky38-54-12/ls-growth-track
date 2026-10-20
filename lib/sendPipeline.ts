@@ -81,12 +81,14 @@ async function getCleanCaseStudyAttachments(): Promise<{ filename: string; conte
 // instead, see BUILDING_FOLLOWUP1_VIDEO_URL below.
 
 // Followup1's "have a look at this video" line (Ray talking through a
-// current job, supplied 2026-10-15) — served from this app's own /public
-// like lucky-intro.mp4/VIDEO_INTRO_BLOCK in templates.ts, same reasoning
-// (Vercel serverless functions don't reliably see the filesystem, but the
-// CDN serving /public does).
-const BUILDING_FOLLOWUP1_VIDEO_URL = `${process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency"}/videos/build-it-all-proof.mp4`;
-const BUILDING_FOLLOWUP1_VIDEO_THUMB_URL = `${process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency"}/videos/build-it-all-proof-thumb.jpg`;
+// current job, supplied 2026-10-15) points at a normal landing page on the
+// public marketing site (lsgrowth.agency/building, see app/building/page.tsx
+// in the lsgrowth marketing repo) rather than the raw .mp4 — a file link
+// tripped Gmail's "you're leaving this page" redirect interstitial on click,
+// which reads as sketchy in a cold email. Plain text link now too (dropped
+// the thumbnail <img>, Lucky's call 2026-10-20) — one less thing for a mail
+// client to mangle/strip.
+const BUILDING_FOLLOWUP1_VIDEO_URL = "https://www.lsgrowth.agency/building";
 
 // lead.location is stored as e.g. "Auckland NZ" — the subject line reads
 // better as just the city.
@@ -392,7 +394,7 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     ({ subject, bodyHtml } = isCleaning
       ? renderCleaningFollowup1Email(initialSend?.subject || fallbackSubject)
       : isBuilding
-      ? renderBuildingFollowup1Email(initialSend?.subject || fallbackSubject, { videoUrl: BUILDING_FOLLOWUP1_VIDEO_URL, thumbUrl: BUILDING_FOLLOWUP1_VIDEO_THUMB_URL })
+      ? renderBuildingFollowup1Email(initialSend?.subject || fallbackSubject, BUILDING_FOLLOWUP1_VIDEO_URL)
       : renderFollowup1Email(initialSend?.subject || fallbackSubject));
   } else if (step === "followup2") {
     ({ subject, bodyHtml } = isCleaning ? renderCleaningFollowup2Email() : isBuilding ? renderBuildingFollowup2Email() : renderFollowup2Email());

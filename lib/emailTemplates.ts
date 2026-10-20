@@ -165,18 +165,12 @@ export function renderBuildingInitialEmail(slots: BuildingInitialSlots): Rendere
   };
 }
 
-export interface BuildingFollowup1VideoSlot {
-  videoUrl: string;
-  thumbUrl: string;
-}
-
-export function renderBuildingFollowup1Email(initialSubject: string, video?: BuildingFollowup1VideoSlot | null): RenderedEmail {
-  // Same standalone-block pattern as VIDEO_INTRO_BLOCK (templates.ts, used
-  // on the Cold Call page's "Building" button) — its own <p> paragraphs
-  // sitting after the main copy, not spliced mid-sentence, with a real
-  // content thumbnail rather than an invisible tracking pixel.
-  const videoBlock = video
-    ? `\n<p>Have a look at this video, Ray talks you through one of the jobs he's doing right now off the back of it.</p>\n<p><a href="${video.videoUrl}"><img src="${video.thumbUrl}" alt="Ray talks through a current job, tap to watch" width="320" style="max-width:320px;width:100%;height:auto;border:0;display:block;border-radius:8px;" /></a></p>`
+export function renderBuildingFollowup1Email(initialSubject: string, videoUrl?: string | null): RenderedEmail {
+  // Dropped the thumbnail <img> + wrapping <a> (2026-10-20, Lucky's call) —
+  // just a plain text link to the /building proof page now, same standalone
+  // <p> placement as before.
+  const videoBlock = videoUrl
+    ? `\n<p>Have a look at this video, Ray talks you through one of the jobs he's doing right now off the back of it: <a href="${videoUrl}">${videoUrl}</a></p>`
     : "";
   return {
     subject: `re: ${initialSubject}`,

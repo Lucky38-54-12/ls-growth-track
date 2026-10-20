@@ -40,11 +40,14 @@ export const SSP_LINE = "We booked SSP Electrical over 2 months of solar jobs, $
 // sent email referencing it is still recognised by the quality gate.
 export const GUARANTEE_LINE = "if I don't get you at least 15 enquiries that turn into quotes, you don't pay a cent";
 
-// The 3-week free trial guarantee (verified by Lucky 2026-07-16), used by
-// the sparkies campaign. Two phrasings: the initial email's and follow-up
-// 1's own restatement of it — both literal, locked copy.
-export const GUARANTEE_LINE_INITIAL = "we run a 3 week free trial, if I can't get you work, you don't pay a cent";
-export const GUARANTEE_LINE_FOLLOWUP1 = "the first 3 weeks are a free trial, if I can't get you any work you don't pay a cent and walk away";
+// The guarantee, shared by every campaign (sparkies, cleaning, building).
+// Corrected 2026-10-20: the old "3 week free trial" wording read as "you
+// pay nothing at all for 3 weeks, no matter what" — the actual deal is
+// performance-based, you only start paying once 15 qualified enquiries land
+// within that 3-week window. Two phrasings: the initial email's and
+// follow-up 1's own restatement of it — both literal, locked copy.
+export const GUARANTEE_LINE_INITIAL = "if I can't get you 15 qualified enquiries in the first 3 weeks, you don't pay a cent";
+export const GUARANTEE_LINE_FOLLOWUP1 = "if I can't get you 15 qualified enquiries in the first 3 weeks, you don't pay a cent and walk away";
 
 // Cleaning-companies campaign (added 2026-10-06) — real, verified result from
 // the LS Growth marketing site's cleaning landing page
