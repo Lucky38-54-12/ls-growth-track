@@ -22,7 +22,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
     const { data: conversation } = await sb
       .from("lq_conversations")
-      .select("channel_id, contact, paused_at")
+      .select("channel_id, contact, paused_at, started_at")
       .eq("id", result.conversationId)
       .single();
     if (conversation?.paused_at) {
@@ -54,7 +54,24 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       .order("created_at", { ascending: false })
       .limit(5);
     const knownTexts = (recentAssistantMsgs || []).map((m) => m.content);
-    const verify = await humanRepliedOnFacebook(channel.external_page_id, psid, pageAccessToken, knownTexts);
+    // Floor/ceiling exactly like retryStalledTurn's own check (see
+    // humanRepliedOnFacebook's comment) — this route's first check (inside
+    // retryStalledTurn) already has them, but this second one (catching a
+    // human reply landing during the AI generation delay between that check
+    // and actually sending) was missing both entirely, so it could still
+    // mistake Facebook's Instant Reply/Away Message automation for a human
+    // takeover and silently re-block a send that just cleared the first check.
+    const conversationStartedAtMs = conversation?.started_at ? new Date(conversation.started_at).getTime() : undefined;
+    const { data: lastUserMsg } = await sb
+      .from("lq_messages")
+      .select("created_at")
+      .eq("conversation_id", result.conversationId)
+      .eq("role", "user")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const beforeTimestampMs = lastUserMsg?.created_at ? new Date(lastUserMsg.created_at).getTime() : undefined;
+    const verify = await humanRepliedOnFacebook(channel.external_page_id, psid, pageAccessToken, knownTexts, conversationStartedAtMs, beforeTimestampMs);
     if (verify.humanReplied) {
       await sb.from("lq_conversations").update({ paused_at: new Date().toISOString(), status: "needs_human" }).eq("id", result.conversationId);
       return NextResponse.json({ sent: false, status: "needs_human", reason: "human already replied on Facebook" });
