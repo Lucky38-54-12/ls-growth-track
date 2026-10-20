@@ -3,6 +3,7 @@
 // actions. Silently no-ops if SLACK_WEBHOOK_URL isn't set, so every caller
 // can fire-and-forget without checking whether Slack is configured.
 export async function notifySlack(text: string): Promise<void> {
+  if (process.env.SLACK_NOTIFICATIONS_PAUSED === "true") return;
   const url = process.env.SLACK_WEBHOOK_URL;
   if (!url) return;
   try {
