@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
           // time on calendar booking / Slack / email before getting here, so
           // paused_at is re-checked one last time right before the message
           // actually goes out to Messenger.
-          const { data: stillActive } = await sb.from("lq_conversations").select("paused_at").eq("id", result.conversationId).single();
+          const { data: stillActive } = await sb.from("lq_conversations").select("paused_at, started_at").eq("id", result.conversationId).single();
 
           // Hard rule: never talk over a human, and never rely solely on
           // paused_at to know one's there — that flag only gets set if the
@@ -227,7 +227,19 @@ export async function POST(request: NextRequest) {
               // Message automation — which re-fires on this very message and
               // lands at/after it — doesn't get mistaken for that human
               // reply (see humanRepliedOnFacebook's comment on the ceiling).
-              const conversationStartedAtMs = existing?.started_at ? new Date(existing.started_at).getTime() : undefined;
+              //
+              // Pulled from `stillActive` (the just-created-or-fetched
+              // conversation row), not `existing` — `existing` is looked up
+              // BEFORE runTurn() creates the conversation, so for a lead's
+              // very first-ever message it's always null and this floor
+              // silently vanished, leaving only the ceiling to guard against
+              // Instant Reply — which doesn't work either, since Facebook can
+              // record that greeting's timestamp at or even *before* the
+              // lead's own triggering message (see humanRepliedOnFacebook's
+              // comment). This is what still let Libby Hayes' (Coast Build)
+              // and a Tolaga Bay lead's first-ever messages through on
+              // 2026-10-20, after the floor/ceiling fix had already deployed.
+              const conversationStartedAtMs = stillActive?.started_at ? new Date(stillActive.started_at).getTime() : undefined;
               const verify = await humanRepliedOnFacebook(event.recipient.id, event.sender.id, channel.pageAccessToken, knownTexts, conversationStartedAtMs, event.timestamp);
               if (verify.humanReplied) {
                 humanTookOver = true;
