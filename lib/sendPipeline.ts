@@ -281,15 +281,14 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     // would just get the same verdict again tomorrow, burning an AI call for
     // nothing. Shared between both extraction paths below.
     const notAFit = async (reason: string) => {
+      // No per-lead Slack ping here any more (2026-10-20, Lucky's call —
+      // a batch of a few dozen leads was pinging once per exclusion/hold,
+      // which read as spam). runSendBatch posts one summary per batch
+      // instead; the exclusion itself is still logged on the lead's notes.
       await sb.from("leads").update({
         status: "not_interested",
         notes: `${lead.notes ? lead.notes + "\n" : ""}[${new Date().toISOString().split("T")[0]}] Auto-excluded from campaign, AI judged not a fit: ${reason}`,
       }).eq("lead_id", lead.lead_id);
-      await notifySlack(
-        `🚫 Auto-excluded *${lead.company}* from campaign, not a fit for LS Growth's ICP.\n` +
-        `Reason: ${reason}\n` +
-        `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${lead.lead_id}`
-      );
     };
 
     if (isCleaning) {
@@ -447,10 +446,6 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
       reasoning: deterministicFail,
       sent: false,
     });
-    await notifySlack(
-      `🛑 Held email for *${lead.company}* (${step}) — ${deterministicFail}\n` +
-      `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${lead.lead_id}`
-    );
     return { sent: false, held: true };
   }
 
@@ -467,10 +462,6 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
     sent: gate.verdict === "approved",
   });
   if (gate.verdict === "rejected") {
-    await notifySlack(
-      `🛑 Held email for *${lead.company}* (${step}) — ${gate.fails.join(" ")}\n` +
-      `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${lead.lead_id}`
-    );
     return { sent: false, held: true };
   }
 
@@ -532,5 +523,17 @@ export async function runSendBatch(
   }
 
   await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  // One digest per batch instead of a Slack ping per held/excluded lead
+  // (2026-10-20, Lucky's call — a 90-lead activation was pinging dozens of
+  // times in a row). Stays quiet on a clean run; only posts when something
+  // actually needs a look.
+  if (held > 0 || notAFit > 0 || errors.length > 0) {
+    await notifySlack(
+      `📨 Campaign batch done: ${sent} sent, ${held} held for review, ${notAFit} auto-excluded (not a fit)${errors.length ? `, ${errors.length} errored` : ""}.\n` +
+      `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard`
+    );
+  }
+
   return { sent, held, notAFit, processed, errors, ranOutOfTime };
 }
