@@ -41,13 +41,15 @@ export const SSP_LINE = "We booked SSP Electrical over 2 months of solar jobs, $
 export const GUARANTEE_LINE = "if I don't get you at least 15 enquiries that turn into quotes, you don't pay a cent";
 
 // The guarantee, shared by every campaign (sparkies, cleaning, building).
-// Corrected 2026-10-20: the old "3 week free trial" wording read as "you
-// pay nothing at all for 3 weeks, no matter what" — the actual deal is
-// performance-based, you only start paying once 15 qualified enquiries land
-// within that 3-week window. Two phrasings: the initial email's and
-// follow-up 1's own restatement of it — both literal, locked copy.
-export const GUARANTEE_LINE_INITIAL = "if I can't get you 15 qualified enquiries in the first 3 weeks, you don't pay a cent";
-export const GUARANTEE_LINE_FOLLOWUP1 = "if I can't get you 15 qualified enquiries in the first 3 weeks, you don't pay a cent and walk away";
+// Reverted 2026-10-21 per Lucky: back to "3 week free trial" framing as the
+// cold-email hook (it was corrected 2026-10-20 because that phrase reads as
+// "you pay nothing at all for 3 weeks" when the real deal is performance-
+// based). Lucky is aware of that ambiguity and wants it anyway — he
+// explains the real terms himself on the intro call, the email's job is
+// just to get the reply. Two phrasings: the initial email's and follow-up
+// 1's own restatement of it — both literal, locked copy.
+export const GUARANTEE_LINE_INITIAL = "you get a free 3 week trial — if I can't get you 15 qualified enquiries in that time, you don't pay a cent";
+export const GUARANTEE_LINE_FOLLOWUP1 = "you get a free 3 week trial — if I can't get you 15 qualified enquiries you don't pay a cent and walk away";
 
 // Cleaning-companies campaign (added 2026-10-06) — real, verified result from
 // the LS Growth marketing site's cleaning landing page

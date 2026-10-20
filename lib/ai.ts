@@ -391,11 +391,11 @@ YOUR JOB, in order:
 3. CONFIRM a first name — ONLY from an explicit statement naming a real person as the owner, founder, director, or main contact (e.g. "Owner: John Smith", "Run by Sarah and her team", a staff/about page naming them, or the notes naming who Lucky actually spoke to). A name mentioned only in a customer testimonial or review (not an explicit "this is the owner/founder" statement) does NOT count. Do NOT guess a name from the business name itself (e.g. "Smith Builders" does not confirm a person named Smith unless a source also explicitly says so) and do NOT guess from an email address. If nothing explicitly confirms a real person's name, confirmed_first_name is null.
 
 4. FLAG not_a_fit instead of the above if the business is clearly:
-   - A national chain, franchise head office, or corporate parent, not an individual local branch
+   - A national/corporate franchise HEAD OFFICE itself (e.g. a franchise brand's national support centre) — NOT an individual local branch or franchisee, even one trading under a national brand name (a local franchise location is a perfectly good fit — Perl Electrical, one of the proof points used in this very email, is itself a national franchise's local branch)
    - A tender-only, developer-relationship, or commercial-only contractor with no day-to-day residential renovation/callout work
-   - Confirmed NOT to be a building/renovation business at all (including the notes saying the owner has moved on to a different business entirely)
+   - The notes show an explicit refusal (told not to contact them again, or a clear no to the offer itself) or that the owner has moved on to a different business entirely
    ${NOT_A_FIT_TONE_CARVEOUT}
-   When in doubt and it's an ordinary local building/renovation business, do not flag it — this is only for clear, obvious cases.
+   Lucky would rather cast a wide net than have you gatekeep on trade fit — a joinery shop, kitchen designer, concrete contractor, insulation installer, architect, or similar construction-adjacent business is NOT grounds for not_a_fit on its own, even if its confirmed services aren't "building/renovation" in the strict sense. A vague note just saying "not a fit" or a sales judgment call, without an explicit refusal, is also not grounds. Only flag for the three bullets above — when in doubt, do not flag it.
 
 Respond with ONLY a JSON object as your final message, no markdown fences, no other text:
 {"not_a_fit": true, "reason": "..."}
