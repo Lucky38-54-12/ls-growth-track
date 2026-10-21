@@ -39,7 +39,15 @@ const LOGO_URL = `${APP_URL}/logo.png`;
 // lucky@ again, to at least not reuse the literal address the complaint
 // named. Same domain, same Resend infra, so this still doesn't reset
 // domain-level SPF/DKIM reputation on its own.
-const BULK_FROM = "Lucky <ls@lsgrowth.agency>";
+//
+// Switched ls@ -> hello@ on 2026-10-22, per Lucky, while reply rates stay
+// depressed post-incident — explicitly NOT outreach@ (already tried and
+// reverted 2026-09-21 for reading as a mailing-list address and landing in
+// Promotions). Same caveat as every switch above still applies: this is
+// the same domain/Resend infra, so it does not reset domain-level
+// reputation on its own — recovery there is a function of time and
+// engagement, not the local-part.
+const BULK_FROM = "Lucky <hello@lsgrowth.agency>";
 // Meeting reminders (day-before, day-of) get their own identity, separate
 // from both outreach@ (bulk sequences) and lucky@ (one-to-one cold-call
 // follow-ups) — these are transactional/logistics mail to someone who
