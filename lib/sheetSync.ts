@@ -3,6 +3,7 @@ import { generateLeadId } from "./leads";
 import { generatePersonalizationHook } from "./ai";
 import { readLeadSheet, hasCallInfo, formatCallNotes, getSheetTitle, parseCampaignFromTitle } from "./sheets";
 import { isOutreachSpendOverCap } from "./spendGuard";
+import { hasMxRecord } from "./emailVerify";
 import { Lead } from "./types";
 
 // Shared budget for how many personalization-hook AI calls one sync run is
@@ -26,6 +27,7 @@ export interface SheetSyncResult {
   imported: number;
   updated: number;
   skipped: number;
+  invalidEmail: number;
   errors: string[];
   detectedTrade?: string;
   detectedLocation?: string;
@@ -80,6 +82,7 @@ export async function syncLeadsFromSheet(opts: {
   let imported = 0;
   let updated = 0;
   let skipped = 0;
+  let invalidEmail = 0;
   const errors: string[] = [];
 
   for (const row of rows) {
@@ -91,6 +94,38 @@ export async function syncLeadsFromSheet(opts: {
     let lead = leadsByEmail.get(emailLower);
 
     if (!lead) {
+      // MX check — catches a dead/typo'd/fake domain before a lead is ever
+      // campaign-eligible, so it never gets the chance to bounce and drag
+      // down the sending domain's reputation. Status "bounced" is already a
+      // terminal status nextStepFor() respects, so this permanently excludes
+      // it from sends without any other code needing to know why.
+      if (!(await hasMxRecord(emailLower))) {
+        invalidEmail++;
+        const leadId = generateLeadId(row.company || row.email, existingIds);
+        existingIds.add(leadId);
+        const { error } = await sb.from("leads").insert({
+          lead_id: leadId,
+          company: row.company || row.email,
+          contact_name: "there",
+          email: emailLower,
+          trade,
+          location,
+          status: "bounced" as const,
+          date_added: today,
+          date_contacted: null,
+          last_followup: null,
+          followup_count: 0,
+          notes: called ? `[Sheet] ${callNotes}\n[${today}] No MX record for this email's domain — never sent to.` : `[${today}] No MX record for this email's domain — never sent to.`,
+          source: "email_outreach",
+          website: row.website || null,
+          facebook: row.facebook || null,
+          phone: row.phone || null,
+          personalization_hook: null,
+        });
+        if (!error) leadsByEmail.set(emailLower, { email: emailLower } as Lead);
+        continue;
+      }
+
       const leadId = generateLeadId(row.company || row.email, existingIds);
       existingIds.add(leadId);
       // cold_call is reserved for leads Lucky adds himself after actually
@@ -182,7 +217,7 @@ export async function syncLeadsFromSheet(opts: {
   }
 
   return {
-    imported, updated, skipped, errors,
+    imported, updated, skipped, invalidEmail, errors,
     detectedTrade: trade || undefined,
     detectedLocation: location || undefined,
   };
