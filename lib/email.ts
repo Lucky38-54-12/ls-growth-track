@@ -89,8 +89,26 @@ function getZohoTransport() {
 // Returns Resend's own id for the send so callers can stash it on the
 // email_sends row — the /api/webhooks/resend route matches a later
 // delivered/bounced/complained event back to that row by this id.
+// RFC 8058 one-click unsubscribe headers — Gmail/Yahoo both weigh the
+// presence of a working List-Unsubscribe on cold/bulk mail when deciding
+// Primary vs Promotions vs Spam, and NZ's Unsolicited Electronic Messages
+// Act requires a real opt-out mechanism on commercial email, which this
+// didn't have at all before (the only way out was replying and asking).
+// Only built when a leadId is given — transactional sends (client
+// notifications, booking confirmations) aren't cold outreach and don't need
+// an unsubscribe link.
+function unsubscribeHeaders(leadId?: string): Record<string, string> {
+  if (!leadId) return {};
+  const url = `${APP_URL}/api/unsubscribe?id=${encodeURIComponent(leadId)}`;
+  return {
+    "List-Unsubscribe": `<mailto:${process.env.ZOHO_EMAIL_USER}?subject=unsubscribe>, <${url}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
+}
+
 async function sendBulkMail(opts: {
   to: string; subject: string; html: string; text: string; bcc?: string; from?: string;
+  leadId?: string;
   attachments?: { filename: string; content: string }[];
 }): Promise<string | null> {
   const { data, error } = await getResend().emails.send({
@@ -100,6 +118,7 @@ async function sendBulkMail(opts: {
     html: opts.html,
     text: opts.text,
     reply_to: process.env.ZOHO_EMAIL_USER,
+    headers: unsubscribeHeaders(opts.leadId),
     ...(opts.bcc ? { bcc: opts.bcc } : {}),
     ...(opts.attachments ? { attachments: opts.attachments } : {}),
   });
@@ -230,7 +249,7 @@ ${filledBody}
   // show up in his inbox the way they did before moving off Gmail SMTP —
   // he was checking his Sent folder for leads he'd just called and finding
   // nothing there once these switched to Resend.
-  const resendId = await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER });
+  const resendId = await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER, leadId: lead.lead_id });
   await logSend(lead.lead_id, step, subject, html, resendId);
 }
 
@@ -246,7 +265,7 @@ ${filledBody}
   <p>Cheers,<br>Lucky<br>Founder, LS Growth<br>021 028 20190 | lsgrowth.agency</p>
 </div>`;
   const text = htmlToText(filledBody);
-  const resendId = await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER, from: BOOKINGS_FROM });
+  const resendId = await sendBulkMail({ to: lead.email, subject, html, text, bcc: process.env.GMAIL_USER, from: BOOKINGS_FROM, leadId: lead.lead_id });
   await logSend(lead.lead_id, step, subject, html, resendId);
 }
 
@@ -326,7 +345,7 @@ export async function sendPersonalizedEmail(
   attachments?: { filename: string; content: string }[]
 ) {
   const { html, text } = buildFinalEmailHtml(lead, bodyHtml, step);
-  const resendId = await sendBulkMail({ to: lead.email, subject, html, text, ...(attachments ? { attachments } : {}) });
+  const resendId = await sendBulkMail({ to: lead.email, subject, html, text, leadId: lead.lead_id, ...(attachments ? { attachments } : {}) });
   await logSend(lead.lead_id, step, subject, html, resendId);
 }
 

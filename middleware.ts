@@ -3,7 +3,7 @@ import { COOKIE_NAME, verifySessionToken } from "@/lib/session";
 import { CLIENT_COOKIE_NAME, verifyClientSessionToken } from "@/lib/leadQual/clientAuth";
 
 const PUBLIC_PATHS = [
-  "/login", "/api/login", "/api/click", "/api/open", "/api/ping", "/api/lead-qual/webhooks/meta",
+  "/login", "/api/login", "/api/click", "/api/open", "/api/unsubscribe", "/api/ping", "/api/lead-qual/webhooks/meta",
   "/api/sales-calls/webhooks/fireflies",
   "/api/webhooks/resend",
   // Client-facing self-serve connect flow — a client completes this in their
