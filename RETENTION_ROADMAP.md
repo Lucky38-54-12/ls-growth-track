@@ -72,6 +72,14 @@ what's actually live.
   monthly check-in, shown live off the job report page above — no separate
   report-generator needed.
 
+- **Automation visibility + heartbeat ping** (2026-10-29) — the weekly
+  check-in and lead conversion trend check now show up as their own rows on
+  `/dashboard/automations` (last run time, status), not just folded into
+  daily-maintenance's summary line. Added to `checkCronHeartbeats` with a
+  9-day staleness threshold — if either goes quiet, Lucky gets pinged on
+  Slack same as the other cron heartbeat alerts, closing the "how do I know
+  if everything's running smoothly" question.
+
 ## In progress
 
 - **Onboarding / expectations-setting** — separate Claude Code session,
