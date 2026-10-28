@@ -20,6 +20,7 @@ import { reportAutomationStatus, checkCronHeartbeats } from "@/lib/automationSta
 import { checkCampaignCompletions } from "@/lib/campaignCompletion";
 import { checkCreativeDemand } from "@/lib/creativeDemandCheck";
 import { checkLeadConversionTrend } from "@/lib/leadConversionCheck";
+import { sendWeeklySystemsHealthIfDue } from "@/lib/systemsHealthDigest";
 
 export const dynamic = "force-dynamic";
 
@@ -210,6 +211,12 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     results.cronHeartbeats = { error: e instanceof Error ? e.message : "cron heartbeat check failed" };
+  }
+
+  try {
+    results.systemsHealthDigest = await sendWeeklySystemsHealthIfDue(sb);
+  } catch (e) {
+    results.systemsHealthDigest = { error: e instanceof Error ? e.message : "systems health digest failed" };
   }
 
   const failedTasks = Object.entries(results).filter(([, v]) => v && typeof v === "object" && "error" in v);
