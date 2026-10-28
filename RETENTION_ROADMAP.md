@@ -45,6 +45,11 @@ what's actually live.
   the missing `lib/creativeDemandCheck.ts` + its migration
   (`supabase_migration_lq_creative_demand_check.sql`); every deploy had been
   silently failing for a while before this.
+- **Cleaning-client check-in variant** (2026-10-28) — the weekly check-in now
+  includes cleaning clients too, with different wording: "did these sign up?"
+  / Signed up / Didn't convert / Still deciding, instead of Won (+ $ value) /
+  Lost / Still talking. Reuses `job_won_at`/`job_lost_reason` — `job_value`
+  just stays null for a cleaning client, no new schema.
 
 ## In progress
 
@@ -59,8 +64,5 @@ what's actually live.
 - **Fortnightly client check-in cadence** — Lucky's own process change
   (meeting every 2 weeks per client), not a code task. The job report page
   above is meant to support it, not replace it.
-- **Cleaning-client version of job tracking** — needs its own shape (e.g.
-  "signed up" vs. "didn't convert" rather than job value) since cleaning
-  leads become ongoing contracts, not one-off priced jobs.
 - **"Not enough value just with ads"** — a service-scope decision (whether
   to bundle something beyond ads), not a build task.
