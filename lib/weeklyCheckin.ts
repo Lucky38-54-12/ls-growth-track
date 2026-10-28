@@ -2,7 +2,7 @@ import { createSupabaseClient } from "./supabase";
 import { sendClientEmail } from "./email";
 import { notifySlack } from "./slackNotify";
 import { createCheckinToken } from "./checkinPortalAuth";
-import { getOutcomesByLeadId } from "./metaLeadsSheetSync";
+import { getLeadStatusesByLeadId } from "./metaLeadsSheetSync";
 
 type SupabaseClient = ReturnType<typeof createSupabaseClient>;
 
@@ -56,18 +56,21 @@ export async function sendWeeklyCheckinIfDue(sb: SupabaseClient): Promise<{ sent
     let pending = (leads || []) as unknown as PendingLead[];
     if (pending.length === 0) continue;
 
-    // If this client has a tracked Meta Lead Ads call sheet, skip anything
-    // already logged with an Outcome there — no point asking the client too
-    // once Lucky's own sheet already shows what happened on the call.
+    // If this client has a tracked Meta Lead Ads call sheet: only ask about
+    // a lead that's actually been called (Called? ticked) — "did this turn
+    // into a job?" makes no sense for someone nobody's spoken to yet — and
+    // skip anything already logged with an Outcome there, since Lucky's own
+    // sheet already shows what happened on the call.
     const { data: sheetSync } = await sb.from("lead_sheet_syncs").select("spreadsheet_id, target_tab").eq("client_name", client.name).maybeSingle();
     if (sheetSync) {
-      const outcomesByLeadId = await getOutcomesByLeadId(sheetSync.spreadsheet_id, sheetSync.target_tab).catch(() => null);
-      if (outcomesByLeadId) {
+      const statusesByLeadId = await getLeadStatusesByLeadId(sheetSync.spreadsheet_id, sheetSync.target_tab).catch(() => null);
+      if (statusesByLeadId) {
         pending = pending.filter((lead) => {
           const leadgenId = String(lead.lq_conversations?.contact?.leadgen_id || "");
           if (!leadgenId) return true; // not a Meta Lead Ads lead, not tracked on the sheet at all
-          const outcome = outcomesByLeadId.get(leadgenId);
-          return !outcome; // blank (or no row at all) — still worth asking about
+          const status = statusesByLeadId.get(leadgenId);
+          if (!status) return true; // no row on the sheet for it either
+          return status.called && !status.outcome;
         });
       }
     }

@@ -424,14 +424,19 @@ export async function provisionLeadsTab(spreadsheetId: string, targetTab: string
   await ensureLeadsTable(sheets, spreadsheetId, sheetId, targetTab, undefined, 0);
 }
 
-// Lead ID -> Outcome (raw dropdown value, "" if still blank) for every row
-// in the target tab. Used by the weekly job-outcome check-in
-// (lib/weeklyCheckin.ts) to skip asking a client about a lead Lucky's own
-// call-tracking sheet shows he hasn't gotten an Outcome on yet — only once
-// it's gone stale there does it make sense to ask the client directly.
-// Keyed by the bare numeric id (sheet stores it as "l:<id>", matching
+export interface SheetLeadStatus {
+  called: boolean;
+  outcome: string; // raw dropdown value, "" if still blank
+}
+
+// Lead ID -> {called, outcome} for every row in the target tab. Used by the
+// weekly job-outcome check-in (lib/weeklyCheckin.ts) to only ask a client
+// about a lead that's actually been called — "did this turn into a job?"
+// makes no sense for a lead nobody's spoken to yet — and to skip anything
+// Lucky's call-tracking sheet already has an Outcome logged for. Keyed by
+// the bare numeric id (sheet stores it as "l:<id>", matching
 // lq_conversations.contact.leadgen_id).
-export async function getOutcomesByLeadId(spreadsheetId: string, targetTab: string = "All Leads"): Promise<Map<string, string>> {
+export async function getLeadStatusesByLeadId(spreadsheetId: string, targetTab: string = "All Leads"): Promise<Map<string, SheetLeadStatus>> {
   const auth = await getLuckyGoogleAuthedClient();
   const sheets = google.sheets({ version: "v4", auth });
 
@@ -442,14 +447,16 @@ export async function getOutcomesByLeadId(spreadsheetId: string, targetTab: stri
 
   const leadIdIdx = TARGET_HEADER.indexOf("Lead ID");
   const outcomeIdx = TARGET_HEADER.indexOf("Outcome");
+  const calledIdx = TARGET_HEADER.indexOf("Called?");
 
   const rows = res.data.values || [];
-  const map = new Map<string, string>();
+  const map = new Map<string, SheetLeadStatus>();
   for (const row of rows) {
     const rawId = row[leadIdIdx];
     if (!rawId) continue;
     const bareId = String(rawId).replace(/^l:/, "");
-    map.set(bareId, String(row[outcomeIdx] || ""));
+    const called = row[calledIdx] === true || row[calledIdx] === "TRUE";
+    map.set(bareId, { called, outcome: String(row[outcomeIdx] || "") });
   }
   return map;
 }
