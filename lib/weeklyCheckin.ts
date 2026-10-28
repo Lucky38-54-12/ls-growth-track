@@ -10,12 +10,6 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency"
 const CHECKIN_WEEKDAY = 1; // Monday (UTC), same slot as the internal weekly digest
 const LOOKBACK_DAYS = 21; // keep nudging an unanswered lead for up to 3 weeks
 const STALE_AFTER_NUDGES = 2;
-// A lead also tracked in Lucky's own Meta Lead Ads call sheet
-// (lib/metaLeadsSheetSync.ts) only gets asked about once that sheet's own
-// Outcome column has sat blank this long — give his own call-tracking a
-// week to resolve it (Booked/Not interested/etc.) before going straight to
-// the client.
-const SHEET_STALE_DAYS = 7;
 
 interface PendingLead {
   id: string;
@@ -62,21 +56,18 @@ export async function sendWeeklyCheckinIfDue(sb: SupabaseClient): Promise<{ sent
     let pending = (leads || []) as unknown as PendingLead[];
     if (pending.length === 0) continue;
 
-    // If this client has a tracked Meta Lead Ads call sheet, don't ask about
-    // a lead Lucky hasn't even gotten an Outcome on there yet — only once
-    // it's sat blank for a while does it make sense to go to the client.
+    // If this client has a tracked Meta Lead Ads call sheet, skip anything
+    // already logged with an Outcome there — no point asking the client too
+    // once Lucky's own sheet already shows what happened on the call.
     const { data: sheetSync } = await sb.from("lead_sheet_syncs").select("spreadsheet_id, target_tab").eq("client_name", client.name).maybeSingle();
     if (sheetSync) {
       const outcomesByLeadId = await getOutcomesByLeadId(sheetSync.spreadsheet_id, sheetSync.target_tab).catch(() => null);
       if (outcomesByLeadId) {
-        const staleCutoff = Date.now() - SHEET_STALE_DAYS * 24 * 60 * 60 * 1000;
         pending = pending.filter((lead) => {
           const leadgenId = String(lead.lq_conversations?.contact?.leadgen_id || "");
           if (!leadgenId) return true; // not a Meta Lead Ads lead, not tracked on the sheet at all
           const outcome = outcomesByLeadId.get(leadgenId);
-          if (outcome === undefined) return true; // no row on the sheet for it either
-          if (outcome !== "") return false; // Lucky's already logged a call outcome — don't double up
-          return new Date(lead.created_at).getTime() <= staleCutoff;
+          return !outcome; // blank (or no row at all) — still worth asking about
         });
       }
     }
