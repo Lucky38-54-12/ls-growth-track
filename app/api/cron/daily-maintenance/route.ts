@@ -12,6 +12,7 @@ import { sendColdCallNudges } from "@/lib/coldCallNudges";
 import { sendDueNoShowFollowups } from "@/lib/noShowSequence";
 import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
 import { sendWeeklyCheckinIfDue } from "@/lib/weeklyCheckin";
+import { sendStaleSheetLeadNudgeIfDue } from "@/lib/sheetFollowUpNudge";
 import { sendLowQueueNudge } from "@/lib/callQueueNudge";
 import { checkMessengerChannelHealth, reconcileHumanTakeovers, resubscribeAllMessengerChannels } from "@/lib/leadQual/meta";
 import { checkOnboardingPhotoUploads } from "@/lib/onboardingPhotoCheck";
@@ -131,6 +132,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    results.staleSheetLeadNudge = await sendStaleSheetLeadNudgeIfDue(sb);
+  } catch (e) {
+    results.staleSheetLeadNudge = { error: e instanceof Error ? e.message : "stale sheet lead nudge failed" };
+  }
+
+  try {
     results.weeklyCheckin = await sendWeeklyCheckinIfDue(sb);
   } catch (e) {
     results.weeklyCheckin = { error: e instanceof Error ? e.message : "weekly check-in failed" };
@@ -208,7 +215,7 @@ export async function GET(req: NextRequest) {
   const failedTasks = Object.entries(results).filter(([, v]) => v && typeof v === "object" && "error" in v);
   const summary = failedTasks.length > 0
     ? `${Object.keys(results).length - failedTasks.length}/${Object.keys(results).length} tasks ok. Failed: ${failedTasks.map(([k]) => k).join(", ")}.`
-    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, weekly check-in, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation, onboarding photo uploads, campaign completion check).`;
+    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, stale sheet lead nudge, weekly check-in, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation, onboarding photo uploads, campaign completion check).`;
   await reportAutomationStatus(sb, "daily-maintenance", failedTasks.length > 0 ? "error" : "ok", summary);
 
   return NextResponse.json(results);
