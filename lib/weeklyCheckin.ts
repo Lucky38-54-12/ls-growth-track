@@ -29,13 +29,18 @@ export async function sendWeeklyCheckinIfDue(sb: SupabaseClient): Promise<{ sent
 
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: clients } = await sb.from("lq_clients").select("id, name, email").eq("status", "active").not("email", "is", null);
-  if (!clients || clients.length === 0) return { sent: 0, flagged: 0 };
+  // Builders only, not cleaning — a renovation/new-build lead resolves to a
+  // single priced job, which is what "won + $ value" is modelling. A cleaning
+  // client's leads turn into an ongoing contract, not a one-off job, so this
+  // check-in doesn't fit them yet.
+  const { data: clients } = await sb.from("lq_clients").select("id, name, email, trade").eq("status", "active").not("email", "is", null);
+  const builderClients = (clients || []).filter((c) => !String(c.trade || "").toLowerCase().includes("clean"));
+  if (builderClients.length === 0) return { sent: 0, flagged: 0 };
 
   let sentCount = 0;
   let flaggedCount = 0;
 
-  for (const client of clients) {
+  for (const client of builderClients) {
     const { data: leads } = await sb
       .from("lq_leads")
       .select("id, client_id, contact_email, pipeline_stage, checkin_nudges_sent, created_at, lq_conversations(extracted_fields)")
