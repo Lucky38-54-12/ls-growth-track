@@ -234,6 +234,30 @@ export async function syncMetaLeadsSheet(spreadsheetId: string, targetTab: strin
   return { added: newRows.length, perSource, sourceTabsFound };
 }
 
+// Google rejects addTable/updateTable with "You cannot add alternating
+// background colors to a range that already has alternating background
+// colors" whenever the target range already carries manual banding (a
+// client's sheet copied from a template, or formatting applied before
+// onboarding) — hit for real onboarding Coast Build (2026-10-27), where the
+// tab had stray banding with no registered Table object. Table formatting
+// always supersedes plain banding anyway, so clearing it first is safe for
+// every client, not just a one-off fix.
+function isBandingConflict(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return msg.includes("alternating background colors");
+}
+
+async function clearBanding(sheets: ReturnType<typeof google.sheets>, spreadsheetId: string, sheetId: number): Promise<void> {
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties,sheets.bandedRanges" });
+  const sheet = meta.data.sheets?.find((s) => s.properties?.sheetId === sheetId);
+  const bandedIds = (sheet?.bandedRanges || []).map((b) => b.bandedRangeId).filter((id): id is number => id != null);
+  if (bandedIds.length === 0) return;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: bandedIds.map((bandedRangeId) => ({ deleteBanding: { bandedRangeId } })) },
+  });
+}
+
 // Creates (or, on later syncs, resizes) a native Sheets Table over the
 // header + every data row — gives Lucky sorting/filtering and banded rows
 // for free without us hand-maintaining alternating colors. Table range is
@@ -256,16 +280,16 @@ async function ensureLeadsTable(
     endColumnIndex: TARGET_HEADER.length,
   };
 
-  if (existingTable?.tableId) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: { requests: [{ updateTable: { table: { tableId: existingTable.tableId, range }, fields: "range" } }] },
-    });
-  } else {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: { requests: [{ addTable: { table: { name: `${targetTab} Table`, range } } }] },
-    });
+  const request = existingTable?.tableId
+    ? { updateTable: { table: { tableId: existingTable.tableId, range }, fields: "range" } }
+    : { addTable: { table: { name: `${targetTab} Table`, range } } };
+
+  try {
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [request] } });
+  } catch (e) {
+    if (!isBandingConflict(e)) throw e;
+    await clearBanding(sheets, spreadsheetId, sheetId);
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [request] } });
   }
 }
 
@@ -282,10 +306,8 @@ async function applyTrackingValidation(
   if (endRowIndex <= startRowIndex) return;
   const calledColIdx = TARGET_HEADER.indexOf("Called?");
   const outcomeColIdx = TARGET_HEADER.indexOf("Outcome");
+  const intentColIdx = TARGET_HEADER.indexOf("Intent");
 
-  // Intent is deliberately plain free text (Lucky types "tire kicker"/
-  // "warm"/"hot" himself), not a dropdown — no validation applied to it.
-  //
   // Best-effort: once a sheet's columns get wrapped in a native Sheets Table
   // (ensureLeadsTable, below), Google treats those columns as "typed" and
   // rejects a direct setDataValidation call against their cells ("This
@@ -321,6 +343,26 @@ async function applyTrackingValidation(
                     { userEnteredValue: "Not interested" },
                     { userEnteredValue: "No answer" },
                     { userEnteredValue: "Callback later" },
+                  ],
+                },
+                strict: true,
+                showCustomUi: true,
+              },
+            },
+          },
+          {
+            // How good the lead actually is, judged after talking to them —
+            // separate from Outcome (what happened on the call) above.
+            setDataValidation: {
+              range: { sheetId, startRowIndex, endRowIndex, startColumnIndex: intentColIdx, endColumnIndex: intentColIdx + 1 },
+              rule: {
+                condition: {
+                  type: "ONE_OF_LIST",
+                  values: [
+                    { userEnteredValue: "Hot" },
+                    { userEnteredValue: "Warm" },
+                    { userEnteredValue: "Cold" },
+                    { userEnteredValue: "Tire kicker" },
                   ],
                 },
                 strict: true,
