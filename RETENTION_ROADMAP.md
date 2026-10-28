@@ -50,19 +50,33 @@ what's actually live.
   / Signed up / Didn't convert / Still deciding, instead of Won (+ $ value) /
   Lost / Still talking. Reuses `job_won_at`/`job_lost_reason` — `job_value`
   just stays null for a cleaning client, no new schema.
+- **Ad performance drop → Slack alert** (2026-10-29) — `lib/creativeDemandCheck.ts`
+  already caught a week-over-week results drop or cost-per-lead rise every 3
+  days per client (and auto-reran the Creative Brain), but never told Lucky
+  — this is the actual retention lever he named: hearing about a quiet month
+  within days instead of from the client at month-end. Now posts to Slack
+  the moment a client gets flagged. Migration
+  (`supabase_migration_lq_creative_demand_check.sql`) applied 2026-10-29.
+- **Onboarding call: recurring check-in cadence** (2026-10-29, other session)
+  — a free-text "recurring check-in (every 2 weeks)" field recorded during
+  the onboarding call and echoed in the recap email. Confirmed with Lucky:
+  "monthly report" just means every second fortnightly call doubles as the
+  monthly check-in, shown live off the job report page above — no separate
+  report-generator needed.
 
 ## In progress
 
 - **Onboarding / expectations-setting** — separate Claude Code session,
   started 2026-10-28. Post-close kickoff that sets month-1/month-2
-  expectations in writing, replacing the bare sales-call handoff. Touching
-  `lib/onboardingSteps.ts`, `components/onboarding/*`,
-  `lib/onboardingKickoffEmail.ts`, `lib/onboardingCallRecapEmail.ts`.
+  expectations in writing, replacing the bare sales-call handoff, plus a
+  hard gate blocking a campaign start date until creatives are received.
+  Code-complete; blocked on running `supabase_migration_onboarding_call.sql`
+  in Supabase (that session's to run, not this one's).
 
 ## Not started
 
-- **Fortnightly client check-in cadence** — Lucky's own process change
-  (meeting every 2 weeks per client), not a code task. The job report page
-  above is meant to support it, not replace it.
+- **Fortnightly client check-in cadence itself** — Lucky's own process
+  change (meeting every 2 weeks per client, agreed during onboarding). Not
+  a code task — the job report page exists to support it.
 - **"Not enough value just with ads"** — a service-scope decision (whether
   to bundle something beyond ads), not a build task.
