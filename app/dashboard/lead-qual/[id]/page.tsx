@@ -602,6 +602,12 @@ function ClientDetailPageInner() {
     <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
       <Topbar title="Client Config" subtitle="Edit business info + test the AI qualifier before going live" />
 
+      <div style={{ margin: "16px 28px 0" }}>
+        <a href={`/dashboard/lead-qual/${id}/report`} style={{ fontSize: 13, fontWeight: 700, color: "#15803d", textDecoration: "none" }}>
+          View job report →
+        </a>
+      </div>
+
       {fbPages.length > 0 && (
         <div style={{ margin: "20px 28px 0", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 16 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>
