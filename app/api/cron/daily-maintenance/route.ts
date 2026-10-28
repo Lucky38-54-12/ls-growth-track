@@ -19,6 +19,7 @@ import { notifySlack } from "@/lib/slackNotify";
 import { reportAutomationStatus, checkCronHeartbeats } from "@/lib/automationStatus";
 import { checkCampaignCompletions } from "@/lib/campaignCompletion";
 import { checkCreativeDemand } from "@/lib/creativeDemandCheck";
+import { checkLeadConversionTrend } from "@/lib/leadConversionCheck";
 
 export const dynamic = "force-dynamic";
 
@@ -137,6 +138,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    results.leadConversionTrend = await checkLeadConversionTrend(sb);
+  } catch (e) {
+    results.leadConversionTrend = { error: e instanceof Error ? e.message : "lead conversion trend check failed" };
+  }
+
+  try {
     results.callQueueNudge = await sendLowQueueNudge(sb);
   } catch (e) {
     results.callQueueNudge = { error: e instanceof Error ? e.message : "call queue nudge failed" };
@@ -208,7 +215,7 @@ export async function GET(req: NextRequest) {
   const failedTasks = Object.entries(results).filter(([, v]) => v && typeof v === "object" && "error" in v);
   const summary = failedTasks.length > 0
     ? `${Object.keys(results).length - failedTasks.length}/${Object.keys(results).length} tasks ok. Failed: ${failedTasks.map(([k]) => k).join(", ")}.`
-    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, weekly check-in, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation, onboarding photo uploads, campaign completion check).`;
+    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, weekly check-in, lead conversion trend check, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation, onboarding photo uploads, campaign completion check).`;
   await reportAutomationStatus(sb, "daily-maintenance", failedTasks.length > 0 ? "error" : "ok", summary);
 
   return NextResponse.json(results);
