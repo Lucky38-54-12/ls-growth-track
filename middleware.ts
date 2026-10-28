@@ -31,7 +31,10 @@ const PUBLIC_PATHS = [
 // confirming onboarding details after a deal closes, not the lq_clients
 // leads portal) — it authenticates itself via the token in the URL
 // (lib/onboardingPortalAuth.ts), so it never needs the lq_client cookie.
-const PORTAL_PUBLIC_PATHS = ["/portal/login", "/portal/verify", "/portal/onboarding", "/api/portal"];
+// /portal/checkin/[token] is the same pattern for the weekly job-outcome
+// check-in email link (lib/checkinPortalAuth.ts) — tapped from an email, no
+// browser session to carry a cookie.
+const PORTAL_PUBLIC_PATHS = ["/portal/login", "/portal/verify", "/portal/onboarding", "/portal/checkin", "/api/portal"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

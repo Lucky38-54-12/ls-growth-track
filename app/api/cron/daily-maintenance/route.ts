@@ -11,12 +11,14 @@ import { sendDueProposalFollowups } from "@/lib/proposalFollowup";
 import { sendColdCallNudges } from "@/lib/coldCallNudges";
 import { sendDueNoShowFollowups } from "@/lib/noShowSequence";
 import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
+import { sendWeeklyCheckinIfDue } from "@/lib/weeklyCheckin";
 import { sendLowQueueNudge } from "@/lib/callQueueNudge";
 import { checkMessengerChannelHealth, reconcileHumanTakeovers, resubscribeAllMessengerChannels } from "@/lib/leadQual/meta";
 import { checkOnboardingPhotoUploads } from "@/lib/onboardingPhotoCheck";
 import { notifySlack } from "@/lib/slackNotify";
 import { reportAutomationStatus, checkCronHeartbeats } from "@/lib/automationStatus";
 import { checkCampaignCompletions } from "@/lib/campaignCompletion";
+import { checkCreativeDemand } from "@/lib/creativeDemandCheck";
 
 export const dynamic = "force-dynamic";
 
@@ -117,9 +119,21 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    results.creativeDemandCheck = await checkCreativeDemand();
+  } catch (e) {
+    results.creativeDemandCheck = { error: e instanceof Error ? e.message : "creative demand check failed" };
+  }
+
+  try {
     results.weeklyDigest = await sendWeeklyDigestIfDue(sb);
   } catch (e) {
     results.weeklyDigest = { error: e instanceof Error ? e.message : "weekly digest failed" };
+  }
+
+  try {
+    results.weeklyCheckin = await sendWeeklyCheckinIfDue(sb);
+  } catch (e) {
+    results.weeklyCheckin = { error: e instanceof Error ? e.message : "weekly check-in failed" };
   }
 
   try {
@@ -194,7 +208,7 @@ export async function GET(req: NextRequest) {
   const failedTasks = Object.entries(results).filter(([, v]) => v && typeof v === "object" && "error" in v);
   const summary = failedTasks.length > 0
     ? `${Object.keys(results).length - failedTasks.length}/${Object.keys(results).length} tasks ok. Failed: ${failedTasks.map(([k]) => k).join(", ")}.`
-    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation, onboarding photo uploads, campaign completion check).`;
+    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, weekly check-in, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation, onboarding photo uploads, campaign completion check).`;
   await reportAutomationStatus(sb, "daily-maintenance", failedTasks.length > 0 ? "error" : "ok", summary);
 
   return NextResponse.json(results);
