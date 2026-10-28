@@ -80,6 +80,13 @@ what's actually live.
   Slack same as the other cron heartbeat alerts, closing the "how do I know
   if everything's running smoothly" question.
 
+- **Weekly all-systems-running digest** (2026-10-29) —
+  `lib/systemsHealthDigest.ts`. Lucky said outright he's not going to check
+  `/dashboard/automations` himself. Every other alert only fires on a
+  problem, which makes silence ambiguous — fine, or the whole cron quietly
+  died. This posts to Slack every Monday either way: "all systems running
+  smoothly" when clean, or a specific list of what's stale/erroring.
+
 ## In progress
 
 - **Onboarding / expectations-setting** — separate Claude Code session,
