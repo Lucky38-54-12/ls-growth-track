@@ -57,6 +57,14 @@ what's actually live.
   within days instead of from the client at month-end. Now posts to Slack
   the moment a client gets flagged. Migration
   (`supabase_migration_lq_creative_demand_check.sql`) applied 2026-10-29.
+- **Lead-to-job conversion trend check** (2026-10-29) —
+  `lib/leadConversionCheck.ts`. Closes a real gap Lucky pointed out: ad
+  results/CPL (the check above) can look fine while leads quietly stop
+  converting into jobs for other reasons. Compares each client's own
+  job-outcome data across two past windows (30-60 days ago vs 60-90 days
+  ago, giving leads time to close) and posts to Slack on a genuine
+  conversion drop or a 0% rate with enough resolved leads to mean
+  something.
 - **Onboarding call: recurring check-in cadence** (2026-10-29, other session)
   — a free-text "recurring check-in (every 2 weeks)" field recorded during
   the onboarding call and echoed in the recap email. Confirmed with Lucky:
