@@ -1,5 +1,6 @@
 import { createSupabaseClient } from "./supabase";
 import { notifySlack } from "./slackNotify";
+import { reportAutomationStatus } from "./automationStatus";
 
 type SupabaseClient = ReturnType<typeof createSupabaseClient>;
 
@@ -82,12 +83,16 @@ export async function checkLeadConversionTrend(sb: SupabaseClient): Promise<{ se
     }
   }
 
-  if (flagged.length === 0) return { sent: false, flagged: 0 };
+  if (flagged.length === 0) {
+    await reportAutomationStatus(sb, "lead-conversion-trend-check", "ok", "No conversion drops flagged");
+    return { sent: false, flagged: 0 };
+  }
 
   await notifySlack(
     `📊 Lead conversion dropped for ${flagged.length} client(s) — ad results can look fine while this still happens:\n` +
     flagged.map((f) => `• *${f.name}*: ${f.reason}`).join("\n")
   );
 
+  await reportAutomationStatus(sb, "lead-conversion-trend-check", "ok", `${flagged.length} client(s) flagged`);
   return { sent: true, flagged: flagged.length };
 }

@@ -16,12 +16,18 @@ const STALE_AFTER_MINUTES = 30;
 const DAILY_GH_ACTIONS_SLUGS = ["campaign-send-pipeline", "morning-brief", "lead-qual-sync"] as const;
 const STALE_AFTER_MINUTES_DAILY = 30 * 60;
 
+// These only do real work on Monday (see their own gate), so "stale" has to
+// tolerate a week's gap — threshold is 9 days, giving one day's slack past
+// the weekly cadence before it's actually worth flagging.
+const WEEKLY_SLUGS = ["weekly-checkin", "lead-conversion-trend-check"] as const;
+const STALE_AFTER_MINUTES_WEEKLY = 9 * 24 * 60;
+
 // Flags a cron that's gone quiet — e.g. cron-job.org pausing the job after
 // repeated failures, CRON_SECRET drifting out of sync, or GitHub Actions'
 // scheduler itself stalling — instead of waiting for someone to notice a
 // reminder email or follow-up never went out.
 export async function checkCronHeartbeats(sb: ReturnType<typeof createSupabaseClient>): Promise<{ stale: string[] }> {
-  const allSlugs = [...FIFTEEN_MIN_SLUGS, ...DAILY_GH_ACTIONS_SLUGS];
+  const allSlugs = [...FIFTEEN_MIN_SLUGS, ...DAILY_GH_ACTIONS_SLUGS, ...WEEKLY_SLUGS];
   const { data } = await sb.from("automations").select("slug, last_run_at").in("slug", allSlugs);
   const now = Date.now();
   const checkStale = (slug: string, thresholdMinutes: number) => {
@@ -32,6 +38,7 @@ export async function checkCronHeartbeats(sb: ReturnType<typeof createSupabaseCl
   const stale = [
     ...FIFTEEN_MIN_SLUGS.filter((slug) => checkStale(slug, STALE_AFTER_MINUTES)),
     ...DAILY_GH_ACTIONS_SLUGS.filter((slug) => checkStale(slug, STALE_AFTER_MINUTES_DAILY)),
+    ...WEEKLY_SLUGS.filter((slug) => checkStale(slug, STALE_AFTER_MINUTES_WEEKLY)),
   ];
   return { stale };
 }

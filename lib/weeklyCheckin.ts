@@ -3,6 +3,7 @@ import { sendClientEmail } from "./email";
 import { notifySlack } from "./slackNotify";
 import { createCheckinToken } from "./checkinPortalAuth";
 import { getLeadStatusesByLeadId } from "./metaLeadsSheetSync";
+import { reportAutomationStatus } from "./automationStatus";
 
 type SupabaseClient = ReturnType<typeof createSupabaseClient>;
 
@@ -121,5 +122,6 @@ export async function sendWeeklyCheckinIfDue(sb: SupabaseClient): Promise<{ sent
     }
   }
 
+  await reportAutomationStatus(sb, "weekly-checkin", "ok", `Sent ${sentCount} email(s), ${flaggedCount} lead(s) flagged stale`);
   return { sent: sentCount, flagged: flaggedCount };
 }
