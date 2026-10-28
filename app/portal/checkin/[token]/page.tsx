@@ -18,6 +18,7 @@ export default function CheckinPage() {
   const token = params.token;
 
   const [clientName, setClientName] = useState<string | null>(null);
+  const [isCleaning, setIsCleaning] = useState(false);
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Done>({});
@@ -32,6 +33,7 @@ export default function CheckinPage() {
       })
       .then((data) => {
         setClientName(data.client?.name || null);
+        setIsCleaning(String(data.client?.trade || "").toLowerCase().includes("clean"));
         setLeads(data.leads || []);
       })
       .catch((e) => setError(e.message));
@@ -72,7 +74,7 @@ export default function CheckinPage() {
         {clientName ? `Hey ${clientName}` : "Quick check-in"}
       </h1>
       <p style={{ fontSize: 14, color: L.muted, margin: "0 0 24px" }}>
-        Tap through — did these turn into jobs? Takes under a minute.
+        Tap through — {isCleaning ? "did these sign up?" : "did these turn into jobs?"} Takes under a minute.
       </p>
 
       {leads.length === 0 && (
@@ -101,7 +103,11 @@ export default function CheckinPage() {
 
               {status ? (
                 <div style={{ fontSize: 13, fontWeight: 700, marginTop: 10, color: status === "won" ? "#15803d" : status === "lost" ? "#b91c1c" : L.muted }}>
-                  {status === "won" ? "Marked as won" : status === "lost" ? "Marked as lost" : "Still talking — noted"}
+                  {status === "won"
+                    ? isCleaning ? "Marked as signed up" : "Marked as won"
+                    : status === "lost"
+                    ? isCleaning ? "Marked as didn't convert" : "Marked as lost"
+                    : isCleaning ? "Still deciding — noted" : "Still talking — noted"}
                 </div>
               ) : openWonFor === lead.id ? (
                 <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
@@ -121,9 +127,13 @@ export default function CheckinPage() {
                 </div>
               ) : (
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                  <button onClick={() => setOpenWonFor(lead.id)} style={btnStyle("#16a34a", "#fff")}>Won</button>
-                  <button onClick={() => submit(lead.id, "lost")} style={btnStyle("#fef2f2", "#b91c1c")}>Lost</button>
-                  <button onClick={() => submit(lead.id, "still")} style={btnStyle("#f1f5f9", "#475569")}>Still talking</button>
+                  {isCleaning ? (
+                    <button onClick={() => submit(lead.id, "won")} style={btnStyle("#16a34a", "#fff")}>Signed up</button>
+                  ) : (
+                    <button onClick={() => setOpenWonFor(lead.id)} style={btnStyle("#16a34a", "#fff")}>Won</button>
+                  )}
+                  <button onClick={() => submit(lead.id, "lost")} style={btnStyle("#fef2f2", "#b91c1c")}>{isCleaning ? "Didn't convert" : "Lost"}</button>
+                  <button onClick={() => submit(lead.id, "still")} style={btnStyle("#f1f5f9", "#475569")}>{isCleaning ? "Still deciding" : "Still talking"}</button>
                 </div>
               )}
             </div>

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!clientId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const sb = createSupabaseClient();
-  const { data: client } = await sb.from("lq_clients").select("id, name").eq("id", clientId).single();
+  const { data: client } = await sb.from("lq_clients").select("id, name, trade").eq("id", clientId).single();
   if (!client) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const { data: leads, error } = await sb

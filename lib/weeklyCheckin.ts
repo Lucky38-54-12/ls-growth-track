@@ -30,18 +30,17 @@ export async function sendWeeklyCheckinIfDue(sb: SupabaseClient): Promise<{ sent
 
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  // Builders only, not cleaning — a renovation/new-build lead resolves to a
-  // single priced job, which is what "won + $ value" is modelling. A cleaning
-  // client's leads turn into an ongoing contract, not a one-off job, so this
-  // check-in doesn't fit them yet.
   const { data: clients } = await sb.from("lq_clients").select("id, name, email, trade").eq("status", "active").not("email", "is", null);
-  const builderClients = (clients || []).filter((c) => !String(c.trade || "").toLowerCase().includes("clean"));
-  if (builderClients.length === 0) return { sent: 0, flagged: 0 };
+  if (!clients || clients.length === 0) return { sent: 0, flagged: 0 };
 
   let sentCount = 0;
   let flaggedCount = 0;
 
-  for (const client of builderClients) {
+  for (const client of clients) {
+    // A renovation/new-build lead resolves to a single priced job ("won + $
+    // value"). A cleaning client's leads turn into an ongoing contract
+    // instead, so the ask is just "did they sign up?" — no job value.
+    const isCleaning = String(client.trade || "").toLowerCase().includes("clean");
     const { data: leads } = await sb
       .from("lq_leads")
       .select("id, client_id, contact_email, pipeline_stage, checkin_nudges_sent, created_at, lq_conversations(extracted_fields, contact)")
@@ -88,15 +87,17 @@ export async function sendWeeklyCheckinIfDue(sb: SupabaseClient): Promise<{ sent
       })
       .join("");
 
+    const question = isCleaning ? "did any of these sign up?" : "did any of these turn into jobs?";
+    const subject = isCleaning ? "Quick one — did these sign up?" : "Quick one — did these turn into jobs?";
     const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.6;max-width:560px;">
-  <p style="margin:0 0 12px">Quick one — did any of these turn into jobs?</p>
+  <p style="margin:0 0 12px">Quick one — ${question}</p>
   <ul style="margin:0 0 16px;padding-left:20px">${rows}</ul>
   <p style="margin:0 0 16px"><a href="${checkinUrl}" style="background:#16a34a;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:700">Tap through them here</a></p>
-  <p style="margin:0;color:#6b7280;font-size:13px">Takes less than a minute — won/lost/still talking, no typing needed.</p>
+  <p style="margin:0;color:#6b7280;font-size:13px">Takes less than a minute — ${isCleaning ? "signed up/didn't convert/still deciding" : "won/lost/still talking"}, no typing needed.</p>
 </div>`;
 
     try {
-      await sendClientEmail(client.email as string, "Quick one — did these turn into jobs?", html);
+      await sendClientEmail(client.email as string, subject, html);
       sentCount++;
     } catch {
       continue; // don't bump nudge counts for leads that never actually got emailed
