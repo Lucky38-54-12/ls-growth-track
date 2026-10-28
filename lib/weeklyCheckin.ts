@@ -2,6 +2,7 @@ import { createSupabaseClient } from "./supabase";
 import { sendClientEmail } from "./email";
 import { notifySlack } from "./slackNotify";
 import { createCheckinToken } from "./checkinPortalAuth";
+import { getOutcomesByLeadId } from "./metaLeadsSheetSync";
 
 type SupabaseClient = ReturnType<typeof createSupabaseClient>;
 
@@ -9,6 +10,12 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency"
 const CHECKIN_WEEKDAY = 1; // Monday (UTC), same slot as the internal weekly digest
 const LOOKBACK_DAYS = 21; // keep nudging an unanswered lead for up to 3 weeks
 const STALE_AFTER_NUDGES = 2;
+// A lead also tracked in Lucky's own Meta Lead Ads call sheet
+// (lib/metaLeadsSheetSync.ts) only gets asked about once that sheet's own
+// Outcome column has sat blank this long — give his own call-tracking a
+// week to resolve it (Booked/Not interested/etc.) before going straight to
+// the client.
+const SHEET_STALE_DAYS = 7;
 
 interface PendingLead {
   id: string;
@@ -17,7 +24,7 @@ interface PendingLead {
   pipeline_stage: string | null;
   checkin_nudges_sent: number;
   created_at: string;
-  lq_conversations: { extracted_fields: Record<string, unknown> } | null;
+  lq_conversations: { extracted_fields: Record<string, unknown>; contact: Record<string, unknown> } | null;
 }
 
 // Weekly batch instead of per-lead nudges — one email per client listing
@@ -43,7 +50,7 @@ export async function sendWeeklyCheckinIfDue(sb: SupabaseClient): Promise<{ sent
   for (const client of builderClients) {
     const { data: leads } = await sb
       .from("lq_leads")
-      .select("id, client_id, contact_email, pipeline_stage, checkin_nudges_sent, created_at, lq_conversations(extracted_fields)")
+      .select("id, client_id, contact_email, pipeline_stage, checkin_nudges_sent, created_at, lq_conversations(extracted_fields, contact)")
       .eq("client_id", client.id)
       .eq("outcome", "qualified")
       .is("job_won_at", null)
@@ -52,7 +59,27 @@ export async function sendWeeklyCheckinIfDue(sb: SupabaseClient): Promise<{ sent
       .gte("created_at", since)
       .order("created_at", { ascending: false });
 
-    const pending = (leads || []) as unknown as PendingLead[];
+    let pending = (leads || []) as unknown as PendingLead[];
+    if (pending.length === 0) continue;
+
+    // If this client has a tracked Meta Lead Ads call sheet, don't ask about
+    // a lead Lucky hasn't even gotten an Outcome on there yet — only once
+    // it's sat blank for a while does it make sense to go to the client.
+    const { data: sheetSync } = await sb.from("lead_sheet_syncs").select("spreadsheet_id, target_tab").eq("client_name", client.name).maybeSingle();
+    if (sheetSync) {
+      const outcomesByLeadId = await getOutcomesByLeadId(sheetSync.spreadsheet_id, sheetSync.target_tab).catch(() => null);
+      if (outcomesByLeadId) {
+        const staleCutoff = Date.now() - SHEET_STALE_DAYS * 24 * 60 * 60 * 1000;
+        pending = pending.filter((lead) => {
+          const leadgenId = String(lead.lq_conversations?.contact?.leadgen_id || "");
+          if (!leadgenId) return true; // not a Meta Lead Ads lead, not tracked on the sheet at all
+          const outcome = outcomesByLeadId.get(leadgenId);
+          if (outcome === undefined) return true; // no row on the sheet for it either
+          if (outcome !== "") return false; // Lucky's already logged a call outcome — don't double up
+          return new Date(lead.created_at).getTime() <= staleCutoff;
+        });
+      }
+    }
     if (pending.length === 0) continue;
 
     const token = await createCheckinToken(client.id);

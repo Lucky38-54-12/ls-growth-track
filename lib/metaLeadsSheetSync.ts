@@ -424,6 +424,36 @@ export async function provisionLeadsTab(spreadsheetId: string, targetTab: string
   await ensureLeadsTable(sheets, spreadsheetId, sheetId, targetTab, undefined, 0);
 }
 
+// Lead ID -> Outcome (raw dropdown value, "" if still blank) for every row
+// in the target tab. Used by the weekly job-outcome check-in
+// (lib/weeklyCheckin.ts) to skip asking a client about a lead Lucky's own
+// call-tracking sheet shows he hasn't gotten an Outcome on yet — only once
+// it's gone stale there does it make sense to ask the client directly.
+// Keyed by the bare numeric id (sheet stores it as "l:<id>", matching
+// lq_conversations.contact.leadgen_id).
+export async function getOutcomesByLeadId(spreadsheetId: string, targetTab: string = "All Leads"): Promise<Map<string, string>> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const sheets = google.sheets({ version: "v4", auth });
+
+  const lastCol = String.fromCharCode(65 + TARGET_HEADER.length - 1);
+  const res = await sheets.spreadsheets.values
+    .get({ spreadsheetId, range: `'${targetTab}'!A2:${lastCol}` })
+    .catch(() => ({ data: { values: [] } }));
+
+  const leadIdIdx = TARGET_HEADER.indexOf("Lead ID");
+  const outcomeIdx = TARGET_HEADER.indexOf("Outcome");
+
+  const rows = res.data.values || [];
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    const rawId = row[leadIdIdx];
+    if (!rawId) continue;
+    const bareId = String(rawId).replace(/^l:/, "");
+    map.set(bareId, String(row[outcomeIdx] || ""));
+  }
+  return map;
+}
+
 export function extractSpreadsheetId(input: string): string | null {
   const trimmed = input.trim();
   const fromUrl = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
