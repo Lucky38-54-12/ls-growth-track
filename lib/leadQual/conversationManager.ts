@@ -132,7 +132,12 @@ async function loadClientConfig(clientId: string): Promise<{ config: ClientConfi
     extraContext: businessInfo.extra_context as string | undefined,
     timezone: client?.timezone || "Pacific/Auckland",
     phoneQuotesUnavailable: businessInfo.phone_quotes_unavailable === true,
-    warmHandoffOnly: businessInfo.warm_handoff_only === true,
+    // Every client now gets the warm-handoff flow: the chat warms the lead up
+    // and hands off cleanly, but never locks in or auto-books a callback time
+    // nobody actually confirmed availability for — that's a human's job,
+    // done by call/text afterward on their own schedule. Used to be a
+    // per-client opt-in (warm_handoff_only); now it's just how this works.
+    warmHandoffOnly: true,
     minimalHandoff: businessInfo.minimal_handoff === true,
   };
   const rules: Rule[] = (configRow?.qualification_rules as Rule[]) || defaultRules();
