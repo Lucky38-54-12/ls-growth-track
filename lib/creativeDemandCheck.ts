@@ -2,6 +2,7 @@ import { createSupabaseClient } from "./supabase";
 import { getAdCreatives } from "./metaAds";
 import { generateCreativeHypotheses } from "./creativeBrain";
 import { reportAutomationStatus } from "./automationStatus";
+import { notifySlack } from "./slackNotify";
 
 const THROTTLE_DAYS = 3;
 const MIN_SPEND_TO_JUDGE = 30; // NZD — below this, a week's data is too thin to call a trend
@@ -118,8 +119,20 @@ export async function checkCreativeDemand(): Promise<{ checked: number; flagged:
     }
   }
 
-  const summary = `Checked ${due.length} client(s), ${flagged.filter((f) => f.flagged).length} flagged`;
+  const flaggedOnly = flagged.filter((f) => f.flagged);
+  const summary = `Checked ${due.length} client(s), ${flaggedOnly.length} flagged`;
   await reportAutomationStatus(sb, "creative-demand-check", errors.length ? "error" : "ok", summary);
 
-  return { checked: due.length, flagged: flagged.filter((f) => f.flagged), errors };
+  // The whole point of catching this here is so Lucky hears about a
+  // performance drop within days, not at month-end from the client — this
+  // was previously detected but never surfaced anywhere.
+  if (flaggedOnly.length > 0) {
+    await notifySlack(
+      `📉 Ad performance dropped for ${flaggedOnly.length} client(s) — worth a look before they notice:\n` +
+      flaggedOnly.map((f) => `• *${f.clientName}*: ${f.reason}`).join("\n") +
+      `\nNew creative angles already queued up in /dashboard/meta-ads.`
+    );
+  }
+
+  return { checked: due.length, flagged: flaggedOnly, errors };
 }
