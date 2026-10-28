@@ -1,13 +1,7 @@
 import { parseCampaignFromTitle } from "./sheets";
+import { MAJOR_CITIES, TRADES } from "./tradeList";
 
-export const MAJOR_CITIES = ["Auckland", "Wellington", "Christchurch", "Hamilton", "Tauranga"] as const;
-
-// Canonical trade labels — the same set sheet titles already get parsed into
-// by parseCampaignFromTitle's TRADE_MAP, deduped to one label per trade.
-export const TRADES = [
-  "Cleaning", "Builders", "Plumbing", "Electrical", "Landscaping", "Painting",
-  "Roofing", "Removals", "Pest Control", "Renovations", "Floor Coatings", "Fencing",
-] as const;
+export { MAJOR_CITIES, TRADES };
 
 export interface CoverageGap {
   trade: string;

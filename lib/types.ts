@@ -317,6 +317,17 @@ export interface OnboardingClient {
   handover_checklist_steps: string[];
   client_folder_url: string | null;
   marketing_notified_at: string | null;
+  trade: string | null;
+  first_review_date: string | null;
+  campaign_start_date: string | null;
+  checkin_schedule_note: string | null;
+  creatives_received_at: string | null;
+  onboarding_call_notes: string | null;
+  onboarding_call_completed_at: string | null;
+  onboarding_recap_status: "none" | "pending" | "sent";
+  onboarding_recap_subject: string | null;
+  onboarding_recap_html: string | null;
+  onboarding_recap_sent_at: string | null;
 }
 
 export interface OnboardingNote {

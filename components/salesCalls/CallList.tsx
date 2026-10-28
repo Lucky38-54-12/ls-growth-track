@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { SalesCall, CallOutcome, CALL_OUTCOME_LABELS, CALL_OUTCOME_COLORS } from "@/lib/types";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
 import RecapAgreementPanel from "./RecapAgreementPanel";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b", dimmed: "#94a3b8" };
@@ -18,7 +19,11 @@ function toEditable(c: SalesCall): EditableFields {
   };
 }
 
-export default function CallList({ calls, onUpdated }: { calls: SalesCall[]; onUpdated: (call: SalesCall) => void }) {
+export default function CallList({ calls, onUpdated, onboardingBySalesCallId }: {
+  calls: SalesCall[];
+  onUpdated: (call: SalesCall) => void;
+  onboardingBySalesCallId: Record<string, { id: string; done: boolean }>;
+}) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<EditableFields | null>(null);
@@ -74,6 +79,7 @@ export default function CallList({ calls, onUpdated }: { calls: SalesCall[]; onU
         const open = openId === c.id;
         const editing = editingId === c.id;
         const colors = CALL_OUTCOME_COLORS[c.outcome];
+        const onboarding = onboardingBySalesCallId[c.id];
         return (
           <div key={c.id} style={{ borderBottom: `1px solid ${L.border}` }}>
             <button
@@ -113,11 +119,25 @@ export default function CallList({ calls, onUpdated }: { calls: SalesCall[]; onU
                   Agreement failed
                 </span>
               )}
+              {onboarding && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: onboarding.done ? "#dcfce7" : "#fef3c7", color: onboarding.done ? "#166534" : "#92400e", flexShrink: 0, whiteSpace: "nowrap" }}>
+                  {onboarding.done ? "Onboarding call done" : "Next: onboarding call"}
+                </span>
+              )}
               {open ? <ChevronUp style={{ width: 14, height: 14, color: L.dimmed, flexShrink: 0 }} /> : <ChevronDown style={{ width: 14, height: 14, color: L.dimmed, flexShrink: 0 }} />}
             </button>
 
             {open && !editing && (
               <div style={{ padding: "0 18px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+                {onboarding && !onboarding.done && (
+                  <Link
+                    href={`/dashboard/sales-calls/onboarding/${onboarding.id}`}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 16px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 7, textDecoration: "none" }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>Agreement's through — next up is the onboarding call</span>
+                    <ArrowRight style={{ width: 15, height: 15, color: "#92400e", flexShrink: 0 }} />
+                  </Link>
+                )}
                 {c.main_objection && (
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: L.muted, marginBottom: 3 }}>Main objection</div>

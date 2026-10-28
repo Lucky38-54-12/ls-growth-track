@@ -24,6 +24,7 @@ export function buildKickoffEmail(input: KickoffEmailInput): { subject: string; 
   <p style="margin:0 0 12px">Good chatting, keen to get things moving.</p>
   <p style="margin:0 0 16px">If you can jump through this link and give me access, that'll get us set up: <a href="${input.connectUrl}">${input.connectUrl}</a></p>
   <p style="margin:0 0 16px">I'll also need a few photos or videos we can use in the ads — easiest way is to drop them into <a href="${input.photosFolderUrl}">this folder</a>, or send them to me on WhatsApp: <a href="${whatsappLink(input.whatsappNumber)}">${input.whatsappNumber}</a>.</p>
+  <p style="margin:0 0 16px">Once that's sorted I'll grab a time for a proper onboarding call, where we'll go through timelines, how the creative side works, and what to expect in the first couple months.</p>
   <p style="margin:16px 0 0">Cheers,<br>Lucky<br>LS Growth</p>
 </div>`;
 

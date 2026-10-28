@@ -30,10 +30,11 @@ interface Props {
   initialPendingProposals: ScriptProposal[];
   initialPatterns: CallPatterns;
   scriptPatterns: PatternTracker[];
+  onboardingBySalesCallId: Record<string, { id: string; done: boolean }>;
 }
 
 export default function SalesCallsClient({
-  initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialPatterns, scriptPatterns,
+  initialCalls, initialVersions, initialCurrentVersion, initialPendingProposals, initialPatterns, scriptPatterns, onboardingBySalesCallId,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("history");
   const [calls, setCalls] = useState<SalesCall[]>(initialCalls);
@@ -110,7 +111,7 @@ export default function SalesCallsClient({
         </div>
       )}
 
-      {tab === "history" && <CallList calls={calls} onUpdated={handleCallUpdated} />}
+      {tab === "history" && <CallList calls={calls} onUpdated={handleCallUpdated} onboardingBySalesCallId={onboardingBySalesCallId} />}
       {tab === "script" && (
         <MasterScriptPanel
           currentVersion={currentVersion}
