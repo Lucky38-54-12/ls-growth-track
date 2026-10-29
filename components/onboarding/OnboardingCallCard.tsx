@@ -10,7 +10,7 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 const AGENDA = [
   {
     heading: "Opening",
-    body: "Thank them for signing on, keep it quick and personal. Set the frame: this call is about making sure they know exactly what the next two months look like so nothing catches them off guard.",
+    body: "Thank them for signing on, keep it quick and personal. Set the frame: this call is about making sure they know exactly what the next four months look like so nothing catches them off guard.",
   },
   {
     heading: "The 30/60/90/120 day roadmap",
@@ -30,7 +30,7 @@ const AGENDA = [
   },
   {
     heading: "Objection handling",
-    body: "If they push back on waiting for creatives, explain a campaign built on weak or no creative underperforms, looks cheap, and costs them money for worse results. If they ask why results aren't instant, point back to the month one/two split already covered.",
+    body: "If they push back on waiting for creatives, explain a campaign built on weak or no creative underperforms, looks cheap, and costs them money for worse results. If they ask why results aren't instant, point back to the 30/60/90/120 roadmap already covered.",
   },
   {
     heading: "Lock in a recurring check-in",

@@ -89,12 +89,17 @@ what's actually live.
 
 ## In progress
 
-- **Onboarding / expectations-setting** — separate Claude Code session,
-  started 2026-10-28. Post-close kickoff that sets month-1/month-2
-  expectations in writing, replacing the bare sales-call handoff, plus a
-  hard gate blocking a campaign start date until creatives are received.
-  Code-complete; blocked on running `supabase_migration_onboarding_call.sql`
-  in Supabase (that session's to run, not this one's).
+- **Onboarding / expectations-setting** — post-close kickoff that sets
+  month-1/month-2 expectations in writing, replacing the bare sales-call
+  handoff, plus a hard gate blocking a campaign start date until creatives
+  are received. `supabase_migration_onboarding_call.sql` is confirmed applied
+  (2026-10-30) — no longer a blocker.
+  Uncommitted as of 2026-10-30: reframed the "Timeline & expectations" step
+  as an explicit **30/60/90/120-day roadmap** (`OnboardingCallCard.tsx`) and
+  matched it in the recap email (`onboardingCallRecapEmail.ts`), so a quiet
+  day-30 doesn't read as the campaign not working — the thing Lucky flagged
+  as the actual month-2 churn trigger. Still needs: review the copy, commit,
+  deploy.
 
 ## Not started
 
