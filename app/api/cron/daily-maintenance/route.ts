@@ -21,7 +21,7 @@ import { checkCampaignCompletions } from "@/lib/campaignCompletion";
 import { checkCreativeDemand } from "@/lib/creativeDemandCheck";
 import { checkLeadConversionTrend } from "@/lib/leadConversionCheck";
 import { sendWeeklySystemsHealthIfDue } from "@/lib/systemsHealthDigest";
-import { sendMonthlyRecapIfDue } from "@/lib/monthlyRecap";
+import { sendClientCatchupPrepIfDue } from "@/lib/clientCatchupPrep";
 
 export const dynamic = "force-dynamic";
 
@@ -221,15 +221,15 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    results.monthlyRecap = await sendMonthlyRecapIfDue(sb);
+    results.clientCatchupPrep = await sendClientCatchupPrepIfDue(sb);
   } catch (e) {
-    results.monthlyRecap = { error: e instanceof Error ? e.message : "monthly recap failed" };
+    results.clientCatchupPrep = { error: e instanceof Error ? e.message : "client catch-up prep failed" };
   }
 
   const failedTasks = Object.entries(results).filter(([, v]) => v && typeof v === "object" && "error" in v);
   const summary = failedTasks.length > 0
     ? `${Object.keys(results).length - failedTasks.length}/${Object.keys(results).length} tasks ok. Failed: ${failedTasks.map(([k]) => k).join(", ")}.`
-    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, weekly check-in, lead conversion trend check, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation, onboarding photo uploads, campaign completion check, monthly recap).`;
+    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, weekly check-in, lead conversion trend check, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation, onboarding photo uploads, campaign completion check, client catch-up prep).`;
   await reportAutomationStatus(sb, "daily-maintenance", failedTasks.length > 0 ? "error" : "ok", summary);
 
   return NextResponse.json(results);
