@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClientAsync, fetchAllRows } from "@/lib/supabase";
-import { notifyBookedLeads, syncMetaLeadsSheet } from "@/lib/metaLeadsSheetSync";
+import { getCompletedJobsPendingReview, markReviewRequested, notifyBookedLeads, syncMetaLeadsSheet } from "@/lib/metaLeadsSheetSync";
+import { sendReviewRequestEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency";
 
 interface LeadSheetSync {
   id: string;
@@ -49,7 +52,58 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      results.push({ client: s.client_name, ...result, notified });
+      // Auto-trigger: any row with Job Completed? ticked and Review
+      // Requested? still blank gets a review-funnel ask sent, if this
+      // client's spreadsheet is linked to a review_funnel_clients entry.
+      // Best-effort per-row — one failed send shouldn't block the rest or
+      // mark the sync itself as failed.
+      let reviewsSent = 0;
+      try {
+        const { data: rfClient } = await sb
+          .from("review_funnel_clients")
+          .select("id, slug, business_name, owner_email")
+          .eq("spreadsheet_id", s.spreadsheet_id)
+          .maybeSingle();
+
+        if (rfClient) {
+          const pending = await getCompletedJobsPendingReview(s.spreadsheet_id, s.target_tab);
+          const doneRows: number[] = [];
+          for (const job of pending) {
+            try {
+              const { data: send } = await sb
+                .from("review_funnel_sends")
+                .insert({
+                  review_funnel_client_id: rfClient.id,
+                  customer_name: job.name,
+                  customer_email: job.email,
+                  job_description: job.details || null,
+                })
+                .select("id")
+                .single();
+              if (!send) continue;
+
+              const reviewLink = `${APP_URL}/review/${rfClient.slug}?s=${send.id}`;
+              await sendReviewRequestEmail({
+                to: job.email,
+                businessName: rfClient.business_name,
+                ownerEmail: rfClient.owner_email,
+                customerName: job.name,
+                jobDescription: job.details || null,
+                reviewLink,
+              });
+              doneRows.push(job.rowIndex);
+              reviewsSent++;
+            } catch (e) {
+              console.error("review-funnel auto-send failed for row", job.rowIndex, s.client_name, e);
+            }
+          }
+          if (doneRows.length > 0) await markReviewRequested(s.spreadsheet_id, s.target_tab, doneRows);
+        }
+      } catch (e) {
+        console.error("review-funnel auto-send check failed for", s.client_name, e);
+      }
+
+      results.push({ client: s.client_name, ...result, notified, reviewsSent });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Sync failed";
       console.error("sync-lead-sheets failed for", s.client_name, e);

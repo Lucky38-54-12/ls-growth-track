@@ -28,6 +28,13 @@ import { sendClientEmail } from "./email";
 export const TARGET_HEADER = [
   "Date", "Name", "Phone", "Email", "City", "Called?", "Outcome", "Intent",
   "Details", "Source Tab", "Lead Status", "Lead ID", "Notes", "Booked Date/Time", "Client Notified",
+  // Job Completed? is the manual trigger for the review-funnel auto-send
+  // (see getCompletedJobsPendingReview/markReviewRequested below, wired into
+  // /api/cron/sync-lead-sheets) — tick it once the actual job's done, not
+  // when the call happens (that's Outcome). Review Requested? is system-set,
+  // never typed by hand — it's what stops the same lead getting the ask
+  // twice on the next cron run.
+  "Job Completed?", "Review Requested?",
 ];
 
 // Internal Meta plumbing fields — never shown to Lucky, not folded into
@@ -146,6 +153,16 @@ export async function syncMetaLeadsSheet(spreadsheetId: string, targetTab: strin
   if (sheetId === undefined || sheetId === null) throw new Error(`Target tab "${targetTab}" not found`);
   const existingTable = targetSheet?.tables?.[0];
 
+  // Self-heals a sheet provisioned before a TARGET_HEADER change (e.g. a
+  // column added later) — cheap to run every sync, and means an existing
+  // client's sheet picks up a new column without a manual re-provision.
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `'${targetTab}'!A1:${String.fromCharCode(64 + TARGET_HEADER.length)}1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [TARGET_HEADER] },
+  });
+
   const tabTitles = (meta.data.sheets || []).map((s) => s.properties?.title).filter((t): t is string => !!t && t !== targetTab);
 
   const leadIdCol = colLetter("Lead ID");
@@ -230,6 +247,12 @@ export async function syncMetaLeadsSheet(spreadsheetId: string, targetTab: strin
   }
 
   await ensureLeadsTable(sheets, spreadsheetId, sheetId, targetTab, existingTable, existingRowCount + newRows.length);
+
+  // Unlike Called?/Outcome/Intent above, backfill this over every existing
+  // row, not just newly-added ones — these two columns are new as of this
+  // sync engine version, so a sheet synced before they existed needs them
+  // applied retroactively, not just going forward.
+  await applyCompletionValidation(sheets, spreadsheetId, sheetId, 1, 1 + existingRowCount + newRows.length);
 
   return { added: newRows.length, perSource, sourceTabsFound };
 }
@@ -375,6 +398,46 @@ async function applyTrackingValidation(
     });
   } catch (e) {
     console.error("applyTrackingValidation skipped (likely a typed Table column):", e);
+  }
+}
+
+// Job Completed?/Review Requested? checkboxes — kept separate from
+// applyTrackingValidation above (and called over the FULL row range, not
+// just newly-added rows) because these two columns post-date it: a sheet
+// synced before they existed needs them backfilled retroactively.
+async function applyCompletionValidation(
+  sheets: ReturnType<typeof google.sheets>,
+  spreadsheetId: string,
+  sheetId: number,
+  startRowIndex: number,
+  endRowIndex: number
+): Promise<void> {
+  if (endRowIndex <= startRowIndex) return;
+  const jobCompletedColIdx = TARGET_HEADER.indexOf("Job Completed?");
+  const reviewRequestedColIdx = TARGET_HEADER.indexOf("Review Requested?");
+
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            setDataValidation: {
+              range: { sheetId, startRowIndex, endRowIndex, startColumnIndex: jobCompletedColIdx, endColumnIndex: jobCompletedColIdx + 1 },
+              rule: { condition: { type: "BOOLEAN" }, strict: true },
+            },
+          },
+          {
+            setDataValidation: {
+              range: { sheetId, startRowIndex, endRowIndex, startColumnIndex: reviewRequestedColIdx, endColumnIndex: reviewRequestedColIdx + 1 },
+              rule: { condition: { type: "BOOLEAN" }, strict: true },
+            },
+          },
+        ],
+      },
+    });
+  } catch (e) {
+    console.error("applyCompletionValidation skipped (likely a typed Table column):", e);
   }
 }
 
@@ -532,6 +595,72 @@ export async function appendLeadToSheet(spreadsheetId: string, targetTab: string
   await ensureLeadsTable(sheets, spreadsheetId, sheetId, targetTab, existingTable, existingRowCount + 1);
 
   return { added: true };
+}
+
+export interface CompletedJobPendingReview {
+  rowIndex: number; // 1-indexed sheet row, for markReviewRequested
+  leadId: string;
+  name: string;
+  phone: string;
+  email: string;
+  details: string;
+}
+
+// Rows with Job Completed? ticked and Review Requested? still blank — the
+// trigger for the review-funnel auto-send (see /api/cron/sync-lead-sheets).
+// Lucky (or the client) ticks Job Completed? once the actual work is done;
+// this is checked separately from Outcome, which tracks what happened on
+// the initial call, not whether the job itself ever got finished.
+export async function getCompletedJobsPendingReview(spreadsheetId: string, targetTab: string = "All Leads"): Promise<CompletedJobPendingReview[]> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const sheets = google.sheets({ version: "v4", auth });
+
+  const lastCol = String.fromCharCode(65 + TARGET_HEADER.length - 1);
+  const res = await sheets.spreadsheets.values
+    .get({ spreadsheetId, range: `'${targetTab}'!A2:${lastCol}` })
+    .catch(() => ({ data: { values: [] } }));
+
+  const nameIdx = TARGET_HEADER.indexOf("Name");
+  const phoneIdx = TARGET_HEADER.indexOf("Phone");
+  const emailIdx = TARGET_HEADER.indexOf("Email");
+  const detailsIdx = TARGET_HEADER.indexOf("Details");
+  const leadIdIdx = TARGET_HEADER.indexOf("Lead ID");
+  const completedIdx = TARGET_HEADER.indexOf("Job Completed?");
+  const requestedIdx = TARGET_HEADER.indexOf("Review Requested?");
+
+  const isTrue = (v: unknown) => v === true || v === "TRUE";
+
+  const rows = res.data.values || [];
+  const pending: CompletedJobPendingReview[] = [];
+  rows.forEach((row, i) => {
+    if (isTrue(row[completedIdx]) && !isTrue(row[requestedIdx]) && row[emailIdx]) {
+      pending.push({
+        rowIndex: i + 2,
+        leadId: row[leadIdIdx] || "",
+        name: row[nameIdx] || "",
+        phone: row[phoneIdx] || "",
+        email: row[emailIdx] || "",
+        details: row[detailsIdx] || "",
+      });
+    }
+  });
+  return pending;
+}
+
+// Flags rows as done right after their review-request email sends, so the
+// next cron run never asks the same completed job twice.
+export async function markReviewRequested(spreadsheetId: string, targetTab: string, rowIndexes: number[]): Promise<void> {
+  if (rowIndexes.length === 0) return;
+  const auth = await getLuckyGoogleAuthedClient();
+  const sheets = google.sheets({ version: "v4", auth });
+  const col = colLetter("Review Requested?");
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      valueInputOption: "USER_ENTERED",
+      data: rowIndexes.map((rowIndex) => ({ range: `'${targetTab}'!${col}${rowIndex}`, values: [[true]] })),
+    },
+  });
 }
 
 export function extractSpreadsheetId(input: string): string | null {
