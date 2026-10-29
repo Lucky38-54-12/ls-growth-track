@@ -228,29 +228,29 @@ export function checkFixedTemplateGate(input: {
 // Only campaign leads send here — the old static-template sequence
 // (Email Outreach page) is retired, Lucky doesn't want template emails going
 // out. Leads without a campaign_id just sit until they're added to one.
-export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{ sent: boolean; held?: boolean; notAFit?: boolean }> {
+export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{ sent: boolean; held?: boolean; notAFit?: boolean; notDue?: boolean }> {
   // Hard kill switch (2026-08-14) — cold outreach is fully paused, no
   // exceptions, regardless of how this got triggered (cron, the manual
   // /api/send button, a future feature). Returns before the only AI call in
   // this whole pipeline (extractLeadSlots, on the "initial" step) or any DB
   // write, so a paused campaign genuinely cannot spend anything. Flip
   // COLD_OUTREACH_PAUSED off in Vercel env vars to resume.
-  if (process.env.COLD_OUTREACH_PAUSED === "true") return { sent: false };
+  if (process.env.COLD_OUTREACH_PAUSED === "true") return { sent: false, notDue: true };
 
   // Daily automated circuit breaker (2026-10-04) — if today's real Anthropic
   // spend on the outreach key has already hit the cap, skip sending
   // entirely rather than firing another extractLeadSlots call on top of it.
   // The next cron run re-checks the real cost API, so this clears itself
   // once the cap resets, with no manual flag to remember to flip back.
-  if (await isOutreachSpendOverCap()) return { sent: false };
+  if (await isOutreachSpendOverCap()) return { sent: false, notDue: true };
 
-  if (!lead.campaign_id) return { sent: false };
+  if (!lead.campaign_id) return { sent: false, notDue: true };
 
   // A campaign sitting in "draft" (never activated) or "paused" must not
   // send — the dashboard shows that status specifically so it reads as safe
   // to review before anything goes out, so this has to actually be true.
   const { data: campaign } = await sb.from("campaigns").select("status").eq("id", lead.campaign_id).maybeSingle();
-  if (!campaign || campaign.status !== "active") return { sent: false };
+  if (!campaign || campaign.status !== "active") return { sent: false, notDue: true };
 
   // Cleaning-trade leads got hard-blocked here 2026-07-10 after Wellington
   // cleaning companies were emailed by mistake via the old duplicate app.
@@ -267,7 +267,7 @@ export async function sendNextStepFor(lead: Lead, sb: SupabaseClient): Promise<{
   const isBuilding = /build|renovat|construction/i.test(lead.trade || "");
 
   const step = nextStepFor(lead);
-  if (!step) return { sent: false };
+  if (!step) return { sent: false, notDue: true };
 
   let subject: string;
   let bodyHtml: string;
@@ -510,13 +510,22 @@ export async function runSendBatch(
       const i = nextIndex++;
       if (i >= leads.length) return;
       const lead = leads[i];
-      processed++;
       try {
         const result = await sendNextStepFor(lead, sb);
+        // "processed" is meant to mean "actually due today" (see
+        // .github/workflows/cron.yml, which stops looping once this hits 0)
+        // — a lead skipped for not being due yet (no campaign, campaign not
+        // active, outside its step cadence, paused, over spend cap) must not
+        // count here, or a batch that's fully drained for the day still
+        // looks like it has work left and the workflow burns all 200 rounds
+        // re-scanning the same not-due leads for nothing (confirmed in
+        // production 2026-10-25/26).
+        if (!result.notDue) processed++;
         if (result.sent) sent++;
         else if (result.held) held++;
         else if (result.notAFit) notAFit++;
       } catch (err) {
+        processed++;
         errors.push({ lead_id: lead.lead_id, message: err instanceof Error ? err.message : "unknown error" });
       }
     }
@@ -526,9 +535,13 @@ export async function runSendBatch(
 
   // One digest per batch instead of a Slack ping per held/excluded lead
   // (2026-10-20, Lucky's call — a 90-lead activation was pinging dozens of
-  // times in a row). Stays quiet on a clean run; only posts when something
-  // actually needs a look.
-  if (held > 0 || notAFit > 0 || errors.length > 0) {
+  // times in a row). Still posts on a clean run as long as something was
+  // actually sent (2026-10-28, Lucky's call — after the GitHub Actions
+  // scheduler silently stopped firing for over a day with zero signal, he
+  // wants a positive confirmation that the pipeline is alive, not just an
+  // alert when it breaks). Only a truly empty round (nothing due, nothing
+  // held/excluded, no errors) stays silent.
+  if (sent > 0 || held > 0 || notAFit > 0 || errors.length > 0) {
     await notifySlack(
       `📨 Campaign batch done: ${sent} sent, ${held} held for review, ${notAFit} auto-excluded (not a fit)${errors.length ? `, ${errors.length} errored` : ""}.\n` +
       `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard`

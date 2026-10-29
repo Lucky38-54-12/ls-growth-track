@@ -22,6 +22,7 @@ import { checkCreativeDemand } from "@/lib/creativeDemandCheck";
 import { checkLeadConversionTrend } from "@/lib/leadConversionCheck";
 import { sendWeeklySystemsHealthIfDue } from "@/lib/systemsHealthDigest";
 import { sendMidMonthCheckinPrepIfDue, sendEndOfMonthResultsPrepIfDue } from "@/lib/clientCatchupPrep";
+import { sendPaymentRemindersIfDue } from "@/lib/paymentReminders";
 
 export const dynamic = "force-dynamic";
 
@@ -223,13 +224,25 @@ export async function GET(req: NextRequest) {
   try {
     results.midMonthCheckinPrep = await sendMidMonthCheckinPrepIfDue(sb);
   } catch (e) {
-    results.midMonthCheckinPrep = { error: e instanceof Error ? e.message : "mid-month check-in prep failed" };
+    const message = e instanceof Error ? e.message : "mid-month check-in prep failed";
+    results.midMonthCheckinPrep = { error: message };
+    await notifySlack(`🔴 Mid-month check-in prep failed: ${message}`);
   }
 
   try {
     results.endOfMonthResultsPrep = await sendEndOfMonthResultsPrepIfDue(sb);
   } catch (e) {
-    results.endOfMonthResultsPrep = { error: e instanceof Error ? e.message : "end-of-month results prep failed" };
+    const message = e instanceof Error ? e.message : "end-of-month results prep failed";
+    results.endOfMonthResultsPrep = { error: message };
+    await notifySlack(`🔴 End-of-month results prep failed: ${message}`);
+  }
+
+  try {
+    results.paymentReminder = await sendPaymentRemindersIfDue(sb);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "payment reminder failed";
+    results.paymentReminder = { error: message };
+    await notifySlack(`🔴 Payment reminder failed: ${message} — check /dashboard/automations, you may be due a payment nudge that never sent.`);
   }
 
   const failedTasks = Object.entries(results).filter(([, v]) => v && typeof v === "object" && "error" in v);
