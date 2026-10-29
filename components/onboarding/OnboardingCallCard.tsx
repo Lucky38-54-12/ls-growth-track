@@ -10,7 +10,7 @@ const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#647
 const AGENDA = [
   {
     heading: "Opening",
-    body: "Thank them for signing on, keep it quick and personal. Set the frame: this call is about making sure they know exactly what the next four months look like so nothing catches them off guard.",
+    body: "Thank them for the proposal yes, keep it quick and personal. Set the frame: this call is where the content gets handed over, the contract gets signed, and they know exactly what the next four months look like so nothing catches them off guard.",
   },
   {
     heading: "The 30/60/90/120 day roadmap",
@@ -82,7 +82,7 @@ export default function OnboardingCallCard({ client: initialClient }: { client: 
     <div style={{ background: L.surface, border: `1px solid ${L.border}`, borderRadius: 10, padding: "20px 24px", marginBottom: 20 }}>
       <h3 style={{ fontSize: 13, fontWeight: 700, color: L.text, marginBottom: 4 }}>Onboarding call</h3>
       <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 14 }}>
-        Second call, after the contract's signed. This is where expectations actually get set.
+        Second call, after the proposal's gone out. This is where the content actually gets handed over, the contract gets signed, and expectations get set.
       </p>
 
       <div style={{ background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 7, padding: "14px 16px", marginBottom: 16 }}>
