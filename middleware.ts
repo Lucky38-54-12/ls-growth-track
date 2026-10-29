@@ -28,6 +28,7 @@ const PUBLIC_PATHS = [
   "/review",
   "/api/review-funnel/public",
   "/api/review-funnel/respond",
+  "/api/review-funnel/referral",
 ];
 
 // The client portal has its own login entirely separate from the internal

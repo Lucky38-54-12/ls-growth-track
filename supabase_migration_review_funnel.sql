@@ -48,3 +48,18 @@ create table if not exists review_funnel_responses (
 
 create index if not exists review_funnel_sends_client_idx on review_funnel_sends(review_funnel_client_id);
 create index if not exists review_funnel_responses_client_idx on review_funnel_responses(review_funnel_client_id);
+
+-- Referral capture, offered to a happy customer right before they're sent
+-- to leave a Google review (see app/review/[slug]/ReviewFlow.tsx) — they're
+-- the warmest audience to ask, and it's the same page, no new send needed.
+-- Always skippable, never blocks the review redirect.
+create table if not exists review_funnel_referrals (
+  id uuid primary key default gen_random_uuid(),
+  review_funnel_client_id uuid not null references review_funnel_clients(id) on delete cascade,
+  send_id uuid references review_funnel_sends(id) on delete set null,
+  customer_name text,
+  referral_name text not null,
+  referral_contact text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists review_funnel_referrals_client_idx on review_funnel_referrals(review_funnel_client_id);

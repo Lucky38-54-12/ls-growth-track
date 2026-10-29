@@ -391,6 +391,22 @@ export async function sendReviewFeedbackAlertEmail(opts: {
   await sendBulkMail({ to: opts.ownerEmail, subject: `Private feedback — ${opts.businessName}`, html, text, from: "LS Growth <reviews@lsgrowth.agency>" });
 }
 
+// Referral alert — offered to a happy customer right after "It was great!",
+// before they're sent on to leave a Google review (see
+// app/review/[slug]/ReviewFlow.tsx). Goes straight to the owner so they can
+// follow up while it's warm.
+export async function sendReviewReferralAlertEmail(opts: {
+  ownerEmail: string; businessName: string; customerName: string | null; referralName: string; referralContact: string;
+}) {
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.6;max-width:480px;">
+  <p><strong>${opts.customerName || "A customer"}</strong> sent you a referral:</p>
+  <p><strong>${opts.referralName}</strong> — ${opts.referralContact}</p>
+  <p>Worth reaching out while it's fresh.</p>
+</div>`;
+  const text = `${opts.customerName || "A customer"} referred ${opts.referralName} — ${opts.referralContact}`;
+  await sendBulkMail({ to: opts.ownerEmail, subject: `New referral — ${opts.businessName}`, html, text, from: "LS Growth <reviews@lsgrowth.agency>" });
+}
+
 // Transactional mail to an LS Growth client (not a lead/prospect) — e.g.
 // "you've got a new booking" from notifyBookedLeads. Via Resend on
 // clients@lsgrowth.agency instead of Lucky's personal Gmail. Callers pass

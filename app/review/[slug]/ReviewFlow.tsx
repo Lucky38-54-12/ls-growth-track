@@ -22,9 +22,12 @@ export default function ReviewFlow({ slug }: { slug: string }) {
 
   const [config, setConfig] = useState<Config | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [phase, setPhase] = useState<"ask" | "feedback" | "redirecting" | "thanks">("ask");
+  const [phase, setPhase] = useState<"ask" | "feedback" | "referral" | "redirecting" | "thanks">("ask");
   const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [referralName, setReferralName] = useState("");
+  const [referralContact, setReferralContact] = useState("");
+  const [referralSubmitting, setReferralSubmitting] = useState(false);
 
   useEffect(() => {
     const qs = sendId ? `?s=${encodeURIComponent(sendId)}` : "";
@@ -44,10 +47,25 @@ export default function ReviewFlow({ slug }: { slug: string }) {
 
   function handleGood() {
     if (!config) return;
+    respond("good").catch(() => {});
+    setPhase("referral");
+  }
+
+  function goToReview() {
+    if (!config) return;
     setPhase("redirecting");
-    respond("good").finally(() => {
-      window.location.href = config.googleReviewUrl;
-    });
+    window.location.href = config.googleReviewUrl;
+  }
+
+  async function handleReferralSubmit() {
+    setReferralSubmitting(true);
+    await fetch("/api/review-funnel/referral", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug, sendId, customerName: config?.customerName, referralName, referralContact }),
+    }).catch(() => {});
+    setReferralSubmitting(false);
+    goToReview();
   }
 
   async function handleBadSubmit() {
@@ -76,6 +94,51 @@ export default function ReviewFlow({ slug }: { slug: string }) {
         <p style={{ fontSize: 14, color: L.muted, lineHeight: 1.5 }}>
           {config.businessName} will be in touch to sort it out.
         </p>
+      </Shell>
+    );
+  }
+
+  if (phase === "referral") {
+    return (
+      <Shell>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: L.text, marginBottom: 8 }}>Glad to hear it!</h1>
+        <p style={{ fontSize: 14, color: L.muted, marginBottom: 14, lineHeight: 1.5 }}>
+          Know anyone else who could use {config.businessName}? Flick us their details, totally optional.
+        </p>
+        <input
+          value={referralName}
+          onChange={(e) => setReferralName(e.target.value)}
+          placeholder="Their name"
+          style={{ width: "100%", boxSizing: "border-box", fontSize: 14, color: L.text, border: `1px solid ${L.border}`, borderRadius: 4, padding: "9px 12px", marginBottom: 8, fontFamily: "inherit" }}
+        />
+        <input
+          value={referralContact}
+          onChange={(e) => setReferralContact(e.target.value)}
+          placeholder="Their phone or email"
+          style={{ width: "100%", boxSizing: "border-box", fontSize: 14, color: L.text, border: `1px solid ${L.border}`, borderRadius: 4, padding: "9px 12px", marginBottom: 12, fontFamily: "inherit" }}
+        />
+        <button
+          type="button"
+          onClick={handleReferralSubmit}
+          disabled={referralSubmitting || !referralName.trim() || !referralContact.trim()}
+          style={{
+            width: "100%", fontSize: 14, fontWeight: 700, color: "#fff", background: "#111827",
+            border: "none", borderRadius: 4, padding: "11px 16px", cursor: referralSubmitting ? "default" : "pointer",
+            opacity: referralName.trim() && referralContact.trim() ? 1 : 0.5, marginBottom: 10,
+          }}
+        >
+          {referralSubmitting ? "Sending…" : "Send & leave a review"}
+        </button>
+        <button
+          type="button"
+          onClick={goToReview}
+          style={{
+            width: "100%", fontSize: 13, fontWeight: 600, color: L.muted, background: "none",
+            border: "none", cursor: "pointer", padding: "4px 0",
+          }}
+        >
+          Skip, just take me to leave a review
+        </button>
       </Shell>
     );
   }
