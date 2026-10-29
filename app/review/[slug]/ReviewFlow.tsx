@@ -104,7 +104,7 @@ export default function ReviewFlow({ slug }: { slug: string }) {
             opacity: feedback.trim() ? 1 : 0.5,
           }}
         >
-          {submitting ? "Sending…" : "Send privately"}
+          {submitting ? "Sending…" : "Send"}
         </button>
       </Shell>
     );
