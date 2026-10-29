@@ -38,7 +38,11 @@ export default function Sidebar() {
     setNavOpen(false);
   }, [path]);
 
-  if (path?.startsWith("/results") || path?.startsWith("/login") || path?.startsWith("/connect") || path?.startsWith("/portal")) return null;
+  // /review/[slug] is the public review-gating page a client's own customer
+  // opens from an email — they have no business seeing LS Growth's internal
+  // nav, and clicking into it bounces them to /login since they're not a
+  // logged-in admin.
+  if (path?.startsWith("/results") || path?.startsWith("/login") || path?.startsWith("/connect") || path?.startsWith("/portal") || path?.startsWith("/review")) return null;
 
   return (
     <>
