@@ -357,6 +357,40 @@ export async function sendPersonalizedEmail(
   await logSend(lead.lead_id, step, subject, html, resendId);
 }
 
+// Review-funnel: the initial "how'd it go?" ask sent to a trade client's
+// own past/completed-job customer. Signed with the trade business's own
+// name (not Lucky/LS Growth) since the end customer has a relationship with
+// that business, not with LS Growth — reply_to routes any reply straight to
+// the business owner instead of into LS Growth's inbox.
+export async function sendReviewRequestEmail(opts: {
+  to: string; businessName: string; ownerEmail: string; customerName: string; jobDescription?: string | null; reviewLink: string;
+}) {
+  const jobLine = opts.jobDescription ? ` with your ${opts.jobDescription}` : "";
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.6;max-width:480px;">
+  <p>Hey ${opts.customerName || "there"},</p>
+  <p>Hope you're stoked${jobLine}. Mind giving us a quick heads up on how it went?</p>
+  <p><a href="${opts.reviewLink}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:10px 18px;border-radius:4px;font-weight:700;">How'd we do?</a></p>
+  <p>Cheers,<br>${opts.businessName}</p>
+</div>`;
+  const text = `Hope you're stoked${jobLine}. Quick one, how'd it go? ${opts.reviewLink}`;
+  await sendBulkMail({ to: opts.to, subject: `How'd we go${jobLine}?`, html, text, from: `${opts.businessName} <reviews@lsgrowth.agency>`, bcc: opts.ownerEmail });
+}
+
+// Private negative-feedback alert — the "bad" branch of the review-gating
+// funnel. Goes straight to the business owner, never public, so they can
+// sort it out directly with that customer (see app/review/[slug]).
+export async function sendReviewFeedbackAlertEmail(opts: {
+  ownerEmail: string; businessName: string; customerName: string | null; feedback: string;
+}) {
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.6;max-width:480px;">
+  <p>A customer flagged something wasn't quite right, kept private, hasn't gone anywhere public:</p>
+  <p><strong>${opts.customerName || "Customer"}:</strong> ${opts.feedback}</p>
+  <p>Worth a follow-up call if you can.</p>
+</div>`;
+  const text = `${opts.customerName || "Customer"} said: ${opts.feedback}`;
+  await sendBulkMail({ to: opts.ownerEmail, subject: `Private feedback — ${opts.businessName}`, html, text, from: "LS Growth <reviews@lsgrowth.agency>" });
+}
+
 // Transactional mail to an LS Growth client (not a lead/prospect) — e.g.
 // "you've got a new booking" from notifyBookedLeads. Via Resend on
 // clients@lsgrowth.agency instead of Lucky's personal Gmail. Callers pass

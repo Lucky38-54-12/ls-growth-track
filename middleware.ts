@@ -21,6 +21,13 @@ const PUBLIC_PATHS = [
   // link isn't logged into the dashboard, so this can't sit behind the
   // session cookie either (same reasoning as /agreement-assets above).
   "/videos",
+  // Review-gating funnel: a client's own customer taps this from an email,
+  // not logged into our dashboard. Only the page + its read/respond
+  // endpoints are public — /api/review-funnel/clients and /send-batch stay
+  // behind the dashboard session, Lucky-only.
+  "/review",
+  "/api/review-funnel/public",
+  "/api/review-funnel/respond",
 ];
 
 // The client portal has its own login entirely separate from the internal
