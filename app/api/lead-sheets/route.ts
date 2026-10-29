@@ -30,6 +30,10 @@ export async function POST(req: NextRequest) {
 
   try {
     await provisionLeadsTab(spreadsheetId, targetTab);
+    // Also provision a "Referral Leads" tab up front, same shape as the
+    // Meta leads tab — previously this only got created lazily on a
+    // client's first actual referral, which left it missing until then.
+    await provisionLeadsTab(spreadsheetId, "Referral Leads");
     const result = await syncMetaLeadsSheet(spreadsheetId, targetTab);
 
     const { data, error } = await sb
