@@ -47,7 +47,13 @@ async function getSheetRows(spreadsheetId: string, targetTab: string): Promise<S
 // surfaced ahead of time instead of him finding it live in the meeting.
 export async function sendMidMonthCheckinPrepIfDue(sb: SupabaseClient): Promise<{ sent: boolean }> {
   if (nzDayOfMonth() !== MID_MONTH_DAY) return { sent: false };
+  return runMidMonthCheckinPrep(sb);
+}
 
+// Unconditional version — the day-gate above is what the cron uses; this is
+// the actual work, exposed separately so it can be triggered on demand
+// (testing, a future "send me a preview" button) without faking the date.
+export async function runMidMonthCheckinPrep(sb: SupabaseClient): Promise<{ sent: boolean }> {
   const { data: syncs } = await sb.from("lead_sheet_syncs").select("id, client_name, spreadsheet_id, target_tab");
   if (!syncs || syncs.length === 0) return { sent: false };
 
@@ -134,7 +140,11 @@ async function getReviewFunnelStatsSince(sb: SupabaseClient, spreadsheetId: stri
 // they got out of this.
 export async function sendEndOfMonthResultsPrepIfDue(sb: SupabaseClient): Promise<{ sent: boolean }> {
   if (nzDayOfMonth() !== END_OF_MONTH_DAY) return { sent: false };
+  return runEndOfMonthResultsPrep(sb);
+}
 
+// Unconditional version, same reasoning as runMidMonthCheckinPrep above.
+export async function runEndOfMonthResultsPrep(sb: SupabaseClient): Promise<{ sent: boolean }> {
   const { data: syncs } = await sb.from("lead_sheet_syncs").select("id, client_name, spreadsheet_id, target_tab");
   if (!syncs || syncs.length === 0) return { sent: false };
 
