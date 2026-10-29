@@ -29,6 +29,26 @@ interface LeadSheetSync {
   target_tab: string;
 }
 
+// lead_sheet_sync_id -> unresolved note text[], for whatever Lucky's jotted
+// down against a client from /dashboard/lead-sheets ("need to ask them
+// about X"). Folded into both prep emails below so it's not left to memory.
+async function getUnresolvedNotesBySync(sb: SupabaseClient): Promise<Map<string, string[]>> {
+  const { data } = await sb.from("client_catchup_notes").select("lead_sheet_sync_id, note").eq("resolved", false);
+  const map = new Map<string, string[]>();
+  for (const row of data || []) {
+    const list = map.get(row.lead_sheet_sync_id) || [];
+    list.push(row.note);
+    map.set(row.lead_sheet_sync_id, list);
+  }
+  return map;
+}
+
+function notesSectionHtml(notesForClient: string[] | undefined): string {
+  if (!notesForClient || notesForClient.length === 0) return "";
+  const items = notesForClient.map((n) => `<li>${n}</li>`).join("");
+  return `<p style="margin:6px 0 2px;font-weight:700;font-size:13px">Ask them:</p><ul style="margin:0;padding-left:18px;font-size:13px">${items}</ul>`;
+}
+
 type SheetRow = (string | boolean)[];
 
 async function getSheetRows(spreadsheetId: string, targetTab: string): Promise<SheetRow[]> {
@@ -61,6 +81,7 @@ export async function runMidMonthCheckinPrep(sb: SupabaseClient): Promise<{ sent
   const phoneIdx = TARGET_HEADER.indexOf("Phone");
   const calledIdx = TARGET_HEADER.indexOf("Called?");
   const outcomeIdx = TARGET_HEADER.indexOf("Outcome");
+  const notesBySync = await getUnresolvedNotesBySync(sb);
 
   const sections: string[] = [];
   for (const s of syncs as LeadSheetSync[]) {
@@ -70,11 +91,13 @@ export async function runMidMonthCheckinPrep(sb: SupabaseClient): Promise<{ sent
         const called = row[calledIdx] === true || row[calledIdx] === "TRUE";
         return !called || !row[outcomeIdx];
       });
-      if (unresolved.length === 0) continue;
+      const clientNotesHtml = notesSectionHtml(notesBySync.get(s.id));
+      if (unresolved.length === 0 && !clientNotesHtml) continue;
 
       const listed = unresolved.slice(0, 10).map((row) => `<li>${row[nameIdx] || "Unknown"}${row[phoneIdx] ? ` — ${row[phoneIdx]}` : ""}</li>`).join("");
       const more = unresolved.length > 10 ? `<p style="margin:4px 0 0;color:#6b7280;font-size:13px">+ ${unresolved.length - 10} more</p>` : "";
-      sections.push(`<h3 style="margin:18px 0 6px;font-size:15px">${s.client_name} (${unresolved.length} unresolved)</h3><ul style="margin:0;padding-left:18px">${listed}</ul>${more}`);
+      const leadsHtml = unresolved.length > 0 ? `<ul style="margin:0;padding-left:18px">${listed}</ul>${more}` : "";
+      sections.push(`<h3 style="margin:18px 0 6px;font-size:15px">${s.client_name}${unresolved.length > 0 ? ` (${unresolved.length} unresolved)` : ""}</h3>${leadsHtml}${clientNotesHtml}`);
     } catch (e) {
       console.error("mid-month check-in prep failed for", s.client_name, e);
     }
@@ -149,6 +172,7 @@ export async function runEndOfMonthResultsPrep(sb: SupabaseClient): Promise<{ se
   if (!syncs || syncs.length === 0) return { sent: false };
 
   const since = new Date(Date.now() - RESULTS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  const notesBySync = await getUnresolvedNotesBySync(sb);
   const sections: string[] = [];
 
   for (const s of syncs as LeadSheetSync[]) {
@@ -171,7 +195,8 @@ export async function runEndOfMonthResultsPrep(sb: SupabaseClient): Promise<{ se
 
       sections.push(`<h3 style="margin:18px 0 6px;font-size:15px">${s.client_name}</h3>
   <table style="border-collapse:collapse;font-size:14px;margin-bottom:8px">${statRows.join("")}</table>
-  <p style="margin:0;color:#6b7280;font-size:13px">↳ Then ask: how's it going on their end? Anything come up this month we should know about?</p>`);
+  <p style="margin:0;color:#6b7280;font-size:13px">↳ Then ask: how's it going on their end? Anything come up this month we should know about?</p>
+  ${notesSectionHtml(notesBySync.get(s.id))}`);
     } catch (e) {
       console.error("end-of-month results prep failed for", s.client_name, e);
     }

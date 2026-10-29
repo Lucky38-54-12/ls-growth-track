@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
-import { LeadSheetSync } from "./page";
+import { LeadSheetSync, ClientCatchupNote } from "./page";
 
 const L = { surface: "#ffffff", border: "#e2e8f0", text: "#0f172a", muted: "#64748b" };
 
-export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadSheetSync[] }) {
+export default function LeadSheetsClient({ initialSyncs, initialNotes }: { initialSyncs: LeadSheetSync[]; initialNotes: ClientCatchupNote[] }) {
   const [syncs, setSyncs] = useState(initialSyncs);
+  const [notes, setNotes] = useState(initialNotes);
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
@@ -14,6 +15,32 @@ export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadS
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
   const [editEmailValue, setEditEmailValue] = useState("");
+  const [noteDraftId, setNoteDraftId] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+
+  async function addNote(syncId: string) {
+    const note = noteDraft.trim();
+    if (!note) return;
+    const res = await fetch("/api/client-notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leadSheetSyncId: syncId, note }),
+    });
+    const data = await res.json();
+    if (res.ok) setNotes((n) => [data.note, ...n]);
+    setNoteDraft("");
+    setNoteDraftId(null);
+  }
+
+  async function toggleNote(id: string, resolved: boolean) {
+    const res = await fetch(`/api/client-notes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resolved }),
+    });
+    const data = await res.json();
+    if (res.ok) setNotes((n) => n.map((row) => (row.id === id ? data.note : row)));
+  }
 
   async function addSheet() {
     setAdding(true);
@@ -116,8 +143,12 @@ export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadS
         {syncs.length === 0 ? (
           <div style={{ padding: 32, textAlign: "center", fontSize: 13, color: L.muted }}>No clients set up yet.</div>
         ) : (
-          syncs.map((s) => (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderBottom: `1px solid ${L.border}` }}>
+          syncs.map((s) => {
+            const clientNotes = notes.filter((n) => n.lead_sheet_sync_id === s.id);
+            const unresolvedNotes = clientNotes.filter((n) => !n.resolved);
+            return (
+            <div key={s.id} style={{ borderBottom: `1px solid ${L.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px" }}>
               <div style={{ flex: "1 1 220px", minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: L.text }}>{s.client_name}</div>
                 <a
@@ -184,7 +215,45 @@ export default function LeadSheetsClient({ initialSyncs }: { initialSyncs: LeadS
                 Remove
               </button>
             </div>
-          ))
+
+            <div style={{ padding: "0 18px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+              {unresolvedNotes.map((n) => (
+                <label key={n.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, color: L.text, cursor: "pointer" }}>
+                  <input type="checkbox" checked={false} onChange={() => toggleNote(n.id, true)} style={{ marginTop: 2 }} />
+                  <span>{n.note}</span>
+                </label>
+              ))}
+              {noteDraftId === s.id ? (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    placeholder="Need to ask about..."
+                    autoFocus
+                    onKeyDown={(e) => e.key === "Enter" && addNote(s.id)}
+                    style={{ flex: 1, border: `1px solid ${L.border}`, borderRadius: 6, padding: "5px 8px", fontSize: 12 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addNote(s.id)}
+                    style={{ padding: "5px 10px", background: "var(--accent)", border: "none", borderRadius: 6, color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Save
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setNoteDraftId(s.id); setNoteDraft(""); }}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: L.muted, textDecoration: "underline", fontSize: 12, alignSelf: "flex-start" }}
+                >
+                  + Add a note for the catch-up
+                </button>
+              )}
+            </div>
+            </div>
+            );
+          })
         )}
       </div>
     </div>
