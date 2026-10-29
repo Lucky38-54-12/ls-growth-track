@@ -6,9 +6,9 @@
 
 export const CREATIVE_ASK_EXAMPLES: Record<string, string[]> = {
   "Builders": [
-    "Job-in-progress photos and short video clips, from a few different jobs",
+    "Photos and short video clips of completed projects, from a few different jobs",
     "Before and after photos of the same job (same angle if possible)",
-    "Drone shots of the site, if they've got any",
+    "A short video of them talking to camera — \"Hey, I'm [name], I'm from [company]\" — showcasing their work",
     "A short customer testimonial, video or even just a text quote",
     "A couple of photos of the team on site (trucks, signage, people working)",
   ],
