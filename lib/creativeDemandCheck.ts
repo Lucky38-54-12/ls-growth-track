@@ -85,6 +85,7 @@ export async function checkCreativeDemand(): Promise<{ checked: number; flagged:
   const { data: clients } = await sb
     .from("lq_clients")
     .select("id, name, meta_ad_account_id, last_creative_demand_check_at")
+    .eq("status", "active")
     .not("meta_ad_account_id", "is", null);
 
   const due = (clients || []).filter(
