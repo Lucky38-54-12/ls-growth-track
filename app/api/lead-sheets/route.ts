@@ -46,6 +46,21 @@ export async function POST(req: NextRequest) {
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    // If this client already has a review-funnel entry (matched by business
+    // name, case-insensitive), link this same spreadsheet to it so referrals
+    // land in a "Referral Leads" tab here too — without Lucky having to paste
+    // the same URL into both dashboard pages. Best-effort: a review-funnel
+    // entry not existing yet, or this failing, shouldn't fail the sheet setup
+    // that was actually asked for here.
+    try {
+      await sb
+        .from("review_funnel_clients")
+        .update({ spreadsheet_id: spreadsheetId })
+        .ilike("business_name", clientName);
+    } catch (e) {
+      console.error("review-funnel spreadsheet auto-link skipped:", e);
+    }
+
     return NextResponse.json({ sync: data, result });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Setup failed" }, { status: 500 });

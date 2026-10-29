@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   const googleReviewUrl = (body?.googleReviewUrl as string | undefined)?.trim();
   const clientId = (body?.clientId as string | undefined)?.trim() || null;
   const spreadsheetInput = (body?.spreadsheetUrl as string | undefined)?.trim() || "";
-  const spreadsheetId = spreadsheetInput ? extractSpreadsheetId(spreadsheetInput) : null;
+  let spreadsheetId = spreadsheetInput ? extractSpreadsheetId(spreadsheetInput) : null;
 
   if (!businessName || !ownerEmail || !googleReviewUrl) {
     return NextResponse.json({ error: "businessName, ownerEmail and googleReviewUrl are required" }, { status: 400 });
@@ -40,6 +40,18 @@ export async function POST(request: NextRequest) {
   }
 
   const sb = createSupabaseClient();
+
+  // No sheet pasted — fall back to whatever's already linked for this
+  // business name in lead_sheet_syncs (set up via /dashboard/lead-sheets),
+  // so the two don't need the same URL pasted twice.
+  if (!spreadsheetId) {
+    const { data: existingSync } = await sb
+      .from("lead_sheet_syncs")
+      .select("spreadsheet_id")
+      .ilike("client_name", businessName)
+      .maybeSingle();
+    if (existingSync?.spreadsheet_id) spreadsheetId = existingSync.spreadsheet_id;
+  }
   const baseSlug = slugify(businessName);
   let slug = baseSlug;
   for (let i = 2; i < 50; i++) {
