@@ -10,6 +10,7 @@ interface ReviewClient {
   business_name: string;
   owner_email: string;
   google_review_url: string;
+  spreadsheet_id: string | null;
 }
 
 interface SendResult { email: string; ok: boolean; error?: string }
@@ -23,8 +24,14 @@ export default function ReviewFunnelPage() {
   const [businessName, setBusinessName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [googleReviewUrl, setGoogleReviewUrl] = useState("");
+  const [spreadsheetUrl, setSpreadsheetUrl] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Linking a sheet to an existing client
+  const [sheetInput, setSheetInput] = useState("");
+  const [savingSheet, setSavingSheet] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
 
   // Batch send
   const [batchText, setBatchText] = useState("");
@@ -46,14 +53,29 @@ export default function ReviewFunnelPage() {
     const res = await fetch("/api/review-funnel/clients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ businessName, ownerEmail, googleReviewUrl }),
+      body: JSON.stringify({ businessName, ownerEmail, googleReviewUrl, spreadsheetUrl }),
     });
     const body = await res.json();
     setCreating(false);
     if (body.error) { setCreateError(body.error); return; }
-    setBusinessName(""); setOwnerEmail(""); setGoogleReviewUrl("");
+    setBusinessName(""); setOwnerEmail(""); setGoogleReviewUrl(""); setSpreadsheetUrl("");
     load();
     setSelected(body.client.slug);
+  }
+
+  async function handleSaveSheet() {
+    if (!selectedClient) return;
+    setSheetError(null);
+    setSavingSheet(true);
+    const res = await fetch("/api/review-funnel/clients", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: selectedClient.id, spreadsheetUrl: sheetInput }),
+    });
+    const body = await res.json();
+    setSavingSheet(false);
+    if (body.error) { setSheetError(body.error); return; }
+    load();
   }
 
   // Each line: "Name, email, job description" (job optional).
@@ -96,6 +118,9 @@ export default function ReviewFunnelPage() {
           <Field label="Business name"><input value={businessName} onChange={(e) => setBusinessName(e.target.value)} style={inputStyle} placeholder="Coast Build" /></Field>
           <Field label="Owner email (gets private negative feedback)"><input value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} style={inputStyle} placeholder="info@coastbuild.nz" /></Field>
           <Field label="Google review link"><input value={googleReviewUrl} onChange={(e) => setGoogleReviewUrl(e.target.value)} style={inputStyle} placeholder="https://g.page/r/.../review" /></Field>
+          <Field label="Leads spreadsheet (optional — same one their Meta leads sync to, for referrals)">
+            <input value={spreadsheetUrl} onChange={(e) => setSpreadsheetUrl(e.target.value)} style={inputStyle} placeholder="Paste the sheet URL" />
+          </Field>
           {createError && <p style={{ color: "#b91c1c", fontSize: 12.5, marginBottom: 10 }}>{createError}</p>}
           <button type="button" onClick={handleCreate} disabled={creating || !businessName || !ownerEmail || !googleReviewUrl} style={buttonStyle}>
             {creating ? "Saving…" : "Add client"}
@@ -114,9 +139,28 @@ export default function ReviewFunnelPage() {
             </select>
           )}
           {selectedClient && (
-            <p style={{ fontSize: 12, color: L.muted, marginTop: 8 }}>
-              Bare link (no tracking): <code style={{ background: "#f8fafc", padding: "2px 6px" }}>{reviewLink}</code>
-            </p>
+            <>
+              <p style={{ fontSize: 12, color: L.muted, marginTop: 8 }}>
+                Bare link (no tracking): <code style={{ background: "#f8fafc", padding: "2px 6px" }}>{reviewLink}</code>
+              </p>
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${L.border}` }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: L.muted, marginBottom: 6 }}>
+                  Leads spreadsheet {selectedClient.spreadsheet_id ? "(linked — referrals land in a \"Referral Leads\" tab)" : "(not linked — referrals just go by email)"}
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    value={sheetInput}
+                    onChange={(e) => setSheetInput(e.target.value)}
+                    style={{ ...inputStyle, flex: 1 }}
+                    placeholder={selectedClient.spreadsheet_id ? "Paste a new sheet URL to change it" : "Paste the sheet URL"}
+                  />
+                  <button type="button" onClick={handleSaveSheet} disabled={savingSheet || !sheetInput.trim()} style={buttonStyle}>
+                    {savingSheet ? "Saving…" : "Link sheet"}
+                  </button>
+                </div>
+                {sheetError && <p style={{ color: "#b91c1c", fontSize: 12.5, marginTop: 6 }}>{sheetError}</p>}
+              </div>
+            </>
           )}
         </Section>
 

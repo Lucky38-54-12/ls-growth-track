@@ -16,6 +16,10 @@ create table if not exists review_funnel_clients (
   business_name text not null,
   owner_email text not null,
   google_review_url text not null,
+  -- Optional: the client's existing Meta-leads spreadsheet (same one
+  -- lead_sheet_syncs points at), so a referral lands in a "Referral Leads"
+  -- tab alongside their ad leads instead of only sitting in Supabase/email.
+  spreadsheet_id text,
   created_at timestamptz not null default now()
 );
 

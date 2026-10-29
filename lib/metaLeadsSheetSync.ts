@@ -461,6 +461,79 @@ export async function getLeadStatusesByLeadId(spreadsheetId: string, targetTab: 
   return map;
 }
 
+export interface SingleLead {
+  leadId: string; // used for dedupe — pass a stable, source-prefixed id (e.g. "ref:<referral row id>")
+  name: string;
+  phone?: string;
+  email?: string;
+  city?: string;
+  details?: string;
+  sourceTab: string; // shown in the "Source Tab" column, e.g. "Referral"
+  leadStatus?: string;
+}
+
+// Appends one lead to any tab in the TARGET_HEADER shape, provisioning the
+// tab first if it doesn't exist yet. Used by the review-funnel referral
+// capture (app/api/review-funnel/referral/route.ts) to land a referral in a
+// "Referral Leads" tab alongside the client's existing Meta-leads sync,
+// without going through the full syncMetaLeadsSheet raw-tab scan — this is a
+// single known lead, not a batch to discover. Dedupes by Lead ID the same
+// way syncMetaLeadsSheet does, so a retried call never double-inserts.
+export async function appendLeadToSheet(spreadsheetId: string, targetTab: string, lead: SingleLead): Promise<{ added: boolean }> {
+  const auth = await getLuckyGoogleAuthedClient();
+  const sheets = google.sheets({ version: "v4", auth });
+
+  let meta = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties,sheets.tables" });
+  let targetSheet = meta.data.sheets?.find((s) => s.properties?.title === targetTab);
+  if (!targetSheet) {
+    await provisionLeadsTab(spreadsheetId, targetTab);
+    meta = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties,sheets.tables" });
+    targetSheet = meta.data.sheets?.find((s) => s.properties?.title === targetTab);
+  }
+  const sheetId = targetSheet?.properties?.sheetId;
+  if (sheetId === undefined || sheetId === null) throw new Error(`Could not provision tab "${targetTab}"`);
+  const existingTable = targetSheet?.tables?.[0];
+
+  const leadIdCol = colLetter("Lead ID");
+  const existingRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${targetTab}'!${leadIdCol}2:${leadIdCol}` }).catch(() => ({ data: { values: [] } }));
+  const existingIds = new Set((existingRes.data.values || []).map((r) => r[0]).filter(Boolean));
+  const existingRowCount = (existingRes.data.values || []).length;
+
+  if (existingIds.has(lead.leadId)) return { added: false };
+
+  const byName: Record<string, string | boolean> = {
+    Date: formatDate(new Date().toISOString()),
+    Name: lead.name,
+    Phone: lead.phone || "",
+    Email: lead.email || "",
+    City: lead.city || "",
+    "Called?": false,
+    Outcome: "",
+    Intent: "",
+    Notes: "",
+    Details: lead.details || "",
+    "Source Tab": lead.sourceTab,
+    "Lead Status": lead.leadStatus || "",
+    "Lead ID": lead.leadId,
+    "Booked Date/Time": "",
+    "Client Notified": false,
+  };
+  const row = TARGET_HEADER.map((h) => byName[h]);
+
+  // Same insert-at-top pattern as syncMetaLeadsSheet, scaled to one row.
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 1, endIndex: 2 }, inheritFromBefore: false } }] },
+  });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId, range: `'${targetTab}'!A2`, valueInputOption: "USER_ENTERED", requestBody: { values: [row] },
+  });
+  await applyTrackingValidation(sheets, spreadsheetId, sheetId, 1, 2);
+  await ensureLeadsTable(sheets, spreadsheetId, sheetId, targetTab, existingTable, existingRowCount + 1);
+
+  return { added: true };
+}
+
 export function extractSpreadsheetId(input: string): string | null {
   const trimmed = input.trim();
   const fromUrl = trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
