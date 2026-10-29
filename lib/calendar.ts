@@ -173,6 +173,25 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
   };
 }
 
+// True if the event was cancelled (status: "cancelled") or no longer exists
+// at all (Google returns a 404/410 once a cancelled event ages out). Used to
+// stop sending meeting reminders for a booking the lead has cancelled.
+export async function isEventCancelled(eventId: string): Promise<boolean> {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
+  const auth = await getAuth();
+  const calendar = google.calendar({ version: "v3", auth });
+
+  try {
+    const res = await calendar.events.get({ calendarId, eventId });
+    return res.data.status === "cancelled";
+  } catch (err: unknown) {
+    const status = (err as { code?: number; response?: { status?: number } })?.code
+      ?? (err as { response?: { status?: number } })?.response?.status;
+    if (status === 404 || status === 410) return true;
+    throw err;
+  }
+}
+
 export interface CalendarEventMatch {
   eventId: string;
   summary: string;

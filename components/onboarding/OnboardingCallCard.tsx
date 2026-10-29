@@ -13,8 +13,8 @@ const AGENDA = [
     body: "Thank them for signing on, keep it quick and personal. Set the frame: this call is about making sure they know exactly what the next two months look like so nothing catches them off guard.",
   },
   {
-    heading: "Timeline & expectations",
-    body: "Walk through month one and month two plainly. Month one is testing, finding which ads and audiences actually get calls. Month two is where it clicks, once we know what's working we push harder on it. Say directly that some weeks are quieter than others and that's normal, not a sign it's not working. Agree on a first results review date before hanging up.",
+    heading: "The 30/60/90/120 day roadmap",
+    body: "Walk through all four stages so a quiet first month doesn't spook them. Day 30 is testing, finding which ads and offers actually get the phone ringing, a handful of leads while we figure out what works, some weeks quieter than others and that's normal. Day 60 is once we've found the winners and started pushing harder on them, leads should be steadier, first jobs from month one should be landing now. Day 90 is when it should feel repeatable, we know their cost per lead and cost per job instead of guessing, check-ins turn into a real pattern. Day 120 is when there's a track record, that's when we talk pushing budget further or going after a second offer, backed by numbers instead of a hunch. Say it straight: if month one looks quiet, that's not the point you judge this by, day 90 and day 120 is. Agree on a first results review date before hanging up.",
   },
   {
     heading: "Creative process",

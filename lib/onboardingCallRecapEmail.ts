@@ -23,7 +23,14 @@ export function buildOnboardingCallRecapEmail(input: OnboardingCallRecapInput): 
   const lines: string[] = [];
   lines.push(`<p style="margin:0 0 12px">Hey ${firstName},</p>`);
   lines.push(`<p style="margin:0 0 12px">Quick recap of what we covered so it's all in writing.</p>`);
-  lines.push(`<p style="margin:0 0 12px">First month's testing, finding which ads and offers actually get calls. Second month's when it clicks, once we know what's working we push harder on it. Some weeks will be quieter than others, that's normal.</p>`);
+  lines.push(`<p style="margin:0 0 12px">Here's roughly how the next 4 months go:</p>`);
+  lines.push(`<ul style="margin:0 0 12px;padding-left:20px">
+    <li style="margin-bottom:8px"><strong>Day 30:</strong> testing. Finding which ads and offers actually get your phone ringing. Expect a handful of leads. Some weeks will be quieter than others, that's normal, not a sign it's not working.</li>
+    <li style="margin-bottom:8px"><strong>Day 60:</strong> we've found the winners and we're pushing harder on them. Leads should be coming in steadier. First jobs from month one should start landing.</li>
+    <li style="margin-bottom:8px"><strong>Day 90:</strong> it should feel repeatable. We know your cost per lead and cost per job by now, not guessing anymore.</li>
+    <li style="margin-bottom:0"><strong>Day 120:</strong> there's a track record. That's when we talk about pushing budget further, or going after a second offer, backed by real numbers.</li>
+  </ul>`);
+  lines.push(`<p style="margin:0 0 12px">If day 30 looks quiet, that's not the point to judge this by. Day 90 and day 120 is.</p>`);
 
   lines.push(`<p style="margin:0 0 12px">Creatives: no fixed limit on revisions, we'll keep adjusting until you're happy with them.</p>`);
 

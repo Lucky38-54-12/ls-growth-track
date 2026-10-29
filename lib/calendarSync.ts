@@ -8,7 +8,7 @@ import { generateDayBeforeReminderEmail, generateMeetingDayReminderEmail } from 
 // someone who already booked a real call, not cold outreach.
 import { sendBookingsFollowup, sendPlainBookings, BOOKING_URL } from "./email";
 import { sendReminderSms } from "./sms";
-import { listUpcomingBookings, formatMeetingClockTime, fillMeetingLink, CalendarBooking } from "./calendar";
+import { listUpcomingBookings, formatMeetingClockTime, fillMeetingLink, isEventCancelled, CalendarBooking } from "./calendar";
 import { notifySlack } from "./slackNotify";
 import { Lead } from "./types";
 
@@ -185,6 +185,7 @@ interface TrackedBooking {
   ical_uid: string | null;
   day_before_email_sent_at: string | null;
   reminder_email_sent_at: string | null;
+  cancelled_at: string | null;
 }
 
 export interface TouchpointResult {
@@ -238,6 +239,7 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
   for (const row of rows) {
     if (!row.start_iso) continue;
     if (row.day_before_email_sent_at && row.reminder_email_sent_at) continue;
+    if (row.cancelled_at) continue;
 
     try {
       const now = new Date();
@@ -268,6 +270,16 @@ export async function sendMeetingTouchpoints(): Promise<TouchpointResult> {
         minutesUntil <= SAME_DAY_LEAD_MINUTES + SAME_DAY_WINDOW_MINUTES;
 
       if (!isDayBeforeDue && !isSameDayDue) continue;
+
+      // Only hit the Calendar API for the cancellation check right before a
+      // reminder would actually go out, not on every sync run for every
+      // booking — this is the one point where sending a stale reminder to
+      // someone who already cancelled would actually happen.
+      if (await isEventCancelled(row.event_id)) {
+        await sb.from("calendar_bookings").update({ cancelled_at: new Date().toISOString() }).eq("event_id", row.event_id);
+        await notifySlack(`🚫 Skipped reminder for *${row.summary || row.attendee_email || row.event_id}* — meeting was cancelled.`);
+        continue;
+      }
 
       // Lead is optional now — bookings that never matched the "meet/call
       // with X" pattern (see findOrCreateLead) still have an attendee_email

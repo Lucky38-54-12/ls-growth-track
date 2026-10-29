@@ -409,7 +409,16 @@ export function buildCallQueue(
     group.leads.push(lead);
   }
 
-  const freshBySegment = Array.from(freshGroups.values()).sort((a, b) => b.leads.length - a.leads.length);
+  // Cleaning is the current focus trade (see outreach push, Oct 2026) — its
+  // segments sort above everything else regardless of segment size, so the
+  // call queue surfaces them first; within that split, still biggest first.
+  const isCleaning = (trade: string) => trade.toLowerCase().includes("clean");
+  const freshBySegment = Array.from(freshGroups.values()).sort((a, b) => {
+    const aCleaning = isCleaning(a.trade);
+    const bCleaning = isCleaning(b.trade);
+    if (aCleaning !== bCleaning) return aCleaning ? -1 : 1;
+    return b.leads.length - a.leads.length;
+  });
 
   const saturatedSegments = Array.from(saturation.values())
     .filter((s) => s.saturated)

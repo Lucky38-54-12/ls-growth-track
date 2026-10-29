@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data: clients, error: clientsError } = await sb
     .from("lq_clients")
-    .select("id, name, trade, status, meta_ad_account_id")
+    .select("id, name, trade, status, meta_ad_account_id, ad_footage_folder_url")
     .order("name", { ascending: true });
   if (clientsError) return NextResponse.json({ error: clientsError.message }, { status: 400 });
 

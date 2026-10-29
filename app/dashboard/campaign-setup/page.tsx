@@ -13,6 +13,7 @@ interface ClientRow {
   status: string;
   services: string[];
   meta_ad_account_id: string | null;
+  ad_footage_folder_url: string | null;
   brief: { id: string; status: "draft" | "approved"; updated_at: string } | null;
 }
 
@@ -160,6 +161,9 @@ export default function CampaignSetupPage() {
   const [adAccountInput, setAdAccountInput] = useState("");
   const [adAccountSaving, setAdAccountSaving] = useState(false);
   const [adAccountError, setAdAccountError] = useState("");
+  const [footageFolderInput, setFootageFolderInput] = useState("");
+  const [footageFolderSaving, setFootageFolderSaving] = useState(false);
+  const [footageFolderError, setFootageFolderError] = useState("");
 
   function loadClients() {
     fetch("/api/campaign-brief")
@@ -255,6 +259,8 @@ export default function CampaignSetupPage() {
     setNotesError("");
     setAdAccountInput(c.meta_ad_account_id || "");
     setAdAccountError("");
+    setFootageFolderInput(c.ad_footage_folder_url || "");
+    setFootageFolderError("");
     if (c.brief) loadBrief(c.brief.id);
     loadConfig(c.id);
   }
@@ -276,6 +282,26 @@ export default function CampaignSetupPage() {
       setAdAccountError("Failed to save the ad account ID.");
     } finally {
       setAdAccountSaving(false);
+    }
+  }
+
+  async function saveFootageFolder() {
+    if (!selectedClient) return;
+    setFootageFolderSaving(true);
+    setFootageFolderError("");
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${selectedClient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ad_footage_folder_url: footageFolderInput }),
+      });
+      const data = await res.json();
+      if (data.error) { setFootageFolderError(data.error); return; }
+      setClients((prev) => prev?.map((c) => (c.id === selectedClient.id ? { ...c, ad_footage_folder_url: data.client.ad_footage_folder_url } : c)) || null);
+    } catch {
+      setFootageFolderError("Failed to save the footage folder link.");
+    } finally {
+      setFootageFolderSaving(false);
     }
   }
 
@@ -466,6 +492,22 @@ export default function CampaignSetupPage() {
                     )}
                   </div>
                   {adAccountError && <span style={{ fontSize: 11, color: "#b91c1c" }}>{adAccountError}</span>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      value={footageFolderInput}
+                      onChange={(e) => setFootageFolderInput(e.target.value)}
+                      placeholder="Ad footage Drive folder link"
+                      style={{ width: 220, border: `1px solid ${L.border}`, outline: "none", padding: "5px 8px", fontSize: 11, color: L.text, fontFamily: "inherit" }}
+                    />
+                    <button
+                      onClick={saveFootageFolder}
+                      disabled={footageFolderSaving || footageFolderInput === (selectedClient.ad_footage_folder_url || "")}
+                      style={{ background: "none", border: `1px solid ${L.border}`, padding: "5px 10px", fontSize: 11, fontWeight: 700, color: L.text, cursor: footageFolderSaving ? "default" : "pointer" }}
+                    >
+                      {footageFolderSaving ? "Saving…" : "Save"}
+                    </button>
+                  </div>
+                  {footageFolderError && <span style={{ fontSize: 11, color: "#b91c1c" }}>{footageFolderError}</span>}
                   {brief && (
                     <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: STATUS_STYLE[brief.status].color, background: STATUS_STYLE[brief.status].bg, padding: "3px 7px", borderRadius: 3 }}>
                       {STATUS_STYLE[brief.status].label}
