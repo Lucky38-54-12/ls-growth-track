@@ -159,7 +159,9 @@ export async function sendEndOfMonthResultsPrepIfDue(sb: SupabaseClient): Promis
         );
       }
 
-      sections.push(`<h3 style="margin:18px 0 6px;font-size:15px">${s.client_name}</h3><table style="border-collapse:collapse;font-size:14px">${statRows.join("")}</table>`);
+      sections.push(`<h3 style="margin:18px 0 6px;font-size:15px">${s.client_name}</h3>
+  <table style="border-collapse:collapse;font-size:14px;margin-bottom:8px">${statRows.join("")}</table>
+  <p style="margin:0;color:#6b7280;font-size:13px">↳ Then ask: how's it going on their end? Anything come up this month we should know about?</p>`);
     } catch (e) {
       console.error("end-of-month results prep failed for", s.client_name, e);
     }
@@ -168,7 +170,7 @@ export async function sendEndOfMonthResultsPrepIfDue(sb: SupabaseClient): Promis
   if (sections.length === 0) return { sent: false };
 
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.6;max-width:480px;">
-  <p style="margin:0 0 4px">End-of-month results, to show each client:</p>
+  <p style="margin:0 0 4px">End-of-month call prep — show them this, then ask about their side:</p>
   ${sections.join("")}
 </div>`;
 
