@@ -21,7 +21,7 @@ import { checkCampaignCompletions } from "@/lib/campaignCompletion";
 import { checkCreativeDemand } from "@/lib/creativeDemandCheck";
 import { checkLeadConversionTrend } from "@/lib/leadConversionCheck";
 import { sendWeeklySystemsHealthIfDue } from "@/lib/systemsHealthDigest";
-import { sendClientCatchupPrepIfDue } from "@/lib/clientCatchupPrep";
+import { sendMidMonthCheckinPrepIfDue, sendEndOfMonthResultsPrepIfDue } from "@/lib/clientCatchupPrep";
 
 export const dynamic = "force-dynamic";
 
@@ -221,15 +221,21 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    results.clientCatchupPrep = await sendClientCatchupPrepIfDue(sb);
+    results.midMonthCheckinPrep = await sendMidMonthCheckinPrepIfDue(sb);
   } catch (e) {
-    results.clientCatchupPrep = { error: e instanceof Error ? e.message : "client catch-up prep failed" };
+    results.midMonthCheckinPrep = { error: e instanceof Error ? e.message : "mid-month check-in prep failed" };
+  }
+
+  try {
+    results.endOfMonthResultsPrep = await sendEndOfMonthResultsPrepIfDue(sb);
+  } catch (e) {
+    results.endOfMonthResultsPrep = { error: e instanceof Error ? e.message : "end-of-month results prep failed" };
   }
 
   const failedTasks = Object.entries(results).filter(([, v]) => v && typeof v === "object" && "error" in v);
   const summary = failedTasks.length > 0
     ? `${Object.keys(results).length - failedTasks.length}/${Object.keys(results).length} tasks ok. Failed: ${failedTasks.map(([k]) => k).join(", ")}.`
-    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, weekly check-in, lead conversion trend check, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation, onboarding photo uploads, campaign completion check, client catch-up prep).`;
+    : `All ${Object.keys(results).length} maintenance tasks ran clean (replies, sheet sync, calendar sync, health snapshot, nurture emails, stale-reply escalation, proposal/cold-call/no-show follow-ups, weekly digest, weekly check-in, lead conversion trend check, call-queue nudge, Messenger resubscribe/health, human-takeover reconciliation, onboarding photo uploads, campaign completion check, mid-month/end-of-month catch-up prep).`;
   await reportAutomationStatus(sb, "daily-maintenance", failedTasks.length > 0 ? "error" : "ok", summary);
 
   return NextResponse.json(results);
