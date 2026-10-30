@@ -111,9 +111,10 @@ what's actually live.
   estimate on the call itself, which becomes the proposal's Campaign Start
   Date; (4) explicit note that the proposal and the contract are one
   document, signed on the onboarding call, not the sales call.
-  **Caveat:** the AI/GEO-visibility bonus promised in the script isn't an
-  automated system like the review funnel — it's a manual deliverable Lucky
-  has to actually go do per client after close. Not yet scoped or built.
+  (2026-10-30, v15) Folded the AI/GEO-visibility bonus into the review
+  funnel instead of listing it as a second promise — the review volume it
+  drives is the actual mechanism behind AI-assistant recommendations, so
+  there's nothing extra to build.
 - **Builders creative-ask list tightened** (2026-10-30,
   `lib/creativeAskExamples.ts`) — swapped drone shots (rarely in hand) for
   completed-project photos/video and a short to-camera intro clip.
@@ -125,7 +126,3 @@ what's actually live.
   a code task — the job report page exists to support it.
 - **"Not enough value just with ads"** — a service-scope decision (whether
   to bundle something beyond ads), not a build task.
-- **AI/GEO visibility deliverable** — now promised on every sales call (see
-  above) but there's no actual process or tooling yet for what "getting
-  recommended by ChatGPT/AI Overviews" means per client or how it gets
-  delivered. Needs scoping before it's promised on many more calls.
