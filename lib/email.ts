@@ -55,6 +55,16 @@ const BULK_FROM = "Lucky <hello@lsgrowth.agency>";
 // mixing it into either of those sender histories would drag its
 // reputation down with whatever the other one is doing.
 const BOOKINGS_FROM = "Lucky <bookings@lsgrowth.agency>";
+// Reply-To for cold/bulk campaign sends. Was ZOHO_EMAIL_USER, an
+// @lsgrowth.agency address — but this domain's MX has only ever pointed at
+// Google Workspace, never Zoho, so mail sent to that address never reached
+// the Zoho mailbox lib/gmail.ts was polling for it. Confirmed 2026-10-30:
+// zero genuinely-detected replies in 9+ days despite continued sending.
+// Switched to Resend's own inbound receiving (needs one MX record on this
+// subdomain, see RESEND_INBOUND_DOMAIN) so replies arrive via the
+// email.received webhook (app/api/webhooks/resend/route.ts) instead of an
+// IMAP poll of a mailbox that was never reachable in the first place.
+const REPLY_TO_ADDRESS = process.env.RESEND_REPLY_TO || "replies@inbound.lsgrowth.agency";
 // Emails TO LS Growth's own clients (e.g. "you've got a new booking" from
 // notifyBookedLeads) — separate identity from bookings@ (which goes to
 // their leads/prospects) and from personal Gmail, which these used to send
@@ -109,7 +119,7 @@ function unsubscribeHeaders(leadId?: string): Record<string, string> {
   if (!leadId) return {};
   const url = `${APP_URL}/api/unsubscribe?id=${encodeURIComponent(leadId)}`;
   return {
-    "List-Unsubscribe": `<mailto:${process.env.ZOHO_EMAIL_USER}?subject=unsubscribe>, <${url}>`,
+    "List-Unsubscribe": `<mailto:${REPLY_TO_ADDRESS}?subject=unsubscribe>, <${url}>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
   };
 }
@@ -125,7 +135,7 @@ async function sendBulkMail(opts: {
     subject: opts.subject,
     html: opts.html,
     text: opts.text,
-    reply_to: process.env.ZOHO_EMAIL_USER,
+    reply_to: REPLY_TO_ADDRESS,
     headers: unsubscribeHeaders(opts.leadId),
     ...(opts.bcc ? { bcc: opts.bcc } : {}),
     ...(opts.attachments ? { attachments: opts.attachments } : {}),

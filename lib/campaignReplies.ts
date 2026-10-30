@@ -34,6 +34,64 @@ const SKIP_DOMAINS = [
 
 const ALREADY_TRACKED = new Set(["replied", "booked"]);
 
+// Single-message version of the classify+update+draft logic below, for the
+// Resend inbound webhook (app/api/webhooks/resend/route.ts) — one message
+// at a time, pushed in real time, instead of a batch IMAP sweep. Replaces
+// checkForReplies as the real path now that Reply-To points at Resend's
+// receiving address instead of the (never actually reachable — see git log)
+// Zoho mailbox; checkForReplies is left in place but Zoho was never on this
+// domain's MX, so it won't find anything.
+export async function processInboundReply(fromEmail: string, subject: string, bodyText: string): Promise<{ matched: boolean; outcome?: "replied" | "unsubscribed" }> {
+  const email = fromEmail.toLowerCase().trim();
+  const sb = createSupabaseClient();
+
+  const { data: match } = await sb
+    .from("leads")
+    .select("lead_id, email, status")
+    .ilike("email", email)
+    .not("campaign_id", "is", null)
+    .maybeSingle<{ lead_id: string; email: string; status: string }>();
+
+  if (!match || ALREADY_TRACKED.has(match.status)) return { matched: false };
+
+  const isGenuineReply = subject.trim().toLowerCase().startsWith("re:") && !SKIP_DOMAINS.some((d) => email.includes(d));
+  const text = `${subject}\n${bodyText}`;
+
+  if (UNSUBSCRIBE_PATTERNS.some((p) => p.test(text))) {
+    await sb.from("leads")
+      .update({ status: "not_interested", unsubscribed_at: new Date().toISOString(), ...statusTimestampUpdates("replied") })
+      .eq("lead_id", match.lead_id);
+    return { matched: true, outcome: "unsubscribed" };
+  }
+
+  if (!isGenuineReply) return { matched: false };
+
+  await sb.from("leads")
+    .update({ status: "replied", ...statusTimestampUpdates("replied") })
+    .eq("lead_id", match.lead_id);
+
+  try {
+    const { data: lead } = await sb.from("leads").select("*").eq("lead_id", match.lead_id).single<Lead>();
+    if (lead) {
+      const theirMessage = bodyText.replace(/\s+/g, " ").trim().slice(0, 1500);
+      const generated = await generateCampaignReplyDraft(lead, theirMessage);
+      if (generated) {
+        await createChatDraft(sb, {
+          kind: "email",
+          title: generated.subject,
+          content: generated.bodyHtml,
+          lead_id: lead.id,
+          payload: { theirMessage },
+        });
+      }
+    }
+  } catch {
+    // best-effort — a drafting failure shouldn't block the replied status update above
+  }
+
+  return { matched: true, outcome: "replied" };
+}
+
 export async function checkForReplies(): Promise<{ repliedUpdated: number; unsubscribed: number; scanned: number }> {
   const sb = createSupabaseClient();
   const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);

@@ -2,6 +2,8 @@ import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { notifySlack } from "@/lib/slackNotify";
+import { fetchReceivedEmail } from "@/lib/resendInbound";
+import { processInboundReply } from "@/lib/campaignReplies";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +97,20 @@ export async function POST(request: NextRequest) {
         `🚩 Spam complaint — *${send.lead_id}* (${payload.data.to?.[0] || "unknown address"}) marked not_interested, sequence stopped.\n` +
         `${process.env.NEXT_PUBLIC_APP_URL || "https://app.lsgrowth.agency"}/dashboard/leads/${send.lead_id}`
       );
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  if (payload.type === "email.received") {
+    try {
+      const detail = await fetchReceivedEmail(emailId);
+      const result = await processInboundReply(detail.from, detail.subject, detail.text);
+      if (result.outcome === "unsubscribed") {
+        await notifySlack(`🚫 Opt-out via reply — *${detail.from}* marked not_interested, sequence stopped.`);
+      }
+    } catch (e) {
+      // best-effort — a malformed/unfetchable inbound message shouldn't 500 the webhook
+      await notifySlack(`⚠️ Inbound reply webhook failed for email_id ${emailId}: ${e instanceof Error ? e.message : String(e)}`);
     }
     return NextResponse.json({ ok: true });
   }
