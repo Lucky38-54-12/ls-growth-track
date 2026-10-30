@@ -121,7 +121,7 @@ export async function checkCreativeDemand(): Promise<{ checked: number; flagged:
   }
 
   const flaggedOnly = flagged.filter((f) => f.flagged);
-  const summary = `Checked ${due.length} client(s), ${flaggedOnly.length} flagged`;
+  const summary = `Checked ${due.length} client(s), ${flaggedOnly.length} flagged, ${errors.length} error(s)` + (errors.length ? `: ${errors.join("; ")}` : "");
   await reportAutomationStatus(sb, "creative-demand-check", errors.length ? "error" : "ok", summary);
 
   // The whole point of catching this here is so Lucky hears about a
