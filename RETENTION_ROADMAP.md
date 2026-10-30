@@ -87,19 +87,36 @@ what's actually live.
   died. This posts to Slack every Monday either way: "all systems running
   smoothly" when clean, or a specific list of what's stale/erroring.
 
-## In progress
+## Shipped (continued)
 
-- **Onboarding / expectations-setting** — post-close kickoff that sets
-  month-1/month-2 expectations in writing, replacing the bare sales-call
-  handoff, plus a hard gate blocking a campaign start date until creatives
-  are received. `supabase_migration_onboarding_call.sql` is confirmed applied
-  (2026-10-30) — no longer a blocker.
-  Uncommitted as of 2026-10-30: reframed the "Timeline & expectations" step
-  as an explicit **30/60/90/120-day roadmap** (`OnboardingCallCard.tsx`) and
-  matched it in the recap email (`onboardingCallRecapEmail.ts`), so a quiet
-  day-30 doesn't read as the campaign not working — the thing Lucky flagged
-  as the actual month-2 churn trigger. Still needs: review the copy, commit,
-  deploy.
+- **30/60/90/120-day roadmap, onboarding call + recap** (2026-10-30) —
+  reframed the old "month one is testing, month two is when it clicks" line
+  as an explicit day-30/60/90/120 roadmap in `OnboardingCallCard.tsx` and
+  `onboardingCallRecapEmail.ts`, so a quiet day 30 doesn't read as the
+  campaign not working — the actual month-2 churn trigger Lucky flagged.
+  Committed and deployed.
+- **Onboarding call copy fixed to match the real flow** (2026-10-30) — the
+  card wrongly implied the contract was signed before this call. Real flow:
+  sales call → verbal yes → proposal goes out within 24h (this document IS
+  the contract, not a separate one) → onboarding call is where content gets
+  handed over and that same document gets signed, trade creative list
+  confirmed, recurring check-in locked in.
+- **Discovery/sales call script updated** (2026-10-30, `sales_script_versions`
+  v14, dashboard → Sales Calls → Master Script) — added, in order: (1) a
+  "stack in the free extras" beat right after the price — AI/GEO visibility
+  and the review funnel, framed as an exclusive bonus, not a line item; (2)
+  "set the runway" in the close — tell the prospect about the onboarding
+  call, the no-footage-no-start-date rule, and the 30/60/90/120 timeline
+  before locking in the yes; (3) ask for a realistic content turnaround
+  estimate on the call itself, which becomes the proposal's Campaign Start
+  Date; (4) explicit note that the proposal and the contract are one
+  document, signed on the onboarding call, not the sales call.
+  **Caveat:** the AI/GEO-visibility bonus promised in the script isn't an
+  automated system like the review funnel — it's a manual deliverable Lucky
+  has to actually go do per client after close. Not yet scoped or built.
+- **Builders creative-ask list tightened** (2026-10-30,
+  `lib/creativeAskExamples.ts`) — swapped drone shots (rarely in hand) for
+  completed-project photos/video and a short to-camera intro clip.
 
 ## Not started
 
@@ -108,3 +125,7 @@ what's actually live.
   a code task — the job report page exists to support it.
 - **"Not enough value just with ads"** — a service-scope decision (whether
   to bundle something beyond ads), not a build task.
+- **AI/GEO visibility deliverable** — now promised on every sales call (see
+  above) but there's no actual process or tooling yet for what "getting
+  recommended by ChatGPT/AI Overviews" means per client or how it gets
+  delivered. Needs scoping before it's promised on many more calls.
