@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, Video, ArrowUpRight, MessageCircleHeart, Inbox, ShieldAlert, Info, Mail } from "lucide-react";
+import { Calendar, Video, ArrowUpRight, MessageCircleHeart, Inbox, ShieldAlert, Info, Mail, CreditCard } from "lucide-react";
 import { createSupabaseClient, fetchAllRows } from "@/lib/supabase";
 import { listCalendarEvents, getDayRangeUTC, CalendarEvent } from "@/lib/calendar";
 import { nextStepFor } from "@/lib/leads";
@@ -65,13 +65,14 @@ function ClientDetailsPanel({ lead }: { lead: Lead }) {
 export default async function TodayPage() {
   const sb = createSupabaseClient();
 
-  const [leads, { data: sends }, { data: events }, { data: revenueClients }, { data: revenueGoal }, { data: inboxAlerts }] = await Promise.all([
+  const [leads, { data: sends }, { data: events }, { data: revenueClients }, { data: revenueGoal }, { data: inboxAlerts }, { data: paymentsDue }] = await Promise.all([
     fetchAllRows<Lead>((from, to) => sb.from("leads").select("*").order("date_added", { ascending: false }).range(from, to)),
     sb.from("email_sends").select("*").order("sent_at", { ascending: false }),
     sb.from("email_events").select("*").order("created_at", { ascending: false }),
     sb.from("revenue_clients").select("*").order("added_at", { ascending: false }),
     sb.from("revenue_goal").select("*").eq("id", 1).maybeSingle(),
     sb.from("inbox_alerts").select("*").eq("handled", false).order("created_at", { ascending: false }),
+    sb.from("lq_clients").select("id, name, monthly_fee, next_payment_due_date").not("next_payment_due_date", "is", null).order("next_payment_due_date", { ascending: true }),
   ]);
 
   const allLeads = leads;
@@ -113,6 +114,11 @@ export default async function TodayPage() {
   const followUpsDue = allLeads
     .filter(l => l.follow_up_at && l.follow_up_at <= today)
     .sort((a, b) => (a.follow_up_at || "").localeCompare(b.follow_up_at || ""));
+
+  // Client payments due today or already overdue — see lib/paymentReminders.ts
+  // for the email version of this same check.
+  const clientsPaymentsDue = ((paymentsDue || []) as { id: string; name: string; monthly_fee: number | null; next_payment_due_date: string }[])
+    .filter(c => c.next_payment_due_date <= today);
 
   function dayLabel(ts: string): string {
     const key = dateKeyFmt.format(new Date(ts));
@@ -240,6 +246,44 @@ export default async function TodayPage() {
                   <ClientDetailsPanel lead={lead} />
                 </details>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Client payments due or overdue */}
+        {clientsPaymentsDue.length > 0 && (
+          <div className="surface-card" style={{ overflow: "hidden", borderColor: "#fecdd3" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #fecdd3", background: "#fff1f2" }}>
+              <CreditCard style={{ width: 15, height: 15, color: "#be123c" }} />
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#be123c" }}>Payments Due</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#be123c" }}>{clientsPaymentsDue.length}</span>
+              <Link href="/dashboard/payments" className="pill-hover" style={{ marginLeft: "auto", fontSize: 11, color: L.dimmed, textDecoration: "none" }}>
+                Manage →
+              </Link>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {clientsPaymentsDue.map(c => {
+                const overdue = c.next_payment_due_date < today;
+                return (
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: `1px solid ${L.border}` }}>
+                    <CreditCard style={{ width: 14, height: 14, color: overdue ? "#be123c" : "#c2410c", flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: L.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.name}
+                      </p>
+                      <p style={{ fontSize: 11.5, color: L.dimmed }}>
+                        {c.monthly_fee ? `$${c.monthly_fee} — ` : ""}due {c.next_payment_due_date}
+                      </p>
+                    </div>
+                    <span style={{
+                      fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+                      color: overdue ? "#be123c" : "#c2410c",
+                    }}>
+                      {overdue ? "Overdue" : "Due today"}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

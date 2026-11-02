@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Search, X, LayoutDashboard, Phone, Calendar, Sun, ScanSearch, Bot, Rows3, PhoneCall, Brain, CheckCheck, Target, KeyRound, Users } from "lucide-react";
+import { Bell, Search, X, LayoutDashboard, Phone, Calendar, Sun, ScanSearch, Bot, Rows3, PhoneCall, Brain, CheckCheck, Target, KeyRound, Users, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -11,6 +11,7 @@ const SEARCH_ITEMS = [
   { label: "Clients", href: "/dashboard/clients", icon: Users },
   { label: "Email Outreach", href: "/dashboard/email-outreach", icon: Rows3 },
   { label: "Client Onboarding", href: "/dashboard/onboarding", icon: Bot },
+  { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
   { label: "Campaign Setup", href: "/dashboard/campaign-setup", icon: Target },
   { label: "Sales", href: "/dashboard/sales-calls", icon: PhoneCall },
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar },

@@ -9,11 +9,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const updates: Record<string, string | null> = {};
+  const updates: Record<string, string | number | null> = {};
   if (typeof body.email === "string") updates.email = body.email.trim() || null;
   if (typeof body.phone === "string") updates.phone = body.phone.trim() || null;
   if (typeof body.meta_ad_account_id === "string") updates.meta_ad_account_id = body.meta_ad_account_id.trim() || null;
   if (typeof body.ad_footage_folder_url === "string") updates.ad_footage_folder_url = body.ad_footage_folder_url.trim() || null;
+  if ("monthly_fee" in body) updates.monthly_fee = body.monthly_fee === null ? null : Number(body.monthly_fee);
+  if ("billing_cycle_days" in body) updates.billing_cycle_days = Number(body.billing_cycle_days) || 30;
+  if ("next_payment_due_date" in body) updates.next_payment_due_date = body.next_payment_due_date || null;
+  if ("last_paid_at" in body) updates.last_paid_at = body.last_paid_at || null;
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: "nothing to update" }, { status: 400 });
 
   const sb = createSupabaseClient();
