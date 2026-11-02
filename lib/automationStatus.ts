@@ -4,7 +4,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 // cron — see CLAUDE.md), so a gap this wide means a run was actually missed,
 // not just scheduler jitter. Checked from daily-maintenance since that's the
 // one routine confirmed to run reliably inside Vercel's own cron.
-const FIFTEEN_MIN_SLUGS = ["calendar-sync", "lead-qual-callback-reminders", "check-personal-inbox"] as const;
+const FIFTEEN_MIN_SLUGS = ["calendar-sync", "lead-qual-callback-reminders", "check-personal-inbox", "sync-lead-sheets"] as const;
 const STALE_AFTER_MINUTES = 30;
 
 // These run once a day via GitHub Actions' own scheduler (cron.yml), which

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClientAsync, fetchAllRows } from "@/lib/supabase";
 import { getCompletedJobsPendingReview, markReviewRequested, notifyBookedLeads, syncMetaLeadsSheet } from "@/lib/metaLeadsSheetSync";
 import { sendReviewRequestEmail } from "@/lib/email";
+import { reportAutomationStatus } from "@/lib/automationStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -111,6 +112,14 @@ export async function GET(req: NextRequest) {
       results.push({ client: s.client_name, error: message });
     }
   }
+
+  const errorCount = results.filter((r) => "error" in r).length;
+  await reportAutomationStatus(
+    sb,
+    "sync-lead-sheets",
+    errorCount > 0 ? "error" : "ok",
+    `Synced ${syncs.length} client sheet(s), ${errorCount} error(s).`
+  );
 
   return NextResponse.json({ ok: true, results });
 }
