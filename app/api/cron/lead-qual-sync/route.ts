@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase";
 import { backfillLeadsForClient } from "@/lib/leadQual/leadAdsBackfill";
 import { notifySlack } from "@/lib/slackNotify";
+import { reportAutomationStatus } from "@/lib/automationStatus";
 
 export const dynamic = "force-dynamic";
 // Was 60s, but this loops over every client's full Lead Ad history
@@ -58,6 +59,13 @@ export async function GET(req: NextRequest) {
     ];
     await notifySlack(`📋 Daily lead-qual sync\n${lines.join("\n")}`);
   }
+
+  await reportAutomationStatus(
+    sb,
+    "lead-qual-sync",
+    failed.length > 0 ? "error" : "ok",
+    `Checked ${results.length} client(s), ${newLeads.length} with new leads, ${failed.length} error(s).`
+  );
 
   return NextResponse.json({ results });
 }
