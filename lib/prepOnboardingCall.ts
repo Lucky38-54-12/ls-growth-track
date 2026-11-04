@@ -124,11 +124,22 @@ export async function prepOnboardingCall(
     lines.push("No onboarding_clients record exists yet for this business — this was built straight off the sales call. Once the deal's logged as closed (log_call with the agreed terms), the real onboarding record gets created automatically and this same info will show on its onboarding call card.");
   }
 
-  // Backfill the trade onto the real record if it's missing one, so the
-  // live OnboardingCallCard on /dashboard/onboarding already has it set
-  // when Lucky actually runs the call, instead of him re-picking it there.
-  if (onboardingClient && !onboardingClient.trade && trade) {
-    await sb.from("onboarding_clients").update({ trade }).eq("id", onboardingClient.id);
+  // Backfill the real onboarding_clients record itself — not just the doc —
+  // so the live OnboardingCallCard on /dashboard/onboarding already shows
+  // the trade and a sales-call recap in "Notes from the call" when Lucky
+  // actually opens it to run the call, instead of him re-typing what's
+  // already sitting in the sales call. Only fills what's empty — never
+  // overwrites a trade he already set or notes he already typed himself.
+  if (onboardingClient) {
+    const updates: Record<string, string> = {};
+    if (!onboardingClient.trade && trade) updates.trade = trade;
+    if (!onboardingClient.onboarding_call_notes?.trim()) {
+      const recapLines = [`From the sales call: ${dealRecap}`, ...watchFor];
+      updates.onboarding_call_notes = recapLines.join("\n");
+    }
+    if (Object.keys(updates).length) {
+      await sb.from("onboarding_clients").update(updates).eq("id", onboardingClient.id);
+    }
   }
 
   return {
