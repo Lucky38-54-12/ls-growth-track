@@ -11,6 +11,31 @@ function getAuth() {
   return getBookingGoogleAuthedClient();
 }
 
+// The googleapis client has no default request timeout, so a stalled
+// connection would otherwise hang until the serverless function itself is
+// killed. Calendar API calls run unattended on cron (calendar-sync,
+// daily-maintenance) with no human to retry a transient quota/timeout error,
+// unlike the equivalent withRetry in lib/sheets.ts for the Sheets API.
+function withTimeout<T>(fn: () => Promise<T>, ms = 8000): Promise<T> {
+  return Promise.race([
+    fn(),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Request timed out")), ms)),
+  ]);
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await withTimeout(fn);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "";
+      const retryable = message.includes("Quota exceeded") || message.includes("timed out");
+      if (attempt >= retries || !retryable) throw e;
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+    }
+  }
+}
+
 export interface CalendarBooking {
   eventId: string;
   summary: string;
@@ -30,13 +55,15 @@ export async function listUpcomingBookings(): Promise<CalendarBooking[]> {
   const calendar = google.calendar({ version: "v3", auth });
 
   const timeMin = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const res = await calendar.events.list({
-    calendarId,
-    timeMin,
-    singleEvents: true,
-    orderBy: "startTime",
-    maxResults: 50,
-  });
+  const res = await withRetry(() =>
+    calendar.events.list({
+      calendarId,
+      timeMin,
+      singleEvents: true,
+      orderBy: "startTime",
+      maxResults: 50,
+    })
+  );
 
   const bookings: CalendarBooking[] = [];
   for (const ev of res.data.items || []) {
@@ -182,7 +209,7 @@ export async function isEventCancelled(eventId: string): Promise<boolean> {
   const calendar = google.calendar({ version: "v3", auth });
 
   try {
-    const res = await calendar.events.get({ calendarId, eventId });
+    const res = await withRetry(() => calendar.events.get({ calendarId, eventId }));
     return res.data.status === "cancelled";
   } catch (err: unknown) {
     const status = (err as { code?: number; response?: { status?: number } })?.code
