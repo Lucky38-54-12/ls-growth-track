@@ -212,7 +212,17 @@ const SAME_DAY_WINDOW_MINUTES = 15; // pads the 180min mark so a run isn't requi
 // rather than pepper them with a second email hours later for the same
 // meeting — the *_email_sent_at column still gets marked so it doesn't
 // retry every 15 minutes for the rest of the window.
-const RECENT_SEND_SKIP_HOURS = 12;
+//
+// Was 12h until 2026-11-05: the day-before touch (7pm) and the same-day
+// touch (3h before the meeting) are themselves only 9-16h apart for most
+// meeting times, so a 12h window meant the day-before reminder routinely
+// counted as a "recent send" and silently ate the same-day one — the
+// actual last-chance reminder — confirmed via Trent/Creative Construction
+// Builders' 10am meeting getting no same-day email. 4h still protects
+// against genuinely stacking two touches close together (e.g. a manual
+// call-logged email right before a cron tick) without colliding with the
+// day-before→same-day gap.
+const RECENT_SEND_SKIP_HOURS = 4;
 
 async function hasRecentSend(sb: ReturnType<typeof createSupabaseClient>, leadId: string, hours: number): Promise<boolean> {
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
