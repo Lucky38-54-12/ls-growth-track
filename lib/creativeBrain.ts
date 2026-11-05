@@ -11,6 +11,7 @@ import { getClientBrain, summarizeClientBrain } from "./clientBrain";
 import { getActiveHypotheses, summarizeHypotheses, recordHypothesis } from "./creativeHypotheses";
 import { getRecentDecisions, summarizeDecisions, recordDecision } from "./brainDecisions";
 import { getStrategicState, summarizeStrategicState, upsertStrategicState } from "./strategicState";
+import { getCachedAdResearch } from "./adResearch";
 
 export interface AccountDiagnosis {
   bottleneck: string;
@@ -351,7 +352,7 @@ export async function generateCreativeHypotheses(clientId: string): Promise<Crea
   if (clientError || !client) throw new Error(`Unknown client_id "${clientId}"`);
   if (!client.meta_ad_account_id) throw new Error(`${client.name} has no Meta ad account linked yet — set one on Campaign Setup first.`);
 
-  const [ads, { data: brief }, learnings, driveMatches, fullClientContext, clientBrain, activeHypotheses, recentDecisions, priorStrategicState] = await Promise.all([
+  const [ads, { data: brief }, learnings, driveMatches, fullClientContext, clientBrain, activeHypotheses, recentDecisions, priorStrategicState, competitorFindings] = await Promise.all([
     getAdCreatives(client.meta_ad_account_id, "last_30d"),
     sb.from("campaign_briefs").select("ideal_customer, budget_targeting, service_details, google_doc_id").eq("client_id", clientId).maybeSingle(),
     getAdLearningsForClient(sb, clientId, 30),
@@ -373,6 +374,11 @@ export async function generateCreativeHypotheses(clientId: string): Promise<Crea
     getActiveHypotheses(sb, clientId).catch(() => []),
     getRecentDecisions(sb, clientId).catch(() => []),
     getStrategicState(sb, clientId).catch(() => null),
+    // Stage 01 of the ads engine loop — whatever's cached in
+    // ad_research_cache for this client's trade (populated via the Ad
+    // Research tool on /dashboard/meta-ads, by hand or AI web-search).
+    // Read-only: never triggers a new research run from inside the Brain.
+    (client.trade ? getCachedAdResearch(client.trade, "New Zealand") : Promise.resolve(null)).catch(() => null),
   ]);
 
   // Agency-level memory: patterns from OTHER clients in the same trade —
@@ -475,6 +481,9 @@ ${summarizeStrategicState(priorStrategicState)}
 
 Agency-level patterns from OTHER LS Growth clients in the same trade (${client.trade || "unknown"}) — treat as hypotheses about the trade in general, never override this client's own evidence:
 ${agencyPatternsSummary}
+
+What's working for ${client.trade || "this trade"} in the wider market right now (from the Ad Research tool, real pulls where available, AI web-search summary otherwise) — useful signal, not a reason to copy:
+${competitorFindings ? `${competitorFindings.summary}${competitorFindings.source === "ai_web_search" ? " (AI web-search summary, not confirmed live ads)" : ""}` : `No research on file yet for ${client.trade || "this trade"} — run it from the Ad Research tool on /dashboard/meta-ads.`}
 
 Live ad-level performance, last 30 days (real creative copy + real numbers):
 ${summarizeAds(ads)}

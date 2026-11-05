@@ -14,6 +14,7 @@ interface ClientRow {
   services: string[];
   meta_ad_account_id: string | null;
   ad_footage_folder_url: string | null;
+  meta_page_id: string | null;
   brief: { id: string; status: "draft" | "approved"; updated_at: string } | null;
 }
 
@@ -164,6 +165,9 @@ export default function CampaignSetupPage() {
   const [footageFolderInput, setFootageFolderInput] = useState("");
   const [footageFolderSaving, setFootageFolderSaving] = useState(false);
   const [footageFolderError, setFootageFolderError] = useState("");
+  const [pageIdInput, setPageIdInput] = useState("");
+  const [pageIdSaving, setPageIdSaving] = useState(false);
+  const [pageIdError, setPageIdError] = useState("");
 
   function loadClients() {
     fetch("/api/campaign-brief")
@@ -261,6 +265,8 @@ export default function CampaignSetupPage() {
     setAdAccountError("");
     setFootageFolderInput(c.ad_footage_folder_url || "");
     setFootageFolderError("");
+    setPageIdInput(c.meta_page_id || "");
+    setPageIdError("");
     if (c.brief) loadBrief(c.brief.id);
     loadConfig(c.id);
   }
@@ -302,6 +308,26 @@ export default function CampaignSetupPage() {
       setFootageFolderError("Failed to save the footage folder link.");
     } finally {
       setFootageFolderSaving(false);
+    }
+  }
+
+  async function savePageId() {
+    if (!selectedClient) return;
+    setPageIdSaving(true);
+    setPageIdError("");
+    try {
+      const res = await fetch(`/api/lead-qual/clients/${selectedClient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meta_page_id: pageIdInput }),
+      });
+      const data = await res.json();
+      if (data.error) { setPageIdError(data.error); return; }
+      setClients((prev) => prev?.map((c) => (c.id === selectedClient.id ? { ...c, meta_page_id: data.client.meta_page_id } : c)) || null);
+    } catch {
+      setPageIdError("Failed to save the Meta Page ID.");
+    } finally {
+      setPageIdSaving(false);
     }
   }
 
@@ -508,6 +534,22 @@ export default function CampaignSetupPage() {
                     </button>
                   </div>
                   {footageFolderError && <span style={{ fontSize: 11, color: "#b91c1c" }}>{footageFolderError}</span>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      value={pageIdInput}
+                      onChange={(e) => setPageIdInput(e.target.value)}
+                      placeholder="Meta Page ID (for launching ads)"
+                      style={{ width: 200, border: `1px solid ${L.border}`, outline: "none", padding: "5px 8px", fontSize: 11, color: L.text, fontFamily: "inherit" }}
+                    />
+                    <button
+                      onClick={savePageId}
+                      disabled={pageIdSaving || pageIdInput === (selectedClient.meta_page_id || "")}
+                      style={{ background: "none", border: `1px solid ${L.border}`, padding: "5px 10px", fontSize: 11, fontWeight: 700, color: L.text, cursor: pageIdSaving ? "default" : "pointer" }}
+                    >
+                      {pageIdSaving ? "Saving…" : "Save"}
+                    </button>
+                  </div>
+                  {pageIdError && <span style={{ fontSize: 11, color: "#b91c1c" }}>{pageIdError}</span>}
                   {brief && (
                     <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: STATUS_STYLE[brief.status].color, background: STATUS_STYLE[brief.status].bg, padding: "3px 7px", borderRadius: 3 }}>
                       {STATUS_STYLE[brief.status].label}

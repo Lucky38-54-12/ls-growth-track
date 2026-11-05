@@ -19,6 +19,8 @@ import { notifySlack } from "@/lib/slackNotify";
 import { reportAutomationStatus, checkCronHeartbeats } from "@/lib/automationStatus";
 import { checkCampaignCompletions } from "@/lib/campaignCompletion";
 import { checkCreativeDemand } from "@/lib/creativeDemandCheck";
+import { checkLaunchedComboPerformance } from "@/lib/adLaunchTracking";
+import { runAdsEngineAutopilot, autoLaunchReadyCombos } from "@/lib/adsEngineAutopilot";
 import { checkLeadConversionTrend } from "@/lib/leadConversionCheck";
 import { sendWeeklySystemsHealthIfDue } from "@/lib/systemsHealthDigest";
 import { sendMidMonthCheckinPrepIfDue, sendEndOfMonthResultsPrepIfDue } from "@/lib/clientCatchupPrep";
@@ -126,6 +128,24 @@ export async function GET(req: NextRequest) {
     results.creativeDemandCheck = await checkCreativeDemand();
   } catch (e) {
     results.creativeDemandCheck = { error: e instanceof Error ? e.message : "creative demand check failed" };
+  }
+
+  try {
+    results.adLaunchTracking = await checkLaunchedComboPerformance();
+  } catch (e) {
+    results.adLaunchTracking = { error: e instanceof Error ? e.message : "ad launch tracking failed" };
+  }
+
+  try {
+    results.adsEngineAutopilot = await runAdsEngineAutopilot();
+  } catch (e) {
+    results.adsEngineAutopilot = { error: e instanceof Error ? e.message : "ads engine autopilot failed" };
+  }
+
+  try {
+    results.adsEngineAutoLaunch = await autoLaunchReadyCombos();
+  } catch (e) {
+    results.adsEngineAutoLaunch = { error: e instanceof Error ? e.message : "ads engine auto-launch failed" };
   }
 
   try {

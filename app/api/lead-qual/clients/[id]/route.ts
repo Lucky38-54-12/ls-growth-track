@@ -14,6 +14,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof body.phone === "string") updates.phone = body.phone.trim() || null;
   if (typeof body.meta_ad_account_id === "string") updates.meta_ad_account_id = body.meta_ad_account_id.trim() || null;
   if (typeof body.ad_footage_folder_url === "string") updates.ad_footage_folder_url = body.ad_footage_folder_url.trim() || null;
+  if (typeof body.meta_page_id === "string") updates.meta_page_id = body.meta_page_id.trim() || null;
   if ("monthly_fee" in body) updates.monthly_fee = body.monthly_fee === null ? null : Number(body.monthly_fee);
   if ("billing_cycle_days" in body) updates.billing_cycle_days = Number(body.billing_cycle_days) || 30;
   if ("next_payment_due_date" in body) updates.next_payment_due_date = body.next_payment_due_date || null;

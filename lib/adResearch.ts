@@ -72,6 +72,12 @@ Aim for 6-10 ad ideas, ordered with the strongest / most well-evidenced first.
 After searching, respond with ONLY a JSON object as your final message, no markdown fences, no other text:
 {"summary": "2-3 sentence overview of what's working in this niche right now", "ads": [{"headline": "...", "angle": "...", "offer": "..." or null, "format": "...", "why_it_works": "...", "source_url": "..." or null, "source_business": "..." or null}]}`;
 
+// Read-only lookup for callers (e.g. Creative Brain) that just want
+// whatever's cached, without triggering a new AI/web-search run.
+export async function getCachedAdResearch(niche: string, location: string): Promise<AdResearchResult | null> {
+  return findCachedRealAds(niche, location);
+}
+
 export async function findWorkingAds(niche: string, location: string): Promise<AdResearchResult> {
   const cached = await findCachedRealAds(niche, location);
   if (cached) return cached;

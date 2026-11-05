@@ -141,6 +141,74 @@ export async function getAdCreatives(adAccountId: string, datePreset = "last_30d
   }).sort((a, b) => b.spend - a.spend);
 }
 
+// Single-ad lookup (not scoped to an ad account's full list) — used by the
+// Stage 07 tracking job, which already knows the specific meta_ad_id a combo
+// was launched as and just needs that one ad's current performance.
+export async function getAdInsightById(adId: string, datePreset = "last_30d"): Promise<AdCreativeInsight | null> {
+  const token = process.env.META_SYSTEM_USER_TOKEN;
+  if (!token) throw new Error("META_SYSTEM_USER_TOKEN env var is not set");
+
+  const fields = `id,name,status,campaign{name},creative{title,body,image_url,thumbnail_url,object_story_spec},insights.date_preset(${datePreset}){spend,impressions,clicks,ctr,cpc,actions,cost_per_action_type}`;
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${adId}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(token)}`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || "Meta API error");
+  if (!data.id) return null;
+
+  const a: GraphAd = data;
+  const row = a.insights?.data?.[0];
+  const primary = pickPrimaryResult(row);
+  const text = extractCreativeText(a.creative);
+  return {
+    id: a.id,
+    name: a.name,
+    campaignName: a.campaign?.name || "—",
+    status: a.status,
+    title: text.title,
+    body: text.body,
+    imageUrl: text.imageUrl,
+    spend: Number(row?.spend || 0),
+    impressions: Number(row?.impressions || 0),
+    clicks: Number(row?.clicks || 0),
+    ctr: Number(row?.ctr || 0),
+    cpc: Number(row?.cpc || 0),
+    results: primary.count,
+    costPerResult: primary.costPer,
+    resultType: primary.type,
+  };
+}
+
+export interface AdSetSummary {
+  id: string;
+  name: string;
+  status: string;
+  campaignName: string;
+}
+
+// Used to populate the "which ad set does this launch into" dropdown in
+// Stage 06 — we never auto-create campaigns/ad sets (budget/targeting are
+// too risky to guess), Lucky always picks an existing one.
+export async function getAdSets(adAccountId: string): Promise<AdSetSummary[]> {
+  const token = process.env.META_SYSTEM_USER_TOKEN;
+  if (!token) throw new Error("META_SYSTEM_USER_TOKEN env var is not set");
+
+  const accountId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const fields = `id,name,status,campaign{name}`;
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${accountId}/adsets?fields=${encodeURIComponent(fields)}&effective_status=["ACTIVE","PAUSED"]&limit=200&access_token=${encodeURIComponent(token)}`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || "Meta API error");
+
+  return ((data.data || []) as { id: string; name: string; status: string; campaign?: { name: string } }[]).map((a) => ({
+    id: a.id,
+    name: a.name,
+    status: a.status,
+    campaignName: a.campaign?.name || "—",
+  }));
+}
+
 export async function getCampaignInsights(adAccountId: string, datePreset = "last_30d"): Promise<CampaignInsight[]> {
   const token = process.env.META_SYSTEM_USER_TOKEN;
   if (!token) throw new Error("META_SYSTEM_USER_TOKEN env var is not set");
