@@ -171,10 +171,16 @@ export async function draftScriptForCombo(sb: SupabaseClient, comboId: string): 
 
 Write for the END CUSTOMER watching the ad (a homeowner, tenant, landlord etc.) — never for the business owner, and never in the agency's own voice.
 
-Rules:
+Follow this proven structure — pulled directly from scripts Lucky has actually run and gotten results from, not a generic direct-response template:
+1. City-named opener: "Hey [City] homeowners" / "Hey [City], if you book..." — always name the city, never a generic "hey homeowners".
+2. An explicit dollar-amount offer stated early (e.g. "$50 off", "15% off"), tied to a named service/bundle. Never a vague "free quote, no obligation" as the lead offer — if no specific offer/discount is given in the combo's "Offer" field, treat that as a gap to flag back, don't invent one, and don't fall back to "free quote" as a substitute hook.
+3. Plainly describe what's included (surfaces covered, what the service actually does).
+4. Social proof: a named person + business ("I'm [name] from [business]" where available), and a specific detail — a review count ("over N 5-star Google reviews") and/or a satisfaction guarantee. Never invent a number — if the combo/client record doesn't give you one, write [REVIEW COUNT] as a placeholder and flag it, don't make one up.
+5. CTA tied directly back to the stated offer — "Tap below to claim your $X discount and get booked in today" — not a generic "message us".
+
+Other rules:
 - Spoken, not written. Short sentences, contractions, the way someone actually talks.
-- Open with the hook in the first 2-3 seconds. No throat-clearing, no "hey guys".
-- Structure: hook → problem/situation → how the service solves it → the offer → a direct call to action.
+- Open with the hook (step 1 above) in the first 2-3 seconds. No throat-clearing, no "hey guys".
 - One clear offer and one clear CTA. No stacking multiple offers.
 - No marketing words (streamline, unlock, elevate, seamless, journey, solutions).
 - No dashes as punctuation.
