@@ -1,7 +1,16 @@
 import { createSupabaseClient } from "@/lib/supabase";
 import { decryptSecret } from "./crypto";
-import { parseLeadgenFields, type LeadgenField } from "./meta";
+import { parseLeadgenFields, type LeadgenField, connectMessengerPage, refreshPageTokenViaSystemUser } from "./meta";
 import { createLeadFromFacebookForm } from "./conversationManager";
+
+// Personal-OAuth page tokens die silently whenever the connecting person's
+// Facebook session is invalidated (password change, lost page role) — the
+// same failure checkMessengerChannelHealth auto-repairs daily via the
+// Business Manager System User. This sync runs twice a day, so it shouldn't
+// have to wait for that daily check to catch a dead token.
+function isDeadTokenError(err: unknown): boolean {
+  return err instanceof Error && /"code":\s*190/.test(err.message);
+}
 
 interface LeadgenForm {
   id: string;
@@ -78,8 +87,16 @@ export async function backfillLeadsForClient(clientId: string): Promise<Backfill
     throw new Error("This client has no connected Facebook Page to backfill from.");
   }
 
-  const pageAccessToken = decryptSecret(channel.credentials as unknown as Buffer);
-  const forms = await fetchLeadFormsForPage(channel.external_page_id, pageAccessToken);
+  let pageAccessToken = decryptSecret(channel.credentials as unknown as Buffer);
+  let forms: LeadgenForm[];
+  try {
+    forms = await fetchLeadFormsForPage(channel.external_page_id, pageAccessToken);
+  } catch (err) {
+    if (!isDeadTokenError(err) || !process.env.META_SYSTEM_USER_TOKEN) throw err;
+    pageAccessToken = await refreshPageTokenViaSystemUser(channel.external_page_id);
+    await connectMessengerPage(clientId, channel.external_page_id, pageAccessToken);
+    forms = await fetchLeadFormsForPage(channel.external_page_id, pageAccessToken);
+  }
 
   let leadsFound = 0;
   let leadsImported = 0;
