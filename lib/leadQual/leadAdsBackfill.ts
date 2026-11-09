@@ -8,8 +8,17 @@ import { createLeadFromFacebookForm } from "./conversationManager";
 // same failure checkMessengerChannelHealth auto-repairs daily via the
 // Business Manager System User. This sync runs twice a day, so it shouldn't
 // have to wait for that daily check to catch a dead token.
-function isDeadTokenError(err: unknown): boolean {
-  return err instanceof Error && /"code":\s*190/.test(err.message);
+//
+// A personal-OAuth token can also be live but missing leads_retrieval
+// (code 100, "requires the 'pages_read_engagement' permission...") when it
+// was issued before that scope was added to the connect flow — the System
+// User token carries the Business Manager's own permission grant instead of
+// whatever scopes a given OAuth login happened to request, so the same
+// repair applies.
+function isRecoverableTokenError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (/"code":\s*190/.test(err.message)) return true;
+  return /"code":\s*100/.test(err.message) && /pages_read_engagement|leads_retrieval/.test(err.message);
 }
 
 interface LeadgenForm {
@@ -92,7 +101,7 @@ export async function backfillLeadsForClient(clientId: string): Promise<Backfill
   try {
     forms = await fetchLeadFormsForPage(channel.external_page_id, pageAccessToken);
   } catch (err) {
-    if (!isDeadTokenError(err) || !process.env.META_SYSTEM_USER_TOKEN) throw err;
+    if (!isRecoverableTokenError(err) || !process.env.META_SYSTEM_USER_TOKEN) throw err;
     pageAccessToken = await refreshPageTokenViaSystemUser(channel.external_page_id);
     await connectMessengerPage(clientId, channel.external_page_id, pageAccessToken);
     forms = await fetchLeadFormsForPage(channel.external_page_id, pageAccessToken);
