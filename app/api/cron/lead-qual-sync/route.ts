@@ -28,13 +28,20 @@ export async function GET(req: NextRequest) {
   }
 
   const sb = createSupabaseClient();
-  const { data: clients } = await sb.from("lq_clients").select("id, name");
+  const { data: clients } = await sb.from("lq_clients").select("id, name, status");
 
   // Each client's backfill is independent (own Page token, own leads), so
   // run them concurrently instead of one at a time — the sequential version
   // was blowing past the function timeout once there were enough clients.
+  // Paused clients are excluded for the same reason checkMessengerChannelHealth
+  // and resubscribeAllMessengerChannels skip them (lib/leadQual/meta.ts): their
+  // tokens aren't kept alive by the daily health check, so they go dead over
+  // time and this sync was reporting that as a sync failure instead of the
+  // expected state of an inactive client.
   const settled = await Promise.all(
-    (clients || []).map(async (client) => {
+    (clients || [])
+      .filter((client) => client.status !== "paused")
+      .map(async (client) => {
       try {
         const result = await backfillLeadsForClient(client.id);
         return { client: client.name, imported: result.leadsImported };
