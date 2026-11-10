@@ -96,16 +96,31 @@ export async function backfillLeadsForClient(clientId: string): Promise<Backfill
     throw new Error("This client has no connected Facebook Page to backfill from.");
   }
 
-  let pageAccessToken = decryptSecret(channel.credentials as unknown as Buffer);
-  let forms: LeadgenForm[];
+  const pageAccessToken = decryptSecret(channel.credentials as unknown as Buffer);
+
+  // fetchLeadFormsForPage and fetchLeadsForForm can each independently hit a
+  // dead/under-scoped token (the leads_retrieval permission in particular
+  // surfaces only once you try to read a form's leads, not when listing the
+  // forms themselves), so the recoverable-token retry has to wrap the whole
+  // fetch, not just the initial forms list.
   try {
-    forms = await fetchLeadFormsForPage(channel.external_page_id, pageAccessToken);
+    return await runBackfill(sb, clientId, channel.id, channel.external_page_id, pageAccessToken);
   } catch (err) {
     if (!isRecoverableTokenError(err) || !process.env.META_SYSTEM_USER_TOKEN) throw err;
-    pageAccessToken = await refreshPageTokenViaSystemUser(channel.external_page_id);
-    await connectMessengerPage(clientId, channel.external_page_id, pageAccessToken);
-    forms = await fetchLeadFormsForPage(channel.external_page_id, pageAccessToken);
+    const refreshedToken = await refreshPageTokenViaSystemUser(channel.external_page_id);
+    await connectMessengerPage(clientId, channel.external_page_id, refreshedToken);
+    return await runBackfill(sb, clientId, channel.id, channel.external_page_id, refreshedToken);
   }
+}
+
+async function runBackfill(
+  sb: ReturnType<typeof createSupabaseClient>,
+  clientId: string,
+  channelId: string,
+  pageId: string,
+  pageAccessToken: string
+): Promise<BackfillResult> {
+  const forms = await fetchLeadFormsForPage(pageId, pageAccessToken);
 
   let leadsFound = 0;
   let leadsImported = 0;
@@ -135,7 +150,7 @@ export async function backfillLeadsForClient(clientId: string): Promise<Backfill
         const fields = parseLeadgenFields(lead.field_data || []);
         const imported = await createLeadFromFacebookForm({
           clientId,
-          channelId: channel.id,
+          channelId,
           leadgenId: lead.id,
           fields,
           submittedAt: lead.created_time,
