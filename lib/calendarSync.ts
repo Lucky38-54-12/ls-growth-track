@@ -224,9 +224,28 @@ const SAME_DAY_WINDOW_MINUTES = 15; // pads the 180min mark so a run isn't requi
 // day-before→same-day gap.
 const RECENT_SEND_SKIP_HOURS = 4;
 
+// The automated "you're booked" confirmation fires the moment the meeting is
+// booked (app/api/leads/[id]/followup/route.ts) and already says "call
+// tomorrow at Xpm" — but when a meeting is booked same-day for the next day,
+// that send almost always lands inside the RECENT_SEND_SKIP_HOURS window
+// right before the 7pm day-before check, so hasRecentSend counted it as a
+// duplicate and silently skipped the real day-before reminder on nearly
+// every one-off meeting (confirmed 2026-11-11: day_before_email_sent_at was
+// stamped on ~15 recent bookings with zero matching email_sends rows for
+// meeting_day_before_reminder). Excluded here since it's an expected step in
+// the flow, not a duplicate touch — the dedup should still catch a genuine
+// manual follow-up sent close to the window.
+const AUTOMATED_BOOKING_STEPS = ["meeting_booked_video_intro", "meeting_booked_confirmation"];
+
 async function hasRecentSend(sb: ReturnType<typeof createSupabaseClient>, leadId: string, hours: number): Promise<boolean> {
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-  const { data } = await sb.from("email_sends").select("id").eq("lead_id", leadId).gt("sent_at", since).limit(1);
+  const { data } = await sb
+    .from("email_sends")
+    .select("id")
+    .eq("lead_id", leadId)
+    .gt("sent_at", since)
+    .not("step", "in", `(${AUTOMATED_BOOKING_STEPS.join(",")})`)
+    .limit(1);
   return Boolean(data && data.length);
 }
 
