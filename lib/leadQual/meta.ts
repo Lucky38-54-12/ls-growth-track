@@ -471,6 +471,123 @@ export async function reconnectMessengerChannelViaSystemUser(clientId: string, p
   await connectMessengerPage(clientId, pageId, pageAccessToken);
 }
 
+interface BusinessManagerPage {
+  id: string;
+  name: string;
+}
+
+// Lists every Page assigned to the agency's Business Manager (owned
+// outright, or assigned as a client asset) via the System User token — the
+// discovery step refreshPageTokenViaSystemUser never needed, since that one
+// only ever refreshes a token for a Page ID it's already told about.
+async function listBusinessManagerPages(): Promise<BusinessManagerPage[]> {
+  const systemUserToken = process.env.META_SYSTEM_USER_TOKEN;
+  const businessId = process.env.META_BUSINESS_ID;
+  if (!systemUserToken) throw new Error("META_SYSTEM_USER_TOKEN env var is not set");
+  if (!businessId) throw new Error("META_BUSINESS_ID env var is not set");
+
+  const byId = new Map<string, BusinessManagerPage>();
+  for (const edge of ["owned_pages", "client_pages"]) {
+    const res = await fetch(
+      `https://graph.facebook.com/v20.0/${businessId}/${edge}?fields=id,name&access_token=${encodeURIComponent(systemUserToken)}`
+    );
+    const body = await res.json();
+    if (!res.ok) throw new Error(body?.error?.message || `Failed to list ${edge}: ${res.status}`);
+    for (const page of (body.data || []) as BusinessManagerPage[]) byId.set(page.id, page);
+  }
+  return Array.from(byId.values());
+}
+
+export interface DiscoveredPage {
+  id: string;
+  pageName: string;
+  suggestedClientName: string | null;
+}
+
+// Diffs the Business Manager's Page list against what's already connected
+// (lq_channels) and what's already been seen before (lq_facebook_discovered_pages,
+// any status — so a dismissed Page, e.g. the agency's own, never resurfaces),
+// then stages anything genuinely new for a human to confirm. Never
+// auto-connects, even on an exact name match — matching a client's real
+// leads to the wrong Page is bad enough that every match gets a one-click
+// confirm, per Lucky's call on this.
+export async function discoverNewFacebookPages(): Promise<DiscoveredPage[]> {
+  const sb = createSupabaseClient();
+  const [pages, { data: connected }, { data: seen }, { data: clients }] = await Promise.all([
+    listBusinessManagerPages(),
+    sb.from("lq_channels").select("external_page_id").eq("type", "messenger"),
+    sb.from("lq_facebook_discovered_pages").select("external_page_id"),
+    sb.from("lq_clients").select("id, name"),
+  ]);
+
+  const knownIds = new Set([
+    ...(connected || []).map((c) => c.external_page_id),
+    ...(seen || []).map((s) => s.external_page_id),
+  ]);
+  const newPages = pages.filter((p) => !knownIds.has(p.id));
+  if (newPages.length === 0) return [];
+
+  const clientRows = (clients || []) as { id: string; name: string }[];
+  function matchClient(pageName: string): { id: string; name: string } | null {
+    const normalizedPage = pageName.toLowerCase();
+    for (const client of clientRows) {
+      const normalizedClient = client.name.toLowerCase();
+      if (normalizedPage === normalizedClient || normalizedPage.includes(normalizedClient) || normalizedClient.includes(normalizedPage)) {
+        return client;
+      }
+    }
+    return null;
+  }
+
+  const rows = newPages.map((p) => {
+    const match = matchClient(p.name);
+    return {
+      external_page_id: p.id,
+      page_name: p.name,
+      suggested_client_id: match?.id || null,
+    };
+  });
+
+  const { data: inserted, error } = await sb.from("lq_facebook_discovered_pages").insert(rows).select("external_page_id, page_name, suggested_client_id");
+  if (error) throw error;
+
+  return (inserted || []).map((row) => ({
+    id: row.external_page_id,
+    pageName: row.page_name,
+    suggestedClientName: clientRows.find((c) => c.id === row.suggested_client_id)?.name || null,
+  }));
+}
+
+// Mints a fresh Page token via the System User (no OAuth) and runs the same
+// connect path the manual OAuth-confirm flow uses, then marks the discovery
+// row resolved.
+export async function confirmDiscoveredPage(discoveredPageId: string, clientId: string): Promise<void> {
+  const sb = createSupabaseClient();
+  const { data: row, error } = await sb
+    .from("lq_facebook_discovered_pages")
+    .select("external_page_id")
+    .eq("id", discoveredPageId)
+    .eq("status", "pending")
+    .single();
+  if (error || !row) throw new Error("Discovered page not found or already resolved");
+
+  const pageAccessToken = await refreshPageTokenViaSystemUser(row.external_page_id);
+  await connectMessengerPage(clientId, row.external_page_id, pageAccessToken);
+
+  await sb
+    .from("lq_facebook_discovered_pages")
+    .update({ status: "confirmed", confirmed_client_id: clientId, resolved_at: new Date().toISOString() })
+    .eq("id", discoveredPageId);
+}
+
+export async function dismissDiscoveredPage(discoveredPageId: string): Promise<void> {
+  const sb = createSupabaseClient();
+  await sb
+    .from("lq_facebook_discovered_pages")
+    .update({ status: "dismissed", resolved_at: new Date().toISOString() })
+    .eq("id", discoveredPageId);
+}
+
 export interface DeadChannel {
   clientName: string;
   pageId: string;

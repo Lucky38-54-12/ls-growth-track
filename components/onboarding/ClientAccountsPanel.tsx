@@ -36,6 +36,13 @@ export default function ClientAccountsPanel() {
   );
 }
 
+interface FacebookDiscovery {
+  id: string;
+  page_name: string;
+  suggested_client_id: string | null;
+  created_at: string;
+}
+
 function ClientAccountsPanelInner() {
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<LqClient[]>([]);
@@ -50,6 +57,53 @@ function ClientAccountsPanelInner() {
   const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
+
+  const [discoveries, setDiscoveries] = useState<FacebookDiscovery[]>([]);
+  const [discoveryPicks, setDiscoveryPicks] = useState<Record<string, string>>({});
+  const [discoveryBusyId, setDiscoveryBusyId] = useState<string | null>(null);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+
+  async function loadDiscoveries() {
+    const res = await fetch("/api/lead-qual/facebook-discoveries");
+    const body = await res.json();
+    if (res.ok) {
+      setDiscoveries(body.discoveries || []);
+      setDiscoveryPicks((prev) => {
+        const next = { ...prev };
+        for (const d of body.discoveries || []) {
+          if (!next[d.id] && d.suggested_client_id) next[d.id] = d.suggested_client_id;
+        }
+        return next;
+      });
+    }
+  }
+
+  async function handleConfirmDiscovery(discoveryId: string) {
+    const clientId = discoveryPicks[discoveryId];
+    if (!clientId) return;
+    setDiscoveryBusyId(discoveryId);
+    setDiscoveryError(null);
+    const res = await fetch(`/api/lead-qual/facebook-discoveries/${discoveryId}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId }),
+    });
+    const body = await res.json();
+    setDiscoveryBusyId(null);
+    if (!res.ok) {
+      setDiscoveryError(body.error || "Could not connect that page");
+      return;
+    }
+    setDiscoveries((prev) => prev.filter((d) => d.id !== discoveryId));
+    loadClients();
+  }
+
+  async function handleDismissDiscovery(discoveryId: string) {
+    setDiscoveryBusyId(discoveryId);
+    await fetch(`/api/lead-qual/facebook-discoveries/${discoveryId}/dismiss`, { method: "POST" });
+    setDiscoveryBusyId(null);
+    setDiscoveries((prev) => prev.filter((d) => d.id !== discoveryId));
+  }
 
   function startEditEmail(client: LqClient) {
     setEditingEmailId(client.id);
@@ -86,6 +140,7 @@ function ClientAccountsPanelInner() {
 
   useEffect(() => {
     loadClients();
+    loadDiscoveries();
   }, []);
 
   const oauthError = searchParams.get("error");
@@ -121,6 +176,50 @@ function ClientAccountsPanelInner() {
       {fbError && (
         <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", padding: "10px 14px", fontSize: 13, borderRadius: 8 }}>
           Couldn&apos;t connect Facebook Page: {fbError}
+        </div>
+      )}
+
+      {discoveries.length > 0 && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>
+            New Facebook Page{discoveries.length > 1 ? "s" : ""} found on the Business Manager — which client {discoveries.length > 1 ? "do these" : "does this"} belong to?
+          </p>
+          {discoveryError && <p style={{ color: "#b91c1c", fontSize: 12.5 }}>{discoveryError}</p>}
+          {discoveries.map((d) => (
+            <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: "#fff", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px" }}>
+              <MessageCircle style={{ width: 15, height: 15, color: "#92400e", flexShrink: 0 }} />
+              <p style={{ fontSize: 13, fontWeight: 600, color: L.text, flex: "1 1 160px" }}>{d.page_name}</p>
+              <select
+                value={discoveryPicks[d.id] || ""}
+                onChange={(e) => setDiscoveryPicks((prev) => ({ ...prev, [d.id]: e.target.value }))}
+                style={{ fontSize: 12.5, padding: "6px 8px", border: `1px solid ${L.border}`, borderRadius: 6 }}
+              >
+                <option value="">Pick a client…</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => handleConfirmDiscovery(d.id)}
+                disabled={!discoveryPicks[d.id] || discoveryBusyId === d.id}
+                style={{
+                  fontSize: 12, fontWeight: 700, color: "#fff", background: !discoveryPicks[d.id] ? "#d1d5db" : "var(--accent)",
+                  border: "none", borderRadius: 6, padding: "6px 12px", cursor: !discoveryPicks[d.id] ? "default" : "pointer",
+                }}
+              >
+                {discoveryBusyId === d.id ? "Connecting…" : "Confirm"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDismissDiscovery(d.id)}
+                disabled={discoveryBusyId === d.id}
+                style={{ fontSize: 12, color: L.muted, background: "none", border: "none", cursor: "pointer" }}
+              >
+                Not a client
+              </button>
+            </div>
+          ))}
         </div>
       )}
 

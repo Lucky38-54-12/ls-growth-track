@@ -488,6 +488,13 @@ function PageAccessCard({ done, confirming, onConfirm }: { done: boolean; confir
             <li>Enter the email below and add him</li>
             <li>Give him <strong>full control / admin</strong> access and confirm</li>
           </ol>
+          <p style={{ fontSize: 12.5, color: L.muted, marginBottom: 10, lineHeight: 1.6 }}>
+            One more step so your leads connect automatically, with nothing more to click on our end:
+          </p>
+          <ol style={{ fontSize: 12.5, color: L.text, lineHeight: 1.9, paddingLeft: 18, marginBottom: 12 }}>
+            <li>In the same <strong>Page access</strong> settings, under <strong>people with task access from a Business Manager</strong> (or Business Manager Settings → Accounts → Pages), assign your Page to <strong>LS Growth&apos;s Business Manager</strong></li>
+            <li>If Facebook asks who to assign it to, choose the <strong>LS Growth Automation</strong> system user</li>
+          </ol>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: `1px solid ${L.border}`, borderRadius: 0, padding: "8px 10px", marginBottom: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
