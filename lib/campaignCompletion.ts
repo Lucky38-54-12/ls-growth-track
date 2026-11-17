@@ -47,7 +47,7 @@ export async function checkCampaignCompletions(
     const summaryLine = Object.entries(counts).map(([status, n]) => `${n} ${status}`).join(", ");
     await notifySlack(
       `🏁 Campaign *${campaign.name}* has finished its outreach sequence for all ${leads.length} leads: ${summaryLine}.\n` +
-      `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/campaigns`
+      `${process.env.APP_URL || "https://app.lsgrowth.agency"}/dashboard/email-outreach?tab=campaigns`
     );
   }
 

@@ -13,10 +13,10 @@ import { sendDueNoShowFollowups } from "@/lib/noShowSequence";
 import { sendWeeklyDigestIfDue } from "@/lib/weeklyDigest";
 import { sendWeeklyCheckinIfDue } from "@/lib/weeklyCheckin";
 import { sendLowQueueNudge } from "@/lib/callQueueNudge";
-import { checkMessengerChannelHealth, reconcileHumanTakeovers, resubscribeAllMessengerChannels } from "@/lib/leadQual/meta";
+import { checkMessengerChannelHealth, reconcileHumanTakeovers, resubscribeAllMessengerChannels, discoverNewFacebookPages } from "@/lib/leadQual/meta";
 import { checkOnboardingPhotoUploads } from "@/lib/onboardingPhotoCheck";
 import { notifySlack } from "@/lib/slackNotify";
-import { reportAutomationStatus, checkCronHeartbeats } from "@/lib/automationStatus";
+import { reportAutomationStatus } from "@/lib/automationStatus";
 import { checkCampaignCompletions } from "@/lib/campaignCompletion";
 import { checkCreativeDemand } from "@/lib/creativeDemandCheck";
 import { checkLaunchedComboPerformance } from "@/lib/adLaunchTracking";
@@ -194,6 +194,20 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const discovered = await discoverNewFacebookPages();
+    results.facebookDiscovery = { count: discovered.length };
+    if (discovered.length > 0) {
+      await notifySlack(
+        `📣 ${discovered.length} new Facebook Page(s) found on the Business Manager:\n` +
+        discovered.map((d) => `• *${d.pageName}*${d.suggestedClientName ? ` — looks like ${d.suggestedClientName}` : " — no matching client found"}`).join("\n") +
+        `\nConfirm in /dashboard/onboarding (Client Accounts tab).`
+      );
+    }
+  } catch (e) {
+    results.facebookDiscovery = { error: e instanceof Error ? e.message : "facebook page discovery failed" };
+  }
+
+  try {
     // Catches conversations a human quietly took over that humanRepliedOnFacebook
     // (the per-message hard rule in the webhook) never got a chance to see,
     // because that check only fires when the lead messages back in. Without
@@ -220,20 +234,6 @@ export async function GET(req: NextRequest) {
     results.campaignCompletions = await checkCampaignCompletions(sb);
   } catch (e) {
     results.campaignCompletions = { error: e instanceof Error ? e.message : "campaign completion check failed" };
-  }
-
-  try {
-    const { stale } = await checkCronHeartbeats(sb);
-    results.cronHeartbeats = { stale };
-    if (stale.length > 0) {
-      await notifySlack(
-        `🔴 Cron watchdog: ${stale.join(", ")} hasn't reported in on schedule — reminder emails or follow-ups may be silently stalled. ` +
-        `For calendar-sync/lead-qual-callback-reminders/check-personal-inbox, check the cron-job.org job history and CRON_SECRET. ` +
-        `For campaign-send-pipeline/morning-brief/lead-qual-sync, check the "Daily outreach cron" workflow's Actions run history on GitHub — its scheduled trigger has gone silent before while staying "active" and accepting manual runs fine.`
-      );
-    }
-  } catch (e) {
-    results.cronHeartbeats = { error: e instanceof Error ? e.message : "cron heartbeat check failed" };
   }
 
   try {
