@@ -4,6 +4,9 @@ import { createSupabaseClient } from "@/lib/supabase";
 import { reportAutomationStatus } from "@/lib/automationStatus";
 
 export const dynamic = "force-dynamic";
+// No duration was ever set here, so it ran on whatever Vercel's implicit
+// default is — production logs show it's actually hit a 60s timeout.
+export const maxDuration = 280;
 
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
