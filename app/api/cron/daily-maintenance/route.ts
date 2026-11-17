@@ -28,6 +28,14 @@ import { sendPaymentRemindersIfDue } from "@/lib/paymentReminders";
 import { generateInvoicesIfDue } from "@/lib/invoiceAutomation";
 
 export const dynamic = "force-dynamic";
+// ~26 sequential sub-jobs now run here, each awaited in order — real
+// production logs show this has already hit a 300s timeout at least once
+// (2026-11-10), which silently skips every sub-job still queued after the
+// one that was running when the clock ran out (payment reminders/invoicing
+// sit near the end of the list, so they're the most likely casualty). This
+// doesn't raise the actual ceiling beyond the account's plan limit, but
+// documents the real constraint explicitly rather than leaving it implicit.
+export const maxDuration = 300;
 
 // Vercel's free plan caps projects at 2 cron jobs, both already spoken for
 // (this one and the daily-send /api/cron), so check-replies/sheet-sync/health
