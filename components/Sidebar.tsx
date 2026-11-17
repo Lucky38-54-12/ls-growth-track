@@ -3,24 +3,30 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, Phone, Calendar, Sun, ScanSearch, Settings, Bot, Zap, Rows3, PhoneCall, Menu, X, LineChart, ListChecks, Brain, CheckCheck, Target, KeyRound, ClipboardList, Users, Handshake, Mail, Table2, Star, CreditCard,
+  LayoutDashboard, Phone, Calendar, Sun, ScanSearch, Settings, Zap, Rows3, PhoneCall, Menu, X, LineChart, ListChecks, Brain, CheckCheck, Target, KeyRound, ClipboardList, Users, Handshake, Mail, Table2, Star, CreditCard, ChevronDown, Wrench,
 } from "lucide-react";
 
-const NAV = [
+// What Lucky actually looks at daily, always visible. Everything else is a
+// tool he reaches for occasionally, tucked behind the "More tools" dropdown
+// below instead of competing for space at the top level.
+const DAILY_NAV = [
+  { href: "/dashboard/today", label: "Today", icon: Sun },
   { href: "/dashboard/brain", label: "Brain", icon: Brain },
   { href: "/dashboard/approvals", label: "Approvals", icon: CheckCheck },
   { href: "/dashboard/operator", label: "Operator", icon: ClipboardList },
-  { href: "/dashboard/today", label: "Today", icon: Sun },
-  { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
+  { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
+  { href: "/dashboard/payments", label: "Payments", icon: CreditCard },
+];
+
+const TOOLS_NAV = [
+  { href: "/dashboard", label: "Pipeline", icon: LayoutDashboard },
   { href: "/dashboard/email-outreach", label: "Email Outreach", icon: Rows3 },
   { href: "/dashboard/mail", label: "Mail", icon: Mail },
   { href: "/dashboard/campaign-setup", label: "Campaign Setup", icon: Target },
   { href: "/dashboard/sales-calls", label: "Sales", icon: PhoneCall },
   { href: "/dashboard/onboarding", label: "Client Onboarding", icon: Handshake },
-  { href: "/dashboard/payments", label: "Payments", icon: CreditCard },
   { href: "/dashboard/automations", label: "Automations", icon: Zap },
-  { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/call-queue", label: "Call Queue", icon: ListChecks },
   { href: "/dashboard/cold-call", label: "Cold Call", icon: Phone },
   { href: "/dashboard/scraper", label: "Scraper", icon: ScanSearch },
@@ -28,16 +34,51 @@ const NAV = [
   { href: "/dashboard/lead-sheets", label: "Client Lead Sheets", icon: Table2 },
   { href: "/dashboard/review-funnel", label: "Review Funnel", icon: Star },
   { href: "/dashboard/api-usage", label: "API Usage", icon: KeyRound },
-  { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+const TOOLS_OPEN_KEY = "ls-growth-tools-nav-open";
+
+function isActive(path: string, href: string): boolean {
+  return path === href || (href !== "/dashboard" && path.startsWith(href));
+}
 
 export default function Sidebar() {
   const path = usePathname();
   const [navOpen, setNavOpen] = useState(false);
+  const toolsActive = TOOLS_NAV.some((item) => isActive(path, item.href));
+  const [toolsOpen, setToolsOpen] = useState(toolsActive);
 
   useEffect(() => {
     setNavOpen(false);
   }, [path]);
+
+  // Remembers whether Lucky left "More tools" open/closed across page loads
+  // — a tool he's mid-task in shouldn't collapse out from under him on every
+  // navigation, but it also shouldn't force itself back open once he's
+  // closed it. Landing directly on a tools page (toolsActive) always wins,
+  // since that page's own nav entry needs to be visible to show as active.
+  useEffect(() => {
+    if (toolsActive) return;
+    try {
+      const stored = window.localStorage.getItem(TOOLS_OPEN_KEY);
+      if (stored !== null) setToolsOpen(stored === "true");
+    } catch {
+      // localStorage can throw in some contexts (private mode, etc) — fine
+      // to just fall back to the default state.
+    }
+  }, [toolsActive]);
+
+  function toggleTools() {
+    setToolsOpen((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(TOOLS_OPEN_KEY, String(next));
+      } catch {
+        // Best-effort only.
+      }
+      return next;
+    });
+  }
 
   // /review/[slug] is the public review-gating page a client's own customer
   // opens from an email — they have no business seeing LS Growth's internal
@@ -91,8 +132,8 @@ export default function Sidebar() {
         {/* Nav */}
         <nav style={{ flex: 1, padding: "14px 10px", overflowY: "auto" }}>
           <p style={{ padding: "4px 10px 10px", fontSize: 9, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.15em", textTransform: "uppercase" }}>Menu</p>
-          {NAV.map(({ href, label, icon: Icon }) => {
-            const active = path === href || (href !== "/dashboard" && path.startsWith(href));
+          {DAILY_NAV.map(({ href, label, icon: Icon }) => {
+            const active = isActive(path, href);
             return (
               <Link key={href} href={href} className={active ? "" : "nav-link-light"} style={{
                 display: "flex", alignItems: "center", gap: 10,
@@ -110,6 +151,66 @@ export default function Sidebar() {
               </Link>
             );
           })}
+
+          <button
+            type="button"
+            onClick={toggleTools}
+            aria-expanded={toolsOpen}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              padding: "9px 10px", marginTop: 10, marginBottom: 2,
+              fontSize: 13, fontWeight: 600, color: toolsActive ? "var(--accent)" : "#475569",
+              background: "transparent", border: "none", borderRadius: 8, cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <Wrench style={{ width: 15, height: 15, color: toolsActive ? "var(--accent)" : "#94a3b8", flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>More tools</span>
+            <ChevronDown style={{
+              width: 14, height: 14, color: "#94a3b8", flexShrink: 0,
+              transform: toolsOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s",
+            }} />
+          </button>
+
+          {toolsOpen && TOOLS_NAV.map(({ href, label, icon: Icon }) => {
+            const active = isActive(path, href);
+            return (
+              <Link key={href} href={href} className={active ? "" : "nav-link-light"} style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "9px 10px 9px 20px",
+                fontSize: 13, fontWeight: active ? 700 : 500,
+                background: active ? "linear-gradient(135deg, var(--accent-tint) 0%, #f5fbff 100%)" : "transparent",
+                color: active ? "var(--accent)" : "#475569",
+                borderRadius: 8,
+                boxShadow: active ? "0 1px 3px rgba(0,128,224,0.12)" : "none",
+                marginBottom: 2, textDecoration: "none",
+                transition: "all 0.15s",
+              }}>
+                <Icon style={{ width: 14, height: 14, color: active ? "var(--accent)" : "#94a3b8", flexShrink: 0 }} />
+                {label}
+              </Link>
+            );
+          })}
+
+          {(() => {
+            const active = isActive(path, "/settings");
+            return (
+              <Link href="/settings" className={active ? "" : "nav-link-light"} style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "9px 10px", marginTop: 10,
+                fontSize: 13, fontWeight: active ? 700 : 500,
+                background: active ? "linear-gradient(135deg, var(--accent-tint) 0%, #f5fbff 100%)" : "transparent",
+                color: active ? "var(--accent)" : "#475569",
+                borderRadius: 8,
+                boxShadow: active ? "0 1px 3px rgba(0,128,224,0.12)" : "none",
+                textDecoration: "none",
+                transition: "all 0.15s",
+              }}>
+                <Settings style={{ width: 15, height: 15, color: active ? "var(--accent)" : "#94a3b8", flexShrink: 0 }} />
+                Settings
+              </Link>
+            );
+          })()}
         </nav>
 
         {/* Footer */}
