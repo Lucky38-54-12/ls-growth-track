@@ -1,5 +1,6 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
+import MailComposer from "nodemailer/lib/mail-composer";
 
 export type MailAccount = "gmail" | "zoho";
 
@@ -9,9 +10,9 @@ const ACCOUNTS: Record<MailAccount, { host: string; user: string; pass: string }
 };
 
 // Gmail and Zoho use different names for the same special folders.
-export const SPECIAL_FOLDERS: Record<MailAccount, { sent: string; trash: string; archive: string }> = {
-  gmail: { sent: "[Gmail]/Sent Mail", trash: "[Gmail]/Trash", archive: "[Gmail]/All Mail" },
-  zoho: { sent: "Sent", trash: "Trash", archive: "Archive" },
+export const SPECIAL_FOLDERS: Record<MailAccount, { sent: string; trash: string; archive: string; drafts: string }> = {
+  gmail: { sent: "[Gmail]/Sent Mail", trash: "[Gmail]/Trash", archive: "[Gmail]/All Mail", drafts: "[Gmail]/Drafts" },
+  zoho: { sent: "Sent", trash: "Trash", archive: "Archive", drafts: "Drafts" },
 };
 
 export interface InboxMessage {
@@ -236,6 +237,38 @@ export async function markAsUnread(uid: number, mailbox = "INBOX", account: Mail
     await client.connect();
     await client.mailboxOpen(box);
     await client.messageFlagsRemove(String(uid), ["\\Seen"], { uid: true });
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
+// Puts a message straight into the Gmail/Zoho Drafts folder instead of
+// sending it — built via nodemailer's MailComposer (raw MIME, no transport)
+// then IMAP-APPENDed with the \Draft flag. Used by automations that should
+// leave something ready for Lucky to review and send himself (see
+// feedback_brain_approval_gate memory) rather than ever sending on their
+// own — the existing IMAP app-password auth already in this file is enough,
+// no separate Gmail-API OAuth scope needed.
+export async function draftMessage(opts: {
+  to: string; subject: string; body: string; account?: MailAccount;
+}): Promise<void> {
+  const account = opts.account || "gmail";
+  const { user } = ACCOUNTS[account];
+  const composer = new MailComposer({
+    from: user,
+    to: opts.to,
+    subject: opts.subject,
+    text: opts.body,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap">${opts.body}</div>`,
+  });
+  const raw: Buffer = await new Promise((resolve, reject) => {
+    composer.compile().build((err, message) => (err ? reject(err) : resolve(message)));
+  });
+
+  const client = getClient(account);
+  try {
+    await client.connect();
+    await client.append(SPECIAL_FOLDERS[account].drafts, raw, ["\\Draft"]);
   } finally {
     await client.logout().catch(() => {});
   }

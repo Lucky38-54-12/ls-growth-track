@@ -13,6 +13,8 @@ export interface PaymentClient {
   billing_cycle_days: number;
   next_payment_due_date: string | null;
   last_paid_at: string | null;
+  pending_invoice_doc_url: string | null;
+  pending_invoice_tone: string | null;
 }
 
 function todayISODate(): string {
@@ -150,6 +152,19 @@ export default function PaymentsTable({ clients: initialClients }: { clients: Pa
                   >
                     Mark paid
                   </button>
+                  {c.pending_invoice_doc_url && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-start" }}>
+                      <a
+                        href={c.pending_invoice_doc_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 11, fontWeight: 700, color: L.muted, background: "#f1f5f9", borderRadius: 6, padding: "4px 8px", textDecoration: "none" }}
+                      >
+                        View invoice
+                      </a>
+                      <span style={{ fontSize: 10.5, color: "#1d4ed8" }}>Email drafted in Gmail</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );

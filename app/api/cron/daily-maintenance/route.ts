@@ -25,6 +25,7 @@ import { checkLeadConversionTrend } from "@/lib/leadConversionCheck";
 import { sendWeeklySystemsHealthIfDue } from "@/lib/systemsHealthDigest";
 import { sendMidMonthCheckinPrepIfDue, sendEndOfMonthResultsPrepIfDue } from "@/lib/clientCatchupPrep";
 import { sendPaymentRemindersIfDue } from "@/lib/paymentReminders";
+import { generateInvoicesIfDue } from "@/lib/invoiceAutomation";
 
 export const dynamic = "force-dynamic";
 
@@ -263,6 +264,14 @@ export async function GET(req: NextRequest) {
     const message = e instanceof Error ? e.message : "payment reminder failed";
     results.paymentReminder = { error: message };
     await notifySlack(`🔴 Payment reminder failed: ${message} — check /dashboard/automations, you may be due a payment nudge that never sent.`);
+  }
+
+  try {
+    results.invoiceAutomation = await generateInvoicesIfDue(sb);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "invoice automation failed";
+    results.invoiceAutomation = { error: message };
+    await notifySlack(`🔴 Invoice automation failed: ${message} — check /dashboard/payments.`);
   }
 
   const failedTasks = Object.entries(results).filter(([, v]) => v && typeof v === "object" && "error" in v);

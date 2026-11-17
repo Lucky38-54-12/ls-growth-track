@@ -8,7 +8,7 @@ export default async function PaymentsPage() {
   const sb = createSupabaseClient();
   const { data: clients } = await sb
     .from("lq_clients")
-    .select("id, name, contact_name, trade, monthly_fee, billing_cycle_days, next_payment_due_date, last_paid_at")
+    .select("id, name, contact_name, trade, monthly_fee, billing_cycle_days, next_payment_due_date, last_paid_at, pending_invoice_doc_url, pending_invoice_tone")
     .order("name", { ascending: true });
 
   return (
