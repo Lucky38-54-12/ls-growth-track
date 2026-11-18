@@ -147,24 +147,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true, call_id: call.id, proposal_id: proposal?.id || null });
       }
 
-      try {
-        await sendPreparedRecap(subject, html, [recapEmail]);
-        await sb.from("sales_calls").update({
-          recap_status: "sent",
-          recap_subject: subject,
-          recap_html: html,
-          recap_recipient: recapEmail,
-          recap_sent_at: new Date().toISOString(),
-        }).eq("id", call.id);
-      } catch (sendErr) {
-        console.error("fireflies webhook failed to send call recap, holding as pending", meetingId, sendErr);
-        await sb.from("sales_calls").update({
-          recap_status: "pending",
-          recap_subject: subject,
-          recap_html: html,
-          recap_recipient: recapEmail,
-        }).eq("id", call.id);
-      }
+      // Drafts only: the recap is held as pending for Lucky to approve on the
+      // dashboard. Nothing is sent to the prospect automatically.
+      await sb.from("sales_calls").update({
+        recap_status: "pending",
+        recap_subject: subject,
+        recap_html: html,
+        recap_recipient: recapEmail,
+      }).eq("id", call.id);
     }
 
     return NextResponse.json({ ok: true, call_id: call.id, proposal_id: proposal?.id || null });
